@@ -11,6 +11,7 @@ import android.system.Os
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.time.LocalDateTime
 
 /**
  * The shared-storage backup layer: publishing the config into Download/[subDir] and reading
@@ -32,12 +33,14 @@ import java.io.InputStream
  *                   throws, so the log IS its error channel
  *   [beforePublish] runs between the complete temp and its publish. A no-op in the app; a
  *                   seam only so the instrumented test can fail (or "crash") exactly there.
+ *   [now]           the clock a backup's name is stamped from; fixed in a test.
  */
 internal class BackupStore(
     private val resolver: ContentResolver,
     private val subDir: String,
     private val log: (String, Exception?) -> Unit,
     private val beforePublish: () -> Unit = {},
+    private val now: () -> LocalDateTime = LocalDateTime::now,
 ) {
 
     // MediaStore stores RELATIVE_PATH WITH a trailing slash; the query below must match it.
@@ -45,8 +48,8 @@ internal class BackupStore(
 
     /**
      * Publish [payload] as a backup of [base] (e.g. "verso") in Download/[subDir]. Returns the
-     * name it was published under — usually "<base>.json", "<base> (n).json" when MediaStore
-     * had to dodge a name taken by a row we do not own — or null if nothing was published.
+     * name it was published under — "<base>-<date>_<time>.json" ([BackupFiles.publishedName]),
+     * with a " (n)" if MediaStore had to dodge a taken name — or null if nothing was published.
      * Needs no storage permission: an app may always write into the Downloads collection and
      * rewrite what it wrote itself. Never throws — a failed backup is reported and forgotten,
      * it must not take a HOME app down with it.
@@ -55,10 +58,9 @@ internal class BackupStore(
      * It is the only off-device copy, so it must survive every failure and every crash.
      *   1. Insert a PENDING temp row and write + fsync the payload into it. Pending keeps the
      *      half-written file invisible to file managers.
-     *   2. Publish: rename the temp to "<base>.json" and clear pending in ONE update, and
-     *      demand that it changed exactly that one row. The old backup still exists at this
-     *      point, so MediaStore publishes the new one as "<base> (n).json" — which is why
-     *      restores pick the newest row by pattern instead of a fixed name ([BackupFiles]).
+     *   2. Publish: rename the temp to its timestamped name and clear pending in ONE update,
+     *      and demand that it changed exactly that one row. The old backup still exists at
+     *      this point — which is why a restore picks the newest row by pattern ([BackupFiles]).
      *   3. Only now delete what the new backup replaces: older published copies and stranded
      *      temps. A failure here leaves an extra file, never a missing one.
      * A failure in 1 or 2 deletes only the temp — the old backup is untouched. A crash in 1 or 2
@@ -67,6 +69,7 @@ internal class BackupStore(
      */
     fun write(base: String, payload: String): String? {
         var tmp: Uri? = null
+        val wanted = BackupFiles.publishedName(base, now())
         return try {
             tmp = resolver.insert(
                 MediaStore.Downloads.EXTERNAL_CONTENT_URI,
@@ -89,7 +92,7 @@ internal class BackupStore(
             val updated = resolver.update(
                 tmp,
                 ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, BackupFiles.publishedName(base))
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, wanted)
                     put(MediaStore.MediaColumns.IS_PENDING, 0)
                 },
                 null,
@@ -109,7 +112,7 @@ internal class BackupStore(
                     log("backup: could not remove the replaced ${old.name}", e)
                 }
             }
-            own.firstOrNull { it.id == id }?.name ?: BackupFiles.publishedName(base)
+            own.firstOrNull { it.id == id }?.name ?: wanted
         } catch (e: Exception) {
             log("backup of $base to Downloads failed", e)
             // Only the unpublished temp — every older backup is still in place.

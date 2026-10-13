@@ -92,14 +92,13 @@ import java.util.concurrent.RejectedExecutionException
  *   ~ / ~load  reload verso.json from disk (the config is cached otherwise)
  *   ~save      flush the in-memory config to disk (saves are automatic; this is
  *              the explicit "write it now" for peace of mind)
- *   ~backup    export the config to Download/Verso/verso.json, replacing the
- *              previous one once the new one is safely published — one current
- *              backup. MediaStore may name it "verso (1).json" when the plain name
- *              is taken by a file this install does not own (e.g. after a reinstall)
+ *   ~backup    export the config to Download/Verso/verso-<date>_<time>.json,
+ *              replacing the previous one once the new one is safely published —
+ *              always just the one current backup
  *   ~restore   adopt the newest such backup again. No picker. The config being
- *              replaced is first written next to it as verso-pre-restore.json; if
- *              that fails the restore is aborted, so a restore never destroys the
- *              state it overwrote without a trace.
+ *              replaced is first written next to it as verso-pre-restore-<date>_<time>
+ *              .json; if that fails the restore is aborted, so a restore never
+ *              destroys the state it overwrote without a trace.
  *   ~restore-saf
  *              same, but PICK the file via the system document picker. The escape
  *              hatch for a config carried over from another phone — or a sigil.json
@@ -735,7 +734,7 @@ class MainActivity : Activity() {
         val accepted = submitIo {
             val name = backupStore.write(BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
             runOnUiThread {
-                // Name the file actually written — MediaStore may have made it "verso (1).json".
+                // Name the file actually written: its name carries the time it was taken.
                 if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
                 else toast(getString(R.string.toast_backup_failed))
             }
@@ -1370,8 +1369,7 @@ class MainActivity : Activity() {
         // Fixed names, not timestamped ones: there is exactly ONE backup and ONE undo
         // point, each overwritten in place. That is what lets "~restore" skip a file
         // picker — it already knows the name of the only file it could mean.
-        /** The backups' base names: published as "<base>.json", or "<base> (n).json" when
-         *  MediaStore has to dodge a taken name (see BackupFiles). */
+        /** The backups' base names: published as "<base>-<date>_<time>.json" (see BackupFiles). */
         const val BACKUP_BASE = "verso"
         const val PRE_RESTORE_BASE = "verso-pre-restore"
         const val REQ_RESTORE = 1
