@@ -39,6 +39,13 @@ class SourceGuardTest {
         assertTrue(activity.contains("Command.CLEANUP -> cleanup()"))
     }
 
+    @Test fun `no string template reaches through an object without braces`() {
+        // "$BackupFiles.DIR" is "BackupFiles@1a2b.DIR" — it compiles and silently breaks
+        // (it once sent ~restore-saf's picker to a folder that does not exist).
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        assertFalse(Regex("""\$[A-Z][A-Za-z]*\.[A-Z]""").containsMatchIn(activity))
+    }
+
     @Test fun `density stays out of configChanges`() {
         val manifest = source("src/main/AndroidManifest.xml")
         val changes = Regex("""android:configChanges="([^"]*)"""").findAll(manifest).map { it.groupValues[1] }.toList()

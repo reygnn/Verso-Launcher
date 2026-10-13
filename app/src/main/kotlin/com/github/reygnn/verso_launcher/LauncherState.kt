@@ -313,6 +313,9 @@ internal class LauncherState(
             onDone(CleanupOutcome.Refused)
             return
         }
+        // The config object itself: a wholesale replace (adopt, a reload) swaps it, while an
+        // edit mutates it in place — so this tells "replaced meanwhile" from "edited meanwhile".
+        val base = config
         val snapshot = config.snapshot()
         val payload = serialize(config)
         val accepted = io(Runnable {
@@ -326,8 +329,14 @@ internal class LauncherState(
                 }
             }
             main(Runnable {
-                if (outcome is CleanupOutcome.Done) forget(outcome.keys)
-                onDone(outcome)
+                when {
+                    outcome !is CleanupOutcome.Done -> onDone(outcome)
+                    config !== base -> onDone(CleanupOutcome.Superseded)
+                    else -> {
+                        forget(outcome.keys)
+                        onDone(outcome)
+                    }
+                }
             })
         })
         if (!accepted) onDone(CleanupOutcome.Refused)

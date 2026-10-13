@@ -58,6 +58,27 @@ internal data class AppEntry(
          */
         fun keyOf(packageName: String, className: String, profile: Long?): String =
             if (profile == null) "$packageName/$className" else "$packageName/$className#$profile"
+
+        /**
+         * [key] taken apart — or null when it is no key [keyOf] could have built: no
+         * "package/class", a package or class name no app can have, a profile serial that is
+         * not a plain non-negative number ("#+10", "#010", "#-1"), anything around them. Such a
+         * key can never match an app; "~cleanup" treats it as gone without asking the system.
+         */
+        fun parseKey(key: String): KeyParts? {
+            val hash = key.lastIndexOf('#')
+            val component = if (hash < 0) key else key.substring(0, hash)
+            val profile = if (hash < 0) null else key.substring(hash + 1).toLongOrNull() ?: return null
+            if (profile != null && profile < 0) return null
+            val packageName = component.substringBefore('/', "")
+            val className = component.substringAfter('/', "")
+            if (!PACKAGE.matches(packageName) || !CLASS.matches(className)) return null
+            return KeyParts(packageName, className, profile).takeIf { keyOf(packageName, className, profile) == key }
+        }
+
+        // What Android accepts as a package name, and a (fully qualified, maybe nested) class.
+        private val PACKAGE = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)*")
+        private val CLASS = Regex("[A-Za-z0-9_$]+(\\.[A-Za-z0-9_$]+)*")
     }
 }
 
@@ -80,3 +101,6 @@ internal enum class AppStatus {
         }
     }
 }
+
+/** A config key taken apart ([AppEntry.parseKey]); [profile] is null for the personal profile. */
+internal data class KeyParts(val packageName: String, val className: String, val profile: Long?)

@@ -53,7 +53,8 @@
     <string name="cleanup_names">Eigene Namen: %1$d</string>
     <string name="cleanup_tags">Tag-Listen: %1$d</string>
     <string name="cleanup_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-cleanup).</string>
-    <string name="toast_cleanup_failed">Nichts geändert — installierte Apps nicht lesbar</string>
+    <string name="toast_cleanup_not_run">Nichts geändert — bitte nochmal versuchen</string>
+    <string name="toast_cleanup_superseded">Nichts geändert — Konfiguration wurde inzwischen ersetzt</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>

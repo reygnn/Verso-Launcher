@@ -362,6 +362,28 @@ class LauncherStateTest {
         assertEquals("done:${CleanupOutcome.NothingToDo}", cleanupLog.last())
     }
 
+    @Test fun `a config replaced between the check and the removal is left alone`() {
+        startedWithOrphan()
+        cleanup()
+        runIo()                                            // check + undo point done
+        val restored = VersoConfig(favorites = linkedSetOf(key("Bravo"), "gone/A"), names = linkedMapOf("gone/A" to "Old"))
+        mainQueue.addFirst(Runnable { state.adopt(restored) })  // a restore lands first
+        runAll()
+        assertEquals(setOf(key("Bravo"), "gone/A"), state.config.favorites)
+        assertEquals("Old", state.config.names["gone/A"])
+        assertEquals("done:${CleanupOutcome.Superseded}", cleanupLog.last())
+    }
+
+    @Test fun `an edit between the check and the removal is kept, and the cleanup still runs`() {
+        startedWithOrphan()
+        cleanup()
+        runIo()
+        mainQueue.addFirst(Runnable { state.toggleFavorite(key("Bravo")) })
+        runAll()
+        assertEquals(setOf(key("Alpha"), key("Bravo")), state.config.favorites)
+        assertTrue(cleanupLog.last().startsWith("done:Done"))
+    }
+
     @Test fun `a refused IO task cleans nothing and says so`() {
         startedWithOrphan()
         ioOpen = false

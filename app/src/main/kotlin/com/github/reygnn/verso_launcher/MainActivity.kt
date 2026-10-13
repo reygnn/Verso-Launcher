@@ -264,6 +264,10 @@ class MainActivity : Activity() {
     private var renameDialog: AlertDialog? = null
     // The "~cleanup" confirmation, tracked for the same reason.
     private var commandDialog: AlertDialog? = null
+    // A "~cleanup" check is running (see cleanup), and the ticket its result must still match:
+    // bumped whenever the page turns away (closeDrawer, HOME, onStop).
+    private var cleanupChecking = false
+    private var cleanupTicket = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -744,6 +748,7 @@ class MainActivity : Activity() {
             return
         }
         drawerOpen = false
+        cleanupTicket++
         // HOME, Back or the screen going off while a finger drags the drawer: that drag is over
         // and must not settle the drawer back open over a home that is now in front.
         root.abortDrag()
@@ -925,6 +930,7 @@ class MainActivity : Activity() {
      */
     override fun onStop() {
         started = false
+        cleanupTicket++
         // Also a dialog opened from the home page, which closeDrawer does not touch.
         renameDialog?.dismiss()
         commandDialog?.dismiss()
@@ -1029,6 +1035,7 @@ class MainActivity : Activity() {
         // has visually left behind.
         renameDialog?.dismiss()
         commandDialog?.dismiss()
+        cleanupTicket++
         // Also clears the prompt (closeDrawer always does), so the next swipe up opens on
         // the plain drawer rather than whatever mode was last typed.
         closeDrawer()
@@ -1138,13 +1145,17 @@ class MainActivity : Activity() {
             toast(getString(R.string.toast_not_loaded))
             return
         }
+        if (cleanupChecking) return  // a check is already on its way to its dialog
+        cleanupChecking = true
+        val ticket = cleanupTicket
         val snapshot = state.config.snapshot()
         val accepted = submitIo {
             val plan = cleanupCheck(snapshot)
             onUi {
-                // Left meanwhile (an app started, the screen off): no dialog waiting invisibly
-                // for the next return home, no toast over another app.
-                if (!started) return@onUi
+                cleanupChecking = false
+                // Left meanwhile — the drawer closed, HOME, an app started, the screen off: no
+                // dialog popping up over a page that moved on, no toast over another app.
+                if (!started || ticket != cleanupTicket) return@onUi
                 when (plan) {
                     CleanupPlan.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
                     CleanupPlan.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
@@ -1152,7 +1163,10 @@ class MainActivity : Activity() {
                 }
             }
         }
-        if (!accepted) toast(getString(R.string.toast_cleanup_failed))
+        if (!accepted) {
+            cleanupChecking = false
+            toast(getString(R.string.toast_cleanup_not_run))
+        }
     }
 
     /** The IO half of a cleanup check: enumerate afresh, then ask [Cleanup.plan]. */
@@ -1164,29 +1178,41 @@ class MainActivity : Activity() {
             Log.w("Verso", "cleanup: profiles unreadable", e)
             return CleanupPlan.Incomplete
         }
-        return Cleanup.plan(cfg, found) { key -> stillThere(key, listed) }
+        return Cleanup.plan(cfg, found) { parts -> stillThere(parts, listed) }
     }
 
     /**
-     * Whether the app behind [key] is still on the device although not listed: disabled, its
-     * launcher icon switched off (an icon alias), on storage that is not mounted, or in a profile
-     * that exists but is not among those [listed]. Unsure counts as there — a cleanup keeps
-     * what it cannot rule out.
+     * Whether the app behind a key is still on the device although not listed: disabled, its
+     * launcher icon (an activity alias) switched off, uninstalled with its data kept, on storage
+     * that is not mounted, or in a profile that exists but is not among those [listed]. In the
+     * personal profile the exact activity is looked up, so one renamed by an update counts as
+     * gone; another profile only allows a package lookup. Unsure counts as there — a cleanup
+     * keeps what it cannot rule out.
      */
-    private fun stillThere(key: String, listed: Set<Long>): Boolean {
-        val pkg = key.substringBefore('#').substringBefore('/')
-        val serial = key.substringAfter('#', "").toLongOrNull()
-        return try {
-            val user = if (serial == null) Process.myUserHandle()
-            else userManager.getUserForSerialNumber(serial) ?: return false  // profile gone
-            if (serial != null && serial !in listed) return true
-            launcherApps.getApplicationInfo(pkg, STILL_THERE_FLAGS, user) != null
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
-        } catch (e: RuntimeException) {
-            Log.w("Verso", "cleanup: cannot check $key", e)
+    private fun stillThere(key: KeyParts, listed: Set<Long>): Boolean = try {
+        val serial = key.profile
+        if (serial == null) {
+            packageManager.getActivityInfo(
+                ComponentName(key.packageName, key.className),
+                PackageManager.ComponentInfoFlags.of(STILL_THERE_FLAGS.toLong()),
+            )
             true
+        } else {
+            val user = userManager.getUserForSerialNumber(serial)
+            when {
+                user == null -> false             // the profile is gone, and its apps with it
+                serial !in listed -> true         // there, but not one Verso can list
+                else -> {
+                    launcherApps.getApplicationInfo(key.packageName, STILL_THERE_FLAGS, user)
+                    true
+                }
+            }
         }
+    } catch (e: PackageManager.NameNotFoundException) {
+        false
+    } catch (e: RuntimeException) {
+        Log.w("Verso", "cleanup: cannot check ${key.packageName}", e)
+        true
     }
 
     private fun confirmCleanup(orphans: Orphans) {
@@ -1219,13 +1245,17 @@ class MainActivity : Activity() {
             recheck = ::cleanupCheck,
             writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
         ) { outcome ->
+            if (outcome is CleanupOutcome.Done) refilter()
+            // Gone meanwhile (an app in front, the screen off): the result stands, but no toast
+            // over another app.
+            if (!started) return@cleanup
             when (outcome) {
-                CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_failed))
+                CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_not_run))
+                CleanupOutcome.Superseded -> toast(getString(R.string.toast_cleanup_superseded))
                 CleanupOutcome.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
                 CleanupOutcome.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
                 CleanupOutcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed))
                 is CleanupOutcome.Done -> {
-                    refilter()
                     toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
                 }
             }
@@ -1291,7 +1321,7 @@ class MainActivity : Activity() {
                 DocumentsContract.EXTRA_INITIAL_URI,
                 DocumentsContract.buildDocumentUri(
                     "com.android.externalstorage.documents",
-                    "primary:${Environment.DIRECTORY_DOWNLOADS}/$BackupFiles.DIR",
+                    "primary:${Environment.DIRECTORY_DOWNLOADS}/${BackupFiles.DIR}",
                 ),
             )
         try {
@@ -1583,6 +1613,7 @@ class MainActivity : Activity() {
      */
     private fun enumerate(cfg: VersoConfig): Enumeration? {
         var complete = true
+        val emptyProfiles = HashSet<Long>()
         val pm = packageManager
         val self = packageName
         val personal = Process.myUserHandle()
@@ -1627,10 +1658,13 @@ class MainActivity : Activity() {
                 complete = false
                 continue
             }
-            // An empty list, no error: a profile being set up or torn down, or one the system
-            // will not show right now. Its apps would look uninstalled to "~cleanup" — so an
-            // empty personal profile, or an empty one the config has entries for, is not seen.
-            if (activities.isEmpty() && (isPersonal || cfg.mentionsProfile(serial))) complete = false
+            // An empty list, no error: a profile with no apps — or one being set up or torn down,
+            // or one the system will not show right now. "~cleanup" cannot tell which, so it
+            // keeps that profile's entries (Enumeration.emptyProfiles). An empty PERSONAL list is
+            // never real: nothing is seen.
+            if (activities.isEmpty()) {
+                if (isPersonal) complete = false else serial?.let { emptyProfiles += it }
+            }
             for (info in activities) {
                 try {
                     val component = info.componentName
@@ -1668,7 +1702,7 @@ class MainActivity : Activity() {
                 }
             }
         }
-        return Enumeration(LauncherLogic.sortedForDrawer(entries), complete)
+        return Enumeration(LauncherLogic.sortedForDrawer(entries), complete, emptyProfiles)
     }
 
     /**

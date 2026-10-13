@@ -24,10 +24,35 @@ class CleanupTest {
     }
 
     @Test fun `an app still on the device in some form is never offered`() {
-        val plan = Cleanup.plan(config, Enumeration(listOf(here), complete = true)) { it == "disabled/Main" }
+        val plan = Cleanup.plan(config, Enumeration(listOf(here), complete = true)) { it.packageName == "disabled" }
         val orphans = (plan as CleanupPlan.Offer).orphans
         assertEquals(setOf("gone/Gone"), orphans.keys)
         assertEquals(listOf(1, 1), listOf(orphans.favorites, orphans.hidden))
+    }
+
+    @Test fun `a key no app can have is gone without asking the system`() {
+        val junk = listOf("com.foo/Bar ", "com.foo", "/x", "", "#10", "com.foo/X#", "com.foo/X#+10",
+            "com.foo/X#010", "com.foo/X#-1", "com.foo/X#10#11", "com.foo/a b", "1com/X")
+        val asked = mutableListOf<KeyParts>()
+        val plan = Cleanup.plan(VersoConfig(hidden = LinkedHashSet(junk)), Enumeration(emptyList(), complete = true)) {
+            asked += it; true
+        }
+        assertEquals(junk.toSet(), (plan as CleanupPlan.Offer).orphans.keys)
+        assertEquals(emptyList<KeyParts>(), asked)
+    }
+
+    @Test fun `entries of a profile that answered empty are kept, other profiles still checked`() {
+        val cfg = VersoConfig(favorites = linkedSetOf("a.b/C#10", "a.b/C#11"))
+        val plan = Cleanup.plan(cfg, Enumeration(emptyList(), complete = true, emptyProfiles = setOf(10L))) { false }
+        assertEquals(setOf("a.b/C#11"), (plan as CleanupPlan.Offer).orphans.keys)
+    }
+
+    @Test fun `parseKey takes apart exactly what keyOf builds`() {
+        assertEquals(KeyParts("com.foo", "com.foo.Main", null), AppEntry.parseKey("com.foo/com.foo.Main"))
+        assertEquals(KeyParts("com.foo", "com.foo.Main\$Inner", 10L), AppEntry.parseKey("com.foo/com.foo.Main\$Inner#10"))
+        assertEquals(KeyParts("android", "X", 0L), AppEntry.parseKey("android/X#0"))
+        for (bad in listOf("com.foo/X#010", "com.foo/X#+1", "com.foo/X#-1", "com.foo/X ", "com.foo/", "/X", "com.foo"))
+            assertEquals(bad, null, AppEntry.parseKey(bad))
     }
 
     @Test fun `nothing gone means nothing to do`() {

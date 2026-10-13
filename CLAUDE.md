@@ -167,12 +167,15 @@ main, written on the IO thread.
 13. **`density` stays out of `configChanges`**: a display-size change must recreate
     the activity so every dp-derived pixel value is recomputed.
 14. **`~cleanup` removes only what a COMPLETE enumeration shows gone from the device**
-    (every profile and app read, no profile silently empty that the config has entries
-    for — `Cleanup.plan`); a package still there in any form (disabled, icon switched off,
-    unmounted, in a profile not listed) is never offered. Only after the user confirms the
-    counts, then on the IO thread a re-check, then the undo point (`verso-pre-cleanup-…`),
-    then the removal of what was confirmed AND is still gone (`LauncherState.cleanup`).
-    No undo point, no cleanup.
+    (`Cleanup.plan`): every profile and app read; a profile that answers empty keeps its
+    entries; a key no app can have (`AppEntry.parseKey` null) is gone; otherwise the
+    system is asked — the exact activity in the personal profile, the package in another
+    one — and anything still there in any form (disabled, icon alias off, unmounted,
+    removed only for the user, in a profile not listed) is never offered. Only after the
+    user confirms the counts; then on the IO thread a re-check, the undo point
+    (`verso-pre-cleanup-…`), and — unless the config was replaced meanwhile — the removal
+    of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
+    cleanup.
 
 ---
 

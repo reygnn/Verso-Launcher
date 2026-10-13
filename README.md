@@ -133,9 +133,11 @@ keyboard, no prompt:
       before anything goes. `~restore-saf` with that file undoes it — it brings back
       the whole config as it was then, so later changes go too; and the next
       `~cleanup` replaces that undo point. Only apps gone from the device count: a
-      disabled app, one with its icon switched off, one on an unmounted card or in a
-      profile Verso cannot list keeps its entries; and nothing runs unless every
-      profile could be read. Don't run it while a new phone is still reinstalling
+      disabled app, one with its icon switched off, one on an unmounted card, a system
+      app removed only for you, or one in a profile Verso cannot list (or that shows no
+      apps right now) keeps its entries; an entry whose launcher activity an update
+      renamed, or a malformed one from a restored file, counts as gone. Nothing runs
+      unless every profile could be read. Don't run it while a new phone is still reinstalling
       your apps — those not back yet count as gone. Old files in `Download/Verso/`
       are left to a file manager (Android lets Verso touch only its own)
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the

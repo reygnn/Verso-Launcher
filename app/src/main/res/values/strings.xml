@@ -54,7 +54,8 @@
     <string name="cleanup_names">custom names: %1$d</string>
     <string name="cleanup_tags">tag lists: %1$d</string>
     <string name="cleanup_undo_note">The current config is saved first (verso-pre-cleanup).</string>
-    <string name="toast_cleanup_failed">nothing changed — could not read the installed apps</string>
+    <string name="toast_cleanup_not_run">nothing changed — try again</string>
+    <string name="toast_cleanup_superseded">nothing changed — the config was replaced meanwhile</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
     <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
          read aloud sensibly). %1$s is the app label. -->
