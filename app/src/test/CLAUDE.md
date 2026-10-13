@@ -13,13 +13,13 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 420 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 434 tests):
 
 ```
-LauncherLogicTest          132  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          133  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           54  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           60  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents
 LauncherRowsTest            37  rowsFor per mode
@@ -31,13 +31,13 @@ ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JS
 LauncherActionsTest         19  Enter / tap decisions
 HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
-BackupFilesTest             16  backup naming: timestamps, patterns, restore pick, sweep
+BackupFilesTest             17  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
-VersoConfigTest              9  snapshot deep copy, sameContent
+VersoConfigTest             10  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
 RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
@@ -46,8 +46,9 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
                                 tap, the "open all apps" action, the empty-favorites hint
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
-SourceGuardTest              2  source scans: no lenient ConfigJson.parse in MainActivity,
-                                no density in configChanges
+CleanupTest                  4  what ~cleanup may offer: complete enumeration only, kept apps
+SourceGuardTest              3  source scans: no lenient ConfigJson.parse in MainActivity,
+                                no density in configChanges, ~cleanup's IO guards
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`

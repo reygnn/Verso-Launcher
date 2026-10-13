@@ -94,6 +94,7 @@ com.github.reygnn.verso_launcher/
   BackupStore         Download/Verso via MediaStore
   BackupFiles         pure backup naming rules
   RestoreSteps        the IO half of a restore, in its load-bearing order
+  Cleanup             pure "~cleanup" decisions: what may be offered (CleanupPlan)
 ```
 
 Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile broadcast
@@ -159,16 +160,19 @@ main, written on the IO thread.
     disables intercept mid-gesture); the decisions are pure in `SwipeGesture`. Details that
     are easy to break: taps are swallowed while a page turn runs (`swallowTaps`, ~200 ms);
     a second finger cancels a drag; a drag can grab a page still moving and continues from
-    there; an open rename dialog blocks both drag and flick; a page turned some other way
+    there; an open dialog (rename, `~cleanup`) blocks both drag and flick; a page turned some other way
     (HOME, Back, screen off) aborts a running drag without a release decision (`abortDrag`).
 12. **Status bar hidden on the home page only**, shown in the drawer. The home page
     pads for it regardless of visibility (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate
     the activity so every dp-derived pixel value is recomputed.
-14. **`~cleanup` removes only what a COMPLETE enumeration shows uninstalled** (every
-    profile and app read — a profile that failed would look uninstalled), only after the
-    user confirms the counts, and only after the undo point (`verso-pre-cleanup-…`) is
-    written. No undo point, no cleanup.
+14. **`~cleanup` removes only what a COMPLETE enumeration shows gone from the device**
+    (every profile and app read, no profile silently empty that the config has entries
+    for — `Cleanup.plan`); a package still there in any form (disabled, icon switched off,
+    unmounted, in a profile not listed) is never offered. Only after the user confirms the
+    counts, then on the IO thread a re-check, then the undo point (`verso-pre-cleanup-…`),
+    then the removal of what was confirmed AND is still gone (`LauncherState.cleanup`).
+    No undo point, no cleanup.
 
 ---
 

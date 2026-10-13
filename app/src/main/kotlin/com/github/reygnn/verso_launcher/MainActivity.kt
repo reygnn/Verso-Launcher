@@ -175,6 +175,8 @@ class MainActivity : Activity() {
     private var appsDirty = true
     private var lastRefresh = 0L
     private var resumed = false
+    // Between onStart and onStop: the launcher can be seen (see cleanup).
+    private var started = false
     // A "~load" waiting for its hand-off, to confirm it (see runCommand).
     private var reloadToastPending = false
 
@@ -216,7 +218,11 @@ class MainActivity : Activity() {
                 // The rename dialog read the OLD config when it opened and writes back on
                 // OK; left up over a wholesale replace it would persist stale fields into
                 // the config that just arrived.
-                if (configReplaced) renameDialog?.dismiss()
+                if (configReplaced) {
+                    renameDialog?.dismiss()
+                    // Its counts were for the config just replaced.
+                    commandDialog?.dismiss()
+                }
                 // The first hand-off after a "~load" is the one that read the file: every older
                 // load is superseded by it.
                 // Only when the file was adopted: a change made while it loaded keeps memory, the
@@ -537,7 +543,7 @@ class MainActivity : Activity() {
             claims = claims@{ dir, downY ->
                 // A long-press that opened the rename dialog can carry on into a drag with the
                 // finger still down; that must not turn the page under the dialog.
-                if (renameDialog != null) return@claims false
+                if (renameDialog != null || commandDialog != null) return@claims false
                 // Read live: cheap, and never stale (a display-size change recreates the
                 // activity anyway — "density" is not in configChanges).
                 val topExclusion = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
@@ -560,7 +566,7 @@ class MainActivity : Activity() {
             // down to close it — once the content under the finger is at its end that way.
             isDrawerOpen = { this@MainActivity.drawerOpen }
             canDrag = canDrag@{ dir ->
-                if (renameDialog != null) return@canDrag false
+                if (renameDialog != null || commandDialog != null) return@canDrag false
                 when (dir) {
                     SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
                     SwipeDir.DOWN -> !listView.canScrollVertically(-1)
@@ -672,6 +678,7 @@ class MainActivity : Activity() {
     /** Live battery level on the home page while the launcher is visible. */
     override fun onStart() {
         super.onStart()
+        started = true
         homePage.startBattery()
     }
 
@@ -692,6 +699,7 @@ class MainActivity : Activity() {
         root.abortDrag()
         showStatusBar(true)
         renameDialog?.dismiss()
+        commandDialog?.dismiss()
         home.animate().cancel()
         drawer.animate().cancel()
         drawer.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
@@ -740,6 +748,7 @@ class MainActivity : Activity() {
         // and must not settle the drawer back open over a home that is now in front.
         root.abortDrag()
         renameDialog?.dismiss()
+        commandDialog?.dismiss()
         showStatusBar(false)
         hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -915,6 +924,7 @@ class MainActivity : Activity() {
      * land on the home screen, like any launcher, not on a half-typed search.
      */
     override fun onStop() {
+        started = false
         // Also a dialog opened from the home page, which closeDrawer does not touch.
         renameDialog?.dismiss()
         commandDialog?.dismiss()
@@ -1018,6 +1028,7 @@ class MainActivity : Activity() {
         // no business surviving it: confirming it afterwards would apply a rename the user
         // has visually left behind.
         renameDialog?.dismiss()
+        commandDialog?.dismiss()
         // Also clears the prompt (closeDrawer always does), so the next swipe up opens on
         // the plain drawer rather than whatever mode was last typed.
         closeDrawer()
@@ -1045,14 +1056,14 @@ class MainActivity : Activity() {
     }
 
     /**
-     * The shared-storage backup layer (Download/[BACKUP_DIR]). The MediaStore mechanics live
+     * The shared-storage backup layer (Download/[BackupFiles.DIR]). The MediaStore mechanics live
      * in [BackupStore]; the Activity keeps only the orchestration that needs it — backup,
      * restoreConfig and the "~restore-saf" picker.
      */
     private val backupStore by lazy {
         BackupStore(
             resolver = contentResolver,
-            subDir = BACKUP_DIR,
+            subDir = BackupFiles.DIR,
             log = ::logWarning,
         )
     }
@@ -1088,7 +1099,7 @@ class MainActivity : Activity() {
     }
 
     /**
-     * "~backup": export the config to Download/[BACKUP_DIR] as a backup of [BACKUP_BASE],
+     * "~backup": export the config to Download/[BackupFiles.DIR] as a backup of [BackupFiles.BACKUP_BASE],
      * replacing the previous one only once the new one is published (see [BackupStore.write]).
      * There is one current backup and one undo point, each named after the moment it was
      * taken (see BackupFiles) — no pile to sift through, which is what lets [restoreConfig]
@@ -1106,7 +1117,7 @@ class MainActivity : Activity() {
     private fun backup() {
         val payload = if (state.configLoaded) ConfigJson.serialize(state.config) else null
         val accepted = submitIo {
-            val name = backupStore.write(BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
+            val name = backupStore.write(BackupFiles.BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
             onUi {
                 // Name the file actually written: its name carries the time it was taken.
                 if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
@@ -1118,9 +1129,9 @@ class MainActivity : Activity() {
 
     /**
      * "~cleanup": offer to remove what the config keeps for apps that are no longer installed.
-     * The apps are enumerated afresh, and only a COMPLETE enumeration counts — a profile that
-     * could not be read would make its apps look uninstalled. Nothing is removed without the
-     * dialog's OK, and then only after an undo point is written (see [runCleanup]).
+     * The check ([cleanupCheck]) runs on the IO thread: a fresh, COMPLETE enumeration, and only
+     * entries whose package is gone from the device altogether. Nothing is removed without the
+     * dialog's OK, and then [LauncherState.cleanup] checks again and writes an undo point first.
      */
     private fun cleanup() {
         if (!state.configLoaded) {
@@ -1129,27 +1140,71 @@ class MainActivity : Activity() {
         }
         val snapshot = state.config.snapshot()
         val accepted = submitIo {
-            val found = enumerate(snapshot)
+            val plan = cleanupCheck(snapshot)
             onUi {
-                if (found == null || !found.complete) {
-                    toast(getString(R.string.toast_cleanup_incomplete))
-                    return@onUi
+                // Left meanwhile (an app started, the screen off): no dialog waiting invisibly
+                // for the next return home, no toast over another app.
+                if (!started) return@onUi
+                when (plan) {
+                    CleanupPlan.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
+                    CleanupPlan.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
+                    is CleanupPlan.Offer -> confirmCleanup(plan.orphans)
                 }
-                val orphans = LauncherLogic.orphans(state.config, found.apps.mapTo(HashSet()) { it.key })
-                if (orphans.isEmpty) toast(getString(R.string.toast_cleanup_none)) else confirmCleanup(orphans)
             }
         }
-        if (!accepted) toast(getString(R.string.toast_restore_undo_failed))
+        if (!accepted) toast(getString(R.string.toast_cleanup_failed))
+    }
+
+    /** The IO half of a cleanup check: enumerate afresh, then ask [Cleanup.plan]. */
+    private fun cleanupCheck(cfg: VersoConfig): CleanupPlan {
+        val found = enumerate(cfg)
+        val listed = try {
+            launcherApps.profiles.mapTo(HashSet()) { userManager.getSerialNumberForUser(it) }
+        } catch (e: RuntimeException) {
+            Log.w("Verso", "cleanup: profiles unreadable", e)
+            return CleanupPlan.Incomplete
+        }
+        return Cleanup.plan(cfg, found) { key -> stillThere(key, listed) }
+    }
+
+    /**
+     * Whether the app behind [key] is still on the device although not listed: disabled, its
+     * launcher icon switched off (an icon alias), on storage that is not mounted, or in a profile
+     * that exists but is not among those [listed]. Unsure counts as there — a cleanup keeps
+     * what it cannot rule out.
+     */
+    private fun stillThere(key: String, listed: Set<Long>): Boolean {
+        val pkg = key.substringBefore('#').substringBefore('/')
+        val serial = key.substringAfter('#', "").toLongOrNull()
+        return try {
+            val user = if (serial == null) Process.myUserHandle()
+            else userManager.getUserForSerialNumber(serial) ?: return false  // profile gone
+            if (serial != null && serial !in listed) return true
+            launcherApps.getApplicationInfo(pkg, STILL_THERE_FLAGS, user) != null
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        } catch (e: RuntimeException) {
+            Log.w("Verso", "cleanup: cannot check $key", e)
+            true
+        }
     }
 
     private fun confirmCleanup(orphans: Orphans) {
         commandDialog?.dismiss()
+        // One line per section that has entries — no "0" lines, and no plural to get wrong.
+        val lines = buildList {
+            add(getString(R.string.cleanup_apps, orphans.keys.size))
+            add("")
+            if (orphans.favorites > 0) add(getString(R.string.cleanup_favorites, orphans.favorites))
+            if (orphans.hidden > 0) add(getString(R.string.cleanup_hidden, orphans.hidden))
+            if (orphans.names > 0) add(getString(R.string.cleanup_names, orphans.names))
+            if (orphans.tags > 0) add(getString(R.string.cleanup_tags, orphans.tags))
+            add("")
+            add(getString(R.string.cleanup_undo_note))
+        }
         commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle(R.string.cleanup_title)
-            .setMessage(getString(
-                R.string.cleanup_message,
-                orphans.keys.size, orphans.favorites, orphans.hidden, orphans.names, orphans.tags,
-            ))
+            .setMessage(lines.joinToString("\n"))
             .setPositiveButton(R.string.cleanup_remove) { _, _ -> runCleanup(orphans.keys) }
             .setNegativeButton(android.R.string.cancel, null)
             .create()
@@ -1157,27 +1212,24 @@ class MainActivity : Activity() {
         commandDialog?.show()
     }
 
-    /**
-     * The cleanup itself, in the restore's order: the current config goes to an undo point
-     * ([PRE_CLEANUP_BASE]) first, and only once that is written are the entries removed. No
-     * undo point, no cleanup. A hand-back lost on the way leaves everything as it was.
-     */
-    private fun runCleanup(keys: Set<String>) {
-        if (!state.configLoaded) return
-        val payload = ConfigJson.serialize(state.config)
-        val accepted = submitIo {
-            val undo = backupStore.write(PRE_CLEANUP_BASE, payload)
-            onUi {
-                if (undo == null) {
-                    toast(getString(R.string.toast_restore_undo_failed))
-                    return@onUi
+    /** OK: [LauncherState.cleanup] re-checks, writes the undo point, then removes. */
+    private fun runCleanup(confirmed: Set<String>) {
+        state.cleanup(
+            confirmed = confirmed,
+            recheck = ::cleanupCheck,
+            writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
+        ) { outcome ->
+            when (outcome) {
+                CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_failed))
+                CleanupOutcome.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
+                CleanupOutcome.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
+                CleanupOutcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed))
+                is CleanupOutcome.Done -> {
+                    refilter()
+                    toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
                 }
-                state.forget(keys)
-                refilter()
-                toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(undo)), Toast.LENGTH_LONG)
             }
         }
-        if (!accepted) toast(getString(R.string.toast_restore_undo_failed))
     }
 
     /**
@@ -1191,7 +1243,7 @@ class MainActivity : Activity() {
         submitIo {
             // The newest backup of ours, whatever MediaStore named it — or, if none was ever
             // published, an interrupted first one (see BackupFiles.latestToRestore).
-            val latest = backupStore.lookupLatest(BACKUP_BASE)
+            val latest = backupStore.lookupLatest(BackupFiles.BACKUP_BASE)
             val text = (latest as? BackupStore.Latest.Found)?.let { backupStore.readText(it.uri) }
             // Parsed here, off the main thread: a hostile document is parse work the UI must
             // not wait on (and the parse is where a torn temp gets rejected).
@@ -1239,7 +1291,7 @@ class MainActivity : Activity() {
                 DocumentsContract.EXTRA_INITIAL_URI,
                 DocumentsContract.buildDocumentUri(
                     "com.android.externalstorage.documents",
-                    "primary:${Environment.DIRECTORY_DOWNLOADS}/$BACKUP_DIR",
+                    "primary:${Environment.DIRECTORY_DOWNLOADS}/$BackupFiles.DIR",
                 ),
             )
         try {
@@ -1290,7 +1342,7 @@ class MainActivity : Activity() {
      * parse never gets here, so a malformed backup leaves the live config untouched.
      *
      * Then the undo point — the config being replaced — is written out as a backup of
-     * [PRE_RESTORE_BASE], and ONLY once that write succeeded is [restored] adopted. A restore
+     * [BackupFiles.PRE_RESTORE_BASE], and ONLY once that write succeeded is [restored] adopted. A restore
      * whose undo point could not be written is aborted: replacing the config with nothing to
      * go back to is exactly the "destroyed without a trace" the undo point exists to prevent.
      * The outgoing config is taken from memory here on the main thread, or — if it was never
@@ -1313,7 +1365,7 @@ class MainActivity : Activity() {
             val outcome = RestoreSteps.run(
                 current = outgoing ?: store.load(),
                 restored = restored,
-                writeUndo = { payload -> backupStore.write(PRE_RESTORE_BASE, payload) },
+                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload) },
                 writeConfig = { payload -> store.write(payload, rotateBackup = true) },
             )
             val undo = when (outcome) {
@@ -1334,6 +1386,7 @@ class MainActivity : Activity() {
                 // A dialog opened against the pre-restore config would write its stale name
                 // and tags over what the restore just brought in.
                 renameDialog?.dismiss()
+                commandDialog?.dismiss()
                 toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(undo)), Toast.LENGTH_LONG)
             }
         }
@@ -1523,9 +1576,6 @@ class MainActivity : Activity() {
      */
     private fun loadApps(cfg: VersoConfig): List<AppEntry>? = enumerate(cfg)?.apps
 
-    /** An enumeration's result: the apps, and whether every profile and app was read. */
-    private class Enumeration(val apps: List<AppEntry>, val complete: Boolean)
-
     /**
      * [loadApps]'s body, also telling whether it saw EVERYTHING: a profile or an app skipped
      * after an error makes it incomplete. "~cleanup" needs that — an app it did not see would
@@ -1577,6 +1627,10 @@ class MainActivity : Activity() {
                 complete = false
                 continue
             }
+            // An empty list, no error: a profile being set up or torn down, or one the system
+            // will not show right now. Its apps would look uninstalled to "~cleanup" — so an
+            // empty personal profile, or an empty one the config has entries for, is not seen.
+            if (activities.isEmpty() && (isPersonal || cfg.mentionsProfile(serial))) complete = false
             for (info in activities) {
                 try {
                     val component = info.componentName
@@ -2091,13 +2145,10 @@ class MainActivity : Activity() {
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
-        /** Sub-folder of Downloads that "~backup" writes into. */
-        const val BACKUP_DIR = "Verso"
-        /** The backups' base names: published as "<base>-<date>_<time>.json" (see BackupFiles). */
-        const val BACKUP_BASE = "verso"
-        const val PRE_RESTORE_BASE = "verso-pre-restore"
-        const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
         const val REQ_RESTORE = 1
+        /** What [stillThere] finds an app by: also disabled and uninstalled-with-data ones. */
+        const val STILL_THERE_FLAGS = PackageManager.MATCH_DISABLED_COMPONENTS or
+            PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS or PackageManager.MATCH_UNINSTALLED_PACKAGES
         /** Kolibri's page turn: the drawer's full-height slide (anim_duration_drawer_slide)… */
         const val DRAWER_SLIDE_MS = 180L
         /** …and home's fade underneath it (fade_in / fade_out). */

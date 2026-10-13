@@ -20,6 +20,13 @@ import org.junit.Test
  */
 class VersoConfigTest {
 
+    @Test fun `mentionsProfile finds a profile's entries in any section, never the personal one`() {
+        val c = VersoConfig(names = linkedMapOf("p/C#10" to "Work"), favorites = linkedSetOf("p/C"))
+        assertTrue(c.mentionsProfile(10))
+        assertFalse(c.mentionsProfile(1))
+        assertFalse(c.mentionsProfile(null))
+    }
+
     private fun populated() = VersoConfig(
         hidden = linkedSetOf("h/1", "h/2"),
         favorites = linkedSetOf("f/1", "f/2", "f/3"),

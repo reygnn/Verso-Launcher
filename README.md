@@ -128,12 +128,16 @@ keyboard, no prompt:
     - `~cleanup` — remove what the config still keeps for apps that are no longer
       installed (their favorite slot, hidden mark, custom name and tags; kept on
       purpose until then, so a reinstalled app gets them back). A dialog shows how
-      many entries of each kind it would remove and asks first; the current config
-      is saved as `verso-pre-cleanup-<date>_<time>.json` before anything goes, so
-      `~restore-saf` undoes it. It only runs when every profile could be read — an
-      unreadable work profile would make its apps look uninstalled. A disabled app
-      counts as not installed. Old files in `Download/Verso/` are left to a file
-      manager (Android lets Verso touch only its own)
+      many entries of each kind it would remove and asks first; on OK it checks
+      again, and the current config is saved as `verso-pre-cleanup-<date>_<time>.json`
+      before anything goes. `~restore-saf` with that file undoes it — it brings back
+      the whole config as it was then, so later changes go too; and the next
+      `~cleanup` replaces that undo point. Only apps gone from the device count: a
+      disabled app, one with its icon switched off, one on an unmounted card or in a
+      profile Verso cannot list keeps its entries; and nothing runs unless every
+      profile could be read. Don't run it while a new phone is still reinstalling
+      your apps — those not back yet count as gone. Old files in `Download/Verso/`
+      are left to a file manager (Android lets Verso touch only its own)
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
   command line (the bottom-most, since results fill upward). On an empty line
   **Enter** only drops the keyboard (see above) — it never launches.

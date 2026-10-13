@@ -291,6 +291,84 @@ class LauncherStateTest {
         assertEquals(1, written.size)
     }
 
+    @Test fun `forget while the first load is in flight is ignored and the load still lands`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), "gone/A"))
+        state.refresh()
+        state.forget(setOf("gone/A"))
+        runAll()
+        assertTrue(state.configLoaded)
+        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertTrue(written.isEmpty())
+    }
+
+    // ---- cleanup: re-check, undo point first, then forget (hard rule 14) --------------
+
+    private val cleanupLog = mutableListOf<String>()
+    private var undoName: String? = "verso-pre-cleanup-2026-10-13_120000.json"
+    private var recheckPlan: CleanupPlan = CleanupPlan.Offer(Orphans(setOf("gone/A"), 1, 0, 0, 0))
+
+    private fun cleanup(confirmed: Set<String> = setOf("gone/A")) = state.cleanup(
+        confirmed = confirmed,
+        recheck = { cfg -> cleanupLog += "recheck:${cfg.favorites}"; recheckPlan },
+        writeUndo = { payload -> cleanupLog += "undo:$payload|written=${written.size}"; undoName },
+    ) { cleanupLog += "done:$it" }
+
+    private fun startedWithOrphan() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), "gone/A"))
+        started()
+    }
+
+    @Test fun `cleanup writes the untouched config as undo point, then forgets in one save`() {
+        startedWithOrphan()
+        cleanup()
+        runIo()
+        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)  // nothing removed yet
+        runAll()
+        assertTrue(cleanupLog[1].startsWith("undo:fav=${key("Alpha")},gone/A;"))
+        assertTrue(cleanupLog[1].endsWith("|written=0"))
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(1, written.size)
+        assertTrue(cleanupLog.last().startsWith("done:Done"))
+    }
+
+    @Test fun `no undo point, no cleanup`() {
+        startedWithOrphan()
+        undoName = null
+        cleanup()
+        runAll()
+        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertTrue(written.isEmpty())
+        assertEquals("done:${CleanupOutcome.UndoFailed}", cleanupLog.last())
+    }
+
+    @Test fun `an incomplete re-check removes nothing and writes no undo point`() {
+        startedWithOrphan()
+        recheckPlan = CleanupPlan.Incomplete
+        cleanup()
+        runAll()
+        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertTrue(cleanupLog.none { it.startsWith("undo:") })
+        assertEquals("done:${CleanupOutcome.Incomplete}", cleanupLog.last())
+    }
+
+    @Test fun `only what was confirmed AND is still an orphan is removed`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), "gone/A", "gone/B"))
+        started()
+        // gone/B was not in the dialog; gone/A came back since (no longer an orphan).
+        recheckPlan = CleanupPlan.Offer(Orphans(setOf("gone/B"), 1, 0, 0, 0))
+        cleanup(confirmed = setOf("gone/A"))
+        runAll()
+        assertEquals(setOf(key("Alpha"), "gone/A", "gone/B"), state.config.favorites)
+        assertEquals("done:${CleanupOutcome.NothingToDo}", cleanupLog.last())
+    }
+
+    @Test fun `a refused IO task cleans nothing and says so`() {
+        startedWithOrphan()
+        ioOpen = false
+        cleanup()
+        assertEquals(listOf("done:${CleanupOutcome.Refused}"), cleanupLog)
+    }
+
     @Test fun `forget before the config is loaded changes nothing`() {
         state.forget(setOf("gone/A"))
         runAll()

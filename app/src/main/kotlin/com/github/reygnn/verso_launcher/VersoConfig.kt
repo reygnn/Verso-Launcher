@@ -33,6 +33,14 @@ internal class VersoConfig(
      * entered), so two configs differing only there are not the same — a restore then writes
      * an undo point it did not strictly need. Used to see that a restore would change nothing.
      */
+    /** Whether any entry belongs to the profile with serial [serial] (a "#<serial>" key);
+     *  null — the personal profile — never matches. */
+    fun mentionsProfile(serial: Long?): Boolean {
+        if (serial == null) return false
+        val suffix = "#$serial"
+        return sequenceOf(hidden, favorites, names.keys, tags.keys).flatten().any { it.endsWith(suffix) }
+    }
+
     fun sameContent(other: VersoConfig): Boolean =
         favorites.toList() == other.favorites.toList() &&
             hidden == other.hidden &&

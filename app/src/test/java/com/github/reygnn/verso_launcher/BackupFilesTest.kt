@@ -61,8 +61,18 @@ class BackupFilesTest {
         assertFalse(BackupFiles.isTemp(base, "verso.json"))
     }
 
+    @Test fun `every base is distinct and claims no other base's files`() {
+        val bases = listOf(BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE)
+        assertEquals(bases.size, bases.toSet().size)
+        for (a in bases) for (b in bases) if (a != b) {
+            assertFalse("$a claims $b", BackupFiles.isPublished(a, "$b-2026-10-13_120745.json"))
+            assertFalse("$a claims $b (1)", BackupFiles.isPublished(a, "$b-2026-10-13_120745 (1).json"))
+            assertFalse("$a claims $b's temp", BackupFiles.isTemp(a, "$b.tmp.json"))
+        }
+    }
+
     @Test fun `the cleanup undo point is a base of its own`() {
-        val cleanup = "verso-pre-cleanup"
+        val cleanup = BackupFiles.PRE_CLEANUP_BASE
         val name = "verso-pre-cleanup-2026-10-13_120745.json"
         assertTrue(BackupFiles.isPublished(cleanup, name))
         assertFalse(BackupFiles.isPublished(base, name))

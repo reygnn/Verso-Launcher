@@ -29,6 +29,16 @@ class SourceGuardTest {
         assertTrue(activity.contains("ConfigJson.parseForeign"))
     }
 
+    @Test fun `cleanup's IO steps keep their guards`() {
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        // Every way enumerate() can miss an app marks it incomplete: the serial lookup, a
+        // failing profile, a failing app, a silently empty profile (hard rule 14).
+        assertTrue(Regex("""complete = false""").findAll(activity).count() >= 4)
+        // The undo point goes to its own base, never over the backup or the restore undo point.
+        assertTrue(Regex("""backupStore\.write\(\s*BackupFiles\.PRE_CLEANUP_BASE""").containsMatchIn(activity))
+        assertTrue(activity.contains("Command.CLEANUP -> cleanup()"))
+    }
+
     @Test fun `density stays out of configChanges`() {
         val manifest = source("src/main/AndroidManifest.xml")
         val changes = Regex("""android:configChanges="([^"]*)"""").findAll(manifest).map { it.groupValues[1] }.toList()

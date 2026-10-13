@@ -285,12 +285,52 @@ internal class LauncherState(
      * other edit that could not be saved.
      */
     fun forget(keys: Set<String>) {
+        // Before the load an edit cannot be saved — and its epoch bump would make the first
+        // load drop the disk config it is waiting for.
         if (!configLoaded || keys.isEmpty()) return
         config.favorites.removeAll(keys)
         config.hidden.removeAll(keys)
         config.names.keys.removeAll(keys)
         config.tags.keys.removeAll(keys)
         mutated()
+    }
+
+    /**
+     * Carry out a confirmed "~cleanup" of [confirmed] keys, in the restore's order (hard rule 14):
+     * on the IO thread, [recheck] the apps again for the config as it is NOW (an app may have
+     * come back, a profile may be unreadable, the config may have been replaced while the dialog
+     * was up) and keep only what is still an orphan AND was confirmed; write the untouched config
+     * as undo point ([writeUndo]: its name, or null); only then, back on main, [forget] them.
+     * No undo point, no cleanup. [onDone] gets the outcome on the main thread.
+     */
+    fun cleanup(
+        confirmed: Set<String>,
+        recheck: (VersoConfig) -> CleanupPlan,
+        writeUndo: (String) -> String?,
+        onDone: (CleanupOutcome) -> Unit,
+    ) {
+        if (!configLoaded) {
+            onDone(CleanupOutcome.Refused)
+            return
+        }
+        val snapshot = config.snapshot()
+        val payload = serialize(config)
+        val accepted = io(Runnable {
+            val outcome = when (val plan = recheck(snapshot)) {
+                CleanupPlan.Incomplete -> CleanupOutcome.Incomplete
+                CleanupPlan.NothingToDo -> CleanupOutcome.NothingToDo
+                is CleanupPlan.Offer -> {
+                    val keys = plan.orphans.keys intersect confirmed
+                    if (keys.isEmpty()) CleanupOutcome.NothingToDo
+                    else writeUndo(payload)?.let { CleanupOutcome.Done(it, keys) } ?: CleanupOutcome.UndoFailed
+                }
+            }
+            main(Runnable {
+                if (outcome is CleanupOutcome.Done) forget(outcome.keys)
+                onDone(outcome)
+            })
+        })
+        if (!accepted) onDone(CleanupOutcome.Refused)
     }
 
     /** Record a launch that actually started, for the "?" view. */

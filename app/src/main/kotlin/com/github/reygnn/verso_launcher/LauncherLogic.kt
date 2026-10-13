@@ -132,9 +132,11 @@ internal object LauncherLogic {
      * command here is the whole change.
      *
      * Ordered harmless-first: ~load and ~save only touch our own verso.json, ~backup
-     * only writes a copy out to Downloads, and the two that REPLACE the live config —
-     * ~restore and ~restore-saf — come last. The overview renders them in this order, so
-     * the destructive pair sits furthest from the prompt, never nearest it.
+     * only writes a copy out to Downloads; then the ones that CHANGE the live config —
+     * ~restore, ~restore-saf and ~cleanup. The overview is bottom-anchored, so these sit
+     * nearest the prompt: each is guarded instead — an undo point first, and a picker
+     * (~restore-saf) or a confirmation dialog (~cleanup) — and none runs on a mistyped
+     * prefix, since an ambiguous one resolves to nothing.
      */
     val COMMANDS: List<Pair<String, Command>> = listOf(
         "~load" to Command.RELOAD,
@@ -148,14 +150,17 @@ internal object LauncherLogic {
     /**
      * The entries of [config] that belong to no app in [installed] (the keys of a COMPLETE
      * enumeration — every profile read; the caller must not pass a partial one, or a profile
-     * that failed to load would look uninstalled). Kept on purpose until asked: a reinstalled
-     * app gets its place, name and tags back. "~cleanup" is the asking.
+     * that failed to load would look uninstalled) and that [kept] does not hold on to (an app
+     * not listed but still on the device). Kept on purpose until asked: a reinstalled app gets
+     * its place, name and tags back. "~cleanup" is the asking (see [Cleanup.plan]).
      */
-    fun orphans(config: VersoConfig, installed: Set<String>): Orphans {
-        val favorites = config.favorites.filterNot { it in installed }
-        val hidden = config.hidden.filterNot { it in installed }
-        val names = config.names.keys.filterNot { it in installed }
-        val tags = config.tags.keys.filterNot { it in installed }
+    fun orphans(config: VersoConfig, installed: Set<String>, kept: (String) -> Boolean = { false }): Orphans {
+        val verdict = HashMap<String, Boolean>()
+        val gone = { key: String -> verdict.getOrPut(key) { key !in installed && !kept(key) } }
+        val favorites = config.favorites.filter(gone)
+        val hidden = config.hidden.filter(gone)
+        val names = config.names.keys.filter(gone)
+        val tags = config.tags.keys.filter(gone)
         return Orphans(
             keys = (favorites + hidden + names + tags).toSet(),
             favorites = favorites.size, hidden = hidden.size, names = names.size, tags = tags.size,

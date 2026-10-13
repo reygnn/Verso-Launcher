@@ -43,11 +43,17 @@
     <string name="toast_cleanup_none">Nichts aufzuräumen</string>
     <string name="toast_cleanup_incomplete">Nicht alle Profile lesbar — später nochmal versuchen</string>
     <!-- %1$s: die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
-    <string name="toast_cleanup_ok">Aufgeräumt — rückgängig: ~restore-saf, verso-pre-cleanup wählen (%1$s)</string>
+    <string name="toast_cleanup_ok">Aufgeräumt (Sicherung %1$s) — rückgängig: ~restore-saf</string>
     <string name="cleanup_title">Aufräumen</string>
-    <!-- %1$d Apps; dann die Einträge je Abschnitt: Favoriten, Ausgeblendet, Namen, Tag-Listen. -->
-    <string name="cleanup_message">Gespeicherte Einstellungen für %1$d nicht mehr installierte Apps:\n\nFavoriten: %2$d\nAusgeblendet: %3$d\nEigene Namen: %4$d\nTag-Listen: %5$d\n\nVorher wird die aktuelle Konfiguration gesichert (verso-pre-cleanup).</string>
     <string name="cleanup_remove">Entfernen</string>
+    <!-- Die Zeilen des Aufräum-Dialogs; ein Abschnitt ohne Einträge fällt weg. -->
+    <string name="cleanup_apps">Nicht mehr installierte Apps: %1$d</string>
+    <string name="cleanup_favorites">Favoriten: %1$d</string>
+    <string name="cleanup_hidden">Ausgeblendet: %1$d</string>
+    <string name="cleanup_names">Eigene Namen: %1$d</string>
+    <string name="cleanup_tags">Tag-Listen: %1$d</string>
+    <string name="cleanup_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-cleanup).</string>
+    <string name="toast_cleanup_failed">Nichts geändert — installierte Apps nicht lesbar</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>

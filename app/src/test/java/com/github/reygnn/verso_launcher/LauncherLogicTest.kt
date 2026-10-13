@@ -991,4 +991,17 @@ class LauncherLogicTest {
         assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~cleanup"))
         assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
     }
+
+    @Test fun `a key orphaned in one section only is still offered`() {
+        for (config in listOf(
+            VersoConfig(favorites = linkedSetOf("gone/A")),
+            VersoConfig(hidden = linkedSetOf("gone/A")),
+            VersoConfig(names = linkedMapOf("gone/A" to "Old")),
+            VersoConfig(tags = linkedMapOf("gone/A" to mutableListOf("x"))),
+        )) {
+            val o = LauncherLogic.orphans(config, installed = setOf("here/B"))
+            assertEquals(setOf("gone/A"), o.keys)
+            assertEquals(1, o.favorites + o.hidden + o.names + o.tags)
+        }
+    }
 }
