@@ -1095,11 +1095,15 @@ class MainActivity : Activity() {
         val pm = packageManager
         fun launcherKey(pkg: String): String? =
             pm.getLaunchIntentForPackage(pkg)?.component?.flattenToString()
-        fun handlers(intent: Intent, preferred: String? = null): List<String> = try {
+        // [preferred] is a lambda, not a value, so it runs INSIDE the try: evaluated as an
+        // argument it would run before it, and a throwing lookup (the SMS role on a device
+        // without telephony, a vendor-modified one) would escape onto the IO thread — an
+        // uncaught exception there takes the process down, on every cold start while fresh.
+        fun handlers(intent: Intent, preferred: () -> String? = { null }): List<String> = try {
             // resolveActivity answers the ResolverActivity ("android") when no default is set —
             // that is no app, so it is dropped by the launcherKey lookup below like any other
             // package without a launcher entry.
-            val default = preferred
+            val default = preferred()
                 ?: pm.resolveActivity(intent, PackageManager.ResolveInfoFlags.of(
                     PackageManager.MATCH_DEFAULT_ONLY.toLong()))?.activityInfo?.packageName
             val all = pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
@@ -1113,7 +1117,7 @@ class MainActivity : Activity() {
             handlers(Intent(Intent.ACTION_DIAL)),
             handlers(
                 Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")),
-                preferred = Telephony.Sms.getDefaultSmsPackage(this),
+                preferred = { Telephony.Sms.getDefaultSmsPackage(this) },
             ),
             handlers(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))),
             handlers(
