@@ -124,6 +124,9 @@ class MainActivity : Activity() {
     // Drawable) inside the apply{} blocks below and hides this Int.
     private val fgColor = 0xFFD4D4D4.toInt()     // pleasant light gray
     private val fgColorDim = 0xFF808080.toInt()  // dimmer gray, for the hint
+    // The drawer sits on the bare wallpaper like the home page, so its rows get the same tonal
+    // outline (HomeStyle.tonalOutlineColor) — readable on a bright or busy wallpaper too.
+    private val listOutlineColor = HomeStyle.tonalOutlineColor(fgColor)
 
     private var mode = Mode.NORMAL
 
@@ -346,6 +349,7 @@ class MainActivity : Activity() {
             typeface = Typeface.MONOSPACE
             textSize = 24f
             setTextColor(fgColorDim)
+            legibleOnWallpaper()
             gravity = Gravity.CENTER
             minWidth = 48.dp()  // a comfortable tap target next to the narrow glyph
             contentDescription = getString(R.string.clear_prompt)
@@ -359,6 +363,7 @@ class MainActivity : Activity() {
             hint = getString(R.string.hint_search)
             setHintTextColor(fgColorDim)
             setTextColor(fgColor)
+            legibleOnWallpaper()
             typeface = Typeface.MONOSPACE
             textSize = 20f
             background = null
@@ -1490,6 +1495,14 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * The prompt, its hint and the × sit on the wallpaper too, but an EditText cannot take the
+     * stroked outline (the second pass would draw the cursor and selection twice) — a tight
+     * dark shadow gives them the same footing on a bright wallpaper.
+     */
+    private fun TextView.legibleOnWallpaper() =
+        setShadowLayer(3.dp().toFloat(), 0f, 0f, LEGIBILITY_SHADOW)
+
     private fun notFound(entry: AppEntry) =
         toast(getString(R.string.toast_not_found, entry.label))
 
@@ -1552,8 +1565,9 @@ class MainActivity : Activity() {
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
             // Tag rows and app rows are the same monospace TextView, so a recycled view
             // is reused across both freely.
-            val tv = (convertView as? TextView) ?: TextView(this@MainActivity).apply {
+            val tv = (convertView as? TextView) ?: OutlinedTextView(this@MainActivity).apply {
                 setTextColor(fgColor)
+                setOutline(HomeStyle.OUTLINE_DP * resources.displayMetrics.density, listOutlineColor)
                 textSize = 20f
                 gravity = Gravity.CENTER_VERTICAL
                 isSingleLine = true
@@ -1650,6 +1664,8 @@ class MainActivity : Activity() {
         const val DRAWER_SLIDE_MS = 180L
         /** …and home's fade underneath it (fade_in / fade_out). */
         const val HOME_FADE_MS = 200L
+        /** The prompt's shadow on the wallpaper: black at ~70 %. */
+        const val LEGIBILITY_SHADOW = 0xB3000000.toInt()
         /** A page drag that does not commit settles back this fast (Unity's settle-back). */
         const val DRAG_SETTLE_MS = 220L
         /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */

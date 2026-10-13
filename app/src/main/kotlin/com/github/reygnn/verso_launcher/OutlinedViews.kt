@@ -54,7 +54,7 @@ internal class TextOutline {
     }
 }
 
-/** A TextView with a [TextOutline]: the battery line, the favorites, the hint. */
+/** A TextView with a [TextOutline]: the battery line, the favorites, the hint, the drawer rows. */
 internal class OutlinedTextView(context: Context) : TextView(context) {
     private val outline = TextOutline()
     private var drawingOutline = false
@@ -68,6 +68,13 @@ internal class OutlinedTextView(context: Context) : TextView(context) {
         if (drawingOutline) return
         super.invalidate()
     }
+
+    /**
+     * Stroke and fill overlap: drawn at a reduced alpha (a dimmed, paused or archived row) they
+     * must be composed first and faded as one, or the outline shows through the glyphs. True
+     * only while an outline is on, so plain text keeps the cheap path.
+     */
+    override fun hasOverlappingRendering(): Boolean = outline.isActive
 
     override fun onDraw(canvas: Canvas) {
         if (!outline.isActive) {

@@ -172,7 +172,7 @@ contrast, not from a scheme:
 |--------------------------------------|-----------------------------------------------------|
 | Home text (clock, date, favorites)   | white, `HomeStyle.TEXT_COLOR`                       |
 | Readability on any wallpaper         | tonal outline: `HomeStyle.tonalOutlineColor` (white rim for dark text, black for light, eased in between) |
-| Drawer text, dimmed hints            | `fgColor` / `fgColorDim` in `MainActivity`          |
+| Drawer text, dimmed hints            | `fgColor` / `fgColorDim` in `MainActivity`; rows with the same tonal outline as home, the prompt/hint/× with a dark shadow |
 | Pressed state of a favorite          | `HomePage.pressableText` (derived from `TEXT_COLOR`) |
 | Charging / battery-protection marks  | outlined vector drawables (`ic_bolt_*`, `ic_shield_*`) |
 
