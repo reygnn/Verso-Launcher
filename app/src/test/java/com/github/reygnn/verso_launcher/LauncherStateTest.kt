@@ -49,7 +49,7 @@ class LauncherStateTest {
             else installed.map { a ->
                 val name = cfg.names[a.key] ?: a.systemLabel
                 AppEntry.of(name, a.packageName, a.className, a.systemLabel)
-            }.sortedBy { it.labelLower }
+            }.let { LauncherLogic.sortedForDrawer(it) }
         },
         // A readable stand-in for ConfigJson (org.json is not needed to test the rules).
         serialize = { c ->
@@ -213,6 +213,18 @@ class LauncherStateTest {
         assertEquals("Zulu", state.config.names[key("Alpha")])
         assertEquals(listOf("work"), state.config.tags[key("Alpha")])
         assertEquals(before, enumeratedWith.size)
+    }
+
+    @Test fun `a rename re-sorts in the device language's alphabet`() {
+        val original = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.GERMANY)
+            started()
+            state.rename(key("Charlie"), "Charlie", "Ärzte", emptyList())
+            assertEquals(listOf("Alpha", "Ärzte", "Bravo"), labels())
+        } finally {
+            java.util.Locale.setDefault(original)
+        }
     }
 
     @Test fun `renaming back to the system label clears the override`() {

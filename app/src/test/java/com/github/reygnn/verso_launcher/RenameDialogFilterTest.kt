@@ -131,23 +131,35 @@ class RenameDialogFilterTest {
     }
 
     /**
-     * The fragile edge: a ROOT fold is NOT length-preserving. "İ" (U+0130) folds to "i̇"
-     * (U+0069 U+0307), two code units for one. The filter must return that longer
-     * replacement, and — the actual worry behind testing this through a real widget — the
-     * EditText must accept it via an ordinary edit without throwing.
+     * The fragile edge: the fold is NOT length-preserving. Its NFC step composes a decomposed
+     * "e" + combining acute (U+0065 U+0301) into "é" (U+00E9), one code unit for two. The
+     * filter must return that shorter replacement, and — the actual worry behind testing this
+     * through a real widget — the EditText must accept it via an ordinary edit without
+     * throwing.
      */
     @Test fun `a length-changing fold is returned and the real widget accepts it`() {
         val harness = show()
         val field = harness.tagsField()
 
-        // The filter returns the 2-unit replacement for the 1-unit source.
-        assertEquals("i̇", field.filters.single().filter("İ", 0, 1, null, 0, 0).toString())
+        // The filter returns the 1-unit replacement for the 2-unit source.
+        assertEquals("\u00e9", field.filters.single().filter("e\u0301", 0, 2, null, 0, 0).toString())
 
         // And typing it through the live Editable (which runs the filter on replace) folds it
         // in place with no IndexOutOfBounds from the length change.
         field.setText("")
-        field.text.append("İ")
-        assertEquals("i̇", field.text.toString())
+        field.text.append("e\u0301")
+        assertEquals("\u00e9", field.text.toString())
+    }
+
+    /** The capital dotted İ folds to a plain "i" — the same tag a typed "i" gives, not the
+     *  "i" + combining dot that ROOT lowercasing alone produces. */
+    @Test fun `the capital dotted I folds to a plain i in the tag field`() {
+        val harness = show()
+        val field = harness.tagsField()
+
+        field.setText("")
+        field.text.append("İş")
+        assertEquals("iş", field.text.toString())
     }
 
     // ---- the commit contract -------------------------------------------------

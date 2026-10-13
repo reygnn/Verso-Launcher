@@ -1,5 +1,7 @@
 package com.github.reygnn.verso_launcher
 
+import java.text.Collator
+import java.text.Normalizer
 import java.util.Locale
 
 /**
@@ -174,8 +176,40 @@ internal object LauncherLogic {
      * folded with the device locale, a Turkish/Azeri phone would key "Instagram" under
      * a dotless ı and [search]'s ROOT-folded "i" needle would never match it. The one
      * place a label becomes an [Ordered.labelLower].
+     *
+     * Two Unicode details on top of that, both of which made a search silently miss:
+     *  - NFC first, so a label stored decomposed ("Cafe" + U+0301) and a composed "café"
+     *    typed on the keyboard become the same code points before they are compared.
+     *  - ROOT lowercases the capital dotted İ (U+0130) to "i" + a combining dot above
+     *    (U+0307), so "İşCep" folded to six characters and "iş" never matched. The dot is
+     *    dropped: in a ROOT-lowercased, NFC string a lone U+0307 only ever comes from İ
+     *    (letters that really carry a dot above, like ż or ė, stay precomposed under NFC).
      */
-    fun foldLabel(label: String): String = label.lowercase(Locale.ROOT)
+    fun foldLabel(label: String): String =
+        Normalizer.normalize(label, Normalizer.Form.NFC)
+            .lowercase(Locale.ROOT)
+            .replace(COMBINING_DOT_ABOVE, "")
+
+    private const val COMBINING_DOT_ABOVE = "\u0307"
+
+    /**
+     * [all] in drawer order: alphabetical the way the user's language sorts — "Ärzte" next to
+     * "Apotheke", not after "Zoom" as plain code-point order puts every umlaut and accent. The
+     * collation follows [locale] (the device's), because "alphabetical" differs by language:
+     * German files Ä under A, Swedish after Z. Ties the collator considers equal fall back to
+     * the folded label and then the key, so the order is total and stable across loads.
+     *
+     * A Collator per call: they are not thread-safe, and this runs on the IO thread (the
+     * enumeration) as well as the main thread (a rename's re-sort).
+     */
+    fun <T : Ordered> sortedForDrawer(all: List<T>, locale: Locale = Locale.getDefault()): List<T> {
+        val collator = Collator.getInstance(locale)
+        return all.sortedWith(
+            compareBy<T, String>(collator) { it.labelLower }
+                .thenBy { it.labelLower }
+                .thenBy { it.key },
+        )
+    }
 
     /**
      * Substring search over [all] by case-folded label. Folds [needle] with

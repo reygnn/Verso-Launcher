@@ -58,7 +58,7 @@ internal class LauncherState(
     var config: VersoConfig = VersoConfig()
         private set
 
-    /** Every launchable app, sorted by [AppEntry.labelLower] (drawer and search rely on it). */
+    /** Every launchable app in drawer order ([LauncherLogic.sortedForDrawer]: the device language's alphabet). */
     var apps: List<AppEntry> = emptyList()
         private set
 
@@ -220,7 +220,7 @@ internal class LauncherState(
         mutated()
         apps = apps.map { e ->
             if (e.key != key) e else e.withLabel(config.names[key] ?: e.systemLabel)
-        }.sortedBy { it.labelLower }
+        }.let { LauncherLogic.sortedForDrawer(it) }
     }
 
     /** Record a launch that actually started, for the "?" view. */

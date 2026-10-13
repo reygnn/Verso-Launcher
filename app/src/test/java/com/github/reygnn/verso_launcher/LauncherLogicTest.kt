@@ -411,6 +411,55 @@ class LauncherLogicTest {
 
     // ---- foldLabel ----------------------------------------------------------
 
+    @Test fun `foldLabel folds the capital dotted I to a plain i`() {
+        // ROOT lowercases İ (U+0130) to "i" + U+0307; left in, "İşCep" never matched "iş".
+        assertEquals("işcep", LauncherLogic.foldLabel("İşCep"))
+        assertEquals("istanbulkart", LauncherLogic.foldLabel("İstanbulkart"))
+        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(Row("p/is", LauncherLogic.foldLabel("İşCep"))), "iş").keys())
+        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(Row("p/is", LauncherLogic.foldLabel("İşCep"))), "İŞ").keys())
+    }
+
+    @Test fun `foldLabel makes decomposed and composed text the same`() {
+        val decomposed = "Cafe\u0301"  // e + combining acute
+        assertEquals("café", LauncherLogic.foldLabel(decomposed))
+        assertEquals(listOf("p/c"), LauncherLogic.search(listOf(Row("p/c", LauncherLogic.foldLabel(decomposed))), "café").keys())
+    }
+
+    @Test fun `foldLabel keeps letters that really carry a dot above`() {
+        assertEquals("żabka ėjimas", LauncherLogic.foldLabel("Żabka Ėjimas"))
+    }
+
+    @Test fun `a tag typed with the dotted capital I is the same tag as the plain one`() {
+        assertEquals("iş", LauncherLogic.canonicalTag("İş"))
+    }
+
+    // ---- sortedForDrawer ----------------------------------------------------
+
+    private fun folded(vararg labels: String) = labels.map { Row("p/$it", LauncherLogic.foldLabel(it)) }
+
+    @Test fun `German drawer files umlauts under their base letter, not after Z`() {
+        val sorted = LauncherLogic.sortedForDrawer(folded("Zoom", "Übersetzer", "Bravo", "Ärzte", "Öffi", "Apotheke"), Locale.GERMANY)
+        assertEquals(listOf("p/Apotheke", "p/Ärzte", "p/Bravo", "p/Öffi", "p/Übersetzer", "p/Zoom"), sorted.keys())
+    }
+
+    @Test fun `accented letters sort with their base letter`() {
+        val sorted = LauncherLogic.sortedForDrawer(folded("Facebook", "Éclair", "Drive"), Locale.FRANCE)
+        assertEquals(listOf("p/Drive", "p/Éclair", "p/Facebook"), sorted.keys())
+    }
+
+    @Test fun `the drawer follows the device language's alphabet`() {
+        // Swedish files Ä after Z — "alphabetical" is the user's alphabet, not a fixed one.
+        val sorted = LauncherLogic.sortedForDrawer(folded("Zoom", "Ärzte", "Apotheke"), Locale.of("sv", "SE"))
+        assertEquals(listOf("p/Apotheke", "p/Zoom", "p/Ärzte"), sorted.keys())
+    }
+
+    @Test fun `labels the collator calls equal still get a stable total order`() {
+        val a = Row("p/b", "mail")
+        val b = Row("p/a", "mail")
+        assertEquals(listOf("p/a", "p/b"), LauncherLogic.sortedForDrawer(listOf(a, b), Locale.GERMANY).keys())
+        assertEquals(listOf("p/a", "p/b"), LauncherLogic.sortedForDrawer(listOf(b, a), Locale.GERMANY).keys())
+    }
+
     @Test fun `foldLabel lowercases with ROOT even under a Turkish default locale`() {
         val original = Locale.getDefault()
         try {

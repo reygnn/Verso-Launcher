@@ -1077,7 +1077,7 @@ class MainActivity : Activity() {
                 Log.w("Verso", "skipping app", e)
                 null
             }
-        }.sortedBy { it.labelLower }
+        }.let { LauncherLogic.sortedForDrawer(it) }
     }
 
     /**
