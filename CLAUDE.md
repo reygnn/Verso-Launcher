@@ -29,8 +29,9 @@ camera) are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look
 is constants in `HomeStyle.kt`), left/right swipe actions, any runtime permission.
-Apps come from `LauncherApps` across all profiles (work, clone); private space is
-untested. See `KNOWN_LIMITATIONS.md`. A new feature
+Apps come from `LauncherApps` across all profiles (work, clone); apps of a paused
+profile and archived apps stay listed, dimmed (`AppStatus`), and a first tap brings
+them back; private space is untested. See `KNOWN_LIMITATIONS.md`. A new feature
 category needs explicit user agreement before it is built.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no

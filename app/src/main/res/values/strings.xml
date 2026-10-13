@@ -7,6 +7,10 @@
     <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nTo put apps here, type ! in the drawer\'s search line and tap them. !! reorders them.</string>
     <string name="a11y_home">Home screen</string>
     <string name="a11y_open_drawer">Open all apps</string>
+    <!-- A dimmed app (AppStatus): what a screen reader says, and the toast once a paused one is back. -->
+    <string name="a11y_app_paused">%1$s, paused. Double-tap to turn its work apps back on.</string>
+    <string name="a11y_app_archived">%1$s, archived. Double-tap to restore it.</string>
+    <string name="toast_app_ready">%1$s is ready — tap to open it</string>
     <!-- The double-tap targets on home: what TalkBack announces for activating them. -->
     <string name="a11y_open_alarms">open alarms</string>
     <string name="a11y_open_calendar">open calendar</string>

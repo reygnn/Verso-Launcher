@@ -54,6 +54,11 @@ keyboard, no prompt:
   a work profile or cloned apps, which carry the system's badge ("Calculator
   (Work)") and start in their own profile. Installs, uninstalls and updates show up
   at once, even while the launcher stays open.
+- Apps that cannot start right away stay in the list, **dimmed**: those of a paused
+  work profile, and archived apps (Android 15+, code removed, data kept). The first
+  tap on a paused one turns its work apps back on — the row brightens and a toast
+  says it is ready, so you choose whether to open it; an archived one offers the
+  system's restore.
 - The bottom command line drives everything; the leading character picks a mode:
   - *(empty)* — the full drawer, A to Z: everything except hidden apps, **but a
     favorite is always kept even when also hidden** (favoriting overrides hiding)

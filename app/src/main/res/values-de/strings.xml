@@ -7,6 +7,10 @@
     <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nFür Favoriten hier: im Drawer ! ins Suchfeld tippen und Apps antippen. !! sortiert sie.</string>
     <string name="a11y_home">Startbildschirm</string>
     <string name="a11y_open_drawer">Alle Apps öffnen</string>
+    <!-- Eine abgedunkelte App (AppStatus): was der Screenreader sagt, und der Toast, sobald eine pausierte wieder da ist. -->
+    <string name="a11y_app_paused">%1$s, pausiert. Doppeltippen, um die Arbeits-Apps wieder einzuschalten.</string>
+    <string name="a11y_app_archived">%1$s, archiviert. Doppeltippen zum Wiederherstellen.</string>
+    <string name="toast_app_ready">%1$s ist bereit — zum Starten antippen</string>
     <!-- Die Doppeltipp-Ziele auf Home: was TalkBack beim Aktivieren ansagt. -->
     <string name="a11y_open_alarms">Wecker öffnen</string>
     <string name="a11y_open_calendar">Kalender öffnen</string>

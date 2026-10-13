@@ -13,13 +13,13 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 359 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 362 tests):
 
 ```
 LauncherLogicTest          113  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           43  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           44  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, recents
 LauncherRowsTest            36  rowsFor per mode
@@ -29,7 +29,8 @@ ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .t
 ConfigJsonTest              24  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting
 LauncherActionsTest         19  Enter / tap decisions
-HomeStyleTest               18  sizes, luminance, outline-colour thresholds, battery
+HomeStyleTest               20  sizes, luminance, outline-colour thresholds, battery,
+                                AppStatus and its dimming
 BackupFilesTest             14  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            18  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what

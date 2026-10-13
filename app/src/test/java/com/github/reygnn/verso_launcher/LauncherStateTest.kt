@@ -516,6 +516,13 @@ class LauncherStateTest {
         assertEquals(10L, work.withLabel("Mail").profile)
     }
 
+    @Test fun `the status is no part of the key, and a rename keeps it`() {
+        val ready = AppEntry.of("Gmail", "com.g", "com.g.Main", "Gmail", profile = 10)
+        val paused = AppEntry.of("Gmail", "com.g", "com.g.Main", "Gmail", profile = 10, status = AppStatus.PAUSED)
+        assertEquals(ready.key, paused.key)  // favorites and names survive a pause
+        assertEquals(AppStatus.PAUSED, paused.withLabel("Mail").status)
+    }
+
     @Test fun `a work copy is its own row with its own favorite and name state`() {
         val work = AppEntry.of("Charlie (Work)", "com.charlie", "com.charlie.Main", "Charlie (Work)", profile = 10)
         installed = installed + work

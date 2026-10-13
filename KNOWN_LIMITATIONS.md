@@ -30,9 +30,12 @@ Apps are listed through `LauncherApps` across every profile the launcher is show
 the personal one plus a work profile or cloned apps (badged by the system, e.g.
 "Calculator (Work)"). This was verified with a managed test profile. Android 15's
 private space is a hidden profile with its own rules for which launcher sees it; it
-has not been tried on a device, so whether and when its apps appear is open. Tapping
-an app of a paused work profile asks the system to turn the profile back on — also
-not yet tried on a device.
+has not been tried on a device, so whether and when its apps appear is open.
+
+Apps of a paused work profile and archived apps stay listed, dimmed; the first tap
+turns the profile back on (then a toast says the app is ready) or offers the system's
+restore. Both were verified on the A17. Turning a profile back on needs Verso to be
+the default home app; otherwise the system refuses and Verso shows "denied".
 
 ## Gestures on the front page
 

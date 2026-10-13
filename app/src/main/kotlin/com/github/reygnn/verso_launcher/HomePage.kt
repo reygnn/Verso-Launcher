@@ -224,6 +224,13 @@ internal class HomePage(
                 ellipsize = TextUtils.TruncateAt.END
                 setPadding(padH, padV, padH, padV)
                 outlined()
+                // A paused or archived favorite is dimmed like its drawer row; TalkBack hears why.
+                alpha = HomeStyle.rowAlpha(entry.status)
+                contentDescription = when (entry.status) {
+                    AppStatus.READY -> null
+                    AppStatus.PAUSED -> activity.getString(R.string.a11y_app_paused, entry.label)
+                    AppStatus.ARCHIVED -> activity.getString(R.string.a11y_app_archived, entry.label)
+                }
                 setOnClickListener { onLaunch(entry) }
                 setOnLongClickListener { onEdit(entry); true }
             }, LinearLayout.LayoutParams(WRAP, WRAP))

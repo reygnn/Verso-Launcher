@@ -58,6 +58,13 @@ internal object HomeStyle {
     /** Kolibri's default text colour: white. */
     const val TEXT_COLOR = 0xFFFFFFFF.toInt()
 
+    /** Alpha of a row whose app cannot start right away (paused or archived, see AppStatus):
+     *  still readable, clearly set apart. */
+    const val UNAVAILABLE_ALPHA = 0.45f
+
+    /** The alpha a row of an app in [status] is drawn at. */
+    fun rowAlpha(status: AppStatus): Float = if (status == AppStatus.READY) 1f else UNAVAILABLE_ALPHA
+
     /** Two taps within this many ms on the clock / date / battery count as a double tap. */
     const val DOUBLE_TAP_MS = 300L
 

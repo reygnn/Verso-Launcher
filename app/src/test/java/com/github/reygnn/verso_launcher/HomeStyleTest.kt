@@ -70,6 +70,19 @@ class HomeStyleTest {
         assertEquals(HomeStyle.argb(153, 0, 0, 0), HomeStyle.tonalOutlineColor(grey(0xF4)))
     }
 
+    @Test fun `a paused or archived app is dimmed, a ready one is not`() {
+        assertEquals(1f, HomeStyle.rowAlpha(AppStatus.READY), 0f)
+        assertEquals(HomeStyle.UNAVAILABLE_ALPHA, HomeStyle.rowAlpha(AppStatus.PAUSED), 0f)
+        assertEquals(HomeStyle.UNAVAILABLE_ALPHA, HomeStyle.rowAlpha(AppStatus.ARCHIVED), 0f)
+    }
+
+    @Test fun `a paused profile wins over archived - turning it on comes first`() {
+        assertEquals(AppStatus.READY, AppStatus.of(profilePaused = false, archived = false))
+        assertEquals(AppStatus.PAUSED, AppStatus.of(profilePaused = true, archived = false))
+        assertEquals(AppStatus.ARCHIVED, AppStatus.of(profilePaused = false, archived = true))
+        assertEquals(AppStatus.PAUSED, AppStatus.of(profilePaused = true, archived = true))
+    }
+
     @Test fun `luminance spans 0 to 1`() {
         assertEquals(0.0, HomeStyle.luminance(0xFF000000.toInt()), 1e-9)
         assertEquals(1.0, HomeStyle.luminance(0xFFFFFFFF.toInt()), 1e-9)

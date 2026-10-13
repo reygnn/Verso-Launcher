@@ -1214,11 +1214,14 @@ class MainActivity : Activity() {
         for (user in profiles) {
             val isPersonal = user == personal
             var serial: Long? = null
+            var paused = false
             val activities = try {
-                // The serial lookup is a binder call too: inside the try, so a failure drops this
-                // profile like any other instead of escaping onto the IO thread.
+                // The serial and quiet-mode lookups are binder calls too: inside the try, so a
+                // failure drops this profile like any other instead of escaping onto the IO thread.
                 if (!isPersonal) {
                     serial = userManager.getSerialNumberForUser(user).takeIf { it >= 0 } ?: continue
+                    // A work profile that is turned off: its apps stay listed, dimmed (AppStatus).
+                    paused = userManager.isQuietModeEnabled(user)
                 }
                 launcherApps.getActivityList(null, user)
             } catch (e: RuntimeException) {
@@ -1253,6 +1256,9 @@ class MainActivity : Activity() {
                         className = component.className,
                         systemLabel = systemLabel,
                         profile = serial,
+                        // Archived (Android 15+): code removed, data kept; LauncherApps still
+                        // lists it, and a tap lets the system restore it.
+                        status = AppStatus.of(profilePaused = paused, archived = info.applicationInfo.isArchived),
                     )
                 } catch (e: RuntimeException) {
                     Log.w("Verso", "skipping app", e)
@@ -1281,9 +1287,22 @@ class MainActivity : Activity() {
         override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) = state.refresh()
     }
 
-    /** A profile added, removed, paused or resumed changes which apps there are to list. */
+    /** The profile a tap on a paused app turned back on, and that app's label — for the
+     *  "ready" toast once the profile is available (see launch). */
+    private var waitingForProfile: Pair<UserHandle, String>? = null
+
+    /** A profile added, removed, paused or resumed changes which apps there are to list (and
+     *  how they are drawn: a paused profile's apps are dimmed). */
     private val profilesChanged = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = state.refresh()
+        override fun onReceive(context: Context, intent: Intent) {
+            state.refresh()
+            val waiting = waitingForProfile ?: return
+            if (intent.action != Intent.ACTION_PROFILE_AVAILABLE) return
+            val user = intent.getParcelableExtra(Intent.EXTRA_USER, UserHandle::class.java)
+            if (user != waiting.first) return
+            waitingForProfile = null
+            toast(getString(R.string.toast_app_ready, waiting.second), Toast.LENGTH_LONG)
+        }
     }
 
     private fun watchApps() {
@@ -1429,9 +1448,15 @@ class MainActivity : Activity() {
             when {
                 // The entry's profile is gone (a work profile removed since the list loaded).
                 user == null -> notFound(entry)
-                // A paused work profile: ask the system to turn it back on (it confirms with
-                // the user where needed) instead of failing — the default launcher may.
-                userManager.isQuietModeEnabled(user) -> userManager.requestQuietModeEnabled(false, user)
+                // A paused work profile: the first tap only turns it back on (the system confirms
+                // with the user where needed) — it does not start the app. Once the profile is
+                // available the row turns normal and a toast says the app is ready, so the user
+                // decides whether it was only about turning work apps on or also about starting
+                // this one (see profilesChanged).
+                userManager.isQuietModeEnabled(user) -> {
+                    waitingForProfile = user to entry.label
+                    userManager.requestQuietModeEnabled(false, user)
+                }
                 // Component gone since the list loaded (uninstall race). Without this check
                 // startMainActivity throws a SecurityException, which would misreport the
                 // vanished app as "denied".
@@ -1455,6 +1480,13 @@ class MainActivity : Activity() {
             Log.w("Verso", "launch failed: ${entry.key}", e)
             notFound(entry)
         }
+    }
+
+    /** What a screen reader says for a dimmed row, or null for a ready app (its label). */
+    private fun unavailableDescription(entry: AppEntry): String? = when (entry.status) {
+        AppStatus.READY -> null
+        AppStatus.PAUSED -> getString(R.string.a11y_app_paused, entry.label)
+        AppStatus.ARCHIVED -> getString(R.string.a11y_app_archived, entry.label)
     }
 
     private fun notFound(entry: AppEntry) =
@@ -1535,6 +1567,7 @@ class MainActivity : Activity() {
                     tv.typeface = listTypeface
                     tv.text = row.name
                     tv.contentDescription = null
+                    tv.alpha = 1f
                 }
                 // "~" overview: the command's own spelling is the label, and it reads
                 // aloud as-is, so clear any stale edit-mode description off the recycled view.
@@ -1542,6 +1575,7 @@ class MainActivity : Activity() {
                     tv.typeface = Typeface.MONOSPACE  // commands are typed text: show them so
                     tv.text = row.name
                     tv.contentDescription = null
+                    tv.alpha = 1f
                 }
                 is AppRow -> bindAppRow(tv, row.entry)
             }
@@ -1565,6 +1599,8 @@ class MainActivity : Activity() {
             // read modes carry none and use the drawer's ordinary sans.
             tv.typeface = if (marker.isEmpty()) listTypeface else Typeface.MONOSPACE
             tv.text = marker + entry.label
+            // A paused or archived app is dimmed: still there, but a tap brings it back first.
+            tv.alpha = HomeStyle.rowAlpha(entry.status)
             // Accessibility: the "[x]"/"[ ]" glyph reads as literal punctuation to a
             // screen reader, so in the edit modes give the row a spoken description of
             // its state and what a tap does. NORMAL rows read their label fine, so the
@@ -1593,7 +1629,9 @@ class MainActivity : Activity() {
                     entry.label,
                     tagEditTag.orEmpty(),
                 )
-                Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND -> null
+                // The read modes read the label as-is — unless the dimming says something a
+                // screen reader would otherwise not hear.
+                Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND -> unavailableDescription(entry)
             }
         }
     }

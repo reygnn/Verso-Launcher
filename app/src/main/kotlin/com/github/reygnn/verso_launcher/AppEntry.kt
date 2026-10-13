@@ -23,6 +23,9 @@ internal data class AppEntry(
      *  or null for the user's own, personal profile. A serial, not a UserHandle: it is plain
      *  data, stable across reboots, and the Activity maps it back when it launches. */
     val profile: Long? = null,
+    /** Whether the app can start right away — see [AppStatus]. Not part of the identity [key]:
+     *  a paused or archived app is the same row with the same favorite/name state. */
+    val status: AppStatus = AppStatus.READY,
 ) : Ordered {
     /**
      * The identity key for hidden/favorites/names/tags everywhere — see [keyOf]. Per launcher
@@ -43,7 +46,8 @@ internal data class AppEntry(
             className: String,
             systemLabel: String,
             profile: Long? = null,
-        ) = AppEntry(label, LauncherLogic.foldLabel(label), packageName, className, systemLabel, profile)
+            status: AppStatus = AppStatus.READY,
+        ) = AppEntry(label, LauncherLogic.foldLabel(label), packageName, className, systemLabel, profile, status)
 
         /**
          * "package/class" for the personal profile — exactly ComponentName.flattenToString(),
@@ -54,5 +58,25 @@ internal data class AppEntry(
          */
         fun keyOf(packageName: String, className: String, profile: Long?): String =
             if (profile == null) "$packageName/$className" else "$packageName/$className#$profile"
+    }
+}
+
+/**
+ * Whether a listed app can start right away. Both non-ready states stay in the list — shown
+ * dimmed — because a tap brings them back: a PAUSED app lives in a work profile that is turned
+ * off (quiet mode), and the first tap turns the profile back on; an ARCHIVED app (Android 15+)
+ * had its code removed but kept its data, and a tap lets the system restore it.
+ */
+internal enum class AppStatus {
+    READY, PAUSED, ARCHIVED;
+
+    companion object {
+        /** A paused profile wins: an archived app in it cannot be restored until the profile is
+         *  back on, so turning the profile on is what the first tap must do. */
+        fun of(profilePaused: Boolean, archived: Boolean): AppStatus = when {
+            profilePaused -> PAUSED
+            archived -> ARCHIVED
+            else -> READY
+        }
     }
 }
