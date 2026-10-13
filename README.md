@@ -1,9 +1,9 @@
 # Verso Launcher
 
-A **plain text launcher for Android with a hidden command line**, forked from
-[Sigil Launcher](https://github.com/reygnn/Sigil-Launcher). Sigil was a terminal: one
-prompt, keyboard always up. Verso keeps that whole command line but moves it behind a
-page turn, so the front looks like an ordinary minimal text launcher.
+A **plain text launcher for Android with a hidden command line**, and the successor of
+Sigil Launcher, which is no longer maintained. Sigil was a terminal: one prompt,
+keyboard always up. Verso keeps that whole command line but moves it behind a page
+turn, so the front looks like an ordinary minimal text launcher.
 
 The name is the idea: a sheet of paper has a **recto** (the front) and a **verso** (the
 back). The front is your home screen; swipe up and you turn the page to the back, where
@@ -116,11 +116,12 @@ keyboard, no prompt:
   the plain drawer in one tap, keeping the keyboard up so you can retype at once; it
   shows only while there is text to erase.
 - Long-press any row to set a custom name and its tags (comma-separated).
-- Registers as `HOME` + `LAUNCHER`, `singleTask`. Installs **next to** Sigil
-  Launcher (own package `com.github.reygnn.verso_launcher`, own `verso.json`,
-  backups in `Download/Verso/`), so you can switch between the two.
+- Registers as `HOME` + `LAUNCHER`, `singleTask`. Installs **next to** an existing
+  Sigil Launcher (own package `com.github.reygnn.verso_launcher`, own `verso.json`,
+  backups in `Download/Verso/`), so you can move over at your own pace and uninstall
+  Sigil afterwards.
 
-## Relationship to Sigil
+## Lineage
 
 The front page is a port of [Kolibri Launcher](https://github.com/reygnn/Kolibri-Launcher)'s home
 screen (`fragment_home.xml`, `HomeFavoritesAdapter`, `TextOutline`, the default layout
@@ -130,8 +131,9 @@ live in `HomeStyle.kt`. Not ported: the alarm/calendar indicators next to the cl
 the double-tap events dialog (they need calendar permission), and the left/right swipe
 actions.
 
-Verso is a copy of the Sigil Launcher 0.2.x line (favorites, hidden apps, custom
-names, tags, `~` commands) with a different front end. Everything the prompt can do
+Verso replaces Sigil Launcher: it started as a copy of the Sigil 0.2.x line (favorites,
+hidden apps, custom names, tags, `~` commands) with a different front end, and Sigil
+itself is discontinued. Everything the prompt can do
 is unchanged except the empty line: in Sigil it showed your favorites, in Verso it
 shows the full drawer, because the favorites now live on the front page.
 

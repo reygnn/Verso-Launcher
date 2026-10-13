@@ -32,8 +32,10 @@ is constants in `HomeStyle.kt`), work-profile / private-space apps, left/right
 swipe actions, any runtime permission. See `KNOWN_LIMITATIONS.md`. A new feature
 category needs explicit user agreement before it is built.
 
-Verso was cloned from Sigil Launcher. Fixes made here are NOT ported back to Sigil
-unless the user asks for it.
+Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
+longer maintained, its GitHub repo removed, October 2026) — never port anything back.
+What stays is compatibility for people moving over: a `sigil.json` must keep restoring
+via `~restore-saf` (same format, same `package/class` keys).
 
 ---
 
@@ -117,7 +119,7 @@ main, written on the IO thread.
    `parse` for outside files) → write the undo point → only then `adopt`. No undo
    point, no restore.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`), so Sigil
-   configs and backups stay compatible. Don't change the key or the JSON shape
+   configs and backups stay importable for people migrating. Don't change the key or the JSON shape
    without a migration.
 9. **`LauncherLogic.foldLabel` is the only fold** (NFC, `Locale.ROOT`, drop U+0307)
    for labels, needles and tags (`canonicalTag` builds on it). Lists are sorted with
