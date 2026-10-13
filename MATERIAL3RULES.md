@@ -182,10 +182,14 @@ Colour constants live in `HomeStyle.kt` (home) and `MainActivity`'s `fgColor` /
 ## B2. Documented exceptions to Part A
 
 - **A1 (theme parent):** `VersoTheme` uses `@android:style/Theme.Material.NoActionBar`,
-  which A1 calls obsolete in favour of `Theme.DeviceDefault.*`. The window is a
-  transparent wallpaper surface (`windowShowWallpaper`, transparent background) and
-  every widget is styled in code, so the parent has little visible effect. Switching
-  to DeviceDefault is fine but must be checked on a Samsung device (OEM dialog styles).
+  which A1 calls obsolete in favour of `Theme.DeviceDefault.*`. Kept on purpose
+  (decided 2026-10-13): the window is a transparent wallpaper surface and every text
+  colour and typeface is set in code, so the parent only decides the accent of the
+  command line's cursor and selection handles. The rename dialog does not follow the
+  app theme at all — `RenameDialog` pins `Theme_Material_Dialog_Alert`, which keeps it
+  dark on every device, as its light-grey field text requires. Moving the dialog to
+  DeviceDefault would need that text colour tied to the theme and a check on both a
+  Pixel and a Samsung (light dialog backgrounds).
 - **A1 (no night theme):** there is no `values-night/`: the window is always the
   wallpaper with light text and an outline; dark/light mode does not change it.
 - **A2 (splash):** no splash attributes are set; a HOME app is started by the system
