@@ -23,6 +23,10 @@ class VersoApp : Application() {
      */
     val io: ExecutorService = Executors.newSingleThreadExecutor()
 
+    /** "Gmail" -> "Gmail (Work)" per (profile serial, label): the system's badge for an app of
+     *  another profile, which costs a binder call each. Read and written on [io] only. */
+    internal val badgedLabels = HashMap<Pair<Long, String>, String>()
+
     /** The "?" list, newest first. In memory only, so it lasts until the process dies. */
     internal var recentKeys: List<String> = emptyList()
 

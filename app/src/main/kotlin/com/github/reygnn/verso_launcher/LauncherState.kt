@@ -99,6 +99,8 @@ internal class LauncherState(
     @Volatile private var loadGeneration = 0
     @Volatile private var labelGeneration = 0
     @Volatile private var configEpoch = 0
+    // Counts save requests; read on the IO thread to skip a write a newer one supersedes.
+    @Volatile private var saveSeq = 0
 
     /** The launchable favorites in their stored order — what the home page shows. */
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, config.favorites)
@@ -181,7 +183,13 @@ internal class LauncherState(
             return
         }
         val payload = serialize(config)
+        val seq = ++saveSeq
         val accepted = io(Runnable {
+            // Latest wins: when a newer save is already queued behind this one (ticking 30
+            // apps in "-" mode queues 30), its payload carries this state too — skip the
+            // durable write (a parse, a rename, 2-3 fsyncs) and let that one do it. An
+            // explicit "~save" (onDone) is never skipped: it reports a real write.
+            if (onDone == null && seq != saveSeq) return@Runnable
             val ok = writeConfig(payload)
             onDone?.let { cb -> main(Runnable { cb(ok) }) }
         })

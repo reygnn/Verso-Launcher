@@ -172,6 +172,12 @@ class MainActivity : Activity() {
     // the bare-"#" overview. Reassigned only by applyFilter (from LauncherLogic.rowsFor).
     private var shown: List<Row<AppEntry>> = emptyList()
 
+    // Whether the next onResume must re-enumerate the apps (see onResume / appsMaybeChanged):
+    // true at first, then set by the change callbacks while the launcher is not in front.
+    private var appsDirty = true
+    private var lastRefresh = 0L
+    private var resumed = false
+
     // What outlives this instance: the one disk thread and the recents (see VersoApp).
     private val app get() = VersoApp.from(this)
 
@@ -572,6 +578,19 @@ class MainActivity : Activity() {
         // Live updates for installs/uninstalls and profile changes (see appsChanged).
         watchApps()
 
+        // A cold start draws the favorites from the cache at once (HomeCache) — queued on the IO
+        // thread ahead of the first load, so it lands long before the full enumeration does —
+        // and only while the real list has not arrived yet.
+        submitIo {
+            val cached = HomeCache.read(filesDir)
+            onUi {
+                if (cached.isNotEmpty() && !state.appsLoaded) {
+                    cachedFavorites = cached.map { it.key to it.label }
+                    homePage.render(cached, loaded = true)
+                }
+            }
+        }
+
         // Text colours for the wallpaper behind, and live when it changes (see applyPalette).
         applyPalette(HomeStyle.palette(wallpaperIsLight()))
         WallpaperManager.getInstance(this).addOnColorsChangedListener(wallpaperColors, Handler(Looper.getMainLooper()))
@@ -616,9 +635,10 @@ class MainActivity : Activity() {
         if (initialPrompt.isNotEmpty()) setPrompt(initialPrompt)
         else if (shown.isNotEmpty()) listView.setSelection(0)
         pageTurnUntil = SystemClock.uptimeMillis() + PAGE_TURN_MS
-        drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS)
+        home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
+        drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS).withLayer()
             .setInterpolator(AccelerateDecelerateInterpolator()).start()
-        home.animate().alpha(0f).setDuration(HOME_FADE_MS)
+        home.animate().alpha(0f).setDuration(HOME_FADE_MS).withLayer()
             .setInterpolator(AccelerateInterpolator()).withEndAction {
                 if (drawerOpen) home.visibility = View.INVISIBLE
             }.start()
@@ -648,6 +668,7 @@ class MainActivity : Activity() {
         home.visibility = View.VISIBLE
         if (!animate) {
             pageTurnUntil = 0L
+            home.setLayerType(View.LAYER_TYPE_NONE, null)
             home.alpha = 1f
             drawer.translationY = 0f
             drawer.visibility = View.GONE
@@ -656,9 +677,10 @@ class MainActivity : Activity() {
         // Kolibri's way back: the drawer slides down off the screen (slide_out_down) while home
         // fades in (fade_in).
         pageTurnUntil = SystemClock.uptimeMillis() + PAGE_TURN_MS
-        home.animate().alpha(1f).setDuration(HOME_FADE_MS)
+        home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
+        home.animate().alpha(1f).setDuration(HOME_FADE_MS).withLayer()
             .setInterpolator(AccelerateInterpolator()).start()
-        drawer.animate().translationY(pageHeight()).setDuration(DRAWER_SLIDE_MS)
+        drawer.animate().translationY(pageHeight()).setDuration(DRAWER_SLIDE_MS).withLayer()
             .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
                 if (!drawerOpen) drawer.visibility = View.GONE
             }.start()
@@ -685,6 +707,10 @@ class MainActivity : Activity() {
         home.animate().cancel()
         drawer.animate().cancel()
         home.visibility = View.VISIBLE
+        // Home fades with every move of the drag: a full-screen view group at partial alpha is
+        // composed offscreen each frame unless it has a layer — cache it once in a hardware
+        // layer for the drag (open/close/settle drop it again).
+        home.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         val height = pageHeight()
         return if (dir == SwipeDir.UP) {
             // Opening from home: the drawer comes up from below, focus still blocked — it is not
@@ -726,11 +752,12 @@ class MainActivity : Activity() {
      */
     private fun settle(open: Boolean) {
         pageTurnUntil = SystemClock.uptimeMillis() + DRAG_SETTLE_MS
-        drawer.animate().translationY(if (open) 0f else pageHeight()).setDuration(DRAG_SETTLE_MS)
+        home.setLayerType(View.LAYER_TYPE_NONE, null)  // the drag's layer; withLayer takes over
+        drawer.animate().translationY(if (open) 0f else pageHeight()).setDuration(DRAG_SETTLE_MS).withLayer()
             .setInterpolator(DecelerateInterpolator()).withEndAction {
                 if (!drawerOpen) drawer.visibility = View.GONE
             }.start()
-        home.animate().alpha(if (open) 0f else 1f).setDuration(DRAG_SETTLE_MS)
+        home.animate().alpha(if (open) 0f else 1f).setDuration(DRAG_SETTLE_MS).withLayer()
             .setInterpolator(DecelerateInterpolator()).withEndAction {
                 if (drawerOpen) home.visibility = View.INVISIBLE
             }.start()
@@ -744,7 +771,18 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        state.refresh()
+        resumed = true
+        // Re-enumerate only when something changed since the last load — the LauncherApps
+        // callback and the profile broadcasts report every install, removal, update and
+        // profile change (appsMaybeChanged) — or the last load is old enough that a missed
+        // change would matter. Not on every return home: that was a full enumeration of every
+        // profile (a binder call each, a label per app) competing with the return animation.
+        val now = SystemClock.uptimeMillis()
+        if (appsDirty || now - lastRefresh > REFRESH_STALE_MS) {
+            appsDirty = false
+            lastRefresh = now
+            state.refresh()
+        }
         // Re-assert on every return: the bar's visibility is a request on our window, and
         // coming back from an app that showed it must not leave it up on the home page.
         showStatusBar(drawerOpen)
@@ -761,6 +799,25 @@ class MainActivity : Activity() {
      * recents) turns the page back home, instantly — coming back to the launcher should
      * land on the home screen, like any launcher, not on a half-typed search.
      */
+    override fun onPause() {
+        resumed = false
+        super.onPause()
+    }
+
+    /**
+     * The installed apps may have changed (see appsChanged / profilesChanged). In front: reload
+     * now. Behind another app: only note it — a burst of updates (a store updating 20 apps)
+     * would otherwise run 20 full enumerations for a page nobody sees; onResume reloads once.
+     */
+    private fun appsMaybeChanged() {
+        if (resumed) {
+            lastRefresh = SystemClock.uptimeMillis()
+            state.refresh()
+        } else {
+            appsDirty = true
+        }
+    }
+
     override fun onStop() {
         closeDrawer(animate = false)
         homePage.stopBattery()
@@ -1304,8 +1361,11 @@ class MainActivity : Activity() {
                     // (systemLabel) so a later rename can rebuild in-memory. In another
                     // profile it carries the system's badge, so the work copy reads apart.
                     val raw = info.label.toString()
-                    val systemLabel =
-                        if (serial == null) raw else pm.getUserBadgedLabel(raw, user).toString()
+                    // The badge is a binder call per app (DevicePolicyManager strings for a work
+                    // profile): cached per (profile, label) across loads — IO thread only.
+                    val systemLabel = if (serial == null) raw else {
+                        app.badgedLabels.getOrPut(serial to raw) { pm.getUserBadgedLabel(raw, user).toString() }
+                    }
                     // A custom name overrides the app's own label; labelLower keys off the
                     // displayed text, so filtering matches what's on screen.
                     entries += AppEntry.of(
@@ -1334,15 +1394,15 @@ class MainActivity : Activity() {
      * refresh supersedes the one before it.
      */
     private val appsChanged = object : LauncherApps.Callback() {
-        override fun onPackageAdded(packageName: String, user: UserHandle) = state.refresh()
-        override fun onPackageRemoved(packageName: String, user: UserHandle) = state.refresh()
-        override fun onPackageChanged(packageName: String, user: UserHandle) = state.refresh()
+        override fun onPackageAdded(packageName: String, user: UserHandle) = appsMaybeChanged()
+        override fun onPackageRemoved(packageName: String, user: UserHandle) = appsMaybeChanged()
+        override fun onPackageChanged(packageName: String, user: UserHandle) = appsMaybeChanged()
         override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
-            state.refresh()
+            appsMaybeChanged()
         override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
-            state.refresh()
-        override fun onPackagesSuspended(packageNames: Array<out String>, user: UserHandle) = state.refresh()
-        override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) = state.refresh()
+            appsMaybeChanged()
+        override fun onPackagesSuspended(packageNames: Array<out String>, user: UserHandle) = appsMaybeChanged()
+        override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) = appsMaybeChanged()
     }
 
     /** The profile a tap on a paused app turned back on, and that app's label — for the
@@ -1353,7 +1413,7 @@ class MainActivity : Activity() {
      *  how they are drawn: a paused profile's apps are dimmed). */
     private val profilesChanged = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            state.refresh()
+            appsMaybeChanged()
             val waiting = waitingForProfile ?: return
             if (intent.action != Intent.ACTION_PROFILE_AVAILABLE) return
             val user = intent.getParcelableExtra(Intent.EXTRA_USER, UserHandle::class.java)
@@ -1502,7 +1562,22 @@ class MainActivity : Activity() {
 
     /** Keep the home page in step with favorites, labels and the app set. Cheap when nothing
      *  it shows changed, so it is fine to call from every applyFilter. */
-    private fun renderHome() = homePage.render(state.favorites(), state.appsLoaded)
+    /** The favorites the cache file holds, as last written or read (see HomeCache). */
+    private var cachedFavorites: List<Pair<String, String>>? = null
+
+    private fun renderHome() {
+        val favs = state.favorites()
+        homePage.render(favs, state.appsLoaded)
+        // Keep the cold-start cache in step with what home really shows — written only when
+        // the favorites (keys, labels) actually changed, never on a plain re-render.
+        if (state.appsLoaded) {
+            val pairs = favs.map { it.key to it.label }
+            if (pairs != cachedFavorites) {
+                cachedFavorites = pairs
+                submitIo { HomeCache.write(filesDir, favs) }
+            }
+        }
+    }
 
     private fun launch(entry: AppEntry) {
         // Through LauncherApps, so an app of another profile starts IN that profile; it starts
@@ -1763,6 +1838,8 @@ class MainActivity : Activity() {
         const val HOME_FADE_MS = 200L
         /** The rename dialog's field text — light, on the always-dark dialog. */
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
+        /** A return home re-enumerates anyway once the last load is this old (see onResume). */
+        const val REFRESH_STALE_MS = 5 * 60 * 1000L
         /** A page drag that does not commit settles back this fast (Unity's settle-back). */
         const val DRAG_SETTLE_MS = 220L
         /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */

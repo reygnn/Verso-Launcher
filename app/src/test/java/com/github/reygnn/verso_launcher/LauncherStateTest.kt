@@ -312,6 +312,7 @@ class LauncherStateTest {
     @Test fun `every mutation saves a snapshot taken at the moment of the change`() {
         started()
         state.toggleFavorite(key("Alpha"))
+        runAll()
         state.toggleFavorite(key("Bravo"))
         runAll()
         assertEquals(
@@ -321,6 +322,26 @@ class LauncherStateTest {
             ),
             written,
         )
+    }
+
+    @Test fun `saves queued faster than they are written collapse to the newest`() {
+        started()
+        state.toggleFavorite(key("Alpha"))
+        state.toggleFavorite(key("Bravo"))
+        state.toggleFavorite(key("Charlie"))
+        runAll()
+        // Only the last payload hits the disk — and it carries all three changes.
+        assertEquals(listOf("fav=${key("Alpha")},${key("Bravo")},${key("Charlie")};hid=;names=;tags="), written)
+    }
+
+    @Test fun `an explicit save is written even when a newer save follows`() {
+        started()
+        var result: Boolean? = null
+        state.save { result = it }
+        state.toggleFavorite(key("Alpha"))
+        runAll()
+        assertEquals(true, result)
+        assertEquals(2, written.size)
     }
 
     @Test fun `save reports the real write result on the main thread`() {
