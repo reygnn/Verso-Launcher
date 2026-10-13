@@ -57,13 +57,16 @@ internal class HomePage(
     // manifest no longer handles "density"), so every value derived from this is fresh.
     private val density get() = activity.resources.displayMetrics.density
     private val outlinePx get() = HomeStyle.OUTLINE_DP * density
-    private val textColor = HomeStyle.TEXT_COLOR
-    private val outlineColor = HomeStyle.tonalOutlineColor(textColor)
+    // White on a dark wallpaper, black on a light one (HomeStyle.palette, applyTextColor).
+    private var textColor = HomeStyle.TEXT_COLOR
+    private var outlineColor = HomeStyle.tonalOutlineColor(textColor)
 
     // Kolibri's subtle press feedback: the text dims while pressed, no ripple.
-    private val pressableText = ColorStateList(
+    private var pressableText = pressable(textColor)
+
+    private fun pressable(color: Int) = ColorStateList(
         arrayOf(intArrayOf(android.R.attr.state_pressed), intArrayOf()),
-        intArrayOf(HomeStyle.withAlpha(textColor, HomeStyle.PRESSED_ALPHA), textColor),
+        intArrayOf(HomeStyle.withAlpha(color, HomeStyle.PRESSED_ALPHA), color),
     )
 
     private val favorites = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -80,6 +83,8 @@ internal class HomePage(
         addView(favorites, ViewGroup.LayoutParams(MATCH, WRAP))
     }
 
+    private val clock: OutlinedTextClock
+    private val date: OutlinedTextClock
     private val batteryText: OutlinedTextView
     private val chargingIcon: OutlinedImageView
     private val protectedIcon: OutlinedImageView
@@ -92,9 +97,30 @@ internal class HomePage(
     // The favorites last rendered — whole entries, so a change of label OR status (a work
     // profile paused/resumed, an archived app restored) rebuilds the rows.
     private var rendered: List<AppEntry>? = null
+    // The last render call, so a colour switch can redraw the favorites in the new colours.
+    private var lastRender: Pair<List<AppEntry>, Boolean>? = null
+
+    /**
+     * Switch the page to [color] (see HomeStyle.palette): clock, date, battery, the state icons
+     * and the favorites — each with the matching tonal outline.
+     */
+    fun applyTextColor(color: Int) {
+        if (color == textColor) return
+        textColor = color
+        outlineColor = HomeStyle.tonalOutlineColor(color)
+        pressableText = pressable(color)
+        clock.outlined()
+        date.outlined()
+        batteryText.outlined()
+        batteryText.setTextColor(textColor)
+        chargingIcon.setColors(textColor, outlineColor)
+        protectedIcon.setColors(textColor, outlineColor)
+        rendered = null
+        lastRender?.let { (favs, loaded) -> render(favs, loaded) }
+    }
 
     init {
-        val clock = OutlinedTextClock(activity).apply {
+        clock = OutlinedTextClock(activity).apply {
             // TextClock follows the system 12/24-hour setting by itself.
             format12Hour = "h:mm a"
             format24Hour = "HH:mm"
@@ -105,7 +131,7 @@ internal class HomePage(
         }
         val infoPad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
         // Kolibri's short date: "Tue, 13 Oct" / "Di., 13 Okt." (localized day/month names).
-        val date = OutlinedTextClock(activity).apply {
+        date = OutlinedTextClock(activity).apply {
             format12Hour = "E, d MMM"
             format24Hour = "E, d MMM"
             textSize = HomeStyle.INFO_SP
@@ -187,6 +213,7 @@ internal class HomePage(
      * between finger-down and the click can never redirect a tap to another app.
      */
     fun render(favs: List<AppEntry>, loaded: Boolean) {
+        lastRender = favs to loaded
         if (!loaded) return
         if (favs == rendered) return
         rendered = favs

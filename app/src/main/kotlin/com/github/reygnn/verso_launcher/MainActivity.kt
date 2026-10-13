@@ -2,6 +2,8 @@ package com.github.reygnn.verso_launcher
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.WallpaperColors
+import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -122,11 +124,14 @@ class MainActivity : Activity() {
 
     // NB: not named `foreground` — that collides with View.foreground (a
     // Drawable) inside the apply{} blocks below and hides this Int.
-    private val fgColor = 0xFFD4D4D4.toInt()     // pleasant light gray
-    private val fgColorDim = 0xFF808080.toInt()  // dimmer gray, for the hint
+    // The colours for the wallpaper behind (HomeStyle.palette): light text on a dark wallpaper,
+    // dark text on a light one — switched live when the wallpaper changes (wallpaperColors).
+    private var palette = HomeStyle.palette(lightWallpaper = false)
+    private val fgColor get() = palette.listText      // the drawer's text
+    private val fgColorDim get() = palette.listDim    // its dimmer hint
     // The drawer sits on the bare wallpaper like the home page, so its rows get the same tonal
     // outline (HomeStyle.tonalOutlineColor) — readable on a bright or busy wallpaper too.
-    private val listOutlineColor = HomeStyle.tonalOutlineColor(fgColor)
+    private val listOutlineColor get() = palette.listOutline
 
     private var mode = Mode.NORMAL
 
@@ -180,6 +185,7 @@ class MainActivity : Activity() {
 
     // The window root, which also runs the page drag (see SwipeFrame).
     private lateinit var root: SwipeFrame
+    private lateinit var clearButton: TextView
     private lateinit var listView: ListView
     private lateinit var prompt: EditText
     private lateinit var adapter: AppListAdapter
@@ -344,7 +350,7 @@ class MainActivity : Activity() {
         // only while there IS something to erase (see the TextWatcher), it wipes the line
         // back to the plain drawer without touching the keyboard — so the user can retype right
         // away, unlike Back, which also drops the IME.
-        val clearButton = TextView(this).apply {
+        clearButton = TextView(this).apply {
             text = "×"  // × — a clear glyph that sits right in the monospace line
             typeface = Typeface.MONOSPACE
             textSize = 24f
@@ -539,6 +545,10 @@ class MainActivity : Activity() {
 
         // Live updates for installs/uninstalls and profile changes (see appsChanged).
         watchApps()
+
+        // Text colours for the wallpaper behind, and live when it changes (see applyPalette).
+        applyPalette(HomeStyle.palette(wallpaperIsLight()))
+        WallpaperManager.getInstance(this).addOnColorsChangedListener(wallpaperColors, Handler(Looper.getMainLooper()))
     }
 
     /** Live battery level on the home page while the launcher is visible. */
@@ -741,6 +751,7 @@ class MainActivity : Activity() {
         // instance queued — a save above all — must still run for the next one. What it
         // would hand back to this instance's main thread is dropped by onUi instead.
         unwatchApps()
+        WallpaperManager.getInstance(this).removeOnColorsChangedListener(wallpaperColors)
         super.onDestroy()
     }
 
@@ -1165,7 +1176,9 @@ class MainActivity : Activity() {
             initialName = state.config.names[key] ?: entry.systemLabel,
             initialTags = state.config.tags[key]?.joinToString(", ").orEmpty(),
             allTags = LauncherLogic.allTags(state.config.tags),
-            fgColor = fgColor,
+            // The dialog is dark on every wallpaper (Theme_Material_Dialog_Alert), so its text
+            // stays light whatever the drawer's palette is.
+            fgColor = DIALOG_TEXT,
             onAppInfo = { openAppInfo(entry) },
         ) { name, tags ->
             // Name override, tags, save, in-memory relabel + re-sort — and the counters that
@@ -1496,12 +1509,52 @@ class MainActivity : Activity() {
     }
 
     /**
+     * Whether the system wallpaper wants dark text — Android's own judgement of it
+     * (WallpaperColors.HINT_SUPPORTS_DARK_TEXT), the signal Unity Kolibri's smart contrast uses.
+     * No permission needed. Unknown (a live wallpaper without colours, an error) counts as dark:
+     * light text with a dark rim is what Verso always showed.
+     */
+    private fun wallpaperIsLight(): Boolean = try {
+        val colors = WallpaperManager.getInstance(this).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
+        colors != null && (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+    } catch (e: RuntimeException) {
+        Log.w("Verso", "wallpaper colours unavailable", e)
+        false
+    }
+
+    /** A new wallpaper (or new colours of a live one) may flip the palette. */
+    private val wallpaperColors = WallpaperManager.OnColorsChangedListener { colors, which ->
+        if (which and WallpaperManager.FLAG_SYSTEM == 0) return@OnColorsChangedListener
+        val light = colors != null && (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+        applyPalette(HomeStyle.palette(light))
+    }
+
+    /**
+     * Repaint everything that sits on the wallpaper in [p]: the home page, the drawer rows (via a
+     * rebind), the prompt, its hint and the ×, and the system bars' icons (dark on a light
+     * wallpaper, so the clock and battery up there stay visible).
+     */
+    private fun applyPalette(p: Palette) {
+        palette = p
+        homePage.applyTextColor(p.homeText)
+        prompt.setTextColor(fgColor)
+        prompt.setHintTextColor(fgColorDim)
+        prompt.legibleOnWallpaper()
+        clearButton.setTextColor(fgColorDim)
+        clearButton.legibleOnWallpaper()
+        val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        window.insetsController?.setSystemBarsAppearance(if (p.darkBarIcons) lightBars else 0, lightBars)
+        adapter.notifyDataSetChanged()
+    }
+
+    /**
      * The prompt, its hint and the × sit on the wallpaper too, but an EditText cannot take the
      * stroked outline (the second pass would draw the cursor and selection twice) — a tight
      * dark shadow gives them the same footing on a bright wallpaper.
      */
     private fun TextView.legibleOnWallpaper() =
-        setShadowLayer(3.dp().toFloat(), 0f, 0f, LEGIBILITY_SHADOW)
+        setShadowLayer(3.dp().toFloat(), 0f, 0f, palette.shadow)
 
     private fun notFound(entry: AppEntry) =
         toast(getString(R.string.toast_not_found, entry.label))
@@ -1575,6 +1628,9 @@ class MainActivity : Activity() {
                 val v = 10.dp()
                 setPadding(0, v, 0, v)
             }
+            // Every bind, not only on creation: a recycled row may predate a palette switch.
+            tv.setTextColor(fgColor)
+            (tv as? OutlinedTextView)?.setOutline(HomeStyle.OUTLINE_DP * resources.displayMetrics.density, listOutlineColor)
             when (val row = shown[position]) {
                 // Tag overview (bare "#"): plain tag name; a screen reader reads it fine,
                 // so clear any stale edit-mode description from the recycled view.
@@ -1664,8 +1720,8 @@ class MainActivity : Activity() {
         const val DRAWER_SLIDE_MS = 180L
         /** …and home's fade underneath it (fade_in / fade_out). */
         const val HOME_FADE_MS = 200L
-        /** The prompt's shadow on the wallpaper: black at ~70 %. */
-        const val LEGIBILITY_SHADOW = 0xB3000000.toInt()
+        /** The rename dialog's field text — light, on the always-dark dialog. */
+        const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
         /** A page drag that does not commit settles back this fast (Unity's settle-back). */
         const val DRAG_SETTLE_MS = 220L
         /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */

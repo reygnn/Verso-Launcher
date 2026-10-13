@@ -26,6 +26,9 @@ keyboard, no prompt:
 - First start: Verso picks your default phone, messenger (default SMS app), email,
   browser and camera as starting favorites. Only once — remove them and they stay gone.
 - No favorites yet? A short hint says how to add them (tap it to open the drawer).
+- Text follows the wallpaper: white with a dark outline on a dark wallpaper, black with
+  a light outline on a light one (the drawer and the status-bar icons too), switching
+  by itself when you change the wallpaper.
 - **Pull up** → the drawer comes up with your finger; let go past about a quarter of
   the screen (or flick) and it opens, otherwise it drops back. **Swipe down** → your
   recently used apps (the drawer opened on its `?` view, without the keyboard; Back goes

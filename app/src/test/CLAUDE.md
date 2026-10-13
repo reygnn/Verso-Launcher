@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 384 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 387 tests):
 
 ```
 LauncherLogicTest          120  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -29,8 +29,8 @@ ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .t
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         19  Enter / tap decisions
-HomeStyleTest               20  sizes, luminance, outline-colour thresholds, battery,
-                                AppStatus and its dimming
+HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
+                                AppStatus and its dimming, the wallpaper palette
 BackupFilesTest             15  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
@@ -41,7 +41,7 @@ VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 6  stale-click guard
 RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest    9  Robolectric: TalkBack click on clock/date/battery, the double
+HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
 ```
 

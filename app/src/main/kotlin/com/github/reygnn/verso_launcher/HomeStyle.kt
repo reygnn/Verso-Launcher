@@ -58,6 +58,22 @@ internal object HomeStyle {
     /** Kolibri's default text colour: white. */
     const val TEXT_COLOR = 0xFFFFFFFF.toInt()
 
+    /**
+     * The colours for the wallpaper behind — Unity Kolibri's "smart contrast": on a wallpaper
+     * that supports dark text (Android's WallpaperColors.HINT_SUPPORTS_DARK_TEXT) the text turns
+     * black with a white rim, otherwise it stays white with a black rim; the rims come from
+     * [tonalOutlineColor], which flips by itself. The drawer's greys, the prompt's shadow and the
+     * system bars' icons follow the same switch.
+     */
+    fun palette(lightWallpaper: Boolean): Palette =
+        if (lightWallpaper) {
+            Palette(homeText = 0xFF000000.toInt(), listText = 0xFF2B2B2B.toInt(), listDim = 0xFF5C5C5C.toInt(),
+                shadow = 0xB3FFFFFF.toInt(), darkBarIcons = true)
+        } else {
+            Palette(homeText = TEXT_COLOR, listText = 0xFFD4D4D4.toInt(), listDim = 0xFF808080.toInt(),
+                shadow = 0xB3000000.toInt(), darkBarIcons = false)
+        }
+
     /** Alpha of a row whose app cannot start right away (paused or archived, see AppStatus):
      *  still readable, clearly set apart. */
     const val UNAVAILABLE_ALPHA = 0.45f
@@ -167,4 +183,19 @@ internal class DoubleTapGate(private val windowMs: Long = HomeStyle.DOUBLE_TAP_M
     private companion object {
         const val NONE = Long.MIN_VALUE
     }
+}
+
+/**
+ * The colour set for one wallpaper brightness (see [HomeStyle.palette]): home text, the drawer's
+ * text and dimmed hint, the shadow under the prompt, and whether the system bars need dark icons.
+ */
+internal data class Palette(
+    val homeText: Int,
+    val listText: Int,
+    val listDim: Int,
+    val shadow: Int,
+    val darkBarIcons: Boolean,
+) {
+    val homeOutline: Int get() = HomeStyle.tonalOutlineColor(homeText)
+    val listOutline: Int get() = HomeStyle.tonalOutlineColor(listText)
 }

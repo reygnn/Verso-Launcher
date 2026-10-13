@@ -170,14 +170,15 @@ contrast, not from a scheme:
 
 | Use                                  | Source                                              |
 |--------------------------------------|-----------------------------------------------------|
-| Home text (clock, date, favorites)   | white, `HomeStyle.TEXT_COLOR`                       |
+| Home text (clock, date, favorites)   | white on a dark wallpaper, black on a light one (`HomeStyle.palette`, Unity Kolibri's smart contrast from `WallpaperColors.HINT_SUPPORTS_DARK_TEXT`) |
 | Readability on any wallpaper         | tonal outline: `HomeStyle.tonalOutlineColor` (white rim for dark text, black for light, eased in between) |
-| Drawer text, dimmed hints            | `fgColor` / `fgColorDim` in `MainActivity`; rows with the same tonal outline as home, the prompt/hint/× with a dark shadow |
+| Drawer text, dimmed hints            | `Palette.listText` / `listDim` (light or dark grey by wallpaper); rows with the same tonal outline as home, the prompt/hint/× with a shadow in the opposite tone; system-bar icons dark on a light wallpaper |
 | Pressed state of a favorite          | `HomePage.pressableText` (derived from `TEXT_COLOR`) |
 | Charging / battery-protection marks  | outlined vector drawables (`ic_bolt_*`, `ic_shield_*`) |
 
-Colour constants live in `HomeStyle.kt` (home) and `MainActivity`'s `fgColor` /
-`fgColorDim` (drawer) — not scattered as hex across views.
+Colour constants live in `HomeStyle.kt` (`palette`, for home and drawer) — not scattered as
+hex across views. The rename dialog's light field text (`MainActivity.DIALOG_TEXT`) is the one
+exception: the dialog is dark on every wallpaper.
 
 ## B2. Documented exceptions to Part A
 

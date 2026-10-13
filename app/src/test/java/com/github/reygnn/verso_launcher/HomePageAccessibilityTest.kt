@@ -91,6 +91,15 @@ class HomePageAccessibilityTest {
         assertNull(favorite("Gmail (Work)").contentDescription)
     }
 
+    @Test fun `switching the text colour redraws the favorites in it`() {
+        val gmail = AppEntry.of("Gmail", "com.g", "com.g.Main", "Gmail")
+        page.render(favs = listOf(gmail), loaded = true)
+        assertEquals(HomeStyle.TEXT_COLOR, (favorite("Gmail") as android.widget.TextView).currentTextColor)
+
+        page.applyTextColor(0xFF000000.toInt())  // a light wallpaper
+        assertEquals(0xFF000000.toInt(), (favorite("Gmail") as android.widget.TextView).currentTextColor)
+    }
+
     private fun favorite(label: String): View =
         page.view.collect<android.widget.TextView>().single { it.text.toString() == label }
 
