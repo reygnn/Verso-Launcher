@@ -23,12 +23,15 @@ class VersoApp : Application() {
      */
     val io: ExecutorService = Executors.newSingleThreadExecutor()
 
-    /** "Gmail" -> "Gmail (Work)" per (profile serial, label): the system's badge for an app of
-     *  another profile, which costs a binder call each. Read and written on [io] only. */
-    internal val badgedLabels = HashMap<Pair<Long, String>, String>()
+    /** "Gmail" -> "Gmail (Work)" per (profile serial, label, language): the system's badge for
+     *  an app of another profile, which costs a binder call each. Read and written on [io] only. */
+    internal val badgedLabels = HashMap<BadgeKey, String>()
 
     /** The "?" list, newest first. In memory only, so it lasts until the process dies. */
     internal var recentKeys: List<String> = emptyList()
+
+    /** The key of [badgedLabels]: the badge depends on all three. */
+    internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 
     companion object {
         fun from(activity: android.app.Activity) = activity.application as VersoApp

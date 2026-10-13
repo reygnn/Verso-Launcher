@@ -307,6 +307,57 @@ class LauncherStateTest {
         assertEquals(listOf(false), refreshed)  // the hand-off still ran
     }
 
+    // ---- needsRefresh: what a resume must retry --------------------------------------
+
+    @Test fun `a cold start needs a refresh until its load has landed`() {
+        assertTrue(state.needsRefresh)
+        state.refresh()
+        runIo()
+        assertTrue("requested is not landed", state.needsRefresh)
+        runMain()
+        assertFalse(state.needsRefresh)
+    }
+
+    @Test fun `a failed enumeration leaves the launcher needing a refresh, a good one clears it`() {
+        started()
+        enumerationFails = true
+        state.refresh()
+        runAll()
+        assertTrue(state.needsRefresh)
+        enumerationFails = false
+        state.refresh()
+        runAll()
+        assertFalse(state.needsRefresh)
+    }
+
+    @Test fun `a load dropped by a rename leaves the launcher needing a refresh`() {
+        started()
+        installed = installed + app("Delta")
+        state.refresh()
+        runIo()
+        state.rename(key("Alpha"), "Alpha", "Zulu", emptyList())
+        runAll()
+        assertFalse("Delta" in labels())   // the stale list was dropped, Delta with it
+        assertTrue(state.needsRefresh)
+        state.refresh()
+        runAll()
+        assertTrue("Delta" in labels())
+        assertFalse(state.needsRefresh)
+    }
+
+    @Test fun `a rename before the config is loaded is ignored and the first load still lands`() {
+        disk = VersoConfig().apply { names[key("Bravo")] = "Mine" }
+        state.refresh()
+        runIo()
+        state.rename(key("Alpha"), "Alpha", "Zulu", listOf("work"))  // a cached favorite
+        runAll()
+        assertTrue(state.configLoaded)
+        assertTrue(state.appsLoaded)
+        assertEquals("Mine", state.config.names[key("Bravo")])
+        assertNull(state.config.names[key("Alpha")])
+        assertEquals(emptyList<String>(), written)
+    }
+
     // ---- saving ---------------------------------------------------------------
 
     @Test fun `every mutation saves a snapshot taken at the moment of the change`() {

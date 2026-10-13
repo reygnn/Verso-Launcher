@@ -24,13 +24,16 @@ resets on restart") — see `LauncherLogic.emptyHint` and `empty_no_recents`.
 If durable recents are ever wanted, persist `recentKeys` to a **separate** small
 file (not `verso.json`) and load it on start.
 
-## Private space is untested
+## Private space is not reachable
 
 Apps are listed through `LauncherApps` across every profile the launcher is shown:
 the personal one plus a work profile or cloned apps (badged by the system, e.g.
 "Calculator (Work)"). This was verified with a managed test profile. Android 15's
-private space is a hidden profile with its own rules for which launcher sees it; it
-has not been tried on a device, so whether and when its apps appear is open.
+private space is a hidden profile: the system shows it only to a default launcher
+holding `ACCESS_HIDDEN_PROFILES`, which Verso does not request. Its apps therefore
+never appear in Verso, and with Verso as home there is no way into the private space.
+Supporting it would mean the permission plus hiding those apps while the space is
+locked — listing them dimmed, like a paused work profile, would reveal they exist.
 
 Apps of a paused work profile and archived apps stay listed, dimmed; the first tap
 turns the profile back on (then a toast says the app is ready) or offers the system's

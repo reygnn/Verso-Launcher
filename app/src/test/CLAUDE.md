@@ -13,15 +13,15 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 395 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 402 tests):
 
 ```
 LauncherLogicTest          122  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           46  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           50  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
-                                save-before-load, recents
+                                save-before-load, needsRefresh, recents
 LauncherRowsTest            36  rowsFor per mode
 ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
@@ -39,11 +39,13 @@ SwipeFrameTest              12  Robolectric: real MotionEvents through the frame
 RenameDialogFilterTest       8  Robolectric: the tag field's InputFilter on a real widget
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 6  stale-click guard
-HomeCacheTest                4  the cold-start favorites cache: format, parse, file
+HomeCacheTest                5  the cold-start favorites cache: format, parse, file
 RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
+SourceGuardTest              2  source scans: no lenient ConfigJson.parse in MainActivity,
+                                no density in configChanges
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
@@ -69,7 +71,9 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
   modelled as two manual FIFO queues (`LauncherStateTest`), which makes every
   interleaving deterministic.
 - **No Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic`
-  / `LauncherState`. Behaviour that only exists in the Activity is checked on a device.
+  / `LauncherState`. Behaviour that only exists in the Activity is checked on a device;
+  `SourceGuardTest` scans the source for the two edits there that would be silently
+  dangerous.
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the
   backup layer is tested on a device instead.

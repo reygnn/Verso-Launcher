@@ -31,8 +31,9 @@ Deliberately NOT: icons, widgets, notification badges, a settings screen (the lo
 is constants in `HomeStyle.kt`), left/right swipe actions, any runtime permission.
 Apps come from `LauncherApps` across all profiles (work, clone); apps of a paused
 profile and archived apps stay listed, dimmed (`AppStatus`), and a first tap brings
-them back; private space is untested. See `KNOWN_LIMITATIONS.md`. A new feature
-category needs explicit user agreement before it is built.
+them back; private space is not reachable (no `ACCESS_HIDDEN_PROFILES`). See
+`KNOWN_LIMITATIONS.md`. A new feature category needs explicit user agreement before
+it is built.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,

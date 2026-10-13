@@ -255,6 +255,9 @@ class MainActivity : Activity() {
         // Under enforced edge-to-edge (Android 16) the window never fits the system bars and
         // the system does NOT push our content up for the keyboard on its own — the IME just
         // covers the prompt. So we own the insets and pad for the IME ourselves (below).
+        // No grey scrim behind 3-button navigation: the wallpaper runs to the bottom edge, and
+        // the bar icons follow the wallpaper's palette (applyPalette).
+        window.isNavigationBarContrastEnforced = false
 
         // No always-visible keyboard any more: the front page is a quiet text home screen,
         // and the IME belongs to the drawer only. The manifest asks for stateHidden; the
@@ -778,7 +781,10 @@ class MainActivity : Activity() {
         // change would matter. Not on every return home: that was a full enumeration of every
         // profile (a binder call each, a label per app) competing with the return animation.
         val now = SystemClock.uptimeMillis()
-        if (appsDirty || now - lastRefresh > REFRESH_STALE_MS) {
+        // Also while the launcher is not current (state.needsRefresh): a cold start whose load
+        // has not landed, or a load that failed or was dropped — no package event will come
+        // to retry it.
+        if (appsDirty || state.needsRefresh || now - lastRefresh > REFRESH_STALE_MS) {
             appsDirty = false
             lastRefresh = now
             state.refresh()
@@ -1255,6 +1261,9 @@ class MainActivity : Activity() {
     }
 
     private fun promptRename(entry: AppEntry) {
+        // The home page can show cached favorites before the config is loaded; the dialog
+        // would open on the empty default (no tags) and its edit could not be saved.
+        if (!state.configLoaded) return
         val key = entry.key
         // Dismiss any dialog already up (rapid long-presses) before opening a new one, and
         // keep the reference so onDestroy can tear it down. The view construction lives in
@@ -1311,6 +1320,9 @@ class MainActivity : Activity() {
         val pm = packageManager
         val self = packageName
         val personal = Process.myUserHandle()
+        // The badge is localized ("(Work)" / "(Arbeit)"): part of its cache key, since the
+        // process — and the cache — outlives the activity recreated by a language change.
+        val locale = resources.configuration.locales[0].toLanguageTag()
         // This runs on a background thread, and a HOME app that throws on resume loops
         // forever — so nothing here may let an exception escape. LauncherApps and the label
         // lookups surface plain RuntimeExceptions (a DeadSystemRuntimeException if
@@ -1364,7 +1376,7 @@ class MainActivity : Activity() {
                     // The badge is a binder call per app (DevicePolicyManager strings for a work
                     // profile): cached per (profile, label) across loads — IO thread only.
                     val systemLabel = if (serial == null) raw else {
-                        app.badgedLabels.getOrPut(serial to raw) { pm.getUserBadgedLabel(raw, user).toString() }
+                        app.badgedLabels.getOrPut(VersoApp.BadgeKey(serial, raw, locale)) { pm.getUserBadgedLabel(raw, user).toString() }
                     }
                     // A custom name overrides the app's own label; labelLower keys off the
                     // displayed text, so filtering matches what's on screen.
@@ -1500,7 +1512,9 @@ class MainActivity : Activity() {
         val wantedAction = if (LauncherLogic.isEditMode(mode)) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_GO
         if (prompt.imeOptions != wantedAction) {
             prompt.imeOptions = wantedAction
-            getSystemService(InputMethodManager::class.java).restartInput(prompt)
+            // Posted: this runs inside the keyboard's own edit (afterTextChanged), and keys it
+            // sends to the old connection before it rebinds could otherwise be lost.
+            prompt.post { getSystemService(InputMethodManager::class.java).restartInput(prompt) }
         }
         // The bare, empty-prompt drawer is a plain A-to-Z list and reads top-down like any
         // app drawer; every other view (search results, sigil modes) keeps Sigil's
@@ -1535,8 +1549,10 @@ class MainActivity : Activity() {
         // Any replacement of shown invalidates a tap already in flight (see the click
         // listener). Bumped here, in the ONE place shown is assigned.
         shownGeneration++
-        // An empty list explains itself (it is only shown while the list IS empty).
-        emptyView.text = getString(
+        // An empty list explains itself (it is only shown while the list IS empty) — but not
+        // before the apps have loaded, when "no apps" would be false. Set only when it changes:
+        // the view is a live region, and TalkBack would repeat it on every keystroke.
+        val hint = if (!state.appsLoaded) "" else getString(
             when (LauncherLogic.emptyHint(mode, q, tagEditTag)) {
                 EmptyHint.NO_MATCH -> R.string.empty_no_match
                 EmptyHint.NO_APPS -> R.string.empty_no_apps
@@ -1547,6 +1563,7 @@ class MainActivity : Activity() {
                 EmptyHint.NO_COMMAND -> R.string.empty_no_command
             }
         )
+        if (emptyView.text.toString() != hint) emptyView.text = hint
         adapter.notifyDataSetChanged()
         // Back to the empty prompt: start the A-to-Z list at A, not wherever the
         // bottom-anchored search left the scroll position.

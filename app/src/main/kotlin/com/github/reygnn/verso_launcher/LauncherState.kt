@@ -76,6 +76,19 @@ internal class LauncherState(
     var appsLoaded = false
         private set
 
+    /**
+     * True while the launcher is not current: the config is not loaded yet, or the last load
+     * that reached its hand-off did not commit its app list (the enumeration failed, or a
+     * rename made its labels stale). The Activity refreshes on resume while this holds, even
+     * when no package change was reported — otherwise a dropped load is only retried once the
+     * stale timer runs out.
+     */
+    val needsRefresh: Boolean
+        get() = !configLoaded || !lastLoadCommitted
+
+    // Whether the newest load to reach its hand-off committed its app list.
+    private var lastLoadCommitted = false
+
     /** The "?" view's keys, newest first. In memory only — empty after every process start. */
     var recentKeys: List<String> = initialRecents
         private set
@@ -157,7 +170,8 @@ internal class LauncherState(
                 // Commit the enumeration unless a rename made its labels stale. null means the
                 // enumeration itself failed (e.g. a system_server restart): keep the last
                 // known-good list rather than blanking the launcher.
-                if (labelGeneration == labelGen && loaded != null) {
+                lastLoadCommitted = labelGeneration == labelGen && loaded != null
+                if (lastLoadCommitted && loaded != null) {
                     apps = loaded
                     appsLoaded = true
                 }
@@ -240,8 +254,13 @@ internal class LauncherState(
      * Bumps labelGeneration so an in-flight load holding a pre-rename name snapshot drops its
      * stale list, and configEpoch so an in-flight "~load" keeps this name over the disk copy.
      * Installs/uninstalls since the last load are picked up by the next [refresh], not here.
+     *
+     * Ignored before the config is loaded (the home page can already show cached favorites
+     * then): the edit could not be saved, and its epoch bump would make the first load drop
+     * both the disk config and its app list.
      */
     fun rename(key: String, systemLabel: String, name: String, tags: List<String>) {
+        if (!configLoaded) return
         val override = LauncherLogic.resolveNameOverride(name, systemLabel)
         if (override == null) config.names.remove(key) else config.names[key] = override
         if (tags.isEmpty()) config.tags.remove(key) else config.tags[key] = tags.toMutableList()

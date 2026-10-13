@@ -30,6 +30,11 @@ class HomeCacheTest {
         assertEquals(listOf("p/c"), HomeCache.parse(text).map { it.key })
     }
 
+    @Test fun `a line with an empty label, package or class is skipped`() {
+        val text = "a/b\t\n/b\tX\na/\tX\nc/d\tGood\n"
+        assertEquals(listOf("c/d"), HomeCache.parse(text).map { it.key })
+    }
+
     @Test fun `written to disk and read back, no file reads as empty`() {
         val dir = tmp.newFolder()
         assertEquals(emptyList<AppEntry>(), HomeCache.read(dir))
