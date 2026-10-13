@@ -30,6 +30,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
@@ -527,6 +528,7 @@ class MainActivity : Activity() {
     private fun openDrawer(initialPrompt: String = "") {
         if (drawerOpen) return
         drawerOpen = true
+        showStatusBar(true)
         renameDialog?.dismiss()
         home.animate().cancel()
         drawer.animate().cancel()
@@ -555,6 +557,7 @@ class MainActivity : Activity() {
     private fun closeDrawer(animate: Boolean = true) {
         if (!drawerOpen) return
         drawerOpen = false
+        showStatusBar(false)
         hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         prompt.clearFocus()
@@ -576,9 +579,24 @@ class MainActivity : Activity() {
             }.start()
     }
 
+    /**
+     * The status bar belongs to the drawer only: the home page is a quiet full screen, the
+     * drawer (a working list with a command line) shows it. Hidden, a swipe from the top edge
+     * still brings it — and the notification shade — in transiently, so nothing is out of reach.
+     */
+    private fun showStatusBar(show: Boolean) {
+        val controller = window.insetsController ?: return
+        controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (show) controller.show(WindowInsets.Type.statusBars())
+        else controller.hide(WindowInsets.Type.statusBars())
+    }
+
     override fun onResume() {
         super.onResume()
         state.refresh()
+        // Re-assert on every return: the bar's visibility is a request on our window, and
+        // coming back from an app that showed it must not leave it up on the home page.
+        showStatusBar(drawerOpen)
         // Only the drawer is keyboard-first. It is normally closed by the time we come
         // back (onStop turns the page home), but a resume WITHOUT a stop — a dialog or a
         // translucent activity on top — returns to an open drawer, and there the

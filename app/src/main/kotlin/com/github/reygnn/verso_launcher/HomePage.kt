@@ -155,9 +155,12 @@ internal class HomePage(
             // System bars and any camera cutout (portrait is locked on phones, but Android 16
             // ignores that lock on large screens, so landscape can still occur) plus Kolibri's 24dp
             // page padding. The keyboard never shows over this page, so no IME inset.
+            // IgnoringVisibility: the status bar is hidden on this page (MainActivity.showStatusBar)
+            // and shown in the drawer — padding for the bar either way keeps the clock and the
+            // favorites from jumping up and down with every page turn.
             val pad = HomeStyle.PAGE_PADDING_DP.dp()
             setOnApplyWindowInsetsListener { v, insets ->
-                val i = insets.getInsets(
+                val i = insets.getInsetsIgnoringVisibility(
                     WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
                 )
                 v.setPadding(i.left + pad, i.top + pad, i.right + pad, i.bottom + pad)
