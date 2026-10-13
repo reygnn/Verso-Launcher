@@ -70,12 +70,56 @@ class SwipeGestureTest {
         assertFalse(SwipeGesture.claims(drawerOpen = false, SwipeDir.DOWN, downY = 143.9f, topExclusionPx = band))
     }
 
-    @Test fun `the drawer takes down (close) from anywhere, even the top band`() {
-        assertTrue(SwipeGesture.claims(drawerOpen = true, SwipeDir.DOWN, downY = 10f, topExclusionPx = band))
-        assertTrue(SwipeGesture.claims(drawerOpen = true, SwipeDir.DOWN, downY = 900f, topExclusionPx = band))
+    @Test fun `the drawer takes no flick at all - closing it is a drag`() {
+        // Unity's Kolibri: a flick down in a scrolled list scrolls it; only the drag closes.
+        assertFalse(SwipeGesture.claims(drawerOpen = true, SwipeDir.DOWN, downY = 900f, topExclusionPx = band))
+        assertFalse(SwipeGesture.claims(drawerOpen = true, SwipeDir.UP, downY = 900f, topExclusionPx = band))
     }
 
-    @Test fun `the drawer leaves up to its list`() {
-        assertFalse(SwipeGesture.claims(drawerOpen = true, SwipeDir.UP, downY = 900f, topExclusionPx = band))
+    // ---- page drag -------------------------------------------------------------
+
+    private val slop = 10f
+
+    @Test fun `home drags up, the drawer drags down - once past the slop`() {
+        assertEquals(SwipeDir.UP, SwipeGesture.dragDirection(drawerOpen = false, dx = 0f, dy = -11f, slop = slop))
+        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(drawerOpen = true, dx = 0f, dy = 11f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(drawerOpen = false, dx = 0f, dy = -10f, slop = slop))  // in the slop
+    }
+
+    @Test fun `home does not drag down and the drawer does not drag up`() {
+        // Home's down is the recents flick; the drawer's up is a scroll of its list.
+        assertNull(SwipeGesture.dragDirection(drawerOpen = false, dx = 0f, dy = 50f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(drawerOpen = true, dx = 0f, dy = -50f, slop = slop))
+    }
+
+    @Test fun `a drag must be vertical enough`() {
+        assertNull(SwipeGesture.dragDirection(drawerOpen = false, dx = 20f, dy = -30f, slop = slop))   // exactly 1.5x
+        assertEquals(SwipeDir.UP, SwipeGesture.dragDirection(drawerOpen = false, dx = 20f, dy = -31f, slop = slop))
+    }
+
+    @Test fun `the drag offset follows the finger both ways and stays within its range`() {
+        assertEquals(30f, SwipeGesture.dragOffset(offset = 10f, delta = 20f, max = 100f))
+        assertEquals(5f, SwipeGesture.dragOffset(offset = 10f, delta = -5f, max = 100f))   // pushed back
+        assertEquals(0f, SwipeGesture.dragOffset(offset = 10f, delta = -50f, max = 100f))  // not past the start
+        assertEquals(100f, SwipeGesture.dragOffset(offset = 90f, delta = 50f, max = 100f)) // not past the cap
+    }
+
+    private val height = 1000f
+    private val fling = 300f
+
+    @Test fun `without a flick the distance decides at 28 percent`() {
+        assertEquals(DragEnd.CANCEL, SwipeGesture.dragEnd(offset = 279f, height = height, velocity = 0f, flingVelocity = fling))
+        assertEquals(DragEnd.COMMIT, SwipeGesture.dragEnd(offset = 280f, height = height, velocity = 0f, flingVelocity = fling))
+    }
+
+    @Test fun `a flick forward commits however short`() {
+        assertEquals(DragEnd.COMMIT, SwipeGesture.dragEnd(offset = 20f, height = height, velocity = 300f, flingVelocity = fling))
+        assertEquals(DragEnd.CANCEL, SwipeGesture.dragEnd(offset = 20f, height = height, velocity = 299f, flingVelocity = fling))
+    }
+
+    @Test fun `a flick back cancels even past the threshold`() {
+        // "Pull far, then flick back" aborts — distance alone must not commit it (Unity's fix).
+        assertEquals(DragEnd.CANCEL, SwipeGesture.dragEnd(offset = 700f, height = height, velocity = -300f, flingVelocity = fling))
+        assertEquals(DragEnd.COMMIT, SwipeGesture.dragEnd(offset = 700f, height = height, velocity = -299f, flingVelocity = fling))
     }
 }

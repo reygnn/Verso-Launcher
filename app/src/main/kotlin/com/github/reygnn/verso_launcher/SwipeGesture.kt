@@ -5,6 +5,9 @@ import kotlin.math.abs
 /** Which way a decisive vertical swipe went. */
 internal enum class SwipeDir { UP, DOWN }
 
+/** How a page drag ends when the finger lifts: finish the page turn, or fall back. */
+internal enum class DragEnd { COMMIT, CANCEL }
+
 /**
  * The pure decisions behind the home <-> drawer swipe, lifted out of [SwipeFrame] the same
  * way the prompt logic lives in [LauncherLogic]: so "is this a decisive swipe, which way, is it
@@ -58,12 +61,60 @@ internal object SwipeGesture {
      * Is a decisive swipe going [dir] the frame's to act on? Home takes "up" (open the drawer)
      * and "down" (open the recently used apps) — Kolibri's two vertical home gestures — except
      * a "down" that started within [topExclusionPx] of the top edge ([downY]), which is left
-     * to the notification shade. The drawer only knows "down" (close it); its "up" is a scroll.
+     * to the notification shade. The drawer takes no flick at all: closing it is a DRAG
+     * ([dragDirection]), so a flick down in a scrolled list scrolls it, as in Unity's Kolibri.
+     * Home's "up" usually starts a drag before it could become a flick; the flick is the
+     * fallback for when the favorites can still scroll up and the drag therefore can't start.
      */
     fun claims(drawerOpen: Boolean, dir: SwipeDir, downY: Float, topExclusionPx: Float): Boolean =
         when {
-            drawerOpen -> dir == SwipeDir.DOWN
+            drawerOpen -> false
             dir == SwipeDir.DOWN -> downY >= topExclusionPx
             else -> true
         }
+
+    // ---- page drag ------------------------------------------------------------------------
+    //
+    // The page follows the finger (Unity's DragToDismissCore, "Pixel-style"): pulling the
+    // drawer down closes it, and — beyond Unity, which only flicks it open — pulling home up
+    // opens it. The content under the finger gets first call: a drag starts only once it can
+    // no longer scroll that way. Releasing decides: a decisive flick wins in either direction,
+    // otherwise the travelled distance does.
+
+    /** The share of the page height a drag must cover to finish the turn on release. */
+    const val DRAG_COMMIT_FRACTION = 0.28f
+
+    /** A release at least this many times the system's minimum fling speed decides by itself. */
+    const val DRAG_FLING_MULTIPLIER = 3f
+
+    /** How far the drawer follows a closing pull, as a share of the page height. */
+    const val DRAG_MAX_CLOSE_FRACTION = 0.8f
+
+    /**
+     * The direction a page drag would go for a finger that has moved [dx]/[dy] from its down
+     * point, or null while it is still inside [slop] or not vertical enough. On home only "up"
+     * drags (it opens the drawer); in the drawer only "down" (it closes it).
+     */
+    fun dragDirection(drawerOpen: Boolean, dx: Float, dy: Float, slop: Float): SwipeDir? {
+        if (abs(dy) <= slop || abs(dy) <= abs(dx) * DOMINANCE) return null
+        val dir = if (dy < 0) SwipeDir.UP else SwipeDir.DOWN
+        return if (dir == (if (drawerOpen) SwipeDir.DOWN else SwipeDir.UP)) dir else null
+    }
+
+    /** The drag offset after the finger moved [delta] px in the drag's direction (negative =
+     *  back), kept between 0 (where the drag started from) and [max]. */
+    fun dragOffset(offset: Float, delta: Float, max: Float): Float = (offset + delta).coerceIn(0f, max)
+
+    /**
+     * How a drag at [offset] (of a [height]-tall page) ends for a release at [velocity] px/s in
+     * the drag's direction (negative = back). A flick back at [flingVelocity] or faster cancels,
+     * even past the threshold — "pull, then flick back" aborts, as in Unity. A flick forward
+     * commits, however short. Otherwise the distance decides.
+     */
+    fun dragEnd(offset: Float, height: Float, velocity: Float, flingVelocity: Float): DragEnd = when {
+        velocity <= -flingVelocity -> DragEnd.CANCEL
+        velocity >= flingVelocity -> DragEnd.COMMIT
+        offset >= height * DRAG_COMMIT_FRACTION -> DragEnd.COMMIT
+        else -> DragEnd.CANCEL
+    }
 }

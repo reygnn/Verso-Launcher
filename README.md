@@ -26,10 +26,11 @@ keyboard, no prompt:
 - First start: Verso picks your default phone, messenger (default SMS app), email,
   browser and camera as starting favorites. Only once — remove them and they stay gone.
 - No favorites yet? A short hint says how to add them (tap it to open the drawer).
-- **Swipe up** → the drawer, sliding in from the bottom. **Swipe down** → your recently
-  used apps (the drawer opened on its `?` view, without the keyboard; Back goes straight
-  home). A swipe down that starts at the very top edge is left to the notification shade.
-- Swipes work like Kolibri's: a quick flick turns the page, a slow drag just scrolls.
+- **Pull up** → the drawer comes up with your finger; let go past about a quarter of
+  the screen (or flick) and it opens, otherwise it drops back. **Swipe down** → your
+  recently used apps (the drawer opened on its `?` view, without the keyboard; Back goes
+  straight home). A swipe down that starts at the very top edge is left to the
+  notification shade.
 
 **Back (drawer)** — the original Sigil Launcher:
 
@@ -38,8 +39,10 @@ keyboard, no prompt:
   the whole list.
 - Type to search; results gather right above the command line and **Enter** launches
   the nearest one.
-- A quick **swipe down** (wherever the list stands; a slow drag scrolls it), **Back** on
-  an empty line, or **HOME** turns back to the front page. Back on a non-empty line first
+- **Pull down** with the list at its top — the drawer follows your finger, back and
+  forth, and closes past about a quarter of the screen or on a flick (a list that can
+  still scroll scrolls first, then hands over) — **Back** on an empty line, or **HOME**
+  turns back to the front page. Back on a non-empty line first
   clears it.
 - Launching an app (or leaving the launcher any other way) always brings you back to
   the front page next time.

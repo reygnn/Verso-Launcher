@@ -40,6 +40,7 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
@@ -484,15 +485,29 @@ class MainActivity : Activity() {
             // and on top for hit-testing: a quick tap would land on a row the user can no
             // longer really see. Swallow taps for that moment; swipes are still tracked.
             swallowTaps = { SystemClock.uptimeMillis() < pageTurnUntil }
-            // Kolibri's home gestures: up = the app drawer, down = the recently used apps
-            // (here: the drawer opened on the "?" recents view). In the drawer, down closes.
+            // Kolibri's home flicks: up = the app drawer, down = the recently used apps (here:
+            // the drawer opened on the "?" recents view). Up is normally a drag (below); the
+            // flick opens the drawer when the favorites could still scroll and no drag started.
             onSwipe = { dir ->
                 when {
                     dir == SwipeDir.UP && !drawerOpen -> openDrawer()
                     dir == SwipeDir.DOWN && !drawerOpen -> openDrawer(RECENTS_PROMPT)
-                    dir == SwipeDir.DOWN && drawerOpen -> closeDrawer()
                 }
             }
+            // The page follows the finger: pull home up to open the drawer, pull the drawer
+            // down to close it — once the content under the finger is at its end that way.
+            isDrawerOpen = { this@MainActivity.drawerOpen }
+            canDrag = canDrag@{ dir ->
+                if (renameDialog != null) return@canDrag false
+                when (dir) {
+                    SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
+                    SwipeDir.DOWN -> !listView.canScrollVertically(-1)
+                }
+            }
+            pageHeight = ::pageHeight
+            onDragStart = ::beginPageDrag
+            onDrag = ::dragPage
+            onDragEnd = ::endPageDrag
         }
         setContentView(root)
 
@@ -544,12 +559,15 @@ class MainActivity : Activity() {
         home.animate().cancel()
         drawer.animate().cancel()
         drawer.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        val fromHidden = drawer.visibility != View.VISIBLE
         drawer.visibility = View.VISIBLE
         drawer.alpha = 1f
         // Kolibri's page turn: the drawer slides up over the full height of the window (its
         // slide_in_up, 100%p) while home fades out underneath. The parent's height, not the
-        // drawer's: a drawer that was GONE until now has not been measured yet.
-        drawer.translationY = pageHeight()
+        // drawer's: a drawer that was GONE until now has not been measured yet. A drawer that
+        // is already showing — pulled up by a drag, or caught mid-close — slides on from
+        // where it is instead of jumping to the bottom first.
+        if (fromHidden) drawer.translationY = pageHeight()
         drawer.requestApplyInsets()
         if (initialPrompt.isNotEmpty()) setPrompt(initialPrompt)
         else if (shown.isNotEmpty()) listView.setSelection(0)
@@ -609,6 +627,63 @@ class MainActivity : Activity() {
         controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         if (show) controller.show(WindowInsets.Type.statusBars())
         else controller.hide(WindowInsets.Type.statusBars())
+    }
+
+    /**
+     * A page drag takes over (see SwipeFrame): stop whatever turn is running and put both pages
+     * where the drag starts from. Returns the offset already travelled — non-zero when the
+     * drawer is caught mid-turn, so the page continues from where it is instead of jumping.
+     */
+    private fun beginPageDrag(dir: SwipeDir): Float {
+        home.animate().cancel()
+        drawer.animate().cancel()
+        home.visibility = View.VISIBLE
+        val height = pageHeight()
+        return if (dir == SwipeDir.UP) {
+            // Opening from home: the drawer comes up from below, focus still blocked — it is not
+            // the page in front until the drag commits.
+            if (drawer.visibility != View.VISIBLE) drawer.translationY = height
+            drawer.visibility = View.VISIBLE
+            drawer.alpha = 1f
+            height - drawer.translationY
+        } else {
+            drawer.translationY
+        }
+    }
+
+    /** The drawer follows the finger; home fades in step with the uncovered share of the page. */
+    private fun dragPage(dir: SwipeDir, offset: Float) {
+        val height = pageHeight()
+        val open = if (dir == SwipeDir.UP) offset else height - offset  // how far the drawer is up
+        drawer.translationY = height - open
+        home.alpha = (1f - open / height).coerceIn(0f, 1f)
+    }
+
+    /** The finger lifted: finish the turn from where the page is, or settle back. */
+    private fun endPageDrag(dir: SwipeDir, end: DragEnd) {
+        when {
+            dir == SwipeDir.UP && end == DragEnd.COMMIT -> openDrawer()
+            dir == SwipeDir.DOWN && end == DragEnd.COMMIT -> closeDrawer()
+            dir == SwipeDir.UP -> settle(open = false)
+            else -> settle(open = true)
+        }
+    }
+
+    /**
+     * A drag that did not commit falls back to the page it started on (Unity's settle-back:
+     * 220 ms, decelerating). Nothing else changes — the drawer was never opened by an opening
+     * drag that fell back, nor closed by a closing one.
+     */
+    private fun settle(open: Boolean) {
+        pageTurnUntil = SystemClock.uptimeMillis() + DRAG_SETTLE_MS
+        drawer.animate().translationY(if (open) 0f else pageHeight()).setDuration(DRAG_SETTLE_MS)
+            .setInterpolator(DecelerateInterpolator()).withEndAction {
+                if (!drawerOpen) drawer.visibility = View.GONE
+            }.start()
+        home.animate().alpha(if (open) 0f else 1f).setDuration(DRAG_SETTLE_MS)
+            .setInterpolator(DecelerateInterpolator()).withEndAction {
+                if (drawerOpen) home.visibility = View.INVISIBLE
+            }.start()
     }
 
     /** The full height a page slides over: the window root's, falling back to the display's
@@ -1497,6 +1572,8 @@ class MainActivity : Activity() {
         const val DRAWER_SLIDE_MS = 180L
         /** …and home's fade underneath it (fade_in / fade_out). */
         const val HOME_FADE_MS = 200L
+        /** A page drag that does not commit settles back this fast (Unity's settle-back). */
+        const val DRAG_SETTLE_MS = 220L
         /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */
         const val PAGE_TURN_MS = HOME_FADE_MS
         /** What a swipe down on home opens the drawer on: the recently used apps. */

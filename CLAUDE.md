@@ -131,10 +131,14 @@ main, written on the IO thread.
 10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`: neither
     primary nor `.bak` exists). An existing config with no favorites is the user's
     choice.
-11. **Swipe = Kolibri's.** Thresholds (4× touch slop, 1.2 px/ms average, 1.5×
-    dominance, 48 dp top band for the shade) are Kolibri's device-validated values;
-    detection lives in `dispatchTouchEvent`, never `onInterceptTouchEvent` (a
-    scrolling list disables intercept mid-gesture).
+11. **Page turn = Unity-Kolibri's.** Closing the drawer is a drag that follows the
+    finger (Unity's `DragToDismissCore`: starts once the list is at its top, 28 % of the
+    height or a 3× min-fling release commits, a flick back cancels, 220 ms settle);
+    opening is the same drag upward from home (an extension — Unity only flicks it
+    open). The flick (4× touch slop, 1.2 px/ms average, 1.5× dominance, 48 dp top band)
+    remains for the recents swipe and as the open fallback. All of it lives in
+    `SwipeFrame.dispatchTouchEvent`, never `onInterceptTouchEvent` (a scrolling list
+    disables intercept mid-gesture); the decisions are pure in `SwipeGesture`.
 12. **Status bar hidden on the home page only**, shown in the drawer. The home page
     pads for it regardless of visibility (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate
