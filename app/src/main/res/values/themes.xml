@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Platform Material theme, no AppCompat. The window shows the system
+         wallpaper behind it, unobstructed — the root view carries no background
+         (an earlier scrim over the wallpaper surface flickered). -->
+    <style name="VersoTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <!-- windowShowWallpaper makes this window a wallpaper surface: the live
+             system wallpaper is drawn behind it, no WallpaperManager needed. The
+             window background MUST be transparent for the wallpaper to show
+             through. statusBarColor / navigationBarColor are deprecated no-ops
+             under the enforced edge-to-edge on SDK 36, so omitted. -->
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

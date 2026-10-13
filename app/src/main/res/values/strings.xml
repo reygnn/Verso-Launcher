@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Verso Launcher</string>
+    <string name="hint_search">&gt; search</string>
+    <string name="clear_prompt">Clear prompt</string>
+    <!-- Home page (the front of the page; the drawer is its back). -->
+    <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nTo put apps here, type ! in the drawer\'s search line and tap them. !! reorders them.</string>
+    <string name="a11y_home">Home screen</string>
+    <string name="a11y_open_drawer">Open all apps</string>
+    <string name="a11y_charging">Charging</string>
+    <string name="a11y_battery_protected">Battery protection: charge is being held</string>
+    <string name="toast_no_app">no app for that on this device</string>
+    <string name="hint_rename_name">Name</string>
+    <string name="hint_rename_tags">Tags (comma-separated)</string>
+    <!-- Neutral button in the long-press dialog: opens the system App info screen. -->
+    <string name="action_app_info">App info</string>
+    <string name="toast_not_found">not found: %1$s</string>
+    <string name="toast_denied">denied: %1$s</string>
+    <string name="toast_recents_empty">No recents yet — the list resets when the launcher restarts</string>
+    <!-- One-shot "~" commands. %1$s in toast_backup_ok is the written file name. -->
+    <string name="toast_saved">config written to disk</string>
+    <string name="toast_save_failed">save failed — the config was NOT written</string>
+    <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
+    <string name="toast_backup_failed">backup failed — nothing was written</string>
+    <string name="toast_restore_ok">config restored</string>
+    <string name="toast_restore_failed">restore failed — the backup is not a readable verso.json. Nothing was changed.</string>
+    <string name="toast_restore_none">no backup found — run ~backup first, or ~restore-saf to pick a file (a Sigil sigil.json works too)</string>
+    <string name="toast_restore_no_picker">no file picker on this device</string>
+    <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
+         read aloud sensibly). %1$s is the app label. -->
+    <string name="a11y_hidden_on">Hidden: %1$s. Double-tap to unhide.</string>
+    <string name="a11y_hidden_off">Visible: %1$s. Double-tap to hide.</string>
+    <string name="a11y_fav_on">Favorite: %1$s. Double-tap to remove.</string>
+    <string name="a11y_fav_off">Not a favorite: %1$s. Double-tap to add.</string>
+    <!-- Bulk tag editing ("##tag"). %1$s is the app label, %2$s the tag. -->
+    <string name="a11y_tag_on">Tagged %2$s: %1$s. Double-tap to remove the tag.</string>
+    <string name="a11y_tag_off">Not tagged %2$s: %1$s. Double-tap to add the tag.</string>
+    <!-- Reorder-favorites mode (the "»" grab marker doesn't read aloud sensibly). -->
+    <string name="a11y_reorder_pick">%1$s. Double-tap to pick up for reordering.</string>
+    <string name="a11y_reorder_picked">Picked up: %1$s. Double-tap to cancel.</string>
+    <string name="a11y_reorder_drop">%1$s. Double-tap to move the picked favorite here.</string>
+</resources>

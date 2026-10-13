@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Custom accessibility action on the home page: open the app drawer (the swipe
+         itself is invisible to a screen reader). -->
+    <item name="action_open_drawer" type="id" />
+</resources>

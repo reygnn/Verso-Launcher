@@ -1,0 +1,179 @@
+# Verso Launcher
+
+A **plain text launcher for Android with a hidden command line**, forked from
+[Sigil Launcher](https://github.com/reygnn/Sigil-Launcher). Sigil was a terminal: one
+prompt, keyboard always up. Verso keeps that whole command line but moves it behind a
+page turn, so the front looks like an ordinary minimal text launcher.
+
+The name is the idea: a sheet of paper has a **recto** (the front) and a **verso** (the
+back). The front is your home screen; swipe up and you turn the page to the back, where
+every app and every sigil command lives.
+
+## The two pages
+
+**Front (home)** — Kolibri Launcher's home layout, with Kolibri's default settings, no
+keyboard, no prompt:
+
+- The clock (60sp, light) and below it the short date and the battery level, with a
+  bolt while charging and a shield while battery protection holds the charge. **Double
+  tap** the clock for your alarms, the date for your calendar, the battery for battery
+  usage — a single stray touch does nothing, as in Kolibri.
+- Your favorites in large bold text, in your own order, top to bottom. Tap to launch,
+  long-press for the rename/tags dialog (with *App info*). More favorites than fit
+  simply scroll.
+- All home text (and the two icons) carries Kolibri's thin tonal outline, so it stays
+  readable on any wallpaper without darkening it.
+- No favorites yet? A short hint says how to add them (tap it to open the drawer).
+- **Swipe up** → the drawer. **Swipe down** → your recently used apps (the drawer opened
+  on its `?` view, without the keyboard; Back goes straight home).
+
+**Back (drawer)** — the original Sigil Launcher:
+
+- Opens on **every app, A to Z**, with the command line at the bottom and the
+  keyboard up. **Enter** on the empty line just drops the keyboard so you can scroll
+  the whole list.
+- Type to search; results gather right above the command line and **Enter** launches
+  the nearest one.
+- **Swipe down** (with the list at its top), **Back** on an empty line, or **HOME**
+  turns back to the front page. Back on a non-empty line first clears it.
+- Launching an app (or leaving the launcher any other way) always brings you back to
+  the front page next time.
+
+## The command line
+
+- Lists launchable apps in light gray (`#D4D4D4`) over your wallpaper.
+- Enumerates the current user's launchable apps via a `PackageManager`
+  MAIN/LAUNCHER query. Single-user only — no work-profile, cloned or
+  private-space handling.
+- The bottom command line drives everything; the leading character picks a mode:
+  - *(empty)* — the full drawer, A to Z: everything except hidden apps, **but a
+    favorite is always kept even when also hidden** (favoriting overrides hiding)
+  - `text` — substring search across **all** apps (hidden included)
+  - `*` — the same drawer, but with your favorites grouped nearest the command line
+  - `*text` / `text*` — the drawer narrowed to apps whose name **starts with**
+    `text` (unlike the star-less search, which matches anywhere in the name). The
+    star counts on **either** side, so it does not matter whether you type it before
+    or after the prefix — whichever side the cursor happens to leave it on
+  - `#` — lists the tags in use; tap one (or **Enter** on the nearest) to drill into
+    that tag's apps
+  - `#text` — tag filter: the apps under every tag starting with `text` (so `#gam`
+    finds your `games` apps). Tap or **Enter** to launch. Tags are assigned in the
+    long-press dialog or in bulk with `##`; a tagged app shows here even when hidden
+  - `##` — edit tags in bulk: lists the tags in use, tap one and you get **every** app
+    with an `[x]`/`[ ]` for that tag; tap a row to toggle it, saved immediately. This
+    is the way to put one tag on many apps — the long-press dialog stays the way to
+    invent a tag and to set several tags on one app
+  - Tag names are canonicalised wherever they are entered: lowercased, trimmed, and
+    `#` and `,` are dropped. `#` because the tag list builds its prompt by prepending
+    a sigil (a tag starting with `#` would turn `#tag` into `##tag`, a different mode);
+    `,` because it separates tags in the long-press dialog. Typing `#work` gives you
+    `work` rather than an error, and an older config is cleaned up as it loads
+  - `-[text]` — edit hidden: tap a row to toggle `[x]`, saved immediately
+  - `![text]` — edit favorites: tap a row to toggle `[x]`, saved immediately. The
+    favorites are what the front page shows
+  - `!!` — reorder favorites: tap a row to pick it up (marked `»`), tap another
+    row to drop it there; tap the picked row again to cancel. Saved immediately, and
+    the front page lists them in exactly this order, top to bottom
+  - `?` — the last 8 launched apps, newest nearest the command line. Kept in
+    memory only, so it starts empty on every cold start; **Enter** relaunches the
+    most recent
+  - `~[text]` — commands. Typing `~` lists the commands; typing more narrows the
+    list (`~r` leaves `~restore` and `~restore-saf`). Tap a row to run it, or press
+    **Enter** once what you typed can only mean one command — `~b` is enough for
+    `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
+    up. Each command acts once and clears the prompt:
+    - `~` / `~load` — reload the config from disk
+    - `~save` — write the in-memory config out now (saves are automatic anyway;
+      this is the explicit one)
+    - `~backup` — export the config to `Download/Verso/verso.json`,
+      replacing the previous one. There is always exactly one backup, never a pile
+      of timestamped copies. An ordinary file: it survives an uninstall and can be
+      copied off the device (that's how you move a config to another phone), which
+      the internal `.bak` mirror cannot
+    - `~restore` — adopt that backup again. No file picker: one file, known name.
+      The config being replaced is written next to it as
+      `verso-pre-restore.json`, so a restore never destroys what it overwrote
+      without a trace. A backup that doesn't parse changes nothing
+    - `~restore-saf` — the same, but you pick the file in the system document
+      picker. Plain `~restore` only sees files this app itself wrote, so a config
+      carried over from another phone (or surviving a reinstall) is invisible to
+      it; this is the way in for those. One dialog, no permission. A `sigil.json`
+      from Sigil Launcher has the same format, so this is also how you **bring your
+      Sigil setup over**: `~backup` in Sigil, then `~restore-saf` here and pick
+      `Download/Sigil/sigil.json`
+- Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
+  command line (the bottom-most, since results fill upward). On an empty line
+  **Enter** only drops the keyboard (see above) — it never launches.
+- A `×` clear button at the right end of the command line wipes the prompt back to
+  the plain drawer in one tap, keeping the keyboard up so you can retype at once; it
+  shows only while there is text to erase.
+- Long-press any row to set a custom name and its tags (comma-separated).
+- Registers as `HOME` + `LAUNCHER`, `singleTask`. Installs **next to** Sigil
+  Launcher (own package `com.github.reygnn.verso_launcher`, own `verso.json`,
+  backups in `Download/Verso/`), so you can switch between the two.
+
+## Relationship to Sigil
+
+The front page is a port of [Kolibri Launcher](https://github.com/reygnn/Kolibri-Launcher)'s home
+screen (`fragment_home.xml`, `HomeFavoritesAdapter`, `TextOutline`, the default layout
+values) to plain platform widgets — no AndroidX, no RecyclerView. Kolibri's adjustable
+settings (size, spacing, alignment, colours) are fixed at Kolibri's defaults; the numbers
+live in `HomeStyle.kt`. Not ported: the alarm/calendar indicators next to the clock and
+the double-tap events dialog (they need calendar permission), and the left/right swipe
+actions.
+
+Verso is a copy of the Sigil Launcher 0.2.x line (favorites, hidden apps, custom
+names, tags, `~` commands) with a different front end. Everything the prompt can do
+is unchanged except the empty line: in Sigil it showed your favorites, in Verso it
+shows the full drawer, because the favorites now live on the front page.
+
+## What was chopped
+
+Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
+
+- no Compose, no Material, **no AndroidX at all** — platform widgets only
+- no Hilt / DI — a single `Activity` wires itself
+- no Navigation / Fragments — one `Activity` (rename is a bare platform dialog)
+- no DataStore / Room / SharedPreferences — the small amount of state (hidden
+  apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
+  `filesDir`, written durably (temp-file + fsync + rename, then a directory
+  fsync so the rename itself survives power-loss, not just a crash); the previous
+  good version is rotated into a `.bak` that recovery falls back to and heals the
+  primary from on the next load; and edited only through the in-app modes above
+- no ACRA / Timber — `android.util.Log`
+- no ViewBinding / XML layouts — UI built in code
+
+The launcher is a handful of small files. `MainActivity.kt` is the framework wiring
+(views, the drawer's view state, gestures, intents); everything beside it is either pure
+and unit-tested on the JVM or a thin view class:
+
+- `LauncherState.kt` — the data: config, app list and recents, plus the rules that keep
+  them consistent when a background load overlaps a toggle, rename, reorder or restore
+  (three counters; see the class comment). Plain Kotlin taking its threads as functions —
+  the role a ViewModel would play, without the AndroidX dependency.
+  `LauncherStateTest` replays every overlap deterministically with two manual queues.
+- `AppEntry.kt` — one app row (package/class as plain strings, so the state is testable).
+- `LauncherLogic.kt` — mode parsing, filtering, favorite ordering and reordering, what
+  Enter and a tap do.
+- `TapGuard.kt` — the staleness check that keeps a click acting on the row it aimed at.
+- `SwipeGesture.kt` + `SwipeFrame.kt` — the page-turn swipe: pure decisions and their
+  thin touch wrapper.
+- `HomePage.kt` — the front page (Kolibri's home layout); `HomeStyle.kt` holds its pure
+  numbers, `OutlinedViews.kt` the outlined text/icon views.
+- `VersoConfig.kt`, `ConfigJson.kt`, `ConfigStore.kt`, `BackupStore.kt` — the config
+  model, the `verso.json` round-trip, the durable file layer and the Downloads backup.
+- `RenameDialog.kt` — the long-press dialog.
+
+The only
+*shipped* dependencies are the Kotlin stdlib (added automatically by AGP's
+built-in Kotlin); JUnit and org.json are `testImplementation` only, so the
+release APK stays dependency-free.
+
+## Build
+
+```bash
+./gradlew assembleRelease   # unsigned release APK (R8 full mode + resource shrink)
+```
+
+Stack matches the family baseline: AGP 9 built-in Kotlin, Gradle 9, JDK 21,
+`minSdk = compileSdk = targetSdk = 36` (Android 16, no compat shims).

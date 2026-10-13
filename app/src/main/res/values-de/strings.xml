@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app_name ist "Verso Launcher" (Marke) — kein -de-Override, fällt auf default zurück. -->
+    <string name="hint_search">&gt; suche</string>
+    <string name="clear_prompt">Eingabe löschen</string>
+    <!-- Startseite (Vorderseite; der Drawer ist die Rückseite). -->
+    <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nFür Favoriten hier: im Drawer ! ins Suchfeld tippen und Apps antippen. !! sortiert sie.</string>
+    <string name="a11y_home">Startbildschirm</string>
+    <string name="a11y_open_drawer">Alle Apps öffnen</string>
+    <string name="a11y_charging">Lädt</string>
+    <string name="a11y_battery_protected">Akkuschutz: Ladung wird gehalten</string>
+    <string name="toast_no_app">keine passende App auf diesem Gerät</string>
+    <string name="hint_rename_name">Name</string>
+    <string name="hint_rename_tags">Tags (kommagetrennt)</string>
+    <!-- Neutraler Button im Long-Press-Dialog: öffnet die System-App-Info. -->
+    <string name="action_app_info">App-Info</string>
+    <string name="toast_not_found">nicht gefunden: %1$s</string>
+    <string name="toast_denied">verweigert: %1$s</string>
+    <string name="toast_recents_empty">Noch keine zuletzt genutzten Apps — die Liste wird beim Neustart geleert</string>
+    <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok ist der Dateiname. -->
+    <string name="toast_saved">Config auf Disk geschrieben</string>
+    <string name="toast_save_failed">Speichern fehlgeschlagen — die Config wurde NICHT geschrieben</string>
+    <string name="toast_backup_ok">Backup: Download/Verso/%1$s</string>
+    <string name="toast_backup_failed">Backup fehlgeschlagen — es wurde nichts geschrieben</string>
+    <string name="toast_restore_ok">Config wiederhergestellt</string>
+    <string name="toast_restore_failed">Wiederherstellung fehlgeschlagen — das Backup ist keine lesbare verso.json. Es wurde nichts geändert.</string>
+    <string name="toast_restore_none">Kein Backup gefunden — erst ~backup ausführen, oder ~restore-saf zum Auswählen (auch eine sigil.json aus Sigil)</string>
+    <string name="toast_restore_no_picker">Kein Dateimanager auf diesem Gerät</string>
+    <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
+    <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>
+    <string name="a11y_hidden_off">Sichtbar: %1$s. Zum Ausblenden doppeltippen.</string>
+    <string name="a11y_fav_on">Favorit: %1$s. Zum Entfernen doppeltippen.</string>
+    <string name="a11y_fav_off">Kein Favorit: %1$s. Zum Hinzufügen doppeltippen.</string>
+    <!-- Tag-Massenbearbeitung ("##tag"). %1$s = App-Name, %2$s = Tag. -->
+    <string name="a11y_tag_on">Mit %2$s getaggt: %1$s. Zum Entfernen doppeltippen.</string>
+    <string name="a11y_tag_off">Nicht mit %2$s getaggt: %1$s. Zum Hinzufügen doppeltippen.</string>
+    <!-- Favoriten-Sortiermodus (die »-Aufnahme-Markierung wird nicht sinnvoll vorgelesen). -->
+    <string name="a11y_reorder_pick">%1$s. Zum Aufnehmen doppeltippen.</string>
+    <string name="a11y_reorder_picked">Aufgenommen: %1$s. Zum Abbrechen doppeltippen.</string>
+    <string name="a11y_reorder_drop">%1$s. Zum Hierher-Verschieben doppeltippen.</string>
+</resources>

@@ -1,0 +1,362 @@
+package com.github.reygnn.verso_launcher
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * JVM tests for [LauncherState]: the data layer and its concurrency rules.
+ *
+ * The IO thread and the main thread are two manual FIFO queues, so a test decides exactly
+ * when the background part of a load runs and when its result is handed back — and can put a
+ * tap in between. Plain JUnit, no coroutines, no Android: LauncherState takes its threads as
+ * functions precisely so these interleavings are deterministic.
+ */
+class LauncherStateTest {
+
+    // ---- harness -------------------------------------------------------------
+
+    private val ioQueue = ArrayDeque<Runnable>()
+    private val mainQueue = ArrayDeque<Runnable>()
+    private var ioOpen = true
+
+    /** What loadConfig() returns — "the file on disk". */
+    private var disk = VersoConfig()
+    private var loadConfigCalls = 0
+
+    /** The installed apps (system labels); enumerate applies custom names from the snapshot. */
+    private var installed = listOf(app("Alpha"), app("Bravo"), app("Charlie"))
+    private var enumerationFails = false
+    private val enumeratedWith = mutableListOf<VersoConfig>()
+
+    /** Every payload handed to writeConfig, in order. */
+    private val written = mutableListOf<String>()
+    private var writeSucceeds = true
+
+    private val refreshed = mutableListOf<Boolean>()
+
+    private val state = LauncherState(
+        io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
+        main = { task -> mainQueue.addLast(task) },
+        // A copy, like a real read: the file and the live config must never be one object,
+        // or a test could pass only because a mutation also "changed the disk".
+        loadConfig = { loadConfigCalls++; disk.snapshot() },
+        enumerateApps = { cfg ->
+            enumeratedWith += cfg
+            if (enumerationFails) null
+            else installed.map { a ->
+                val name = cfg.names[a.key] ?: a.systemLabel
+                AppEntry.of(name, a.packageName, a.className, a.systemLabel)
+            }.sortedBy { it.labelLower }
+        },
+        // A readable stand-in for ConfigJson (org.json is not needed to test the rules).
+        serialize = { c ->
+            "fav=${c.favorites.joinToString(",")};hid=${c.hidden.joinToString(",")};" +
+                "names=${c.names.entries.joinToString(",") { "${it.key}=${it.value}" }};" +
+                "tags=${c.tags.entries.joinToString(",") { "${it.key}=${it.value.joinToString("+")}" }}"
+        },
+        writeConfig = { payload -> written += payload; writeSucceeds },
+        onRefreshed = { replaced -> refreshed += replaced },
+    )
+
+    private fun app(label: String) =
+        AppEntry.of(label, "com.$label".lowercase(), "com.${label.lowercase()}.Main", label)
+
+    private fun key(label: String) = app(label).key
+
+    private fun runIo() { while (ioQueue.isNotEmpty()) ioQueue.removeFirst().run() }
+    private fun runMain() { while (mainQueue.isNotEmpty()) mainQueue.removeFirst().run() }
+    private fun runAll() { while (ioQueue.isNotEmpty() || mainQueue.isNotEmpty()) { runIo(); runMain() } }
+
+    private fun labels() = state.apps.map { it.label }
+
+    /** Cold start finished: config read from [disk], apps enumerated, queues drained. */
+    private fun started() {
+        state.refresh()
+        runAll()
+        written.clear()
+        refreshed.clear()
+    }
+
+    // ---- cold start / warm refresh -----------------------------------------------
+
+    @Test fun `cold start reads the config from disk and commits the apps`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Charlie")))
+        assertFalse(state.appsLoaded)
+
+        state.refresh()
+        runAll()
+
+        assertTrue(state.appsLoaded)
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+        assertEquals(setOf(key("Charlie")), state.config.favorites)
+        assertEquals(listOf(true), refreshed)  // config replaced by the disk copy
+        assertEquals(1, loadConfigCalls)
+    }
+
+    @Test fun `a warm refresh enumerates from a snapshot and does not re-read the file`() {
+        started()
+        state.refresh()
+        runAll()
+        assertEquals(1, loadConfigCalls)
+        assertEquals(listOf(false), refreshed)
+        // The loader got a COPY, never the live config object.
+        assertTrue(enumeratedWith.last() !== state.config)
+    }
+
+    @Test fun `reload forces a fresh read of the file`() {
+        started()
+        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
+        state.refresh(reloadConfig = true)
+        runAll()
+        assertEquals(2, loadConfigCalls)
+        assertEquals(setOf(key("Bravo")), state.config.hidden)
+    }
+
+    @Test fun `configLoaded is false until the disk copy or a restore is adopted`() {
+        assertFalse(state.configLoaded)
+        state.refresh()
+        runIo()
+        assertFalse(state.configLoaded)
+        runMain()
+        assertTrue(state.configLoaded)
+    }
+
+    @Test fun `a restore marks the config loaded even before the first refresh`() {
+        state.adopt(VersoConfig())
+        assertTrue(state.configLoaded)
+    }
+
+    @Test fun `apps stay unloaded until the first enumeration commits`() {
+        state.refresh()
+        runIo()
+        assertFalse(state.appsLoaded)  // result still waiting on the main queue
+        runMain()
+        assertTrue(state.appsLoaded)
+    }
+
+    // ---- newest refresh wins ---------------------------------------------------
+
+    @Test fun `a refresh superseded while queued skips its work entirely`() {
+        started()
+        val before = enumeratedWith.size
+        state.refresh()
+        state.refresh()
+        runAll()
+        assertEquals("only the newest load enumerates", before + 1, enumeratedWith.size)
+        assertEquals(listOf(false), refreshed)
+    }
+
+    @Test fun `a refresh superseded after its work is dropped at the hand-off`() {
+        started()
+        state.refresh()
+        runIo()                       // first load done, result queued for main
+        installed = installed + app("Delta")
+        state.refresh()               // newer request before the first hand-off ran
+        runMain()                     // first hand-off: superseded, ignored
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+        assertTrue(refreshed.isEmpty())
+        runAll()
+        assertEquals(listOf("Alpha", "Bravo", "Charlie", "Delta"), labels())
+    }
+
+    // ---- toggles vs. an in-flight load -----------------------------------------------
+
+    @Test fun `a toggle during a reload keeps the live config, not the older disk copy`() {
+        started()
+        disk = VersoConfig()                  // the file does not have the favorite yet
+        state.refresh(reloadConfig = true)
+        runIo()                               // disk read + enumeration done
+        state.toggleFavorite(key("Alpha"))    // user taps before the hand-off
+        runAll()
+
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(listOf(false), refreshed)  // not replaced
+    }
+
+    @Test fun `a toggle during a load does not throw the new app list away`() {
+        started()
+        installed = installed + app("Delta")
+        state.refresh()
+        runIo()
+        state.toggleHidden(key("Alpha"))
+        runAll()
+        assertTrue("Delta" in labels())
+    }
+
+    // ---- rename vs. an in-flight load -------------------------------------------------
+
+    @Test fun `a rename during a load drops that load's stale labels`() {
+        started()
+        state.refresh()
+        runIo()                                            // enumerated with the OLD names
+        state.rename(key("Alpha"), "Alpha", "Zulu", emptyList())
+        runAll()
+        assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
+    }
+
+    @Test fun `rename relabels and re-sorts in memory without re-enumerating`() {
+        started()
+        val before = enumeratedWith.size
+        state.rename(key("Alpha"), "Alpha", "Zulu", listOf("work"))
+        assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
+        assertEquals("Zulu", state.config.names[key("Alpha")])
+        assertEquals(listOf("work"), state.config.tags[key("Alpha")])
+        assertEquals(before, enumeratedWith.size)
+    }
+
+    @Test fun `renaming back to the system label clears the override`() {
+        started()
+        state.rename(key("Alpha"), "Alpha", "Zulu", emptyList())
+        state.rename(key("Alpha"), "Alpha", "Alpha", emptyList())
+        assertNull(state.config.names[key("Alpha")])
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+    }
+
+    @Test fun `a rename with no tags removes the tag key`() {
+        started()
+        state.rename(key("Alpha"), "Alpha", "", listOf("work"))
+        state.rename(key("Alpha"), "Alpha", "", emptyList())
+        assertFalse(key("Alpha") in state.config.tags)
+    }
+
+    // ---- enumeration failure ------------------------------------------------------
+
+    @Test fun `a failed enumeration keeps the last known good list`() {
+        started()
+        enumerationFails = true
+        state.refresh()
+        runAll()
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+        assertEquals(listOf(false), refreshed)  // the hand-off still ran
+    }
+
+    // ---- saving ---------------------------------------------------------------
+
+    @Test fun `every mutation saves a snapshot taken at the moment of the change`() {
+        started()
+        state.toggleFavorite(key("Alpha"))
+        state.toggleFavorite(key("Bravo"))
+        runAll()
+        assertEquals(
+            listOf(
+                "fav=${key("Alpha")};hid=;names=;tags=",
+                "fav=${key("Alpha")},${key("Bravo")};hid=;names=;tags=",
+            ),
+            written,
+        )
+    }
+
+    @Test fun `save reports the real write result on the main thread`() {
+        started()
+        writeSucceeds = false
+        var result: Boolean? = null
+        state.save { result = it }
+        assertNull("nothing before the write ran", result)
+        runIo()
+        assertNull("delivered via the main thread", result)
+        runMain()
+        assertEquals(false, result)
+    }
+
+    @Test fun `save refused by a shut-down IO thread reports failure at once`() {
+        started()
+        ioOpen = false
+        var result: Boolean? = null
+        state.save { result = it }
+        assertEquals(false, result)
+    }
+
+    // ---- toggles ----------------------------------------------------------------
+
+    @Test fun `toggling twice restores the set, and a new favorite goes last`() {
+        started()
+        state.toggleFavorite(key("Charlie"))
+        state.toggleFavorite(key("Alpha"))
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        state.toggleFavorite(key("Charlie"))
+        assertEquals(listOf(key("Alpha")), state.config.favorites.toList())
+    }
+
+    @Test fun `favorites() follows the stored order and skips uninstalled ones`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Charlie"), "gone/Gone", key("Alpha")))
+        started()
+        assertEquals(listOf("Charlie", "Alpha"), state.favorites().map { it.label })
+    }
+
+    @Test fun `toggleTag adds, removes, and drops an emptied key`() {
+        started()
+        state.toggleTag(key("Alpha"), "Work")
+        assertEquals(listOf("work"), state.config.tags[key("Alpha")])
+        state.toggleTag(key("Alpha"), "work")
+        assertFalse(key("Alpha") in state.config.tags)
+    }
+
+    @Test fun `moveFavorite reorders and saves, an impossible move does neither`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), key("Bravo"), key("Charlie")))
+        started()
+        assertTrue(state.moveFavorite(key("Alpha"), key("Charlie")))
+        assertEquals(listOf(key("Bravo"), key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        runAll()
+        assertEquals(1, written.size)
+
+        assertFalse(state.moveFavorite(key("Alpha"), "gone/Gone"))
+        assertFalse(state.moveFavorite(key("Alpha"), key("Alpha")))
+        runAll()
+        assertEquals(1, written.size)
+    }
+
+    // ---- recents ----------------------------------------------------------------
+
+    @Test fun `recents are newest first, de-duplicated and capped`() {
+        for (i in 1..10) state.recordLaunch("k$i")
+        state.recordLaunch("k5")
+        assertEquals(LauncherState.RECENTS_LIMIT, state.recentKeys.size)
+        assertEquals(listOf("k5", "k10", "k9", "k8", "k7", "k6", "k4", "k3"), state.recentKeys)
+    }
+
+    // ---- restore ------------------------------------------------------------------
+
+    @Test fun `adopt replaces the config, saves it and re-renders without re-reading the file`() {
+        started()
+        val restored = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        state.adopt(restored)
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        runAll()
+        assertEquals(listOf("fav=${key("Bravo")};hid=;names=;tags="), written)
+        assertEquals(1, loadConfigCalls)
+        assertEquals(listOf(false), refreshed)
+    }
+
+    @Test fun `a reload in flight cannot clobber a restore`() {
+        started()
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        state.refresh(reloadConfig = true)
+        runIo()                                     // read the OLD file
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Charlie"))))
+        runAll()
+        assertEquals(setOf(key("Charlie")), state.config.favorites)
+    }
+
+    @Test fun `a restore before the cold start finished is not overwritten by it`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        state.refresh()
+        runIo()
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
+        runAll()
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertTrue(state.appsLoaded)
+    }
+
+    // ---- AppEntry --------------------------------------------------------------
+
+    @Test fun `the key matches ComponentName_flattenToString, so old configs keep working`() {
+        val e = AppEntry.of("Mail", "com.example.mail", "com.example.mail.MainActivity", "Mail")
+        assertEquals("com.example.mail/com.example.mail.MainActivity", e.key)
+        assertEquals("mail", e.labelLower)
+        assertEquals("inbox", e.withLabel("Inbox").labelLower)
+        assertEquals(e.key, e.withLabel("Inbox").key)
+    }
+}
