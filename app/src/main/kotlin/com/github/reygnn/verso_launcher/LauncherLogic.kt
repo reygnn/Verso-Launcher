@@ -191,6 +191,8 @@ internal object LauncherLogic {
      *    (U+0307), so "İşCep" folded to six characters and "iş" never matched. The dot is
      *    dropped: in a ROOT-lowercased, NFC string a lone U+0307 only ever comes from İ
      *    (letters that really carry a dot above, like ż or ė, stay precomposed under NFC).
+     *  - The Greek final sigma ς becomes σ, the letter it is: "ΟΔΟΣ" lowercases to "οδος" at
+     *    the end of a word and must still find "οδοστρωμα", where the same Σ is a σ.
      *  - Composed again at the end: lowercasing and dropping the dot can leave a sequence that
      *    NFC would combine ("İ" + acute → "i" + acute), and a fold that is not its own fixed
      *    point makes stored tags change shape on every load and labels miss their search.
@@ -199,6 +201,7 @@ internal object LauncherLogic {
         nfc(label)
             .lowercase(Locale.ROOT)
             .replace(COMBINING_DOT_ABOVE, "")
+            .replace('\u03C2', '\u03C3')
     )
 
     private fun nfc(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFC)

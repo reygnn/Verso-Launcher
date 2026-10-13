@@ -56,9 +56,6 @@ class ConfigStoreTest {
         rename = rename,
     )
 
-    private fun cfg(vararg favorites: String) =
-        VersoConfig(favorites = LinkedHashSet(favorites.toList()))
-
     private fun json(vararg favorites: String) = ConfigJson.serialize(cfg(*favorites))
 
     private fun loggedAbout(fragment: String) = logs.any { fragment in it }

@@ -127,13 +127,9 @@ class MainActivity : Activity() {
     // The colours for the wallpaper behind (HomeStyle.palette): light text on a dark wallpaper,
     // dark text on a light one — switched live when the wallpaper changes (wallpaperColors).
     private var palette = HomeStyle.palette(lightWallpaper = false)
-    // NB: not named `foreground` — that collides with View.foreground (a
-    // Drawable) inside the apply{} blocks below and hides this Int.
-    private val fgColor get() = palette.listText      // the drawer's text
-    private val fgColorDim get() = palette.listDim    // its dimmer hint
     // The drawer sits on the bare wallpaper like the home page, so its rows get the same tonal
-    // outline (HomeStyle.tonalOutlineColor) — readable on a bright or busy wallpaper too.
-    private val listOutlineColor get() = palette.listOutline
+    // outline (palette.listOutline) — readable on a bright or busy wallpaper too; its width:
+    private val outlinePx get() = HomeStyle.OUTLINE_DP * resources.displayMetrics.density
 
     private var mode = Mode.NORMAL
 
@@ -227,7 +223,7 @@ class MainActivity : Activity() {
                     reloadToastPending = false
                     toast(getString(R.string.toast_reloaded))
                 }
-                applyFilter(prompt.text?.toString().orEmpty())
+                refilter()
             },
             isFreshInstall = { store.isFresh() },
             defaultFavoriteCandidates = ::defaultFavoriteCandidates,
@@ -387,7 +383,7 @@ class MainActivity : Activity() {
             text = "×"  // × — a clear glyph that sits right in the monospace line
             typeface = Typeface.MONOSPACE
             textSize = 24f
-            setTextColor(fgColorDim)
+            setTextColor(palette.listDim)
             legibleOnWallpaper()
             gravity = Gravity.CENTER
             minWidth = 48.dp()  // a comfortable tap target next to the narrow glyph
@@ -405,8 +401,8 @@ class MainActivity : Activity() {
         // The prompt: a bare monospace command line at the bottom.
         prompt = EditText(this).apply {
             hint = getString(R.string.hint_search)
-            setHintTextColor(fgColorDim)
-            setTextColor(fgColor)
+            setHintTextColor(palette.listDim)
+            setTextColor(palette.listText)
             legibleOnWallpaper()
             typeface = Typeface.MONOSPACE
             textSize = 20f
@@ -958,6 +954,11 @@ class MainActivity : Activity() {
 
     // ---- config -------------------------------------------------------------
 
+    /** The stores' logger: android.util.Log, with or without a cause. */
+    private fun logWarning(msg: String, e: Throwable?) {
+        if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg)
+    }
+
     /**
      * The verso.json file layer. Everything Android-specific it needs is injected here:
      * filesDir, android.util.Log and the directory fsync. Loading, rotating and publishing
@@ -966,7 +967,7 @@ class MainActivity : Activity() {
     private val store by lazy {
         ConfigStore(
             dir = filesDir,
-            log = { msg, e -> if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg) },
+            log = ::logWarning,
             syncDir = ::fsyncDir,
         )
     }
@@ -980,7 +981,7 @@ class MainActivity : Activity() {
         BackupStore(
             resolver = contentResolver,
             subDir = BACKUP_DIR,
-            log = { msg, e -> if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg) },
+            log = ::logWarning,
         )
     }
 
@@ -1002,7 +1003,9 @@ class MainActivity : Activity() {
             // submitting. save only queues the write; announcing success before the
             // write is even attempted is exactly the "save you cannot see happen" this
             // command exists to rule out.
-            Command.SAVE -> state.save { ok ->
+            // Before the first load there is nothing of the user's in memory to write — say
+            // so rather than report a failed write.
+            Command.SAVE -> if (!state.configLoaded) toast(getString(R.string.toast_not_loaded)) else state.save { ok ->
                 toast(getString(if (ok) R.string.toast_saved else R.string.toast_save_failed))
             }
             Command.BACKUP -> backup()
@@ -1321,7 +1324,7 @@ class MainActivity : Activity() {
     private fun moveFavorite(pickedKey: String, targetKey: String) {
         reorderPick = null
         state.moveFavorite(pickedKey, targetKey)
-        applyFilter(prompt.text?.toString().orEmpty())  // re-render in the (new) order
+        refilter()  // re-render in the (new) order
     }
 
     private fun promptRename(entry: AppEntry) {
@@ -1347,7 +1350,7 @@ class MainActivity : Activity() {
             // Name override, tags, save, in-memory relabel + re-sort — and the counters that
             // keep an in-flight load from undoing it: LauncherState.rename.
             state.rename(key, entry.systemLabel, name, tags)
-            applyFilter(prompt.text?.toString().orEmpty())
+            refilter()
         }
         renameDialog = dialog
         // Clear the field on dismiss so we never hold a stale, already-gone dialog — but only if
@@ -1650,6 +1653,9 @@ class MainActivity : Activity() {
     /** The favorites the cache file holds, as last written or read (see HomeCache). */
     private var cachedFavorites: List<Pair<String, String>>? = null
 
+    /** Re-run [applyFilter] on what the prompt holds now — after the data under it changed. */
+    private fun refilter() = applyFilter(prompt.text?.toString().orEmpty())
+
     /** Keep the home page in step with favorites, labels and the app set. Cheap when nothing
      *  it shows changed, so it is fine to call from every applyFilter. */
     private fun renderHome() {
@@ -1683,7 +1689,15 @@ class MainActivity : Activity() {
                 userManager.isQuietModeEnabled(user) -> {
                     waitingForProfile = user to entry.label
                     waitingSince = SystemClock.uptimeMillis()
-                    userManager.requestQuietModeEnabled(false, user)
+                    // Only the default home app may turn a profile on: anyone else gets a
+                    // SecurityException, and a bare "denied" would not say what to change.
+                    try {
+                        userManager.requestQuietModeEnabled(false, user)
+                    } catch (e: SecurityException) {
+                        waitingForProfile = null
+                        Log.w("Verso", "quiet mode denied: ${entry.key}", e)
+                        toast(getString(R.string.toast_not_default_home), Toast.LENGTH_LONG)
+                    }
                 }
                 // Component gone since the list loaded (uninstall race). Without this check
                 // startMainActivity throws a SecurityException, which would misreport the
@@ -1718,16 +1732,19 @@ class MainActivity : Activity() {
      */
     private fun wallpaperIsLight(): Boolean = try {
         val colors = WallpaperManager.getInstance(this).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
-        colors != null && (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+        colors.wantsDarkText()
     } catch (e: RuntimeException) {
         Log.w("Verso", "wallpaper colours unavailable", e)
         false
     }
 
+    private fun WallpaperColors?.wantsDarkText(): Boolean =
+        this != null && (colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+
     /** A new wallpaper (or new colours of a live one) may flip the palette. */
     private val wallpaperColors = WallpaperManager.OnColorsChangedListener { colors, which ->
         if (which and WallpaperManager.FLAG_SYSTEM == 0) return@OnColorsChangedListener
-        val light = colors != null && (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+        val light = colors.wantsDarkText()
         ++paletteGeneration
         applyPalette(HomeStyle.palette(light))
     }
@@ -1745,13 +1762,13 @@ class MainActivity : Activity() {
         palette = p
         app.palette = p
         homePage.applyTextColor(p.homeText)
-        prompt.setTextColor(fgColor)
-        prompt.setHintTextColor(fgColorDim)
+        prompt.setTextColor(palette.listText)
+        prompt.setHintTextColor(palette.listDim)
         prompt.legibleOnWallpaper()
-        clearButton.setTextColor(fgColorDim)
+        clearButton.setTextColor(palette.listDim)
         clearButton.legibleOnWallpaper()
-        emptyView.setTextColor(fgColorDim)
-        emptyView.setOutline(HomeStyle.OUTLINE_DP * resources.displayMetrics.density, palette.listOutline)
+        emptyView.setTextColor(palette.listDim)
+        emptyView.setOutline(outlinePx, palette.listOutline)
         val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         window.insetsController?.setSystemBarsAppearance(if (p.darkBarIcons) lightBars else 0, lightBars)
@@ -1829,8 +1846,8 @@ class MainActivity : Activity() {
             // Tag rows and app rows are the same monospace TextView, so a recycled view
             // is reused across both freely.
             val tv = (convertView as? TextView) ?: OutlinedTextView(this@MainActivity).apply {
-                setTextColor(fgColor)
-                setOutline(HomeStyle.OUTLINE_DP * resources.displayMetrics.density, listOutlineColor)
+                setTextColor(palette.listText)
+                setOutline(outlinePx, palette.listOutline)
                 textSize = 20f
                 gravity = Gravity.CENTER_VERTICAL
                 isSingleLine = true
@@ -1839,8 +1856,8 @@ class MainActivity : Activity() {
                 setPadding(0, v, 0, v)
             }
             // Every bind, not only on creation: a recycled row may predate a palette switch.
-            tv.setTextColor(fgColor)
-            (tv as? OutlinedTextView)?.setOutline(HomeStyle.OUTLINE_DP * resources.displayMetrics.density, listOutlineColor)
+            tv.setTextColor(palette.listText)
+            (tv as? OutlinedTextView)?.setOutline(outlinePx, palette.listOutline)
             when (val row = shown[position]) {
                 // Tag overview (bare "#"): plain tag name; a screen reader reads it fine,
                 // so clear any stale edit-mode description from the recycled view.

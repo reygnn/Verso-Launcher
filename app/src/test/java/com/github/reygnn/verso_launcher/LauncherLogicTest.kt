@@ -994,4 +994,10 @@ class LauncherLogicTest {
         assertEquals("a".repeat(93), LauncherLogic.cleanName("a".repeat(93) + family))
         assertEquals("a".repeat(92) + family, LauncherLogic.cleanName("a".repeat(92) + family))
     }
+
+    @Test fun `a word-final Greek sigma folds to the sigma it is, so prefixes still match`() {
+        assertEquals("\u03BF\u03B4\u03BF\u03C3", LauncherLogic.foldLabel("\u039F\u0394\u039F\u03A3"))  // ΟΔΟΣ -> οδοσ
+        val road = OrderedFake("road", LauncherLogic.foldLabel("\u039F\u0394\u039F\u03A3\u03A4\u03A1\u03A9\u039C\u0391"))
+        assertEquals(listOf("road"), LauncherLogic.search(listOf(road), "\u039F\u0394\u039F\u03A3").map { it.key })
+    }
 }

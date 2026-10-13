@@ -19,8 +19,6 @@ class RestoreStepsTest {
         writeConfig = { payload -> calls += "config:" + ConfigJson.parse(payload)!!.favorites.joinToString(); true },
     )
 
-    private fun cfg(vararg favorites: String) = VersoConfig(favorites = LinkedHashSet(favorites.toList()))
-
     @Test fun `the undo point is written first, then the restored config`() {
         val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))
         assertEquals(RestoreSteps.Outcome.Done("verso-pre-restore-2026-10-13_120000.json"), outcome)
