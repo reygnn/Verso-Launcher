@@ -22,6 +22,9 @@ internal enum class Mode {
     NORMAL, HIDDEN_EDIT, FAV_EDIT, FAV_REORDER, RECENTS, TAG_FILTER, TAG_EDIT, COMMAND
 }
 
+/** The kinds of empty list, each with its own explanation (see [LauncherLogic.emptyHint]). */
+internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
+
 /** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
  *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
  *  same reason [Mode] is — the Activity and the tests both name it. */
@@ -435,6 +438,22 @@ internal object LauncherLogic {
         // minus removes only the FIRST occurrence, which is why every write path
         // de-duplicates: a list holding the same tag twice could not be fully un-ticked.
         return if (folded in list) list - folded else list + folded
+    }
+
+    /**
+     * What an EMPTY list says, so no view is ever a silent blank: which hint fits what [mode]
+     * would have shown (mirrors [rowsFor]). Bare "#"/"##" with nothing listed means there are
+     * no tags yet, "!!" no favorites, "?" no recents; a needle that matched nothing is a "no
+     * match" of its kind; an empty plain drawer has no apps at all.
+     */
+    fun emptyHint(mode: Mode, trimmed: String, tagEditTag: String?): EmptyHint = when (mode) {
+        Mode.TAG_EDIT -> if (tagEditTag == null) EmptyHint.NO_TAGS else EmptyHint.NO_APPS
+        Mode.COMMAND -> EmptyHint.NO_COMMAND
+        Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_TAGS else EmptyHint.NO_TAG_MATCH
+        Mode.FAV_REORDER -> EmptyHint.NO_FAVORITES
+        Mode.RECENTS -> EmptyHint.NO_RECENTS
+        Mode.HIDDEN_EDIT, Mode.FAV_EDIT -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
+        Mode.NORMAL -> if (trimmed.isEmpty()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
     }
 
     /** The edit modes: Enter there means "done" (it leaves the mode), not "go". */

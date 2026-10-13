@@ -26,7 +26,6 @@
     <string name="action_app_info">App info</string>
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
-    <string name="toast_recents_empty">no recent apps yet — the list resets on restart</string>
     <!-- One-shot "~" commands. %1$s in toast_backup_ok / toast_restore_ok is the written file name. -->
     <string name="toast_saved">config saved</string>
     <string name="toast_save_failed">save failed — nothing written</string>
@@ -52,4 +51,13 @@
     <string name="a11y_reorder_pick">%1$s. Double-tap to pick up for reordering.</string>
     <string name="a11y_reorder_picked">Picked up: %1$s. Double-tap to cancel.</string>
     <string name="a11y_reorder_drop">%1$s. Double-tap to move the picked favorite here.</string>
+
+    <!-- What an empty drawer list says (LauncherLogic.emptyHint). -->
+    <string name="empty_no_match">no app matches</string>
+    <string name="empty_no_apps">no apps</string>
+    <string name="empty_no_tags">no tags yet — create one with ##name</string>
+    <string name="empty_no_tag_match">no tag starts like that</string>
+    <string name="empty_no_favorites">no favorites yet — add some with !</string>
+    <string name="empty_no_recents">no recent apps yet — the list resets on restart</string>
+    <string name="empty_no_command">no such command — ~ lists them all</string>
 </resources>

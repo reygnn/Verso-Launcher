@@ -18,8 +18,8 @@ background→foreground cycle keeps the list; a process death clears it.
 This is intended: recents are a convenience for the current session, not durable
 state, and keeping them out of `verso.json` avoids write churn and keeps the
 config file to genuine user intent. To avoid the "where did my recents go?"
-surprise, the app shows a one-time toast the first time `?` is opened empty after
-a (re)start — see `toast_recents_empty` and `applyFilter` in `MainActivity.kt`.
+surprise, an empty `?` says so in place of the list ("no recent apps yet — the list
+resets on restart") — see `LauncherLogic.emptyHint` and `empty_no_recents`.
 
 If durable recents are ever wanted, persist `recentKeys` to a **separate** small
 file (not `verso.json`) and load it on start.

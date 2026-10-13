@@ -26,9 +26,6 @@ class VersoApp : Application() {
     /** The "?" list, newest first. In memory only, so it lasts until the process dies. */
     internal var recentKeys: List<String> = emptyList()
 
-    /** The "recents are empty after a restart" toast is shown once per process. */
-    internal var recentsEmptyHintShown = false
-
     companion object {
         fun from(activity: android.app.Activity) = activity.application as VersoApp
     }

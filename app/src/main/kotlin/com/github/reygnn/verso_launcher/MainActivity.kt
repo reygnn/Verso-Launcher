@@ -186,6 +186,7 @@ class MainActivity : Activity() {
     // The window root, which also runs the page drag (see SwipeFrame).
     private lateinit var root: SwipeFrame
     private lateinit var clearButton: TextView
+    private lateinit var emptyView: OutlinedTextView
     private lateinit var listView: ListView
     private lateinit var prompt: EditText
     private lateinit var adapter: AppListAdapter
@@ -344,7 +345,21 @@ class MainActivity : Activity() {
                 true
             }
         }
-        drawer.addView(listView, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        // The list and, in its place while it is empty, a hint that says why (see emptyHint) —
+        // ListView.emptyView swaps the two. Outlined like the rows; a polite live region so a
+        // screen reader hears the hint when it appears.
+        emptyView = OutlinedTextView(this).apply {
+            textSize = 18f
+            gravity = Gravity.BOTTOM or Gravity.START
+            setPadding(0, 0, 0, 10.dp())
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        listView.emptyView = emptyView
+        val listFrame = FrameLayout(this).apply {
+            addView(listView, FrameLayout.LayoutParams(MATCH, MATCH))
+            addView(emptyView, FrameLayout.LayoutParams(MATCH, MATCH))
+        }
+        drawer.addView(listFrame, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
         // A clear button for the prompt, sitting at the end of the command line. Shown
         // only while there IS something to erase (see the TextWatcher), it wipes the line
@@ -1460,20 +1475,18 @@ class MainActivity : Activity() {
         // Any replacement of shown invalidates a tap already in flight (see the click
         // listener). Bumped here, in the ONE place shown is assigned.
         shownGeneration++
-        // An empty "?" means nothing has been launched since this process started —
-        // i.e. we just cold-started (or it's a fresh install). The recents cache is
-        // in memory only and low-RAM devices kill the launcher process often, so warn
-        // once per process that the list resets on restart, lest an empty "?" look
-        // like the app forgot the user's recents. Guarded so the per-keystroke
-        // TextWatcher can't repeat it.
-        // shown, not state.recentKeys: a recent whose app has since been uninstalled is filtered
-        // out of the rendered list but still sits in the recents, so testing the cache would
-        // leave the user staring at an unexplained empty "?" — the one case the hint exists
-        // for.
-        if (mode == Mode.RECENTS && shown.isEmpty() && !app.recentsEmptyHintShown) {
-            app.recentsEmptyHintShown = true
-            toast(getString(R.string.toast_recents_empty), Toast.LENGTH_LONG)
-        }
+        // An empty list explains itself (it is only shown while the list IS empty).
+        emptyView.text = getString(
+            when (LauncherLogic.emptyHint(mode, q, tagEditTag)) {
+                EmptyHint.NO_MATCH -> R.string.empty_no_match
+                EmptyHint.NO_APPS -> R.string.empty_no_apps
+                EmptyHint.NO_TAGS -> R.string.empty_no_tags
+                EmptyHint.NO_TAG_MATCH -> R.string.empty_no_tag_match
+                EmptyHint.NO_FAVORITES -> R.string.empty_no_favorites
+                EmptyHint.NO_RECENTS -> R.string.empty_no_recents
+                EmptyHint.NO_COMMAND -> R.string.empty_no_command
+            }
+        )
         adapter.notifyDataSetChanged()
         // Back to the empty prompt: start the A-to-Z list at A, not wherever the
         // bottom-anchored search left the scroll position.
@@ -1568,6 +1581,8 @@ class MainActivity : Activity() {
         prompt.legibleOnWallpaper()
         clearButton.setTextColor(fgColorDim)
         clearButton.legibleOnWallpaper()
+        emptyView.setTextColor(fgColorDim)
+        emptyView.setOutline(HomeStyle.OUTLINE_DP * resources.displayMetrics.density, palette.listOutline)
         val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         window.insetsController?.setSystemBarsAppearance(if (p.darkBarIcons) lightBars else 0, lightBars)

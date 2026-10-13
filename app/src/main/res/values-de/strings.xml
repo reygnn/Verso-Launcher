@@ -25,7 +25,6 @@
     <string name="action_app_info">App-Info</string>
     <string name="toast_not_found">nicht gefunden: %1$s</string>
     <string name="toast_denied">verweigert: %1$s</string>
-    <string name="toast_recents_empty">Noch keine zuletzt genutzten Apps (leer nach Neustart)</string>
     <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok / toast_restore_ok ist der Dateiname. -->
     <string name="toast_saved">Konfiguration gespeichert</string>
     <string name="toast_save_failed">Speichern fehlgeschlagen — nichts geschrieben</string>
@@ -50,4 +49,13 @@
     <string name="a11y_reorder_pick">%1$s. Zum Aufnehmen doppeltippen.</string>
     <string name="a11y_reorder_picked">Aufgenommen: %1$s. Zum Abbrechen doppeltippen.</string>
     <string name="a11y_reorder_drop">%1$s. Zum Hierher-Verschieben doppeltippen.</string>
+
+    <!-- Was eine leere App-Liste sagt (LauncherLogic.emptyHint). -->
+    <string name="empty_no_match">Keine App passt</string>
+    <string name="empty_no_apps">Keine Apps</string>
+    <string name="empty_no_tags">Noch keine Tags — anlegen mit ##name</string>
+    <string name="empty_no_tag_match">Kein Tag beginnt so</string>
+    <string name="empty_no_favorites">Noch keine Favoriten — mit ! hinzufügen</string>
+    <string name="empty_no_recents">Noch keine zuletzt genutzten Apps (leer nach Neustart)</string>
+    <string name="empty_no_command">Kein solcher Befehl — ~ zeigt alle</string>
 </resources>

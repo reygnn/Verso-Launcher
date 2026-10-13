@@ -458,6 +458,21 @@ class LauncherLogicTest {
         assertEquals(LauncherLogic.MAX_TAG_LENGTH, LauncherLogic.canonicalTag("t".repeat(500)).length)
     }
 
+    @Test fun `an empty list says why, per mode`() {
+        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.NORMAL, "", null))
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.NORMAL, "xyz", null))
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.NORMAL, "x*", null))
+        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.HIDDEN_EDIT, "-", null))
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.FAV_EDIT, "!xyz", null))
+        assertEquals(EmptyHint.NO_FAVORITES, LauncherLogic.emptyHint(Mode.FAV_REORDER, "!!", null))
+        assertEquals(EmptyHint.NO_RECENTS, LauncherLogic.emptyHint(Mode.RECENTS, "?", null))
+        assertEquals(EmptyHint.NO_TAGS, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#", null))
+        assertEquals(EmptyHint.NO_TAG_MATCH, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#wo", null))
+        assertEquals(EmptyHint.NO_TAGS, LauncherLogic.emptyHint(Mode.TAG_EDIT, "##", null))
+        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.TAG_EDIT, "##work", "work"))
+        assertEquals(EmptyHint.NO_COMMAND, LauncherLogic.emptyHint(Mode.COMMAND, "~xyz", null))
+    }
+
     @Test fun `the edit modes are exactly the ones whose Enter means done`() {
         val edit = Mode.entries.filter { LauncherLogic.isEditMode(it) }.toSet()
         assertEquals(setOf(Mode.HIDDEN_EDIT, Mode.FAV_EDIT, Mode.FAV_REORDER, Mode.TAG_EDIT), edit)
