@@ -433,6 +433,28 @@ class LauncherLogicTest {
         assertEquals("iş", LauncherLogic.canonicalTag("İş"))
     }
 
+    // ---- tag order ----------------------------------------------------------
+
+    @Test fun `tags sort in the device language's alphabet, umlauts with their base letter`() {
+        assertEquals(
+            listOf("arbeit", "ärzte", "spiele", "zuhause"),
+            LauncherLogic.sortedTags(listOf("zuhause", "ärzte", "spiele", "arbeit"), Locale.GERMANY),
+        )
+        assertEquals(
+            listOf("arbeit", "zuhause", "ärzte"),
+            LauncherLogic.sortedTags(listOf("ärzte", "zuhause", "arbeit"), Locale.of("sv", "SE")),
+        )
+    }
+
+    @Test fun `the suggestion pool and the tag overview use that order`() {
+        val tags = mapOf("p/a" to listOf("zuhause", "ärzte"), "p/b" to listOf("arbeit"))
+        assertEquals(listOf("arbeit", "ärzte", "zuhause"), LauncherLogic.allTags(tags, Locale.GERMANY))
+        assertEquals(
+            listOf("arbeit", "ärzte", "zuhause"),
+            LauncherLogic.tagsInUse(listOf(Row("p/a", "a"), Row("p/b", "b")), tags, Locale.GERMANY),
+        )
+    }
+
     // ---- sortedForDrawer ----------------------------------------------------
 
     private fun folded(vararg labels: String) = labels.map { Row("p/$it", LauncherLogic.foldLabel(it)) }

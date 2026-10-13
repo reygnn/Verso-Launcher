@@ -433,10 +433,10 @@ internal object LauncherLogic {
      * Every distinct tag ever defined, sorted — the suggestion pool for the tag
      * input's autocomplete. Includes tags whose apps are currently uninstalled, so a
      * known tag can still be reused. Values in [tags] are already folded (see
-     * [parseTags]/ConfigJson), so this only flattens, de-dupes and sorts.
+     * [parseTags]/ConfigJson), so this only flattens, de-dupes and sorts ([sortedTags]).
      */
-    fun allTags(tags: Map<String, List<String>>): List<String> =
-        tags.values.flatten().distinct().sorted()
+    fun allTags(tags: Map<String, List<String>>, locale: Locale = Locale.getDefault()): List<String> =
+        sortedTags(tags.values.flatten().distinct(), locale)
 
     /**
      * Tags carried by at least one currently-installed app, sorted — the bare-"#"
@@ -444,8 +444,19 @@ internal object LauncherLogic {
      * whose only apps have been uninstalled, guaranteeing every listed tag drills into
      * a non-empty result. Tag values are already folded (see [parseTags]).
      */
-    fun <T : Ordered> tagsInUse(all: List<T>, tags: Map<String, List<String>>): List<String> =
-        all.flatMap { tags[it.key].orEmpty() }.distinct().sorted()
+    fun <T : Ordered> tagsInUse(
+        all: List<T>,
+        tags: Map<String, List<String>>,
+        locale: Locale = Locale.getDefault(),
+    ): List<String> = sortedTags(all.flatMap { tags[it.key].orEmpty() }.distinct(), locale)
+
+    /** Tags in the device language's alphabetical order — the same collation as the app list
+     *  ([sortedForDrawer]), so "ärzte" sits next to "arbeit", not after "zuhause". Ties the
+     *  collator considers equal fall back to plain string order, so the order is total. */
+    fun sortedTags(tags: Collection<String>, locale: Locale = Locale.getDefault()): List<String> {
+        val collator = Collator.getInstance(locale)
+        return tags.sortedWith(compareBy<String, String>(collator) { it }.thenBy { it })
+    }
 
     /**
      * The "#" filter: apps carrying a tag that PREFIX-matches [needle]. [needle] is
