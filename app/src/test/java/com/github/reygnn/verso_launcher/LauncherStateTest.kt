@@ -22,7 +22,9 @@ class LauncherStateTest {
     private val mainQueue = ArrayDeque<Runnable>()
     private var ioOpen = true
 
-    /** What loadConfig() returns — "the file on disk". */
+    /** What loadConfig() returns — "the file on disk". NOT updated by writeConfig (which only
+     *  records payloads in [written]): a test that saves and then reloads must set it itself,
+     *  or it reads a file a real device would no longer have. */
     private var disk = VersoConfig()
     private var loadConfigCalls = 0
 
@@ -533,7 +535,7 @@ class LauncherStateTest {
         assertEquals(listOf("Charlie", "Charlie (Work)"), state.favorites().map { it.label })
     }
 
-    @Test fun `the key matches ComponentName_flattenToString, so old configs keep working`() {
+    @Test fun `the personal key is package slash class, the format old configs were written in`() {
         val e = AppEntry.of("Mail", "com.example.mail", "com.example.mail.MainActivity", "Mail")
         assertEquals("com.example.mail/com.example.mail.MainActivity", e.key)
         assertEquals("mail", e.labelLower)

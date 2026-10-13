@@ -30,7 +30,7 @@ keyboard, no prompt:
   the screen (or flick) and it opens, otherwise it drops back. **Swipe down** → your
   recently used apps (the drawer opened on its `?` view, without the keyboard; Back goes
   straight home). A swipe down that starts at the very top edge is left to the
-  notification shade.
+  notification shade. A second finger cancels a pull.
 
 **Back (drawer)** — the original Sigil Launcher:
 

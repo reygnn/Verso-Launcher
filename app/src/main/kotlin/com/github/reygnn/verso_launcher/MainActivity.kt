@@ -977,27 +977,25 @@ class MainActivity : Activity() {
         )
         val outgoing = if (state.configLoaded) state.config.snapshot() else null
         val accepted = submitIo {
-            val current = outgoing ?: store.load()
-            // Restoring what is already there changes nothing — and must not write an undo
-            // point: that would replace the real one (the config from before the FIRST restore)
-            // with a copy of the restored config. A second "~restore" by accident would
-            // otherwise quietly destroy the way back.
-            if (current.sameContent(restored)) {
-                onUi { toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG) }
-                return@submitIo
+            // The IO half in its load-bearing order (CLAUDE.md rule 7): stop if nothing would
+            // change, write the undo point, persist the restored config — see RestoreSteps.
+            val outcome = RestoreSteps.run(
+                current = outgoing ?: store.load(),
+                restored = restored,
+                writeUndo = { payload -> backupStore.write(PRE_RESTORE_BASE, payload) },
+                writeConfig = { payload -> store.write(payload, rotateBackup = true) },
+            )
+            val undo = when (outcome) {
+                RestoreSteps.Outcome.Unchanged -> {
+                    onUi { toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG) }
+                    return@submitIo
+                }
+                RestoreSteps.Outcome.UndoFailed -> {
+                    onUi { toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG) }
+                    return@submitIo
+                }
+                is RestoreSteps.Outcome.Done -> outcome.undoName
             }
-            val undo = backupStore.write(PRE_RESTORE_BASE, ConfigJson.serialize(current))
-            if (undo == null) {
-                onUi { toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG) }
-                return@submitIo
-            }
-            // Persist the restored config right here, in the same IO task as its undo point —
-            // not only through adopt's save on the main thread. Writing the undo point has just
-            // replaced the previous one (possibly the very file being restored), so from this
-            // moment the restore must survive even if the hand-back below never runs: the
-            // activity destroyed by a configuration change, the process killed. A new instance
-            // then simply loads the restored config.
-            store.write(ConfigJson.serialize(restored), rotateBackup = true)
             onUi {
                 // Wholesale replace, save and re-render — with the epoch guard that keeps an
                 // enumeration already in flight from handing the OLD config back over this one.

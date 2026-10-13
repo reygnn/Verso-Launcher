@@ -44,7 +44,7 @@ class BackupStoreInstrumentedTest {
     private var clockFrozen = false
 
     private fun store(beforePublish: () -> Unit = {}) =
-        BackupStore(resolver, subDir, { msg, _ -> logs += msg }, beforePublish) {
+        BackupStore(resolver, subDir, { msg, e -> logs += listOfNotNull(msg, e?.message).joinToString(": ") }, beforePublish) {
             clock.also { if (!clockFrozen) clock = clock.plusSeconds(1) }
         }
 
@@ -167,6 +167,32 @@ class BackupStoreInstrumentedTest {
         assertEquals(listOf(name), ownNames())
     }
 
+    @Test fun aCrashAfterPublishBeforeTheSweepLeavesTwoAndTheNewerWins() {
+        // What a crash between the publish and the sweep leaves: two published own backups.
+        store().write("verso", PAYLOAD_A)
+        ownPublished("verso-2026-10-13_120500.json", PAYLOAD_B)
+
+        assertEquals(PAYLOAD_B, readLatest("verso"))  // the newer row, by id
+
+        val name = store().write("verso", PAYLOAD_C)
+        assertEquals(listOf(name), ownNames())        // the next backup sweeps both
+        assertEquals(PAYLOAD_C, readLatest("verso"))
+    }
+
+    @Test fun aPublishWhoseTempVanishedFailsAndKeepsTheOldBackup() {
+        val old = store().write("verso", PAYLOAD_A)
+
+        // The temp row vanishes before its publish. On a device MediaStore does not answer the
+        // publishing update with "0 rows" but throws ("has no access"); either way it must be a
+        // failed backup — the updated != 1 check covers the other answer.
+        val name = store(beforePublish = { deleteOwnTemps() }).write("verso", PAYLOAD_B)
+
+        assertNull(name)
+        assertEquals(PAYLOAD_A, readLatest("verso"))
+        assertEquals(listOf(old), ownNames())
+        assertTrue(logs.toString(), logs.any { "failed" in it })
+    }
+
     @Test fun anInterruptedFirstBackupIsStillRestorableFromItsTemp() {
         crashBeforePublish(PAYLOAD_A)
 
@@ -191,6 +217,47 @@ class BackupStoreInstrumentedTest {
     }
 
     private class SimulatedCrash : Error()
+
+    /** A published row of ours named exactly [name], written the way MediaStore publishes. */
+    private fun ownPublished(name: String, payload: String) {
+        val uri = resolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            android.content.ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$subDir")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            },
+        )!!
+        resolver.openOutputStream(uri)!!.use { it.write(payload.toByteArray()) }
+        resolver.update(
+            uri,
+            android.content.ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
+            null,
+            null,
+        )
+    }
+
+    /** Delete every pending temp row of ours — the row a publish is about to update. */
+    private fun deleteOwnTemps() {
+        val query = Bundle().apply {
+            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "${MediaStore.MediaColumns.RELATIVE_PATH}=?")
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf("${Environment.DIRECTORY_DOWNLOADS}/$subDir/"))
+            putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+        }
+        resolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME),
+            query,
+            null,
+        )!!.use { c ->
+            while (c.moveToNext()) {
+                if (BackupFiles.isTemp("verso", c.getString(1))) {
+                    resolver.delete(android.content.ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0)), null, null)
+                }
+            }
+        }
+    }
 
     /** Write [payload] as an own row named exactly [name], as the fixed-name version did:
      *  a normal backup, then renamed in place. */

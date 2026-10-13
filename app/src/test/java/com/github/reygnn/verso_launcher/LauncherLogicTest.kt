@@ -475,6 +475,21 @@ class LauncherLogicTest {
         assertEquals(listOf("p/Apotheke", "p/Zoom", "p/Ärzte"), sorted.keys())
     }
 
+    @Test fun `labels the collator calls equal but that differ are ordered by the label itself`() {
+        // "ma\u0001il" collates equal to "mail" (the control character is ignorable) but is the
+        // smaller string; the key order alone would put p/a ("mail") first — the label
+        // tie-break must decide before the key does.
+        val withControl = Row("p/b", "ma\u0001il")
+        val plain = Row("p/a", "mail")
+        assertEquals(listOf("p/b", "p/a"), LauncherLogic.sortedForDrawer(listOf(withControl, plain), Locale.GERMANY).keys())
+        assertEquals(listOf("p/b", "p/a"), LauncherLogic.sortedForDrawer(listOf(plain, withControl), Locale.GERMANY).keys())
+    }
+
+    @Test fun `tags the collator calls equal still get a stable order`() {
+        assertEquals(listOf("wor\u0001k", "work"), LauncherLogic.sortedTags(listOf("wor\u0001k", "work"), Locale.GERMANY))
+        assertEquals(listOf("wor\u0001k", "work"), LauncherLogic.sortedTags(listOf("work", "wor\u0001k"), Locale.GERMANY))
+    }
+
     @Test fun `labels the collator calls equal still get a stable total order`() {
         val a = Row("p/b", "mail")
         val b = Row("p/a", "mail")
@@ -859,6 +874,18 @@ class LauncherLogicTest {
         // needle carrying them must be stripped the same way to match at all.
         assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "g#a").keys())
         assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, " GA ").keys())
+    }
+
+    @Test fun `tagged folds its needle with ROOT, not the Turkish default`() {
+        // Under tr-TR a default-locale lowercase turns "WIFI" into "wıfı" (dotless) and would miss.
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.of("tr", "TR"))
+            val tags = mapOf("a" to listOf("wifi"))
+            assertEquals(listOf("a"), LauncherLogic.tagged(rows("a", "b"), tags, "WIFI").keys())
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 
     @Test fun `tagged prefix-matches a tag`() {

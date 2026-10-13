@@ -13,10 +13,10 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 362 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 373 tests):
 
 ```
-LauncherLogicTest          113  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          116  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
 LauncherStateTest           44  the concurrency rules: refresh/reload/rename/adopt
@@ -32,15 +32,17 @@ LauncherActionsTest         19  Enter / tap decisions
 HomeStyleTest               20  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming
 BackupFilesTest             14  backup naming: timestamps, patterns, restore pick, sweep
-SwipeGestureTest            18  the page drag (direction, offset, release, home fade) and
+SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
-SwipeFrameTest              10  Robolectric: real MotionEvents through the frame — delta and
+SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 RenameDialogFilterTest       8  Robolectric: the tag field's InputFilter on a real widget
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 6  stale-click guard
+RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest    6  Robolectric: TalkBack click on clock/date/battery, the double tap
+HomePageAccessibilityTest    8  Robolectric: TalkBack click on clock/date/battery, the double
+                                tap, the "open all apps" action, the empty-favorites hint
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
@@ -48,7 +50,8 @@ with a device attached, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
 
 ```
 BackupStoreInstrumentedTest  BackupStore against the REAL MediaStore: publish, replace,
-                             names taken by rows we don't own, failed/crashed publish
+                             names taken by rows we don't own, failed/crashed publish,
+                             a crash between publish and sweep, a vanished temp
 ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limit)
 ```
 

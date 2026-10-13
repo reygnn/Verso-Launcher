@@ -87,6 +87,7 @@ com.github.reygnn.verso_launcher/
   ConfigStore         verso.json on disk: atomic write, .tmp/.bak recovery
   BackupStore         Download/Verso via MediaStore
   BackupFiles         pure backup naming rules
+  RestoreSteps        the IO half of a restore, in its load-bearing order
 ```
 
 Data flow: `onResume`, a `LauncherApps.Callback` (install/uninstall/update) or a
@@ -146,7 +147,11 @@ main, written on the IO thread.
     open). The flick (4× touch slop, 1.2 px/ms average, 1.5× dominance, 48 dp top band)
     remains for the recents swipe and as the open fallback. All of it lives in
     `SwipeFrame.dispatchTouchEvent`, never `onInterceptTouchEvent` (a scrolling list
-    disables intercept mid-gesture); the decisions are pure in `SwipeGesture`.
+    disables intercept mid-gesture); the decisions are pure in `SwipeGesture`. Details that
+    are easy to break: taps are swallowed while a page turn runs (`swallowTaps`, ~200 ms);
+    a second finger cancels a drag; a drag can grab a page still moving and continues from
+    there; an open rename dialog blocks both drag and flick; a page turned some other way
+    (HOME, Back, screen off) aborts a running drag without a release decision (`abortDrag`).
 12. **Status bar hidden on the home page only**, shown in the drawer. The home page
     pads for it regardless of visibility (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate

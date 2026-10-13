@@ -63,6 +63,17 @@ class SwipeFrameTest {
         assertTrue("the page follows the finger down", drags.last().second > drags.first().second)
     }
 
+    @Test fun `a closing pull stops at 80 percent of the page`() {
+        drawerOpen = true
+        stroke(from = 100f, to = 1500f, durationMs = 6000, lift = false)  // far past the page
+        assertEquals(HEIGHT * SwipeGesture.DRAG_MAX_CLOSE_FRACTION, drags.last().second, 0.001f)
+    }
+
+    @Test fun `an opening pull may follow the finger the whole page`() {
+        stroke(from = 1900f, to = 100f, durationMs = 6000, lift = false)
+        assertEquals(HEIGHT, drags.last().second, 0.001f)
+    }
+
     @Test fun `a slow short pull down settles back`() {
         drawerOpen = true
         stroke(from = 100f, to = 250f, durationMs = 3000)  // 15 %

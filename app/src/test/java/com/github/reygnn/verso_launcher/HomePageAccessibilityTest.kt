@@ -25,7 +25,8 @@ import org.robolectric.Shadows.shadowOf
 class HomePageAccessibilityTest {
 
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-    private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = {})
+    private var drawerOpened = 0
+    private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { drawerOpened++ })
 
     /** The clock: the first TextClock on the page (the date is the second). */
     private val clock: View get() = page.view.collect<TextClock>().first()
@@ -59,6 +60,23 @@ class HomePageAccessibilityTest {
         clock.performClick()
         clock.performClick()
         assertEquals(AlarmClock.ACTION_SHOW_ALARMS, shadowOf(activity).nextStartedActivity?.action)
+    }
+
+    @Test fun `the page offers "open all apps" as an accessibility action, and it works`() {
+        val info = AccessibilityNodeInfo()
+        page.view.onInitializeAccessibilityNodeInfo(info)
+        val action = info.actionList.single { it.id == R.id.action_open_drawer }
+        assertEquals(activity.getString(R.string.a11y_open_drawer), action.label)
+        assertTrue(page.view.performAccessibilityAction(R.id.action_open_drawer, null))
+        assertEquals(1, drawerOpened)
+    }
+
+    @Test fun `with no favorites the hint is shown, and tapping it opens the drawer`() {
+        page.render(favs = emptyList(), loaded = true)
+        val hint = page.view.collect<android.widget.TextView>()
+            .single { it.text.toString() == activity.getString(R.string.home_hint) }
+        assertTrue(hint.performClick())
+        assertEquals(1, drawerOpened)
     }
 
     @Test fun `a single plain tap still opens nothing`() {
