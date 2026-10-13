@@ -80,6 +80,10 @@ android {
                 // warning (and is an error on later JDKs) unless dynamic agent loading is
                 // opted into explicitly.
                 it.jvmArgs("-XX:+EnableDynamicAgentLoading")
+                // Robolectric loads Conscrypt, which lowercases os.name with the default locale:
+                // on a Turkish host "Linux" becomes "lınux", its native library is not found and
+                // every Robolectric test fails before it runs. Verso uses no TLS — leave it out.
+                it.systemProperty("robolectric.conscryptMode", "OFF")
             }
         }
     }

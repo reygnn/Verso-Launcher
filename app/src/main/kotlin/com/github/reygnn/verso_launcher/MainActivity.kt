@@ -219,9 +219,11 @@ class MainActivity : Activity() {
                 if (configReplaced) renameDialog?.dismiss()
                 // The first hand-off after a "~load" is the one that read the file: every older
                 // load is superseded by it.
+                // Only when the file was adopted: a change made while it loaded keeps memory, the
+                // newer truth, and then nothing was reloaded to confirm.
                 if (reloadToastPending) {
                     reloadToastPending = false
-                    toast(getString(R.string.toast_reloaded))
+                    if (configReplaced) toast(getString(R.string.toast_reloaded))
                 }
                 refilter()
             },
@@ -284,6 +286,13 @@ class MainActivity : Activity() {
         // empty-prompt drawer, which reads top-down A to Z (see applyFilter).
         listView = ListView(this).apply {
             divider = null  // setDivider(null) already zeroes the divider height
+            // Arrow keys or Tab can move a hardware keyboard's focus into the list, which has no
+            // type-to-filter: send what is typed there back to the command line.
+            setOnKeyListener { _, _, event ->
+                val c = if (event.action == KeyEvent.ACTION_DOWN) printable(event) else null
+                if (c != null) typeIntoPrompt(c)
+                c != null
+            }
             isVerticalScrollBarEnabled = false
             isStackFromBottom = true
             // Record which list the finger went down on. Returns false without fail: this
@@ -428,7 +437,8 @@ class MainActivity : Activity() {
                 // key-down and the key-up, so without this guard "~", a launch and
                 // the edit-mode "done" gesture would each fire twice. Handle the GO
                 // action or the key-DOWN edge only; ignore (don't consume) the rest.
-                val enterDown = event?.keyCode == KeyEvent.KEYCODE_ENTER &&
+                val enterDown = (event?.keyCode == KeyEvent.KEYCODE_ENTER ||
+                    event?.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) &&
                     event.action == KeyEvent.ACTION_DOWN
                 val imeAction = actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE
                 if (!imeAction && !enterDown) {
@@ -610,10 +620,16 @@ class MainActivity : Activity() {
                 }
 
                 override fun onBackInvoked() {
+                    val previewed = previewFrom != null
                     previewFrom = null
                     if (!drawerOpen) return
                     if (closes()) closeDrawer()
-                    else prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
+                    else {
+                        // The prompt changed during the gesture (a hardware key): the preview
+                        // showed a close that is not happening — put the drawer back first.
+                        if (previewed) settle(open = true)
+                        prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
+                    }
                 }
             },
         )
@@ -708,11 +724,20 @@ class MainActivity : Activity() {
      * version for when the launcher is going to the background anyway.
      */
     private fun closeDrawer(animate: Boolean = true) {
-        if (!drawerOpen) return
+        if (!drawerOpen) {
+            // Home is in front, but a finger may be pulling the drawer up: HOME or the screen
+            // going off ends that drag here, or its release would still open the drawer.
+            if (root.isDragging) {
+                root.abortDrag()
+                if (animate) settle(open = false) else showHomeNow()
+            }
+            return
+        }
         drawerOpen = false
         // HOME, Back or the screen going off while a finger drags the drawer: that drag is over
         // and must not settle the drawer back open over a home that is now in front.
         root.abortDrag()
+        renameDialog?.dismiss()
         showStatusBar(false)
         hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -722,11 +747,7 @@ class MainActivity : Activity() {
         drawer.animate().cancel()
         home.visibility = View.VISIBLE
         if (!animate) {
-            pageTurnUntil = 0L
-            home.setLayerType(View.LAYER_TYPE_NONE, null)
-            home.alpha = 1f
-            drawer.translationY = 0f
-            drawer.visibility = View.GONE
+            showHomeNow()
             return
         }
         // Kolibri's way back: the drawer slides down off the screen (slide_out_down) while home
@@ -739,6 +760,18 @@ class MainActivity : Activity() {
             .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
                 if (!drawerOpen) drawer.visibility = View.GONE
             }.start()
+    }
+
+    /** Home in front at once, the drawer gone — no animation. */
+    private fun showHomeNow() {
+        home.animate().cancel()
+        drawer.animate().cancel()
+        pageTurnUntil = 0L
+        home.setLayerType(View.LAYER_TYPE_NONE, null)
+        home.visibility = View.VISIBLE
+        home.alpha = 1f
+        drawer.translationY = 0f
+        drawer.visibility = View.GONE
     }
 
     /**
@@ -849,7 +882,7 @@ class MainActivity : Activity() {
         // translucent activity on top — returns to an open drawer, and there the
         // keyboard belongs up again.
         // The recents view ("?", from a swipe down) deliberately opens without it.
-        if (drawerOpen && mode != Mode.RECENTS) showKeyboard()
+        if (drawerOpen && prompt.text?.toString() != RECENTS_PROMPT) showKeyboard()
     }
 
     /** Not in front any more: package changes from now on only mark the list dirty (see
@@ -880,6 +913,8 @@ class MainActivity : Activity() {
      * land on the home screen, like any launcher, not on a half-typed search.
      */
     override fun onStop() {
+        // Also a dialog opened from the home page, which closeDrawer does not touch.
+        renameDialog?.dismiss()
         closeDrawer(animate = false)
         homePage.stopBattery()
         super.onStop()
@@ -936,6 +971,38 @@ class MainActivity : Activity() {
             Log.w("Verso", "IO task rejected (executor shutting down)", e)
             false
         }
+    }
+
+    /**
+     * A hardware keyboard on the home page: typing opens the drawer with that character in
+     * the command line — the keyboard's way to what a swipe up does. Search does the same
+     * without a character. Keys the focused view takes (Enter on a favorite) never get here.
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (!drawerOpen) {
+            val c = printable(event)
+            if (c != null || keyCode == KeyEvent.KEYCODE_SEARCH) {
+                openDrawer()
+                if (c != null) typeIntoPrompt(c)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    /** The character a plain key press types, or null (a modifier chord, a control key). */
+    private fun printable(event: KeyEvent): String? {
+        if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) return null
+        val c = event.unicodeChar
+        if (c == 0 || Character.isISOControl(c)) return null
+        return String(Character.toChars(c))
+    }
+
+    /** Append [c] to the command line and put the typing back there. */
+    private fun typeIntoPrompt(c: String) {
+        prompt.requestFocus()
+        prompt.append(c)
+        prompt.setSelection(prompt.length())
     }
 
     /** HOME pressed while already home: turn back to the home page, scrolled to the top. */
@@ -1619,6 +1686,9 @@ class MainActivity : Activity() {
             recentKeys = state.recentKeys,
             tagEditTag = tagEditTag,
         )
+        // A pick whose row is gone (the app uninstalled meanwhile) is no pick: the next tap would
+        // move an invisible favorite instead of picking the one tapped.
+        if (reorderPick != null && shown.none { (it as? AppRow)?.entry?.key == reorderPick }) reorderPick = null
         // Any replacement of shown invalidates a tap already in flight (see the click
         // listener). Bumped here, in the ONE place shown is assigned.
         shownGeneration++

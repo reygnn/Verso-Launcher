@@ -173,6 +173,9 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
     private fun dragMax(dir: SwipeDir): Float =
         if (dir == SwipeDir.UP) pageHeight() else pageHeight() * SwipeGesture.DRAG_MAX_CLOSE_FRACTION
 
+    /** Whether a drag holds the page right now. */
+    val isDragging: Boolean get() = dragDir != null
+
     /**
      * The page was turned some other way while a drag held it — HOME, Back, the screen going
      * off. The drag is over without a release decision: no [onDragEnd] (it would act on a page

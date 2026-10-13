@@ -34,6 +34,8 @@ keyboard, no prompt:
   recently used apps (the drawer opened on its `?` view, without the keyboard; Back goes
   straight home). A swipe down that starts at the very top edge is left to the
   notification shade. A second finger cancels a pull.
+- With a hardware keyboard, just type: the drawer opens with what you typed in the
+  command line (the Search key opens it empty).
 
 **Back (drawer)** — the original Sigil Launcher:
 

@@ -3,6 +3,7 @@ package com.github.reygnn.verso_launcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Rule
 import org.junit.Test
 import java.util.Locale
 
@@ -12,6 +13,8 @@ import java.util.Locale
  * The rows are a trivial [Ordered] fake, so the tests never build a ComponentName.
  */
 class LauncherLogicTest {
+
+    @get:Rule val locale = DefaultLocaleRule()
 
 
     /** Rows whose key doubles as the (already ROOT-folded) label, for ordering tests. */
@@ -104,13 +107,8 @@ class LauncherLogicTest {
 
     /** Same ROOT-folding reason as everywhere else. */
     @Test fun `canonicalTag folds with ROOT, not the device locale`() {
-        val original = Locale.getDefault()
-        try {
-            Locale.setDefault(Locale.forLanguageTag("tr"))
-            assertEquals("i", LauncherLogic.canonicalTag("I"))
-        } finally {
-            Locale.setDefault(original)
-        }
+        Locale.setDefault(Locale.forLanguageTag("tr"))
+        assertEquals("i", LauncherLogic.canonicalTag("I"))
     }
 
     /** The dialog's separator must still work: canonicalTag only sees ONE tag at a time,
@@ -164,13 +162,8 @@ class LauncherLogicTest {
     /** Same ROOT-folding reason as everywhere else: a Turkish default locale must not
      *  turn a typed "##WORK" into a dotless-i tag that never matches the stored one. */
     @Test fun `toggleTag folds with ROOT, not the device locale`() {
-        val original = Locale.getDefault()
-        try {
-            Locale.setDefault(Locale.forLanguageTag("tr"))
-            assertEquals(emptyList<String>(), LauncherLogic.toggleTag(listOf("i"), "I"))
-        } finally {
-            Locale.setDefault(original)
-        }
+        Locale.setDefault(Locale.forLanguageTag("tr"))
+        assertEquals(emptyList<String>(), LauncherLogic.toggleTag(listOf("i"), "I"))
     }
 
     @Test fun `toggleTag does not mutate the list it is given`() {
@@ -239,13 +232,8 @@ class LauncherLogicTest {
     /** Folding must be ROOT, not the device locale: a Turkish default would map the
      *  "I" of a typed "~RESTORE" to a dotless i and the command would stop resolving. */
     @Test fun `commands still parse under a Turkish default locale`() {
-        val original = Locale.getDefault()
-        try {
-            Locale.setDefault(Locale.forLanguageTag("tr"))
-            assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~RESTORE"))
-        } finally {
-            Locale.setDefault(original)
-        }
+        Locale.setDefault(Locale.forLanguageTag("tr"))
+        assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~RESTORE"))
     }
 
     /** The exact-match rule: "~" must not swallow a search that merely starts with it,
@@ -344,18 +332,13 @@ class LauncherLogicTest {
      * instead of on a user's phone.
      */
     @Test fun `every command spelling survives a Turkish uppercase round trip`() {
-        val original = Locale.getDefault()
-        try {
-            Locale.setDefault(Locale.forLanguageTag("tr"))
-            for ((spelling, _) in LauncherLogic.COMMANDS) {
-                assertEquals(
-                    "\"$spelling\" does not survive being typed in caps on a Turkish device",
-                    spelling,
-                    LauncherLogic.foldLabel(spelling.uppercase(Locale.getDefault())),
-                )
-            }
-        } finally {
-            Locale.setDefault(original)
+        Locale.setDefault(Locale.forLanguageTag("tr"))
+        for ((spelling, _) in LauncherLogic.COMMANDS) {
+            assertEquals(
+                "\"$spelling\" does not survive being typed in caps on a Turkish device",
+                spelling,
+                LauncherLogic.foldLabel(spelling.uppercase(Locale.getDefault())),
+            )
         }
     }
 
@@ -542,34 +525,24 @@ class LauncherLogicTest {
     }
 
     @Test fun `foldLabel lowercases with ROOT even under a Turkish default locale`() {
-        val original = Locale.getDefault()
-        try {
-            // Under tr-TR, "I".lowercase() gives the dotless "ı". foldLabel must pin
-            // Locale.ROOT so a label keeps the same "i" the search needle folds to —
-            // this is the LABEL side of the invariant (search covers the needle side).
-            Locale.setDefault(Locale.of("tr", "TR"))
-            assertEquals("instagram", LauncherLogic.foldLabel("Instagram"))
-            assertEquals("i", LauncherLogic.foldLabel("I"))
-        } finally {
-            Locale.setDefault(original)
-        }
+        // Under tr-TR, "I".lowercase() gives the dotless "ı". foldLabel must pin
+        // Locale.ROOT so a label keeps the same "i" the search needle folds to —
+        // this is the LABEL side of the invariant (search covers the needle side).
+        Locale.setDefault(Locale.of("tr", "TR"))
+        assertEquals("instagram", LauncherLogic.foldLabel("Instagram"))
+        assertEquals("i", LauncherLogic.foldLabel("I"))
     }
 
     @Test fun `search matches a foldLabel-built row under Turkish`() {
-        val original = Locale.getDefault()
-        try {
-            Locale.setDefault(Locale.of("tr", "TR"))
-            // End-to-end: the row's key is built exactly as MainActivity builds it (via
-            // foldLabel -> "instagram"), and search is given the raw "I". This guards
-            // search's OWN needle fold — a search that stopped folding would test
-            // "instagram".contains("I") and miss. (That the two sides fold the SAME way
-            // is guaranteed by both using foldLabel; the ROOT-pinning itself is pinned
-            // by the standalone foldLabel and search Turkish tests above/below.)
-            val all = listOf(OrderedFake("p/insta", LauncherLogic.foldLabel("Instagram")))
-            assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
-        } finally {
-            Locale.setDefault(original)
-        }
+        Locale.setDefault(Locale.of("tr", "TR"))
+        // End-to-end: the row's key is built exactly as MainActivity builds it (via
+        // foldLabel -> "instagram"), and search is given the raw "I". This guards
+        // search's OWN needle fold — a search that stopped folding would test
+        // "instagram".contains("I") and miss. (That the two sides fold the SAME way
+        // is guaranteed by both using foldLabel; the ROOT-pinning itself is pinned
+        // by the standalone foldLabel and search Turkish tests above/below.)
+        val all = listOf(OrderedFake("p/insta", LauncherLogic.foldLabel("Instagram")))
+        assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
     }
 
     // ---- search -------------------------------------------------------------
@@ -590,16 +563,11 @@ class LauncherLogicTest {
     }
 
     @Test fun `search folds the needle with ROOT even under a Turkish default locale`() {
-        val original = Locale.getDefault()
-        try {
-            // Under tr-TR, "I".lowercase() would give the dotless "ı" and miss the
-            // row — search must fold with Locale.ROOT so "I" still becomes "i".
-            Locale.setDefault(Locale.of("tr", "TR"))
-            val all = listOf(OrderedFake("p/insta", "instagram"))
-            assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
-        } finally {
-            Locale.setDefault(original)
-        }
+        // Under tr-TR, "I".lowercase() would give the dotless "ı" and miss the
+        // row — search must fold with Locale.ROOT so "I" still becomes "i".
+        Locale.setDefault(Locale.of("tr", "TR"))
+        val all = listOf(OrderedFake("p/insta", "instagram"))
+        assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
     }
 
     // ---- favoritesInDisplayOrder --------------------------------------------
@@ -733,13 +701,8 @@ class LauncherLogicTest {
     @Test fun `drawerStartingWith folds the prefix with ROOT`() {
         val all = listOf(OrderedFake("p/insta", LauncherLogic.foldLabel("Instagram")))
         assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "IN").keys())
-        val original = Locale.getDefault()
-        try {
-            Locale.setDefault(Locale.of("tr", "TR"))
-            assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "I").keys())
-        } finally {
-            Locale.setDefault(original)
-        }
+        Locale.setDefault(Locale.of("tr", "TR"))
+        assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "I").keys())
     }
 
     @Test fun `drawerStartingWith over an empty app list is empty`() {
@@ -922,14 +885,9 @@ class LauncherLogicTest {
 
     @Test fun `tagged folds its needle with ROOT, not the Turkish default`() {
         // Under tr-TR a default-locale lowercase turns "WIFI" into "wıfı" (dotless) and would miss.
-        val original = Locale.getDefault()
-        try {
-            Locale.setDefault(Locale.of("tr", "TR"))
-            val tags = mapOf("a" to listOf("wifi"))
-            assertEquals(listOf("a"), LauncherLogic.tagged(rows("a", "b"), tags, "WIFI").keys())
-        } finally {
-            Locale.setDefault(original)
-        }
+        Locale.setDefault(Locale.of("tr", "TR"))
+        val tags = mapOf("a" to listOf("wifi"))
+        assertEquals(listOf("a"), LauncherLogic.tagged(rows("a", "b"), tags, "WIFI").keys())
     }
 
     @Test fun `tagged prefix-matches a tag`() {
@@ -999,5 +957,18 @@ class LauncherLogicTest {
         assertEquals("\u03BF\u03B4\u03BF\u03C3", LauncherLogic.foldLabel("\u039F\u0394\u039F\u03A3"))  // ΟΔΟΣ -> οδοσ
         val road = OrderedFake("road", LauncherLogic.foldLabel("\u039F\u0394\u039F\u03A3\u03A4\u03A1\u03A9\u039C\u0391"))
         assertEquals(listOf("road"), LauncherLogic.search(listOf(road), "\u039F\u0394\u039F\u03A3").map { it.key })
+    }
+
+    @Test fun `an abbreviated command needs the tilde in the raw prompt too`() {
+        assertNull(LauncherLogic.resolveCommand("\u0307~b"))
+        assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
+    }
+
+    @Test fun `no app gets more tags than a restore accepts`() {
+        val full = (1..ConfigJson.MAX_TAGS_PER_APP).map { "t$it" }
+        assertEquals(full, LauncherLogic.toggleTag(full, "one-more"))
+        assertEquals(full.dropLast(1), LauncherLogic.toggleTag(full, "t${ConfigJson.MAX_TAGS_PER_APP}"))  // removing still works
+        val typed = (1..ConfigJson.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
+        assertEquals(ConfigJson.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
     }
 }

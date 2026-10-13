@@ -73,10 +73,14 @@ package com.github.reygnn.verso_launcher
  * the interaction between rename, parse and the three files (.tmp, primary,
  * .bak) is the thing under test. Only the directory fsync is stubbed.
  *
- * LOCALE — tests that depend on the default locale set it in try/finally:
+ * LOCALE — a class whose tests set the default locale holds a DefaultLocaleRule, and the
+ * test just sets it:
  *
- *   val original = Locale.getDefault()
- *   try { Locale.setDefault(Locale.of("tr", "TR")); … } finally { Locale.setDefault(original) }
+ *   @get:Rule val locale = DefaultLocaleRule()
+ *   …  Locale.setDefault(Locale.of("tr", "TR"))
+ *
+ * The rule restores all three defaults (main, FORMAT, DISPLAY); a hand-written
+ * try/finally restoring only the main one leaks the other two into later tests.
  *
  * Prefer passing a Locale explicitly where the API allows it
  * (sortedForDrawer, sortedTags, allTags, tagsInUse) — no global state at all.

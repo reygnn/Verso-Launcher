@@ -13,10 +13,10 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 411 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 415 tests):
 
 ```
-LauncherLogicTest          128  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          130  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
 LauncherStateTest           52  the concurrency rules: refresh/reload/rename/adopt
@@ -44,6 +44,8 @@ RestoreStepsTest             3  the restore's IO order: undo point, then config;
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
+HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
+                                own digits
 SourceGuardTest              2  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges
 ```
@@ -88,6 +90,8 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
    — the technical reference. Mandatory before touching any test.
 2. **Then** an existing test as a template. Pick by category:
    - Pure decision logic: `LauncherLogicTest` (the shared `OrderedFake`).
+   - Anything that sets the default locale: hold a `DefaultLocaleRule`.
+   - Reaching a widget built in code: `collect<T>()` from `ViewTrees.kt`.
    - Threading / state rules: `LauncherStateTest` (the queue harness at the top).
    - File I/O: `ConfigStoreTest` (`TemporaryFolder`, injected `rename` seam).
    - A real widget: `RenameDialogFilterTest` / `HomePageAccessibilityTest`.

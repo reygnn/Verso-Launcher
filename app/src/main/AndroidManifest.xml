@@ -45,7 +45,7 @@
              in VersoApp, and the config is re-read from disk. -->
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
             android:screenOrientation="portrait"
             android:exported="true"
             android:launchMode="singleTask"

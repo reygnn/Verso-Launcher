@@ -172,6 +172,9 @@ internal object LauncherLogic {
      * guess worth making.
      */
     fun resolveCommand(trimmed: String): Command? {
+        // The abbreviation path too: commandsMatching folds, and the fold drops invisible
+        // marks — "\u0307~b" must not run "~backup" from what the mode shows as a search.
+        if (!trimmed.startsWith("~")) return null
         parseCommand(trimmed)?.let { return it }
         return commandsMatching(trimmed).singleOrNull()?.second
     }
@@ -380,11 +383,12 @@ internal object LauncherLogic {
      * Normalize a comma-separated tag input into canonical stored tags: each piece is
      * trimmed and [foldLabel]-folded (ROOT, so tag matching is case- and locale-
      * invariant like search), empties are dropped, and duplicates collapse keeping
-     * first-seen order. The single place raw tag text becomes stored tags, so [tagged]
+     * first-seen order, at most [ConfigJson.MAX_TAGS_PER_APP] of them. The single place raw tag text becomes stored tags, so [tagged]
      * can assume its stored tags are already folded and never re-normalize per filter.
      */
     fun parseTags(raw: String): List<String> =
         raw.split(',').map(::canonicalTag).filter { it.isNotEmpty() }.distinct()
+            .take(ConfigJson.MAX_TAGS_PER_APP)
 
     /**
      * Canonicalise ONE tag: ROOT-folded, stripped of the characters the rest of the app
@@ -468,7 +472,10 @@ internal object LauncherLogic {
         if (folded.isEmpty()) return list
         // minus removes only the FIRST occurrence, which is why every write path
         // de-duplicates: a list holding the same tag twice could not be fully un-ticked.
-        return if (folded in list) list - folded else list + folded
+        if (folded in list) return list - folded
+        // No more than a restore accepts (ConfigJson.MAX_TAGS_PER_APP): one tag past it and
+        // every backup of this config would be refused as "not a config".
+        return if (list.size >= ConfigJson.MAX_TAGS_PER_APP) list else list + folded
     }
 
     /**

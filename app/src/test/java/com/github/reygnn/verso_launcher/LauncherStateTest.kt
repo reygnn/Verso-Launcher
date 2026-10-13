@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 /**
@@ -15,6 +16,8 @@ import org.junit.Test
  * functions precisely so these interleavings are deterministic.
  */
 class LauncherStateTest {
+
+    @get:Rule val locale = DefaultLocaleRule()
 
     // ---- harness -------------------------------------------------------------
 
@@ -256,29 +259,19 @@ class LauncherStateTest {
     }
 
     @Test fun `a rename re-sorts in the device language's alphabet`() {
-        val original = java.util.Locale.getDefault()
-        try {
-            java.util.Locale.setDefault(java.util.Locale.GERMANY)
-            started()
-            state.rename(key("Charlie"), "Charlie", "Ärzte", emptyList())
-            assertEquals(listOf("Alpha", "Ärzte", "Bravo"), labels())
-        } finally {
-            java.util.Locale.setDefault(original)
-        }
+        java.util.Locale.setDefault(java.util.Locale.GERMANY)
+        started()
+        state.rename(key("Charlie"), "Charlie", "Ärzte", emptyList())
+        assertEquals(listOf("Alpha", "Ärzte", "Bravo"), labels())
     }
 
     @Test fun `a rename re-sorts by the device language, not a fixed alphabet`() {
         // Swedish files Ä after Z — a test with German alone could not tell that apart from a
         // locale-blind sort.
-        val original = java.util.Locale.getDefault()
-        try {
-            java.util.Locale.setDefault(java.util.Locale.of("sv", "SE"))
-            started()
-            state.rename(key("Alpha"), "Alpha", "Ärzte", emptyList())
-            assertEquals(listOf("Bravo", "Charlie", "Ärzte"), labels())
-        } finally {
-            java.util.Locale.setDefault(original)
-        }
+        java.util.Locale.setDefault(java.util.Locale.of("sv", "SE"))
+        started()
+        state.rename(key("Alpha"), "Alpha", "Ärzte", emptyList())
+        assertEquals(listOf("Bravo", "Charlie", "Ärzte"), labels())
     }
 
     @Test fun `a rename stores the name cleaned, whoever commits it`() {

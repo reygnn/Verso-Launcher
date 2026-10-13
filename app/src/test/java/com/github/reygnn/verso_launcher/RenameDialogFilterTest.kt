@@ -5,12 +5,12 @@ import android.app.AlertDialog
 import android.os.Looper
 import android.text.InputFilter
 import android.view.View
-import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.MultiAutoCompleteTextView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -36,6 +36,8 @@ import org.robolectric.Shadows.shadowOf
  */
 @RunWith(RobolectricTestRunner::class)
 class RenameDialogFilterTest {
+
+    @get:Rule val locale = DefaultLocaleRule()
 
     private val activity: Activity =
         Robolectric.buildActivity(Activity::class.java).setup().get()
@@ -66,21 +68,6 @@ class RenameDialogFilterTest {
         return harness
     }
 
-    /** Depth-first collect of every view of type [T] under this view. */
-    private inline fun <reified T : View> View.collect(): List<T> =
-        collectMatching(this) { it is T }.map { it as T }
-
-    // Non-inline worker: an inline function may not hold a local (recursive) function, so the
-    // reified wrapper above delegates the walk down here.
-    private fun collectMatching(root: View, keep: (View) -> Boolean): List<View> {
-        val out = mutableListOf<View>()
-        fun walk(v: View) {
-            if (keep(v)) out += v
-            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
-        }
-        walk(root)
-        return out
-    }
 
     /** The tags field is the only [MultiAutoCompleteTextView] in the dialog. */
     private fun Harness.tagsField(): MultiAutoCompleteTextView =
@@ -117,16 +104,11 @@ class RenameDialogFilterTest {
     }
 
     @Test fun `the filter folds with ROOT even under a Turkish default locale`() {
-        val original = java.util.Locale.getDefault()
-        try {
-            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr"))
-            val filter = show().tagsField().filters.single()
-            // Under tr, "I".lowercase() would give the dotless "ı"; the field must fold to a
-            // plain "i" so what it shows matches what the ROOT-folded store/search will hold.
-            assertEquals("i", filter.filter("I", 0, 1, null, 0, 0).toString())
-        } finally {
-            java.util.Locale.setDefault(original)
-        }
+        java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr"))
+        val filter = show().tagsField().filters.single()
+        // Under tr, "I".lowercase() would give the dotless "ı"; the field must fold to a
+        // plain "i" so what it shows matches what the ROOT-folded store/search will hold.
+        assertEquals("i", filter.filter("I", 0, 1, null, 0, 0).toString())
     }
 
     /**

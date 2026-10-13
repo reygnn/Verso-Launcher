@@ -48,11 +48,24 @@ an "all files" permission or your own pick in the file picker, but a file manage
 cloud-sync app that scans Download, or a PC over USB can. The files outlive an
 uninstall. Keep that in mind before sharing or syncing the folder.
 
+The hidden list (like favorites, names and tags) also keeps the apps you have since
+uninstalled: nothing is ever pruned, so a reinstalled app gets its place, name and tags
+back — but a backup still names a hidden app removed years ago.
+
+"Exactly one backup and one undo point" holds per installation: Android lets an app
+see and replace only the files it created itself. After a reinstall the old files are
+no longer Verso's — they stay in `Download/Verso/`, invisible to `~restore` (reachable
+with `~restore-saf`), and new ones are written beside them. A debug build is another
+app to Android, so its backups sit there too. Delete stale ones with a file manager.
+
 The app's own `verso.json` is excluded from Android's cloud backup
 (`data_extraction_rules.xml`), but a device-to-device transfer copies it on purpose
-(without its `.tmp`/`.bak` recovery copies and the home cache). Entries for apps in a work profile or clone carry that profile's serial
-(`package/class#10`), which on the new phone may belong to no profile or another one;
-such entries then simply match nothing. The personal profile's config moves over
+(without its `.tmp`/`.bak` recovery copies and the home cache). Entries for apps in a
+work profile or clone carry that profile's serial (`package/class#10`), which on the new
+phone may belong to no profile or another one; such entries then simply match nothing.
+The same happens on one phone when a work profile is removed and set up again: the new
+profile gets a new serial, so its apps start without favorites, names, tags or hidden
+state. The personal profile's config moves over
 intact, and the default favorites are not seeded there (the install is not fresh).
 
 ## Gestures on the front page

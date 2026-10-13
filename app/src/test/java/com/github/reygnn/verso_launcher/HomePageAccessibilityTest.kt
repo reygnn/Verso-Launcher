@@ -3,7 +3,6 @@ package com.github.reygnn.verso_launcher
 import android.app.Activity
 import android.provider.AlarmClock
 import android.view.View
-import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextClock
 import org.junit.Assert.assertEquals
@@ -114,10 +113,4 @@ class HomePageAccessibilityTest {
         val click = info.actionList.single { it.id == AccessibilityNodeInfo.ACTION_CLICK }
         assertEquals(activity.getString(R.string.a11y_open_alarms), click.label)
     }
-
-    private inline fun <reified T : View> View.collect(): List<T> =
-        collectAll(this).filterIsInstance<T>()
-
-    private fun collectAll(v: View): List<View> =
-        listOf(v) + ((v as? ViewGroup)?.let { g -> (0 until g.childCount).flatMap { collectAll(g.getChildAt(it)) } } ?: emptyList())
 }
