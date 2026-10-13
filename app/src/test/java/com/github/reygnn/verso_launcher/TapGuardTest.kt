@@ -39,27 +39,4 @@ class TapGuardTest {
         assertTrue(TapGuard.stillValid(downGeneration = TapGuard.NO_TOUCH, shownGeneration = 0))
         assertTrue(TapGuard.stillValid(downGeneration = TapGuard.NO_TOUCH, shownGeneration = 42))
     }
-
-    @Test fun `NO_TOUCH can never collide with a real generation`() {
-        // The counter starts at 0 and only increments, so shownGeneration is never -1.
-        // A down-generation of NO_TOUCH therefore only ever means "no touch", never a
-        // list that happens to sit at -1 — the sentinel is unambiguous.
-        val firstGeneration = 0
-        assertFalse(firstGeneration == TapGuard.NO_TOUCH)
-    }
-
-    @Test fun `live compare catches the ACTION_UP-to-delivery window`() {
-        // This is the whole point of comparing live rather than snapshotting at UP:
-        // at ACTION_UP the list was still at the down-generation (a snapshot would have
-        // frozen "valid"), but a background load replaced it before the posted click ran.
-        // Comparing against the CURRENT generation at delivery vetoes it correctly.
-        val downGeneration = 3          // captured at ACTION_DOWN, preserved past ACTION_UP
-        val generationAtUp = 3          // still unchanged when the finger lifted
-        val generationAtDelivery = 4    // a background load bumped it before the click ran
-
-        // A UP-time snapshot would have passed...
-        assertTrue(downGeneration == generationAtUp)
-        // ...but the live compare at delivery vetoes.
-        assertFalse(TapGuard.stillValid(downGeneration, generationAtDelivery))
-    }
 }

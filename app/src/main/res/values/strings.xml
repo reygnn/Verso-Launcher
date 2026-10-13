@@ -26,13 +26,15 @@
     <string name="action_app_info">App info</string>
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
-    <!-- One-shot "~" commands. %1$s in toast_backup_ok / toast_restore_ok is the written file name. -->
+    <!-- One-shot "~" commands. %1$s in toast_backup_ok is the written file name; in
+         toast_restore_ok the time (HH:mm) in the undo point's name. -->
     <string name="toast_saved">config saved</string>
+    <string name="toast_reloaded">config reloaded</string>
     <string name="toast_save_failed">save failed — nothing written</string>
     <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
     <string name="toast_backup_failed">backup failed — nothing written</string>
-    <string name="toast_restore_ok">restored — previous config kept as undo point (%1$s)</string>
-    <string name="toast_restore_same">nothing to restore — the backup is already in use</string>
+    <string name="toast_restore_ok">restored — to undo: ~restore-saf, pick verso-pre-restore (%1$s)</string>
+    <string name="toast_restore_same">nothing to restore — that config is already in use</string>
     <string name="toast_restore_list_failed">Download/Verso unreadable — try ~restore-saf</string>
     <string name="toast_restore_undo_failed">nothing changed — could not save the current config</string>
     <string name="toast_restore_failed">nothing changed — not a readable config file</string>

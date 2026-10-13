@@ -92,10 +92,9 @@ internal class HomePage(
     /** The page itself, for the Activity's root frame. */
     val view: LinearLayout
 
-    // What render() last drew: (key, label) per favorite, or null if never drawn. Lets the
-    // per-keystroke re-render from the drawer skip rebuilding rows that did not change.
-    // The favorites last rendered — whole entries, so a change of label OR status (a work
-    // profile paused/resumed, an archived app restored) rebuilds the rows.
+    // The favorites last rendered (null if never drawn), so the per-keystroke re-render from
+    // the drawer skips rebuilding rows that did not change — whole entries, so a change of
+    // label OR status (a work profile paused/resumed, an archived app restored) rebuilds them.
     private var rendered: List<AppEntry>? = null
     // The last render call, so a colour switch can redraw the favorites in the new colours.
     private var lastRender: Pair<List<AppEntry>, Boolean>? = null

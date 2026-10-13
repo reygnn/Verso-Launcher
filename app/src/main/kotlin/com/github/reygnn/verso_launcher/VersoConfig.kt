@@ -29,7 +29,9 @@ internal class VersoConfig(
      * Whether [other] holds the same config: the same favorites in the same order (the order is
      * the home page's), the same hidden set, names and tags. Map and set order does not count —
      * a config read back from a file and one edited in memory can differ there and still be
-     * the same. Used to see that a restore would change nothing.
+     * the same. The order inside one app's tag list does count (it is the order the tags were
+     * entered), so two configs differing only there are not the same — a restore then writes
+     * an undo point it did not strictly need. Used to see that a restore would change nothing.
      */
     fun sameContent(other: VersoConfig): Boolean =
         favorites.toList() == other.favorites.toList() &&

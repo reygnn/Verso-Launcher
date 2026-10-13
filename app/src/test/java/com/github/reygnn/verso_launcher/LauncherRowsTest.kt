@@ -284,6 +284,12 @@ class LauncherRowsTest {
         assertEquals(listOf("com.a/A", "com.b/B"), appKeys(rowsFor(Mode.RECENTS, "?")))
     }
 
+    @Test fun `text after the question mark narrows the recents, keeping their order`() {
+        assertEquals(listOf("com.b/B"), appKeys(rowsFor(Mode.RECENTS, "?bra")))
+        assertEquals(listOf("com.a/A", "com.b/B"), appKeys(rowsFor(Mode.RECENTS, "?a")))
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.RECENTS, "?zzz", null))
+    }
+
     @Test fun `reorder lists exactly the favorites in stored order, ignoring trailing text`() {
         assertEquals(listOf("com.c/C", "com.a/A"), appKeys(rowsFor(Mode.FAV_REORDER, "!!ignored")))
     }

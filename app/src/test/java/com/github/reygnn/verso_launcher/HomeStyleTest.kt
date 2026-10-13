@@ -86,7 +86,7 @@ class HomeStyleTest {
     @Test fun `a dark wallpaper keeps light text with dark rims and light bar icons`() {
         val p = HomeStyle.palette(lightWallpaper = false)
         assertEquals(HomeStyle.TEXT_COLOR, p.homeText)
-        assertEquals(HomeStyle.argb(153, 0, 0, 0), p.homeOutline)  // white text: black rim
+        assertEquals(HomeStyle.argb(153, 0, 0, 0), HomeStyle.tonalOutlineColor(p.homeText))  // white text: black rim
         assertEquals(0x000000, p.listOutline and 0xFFFFFF)          // light-grey rows: dark rim
         assertEquals(0x000000, p.shadow and 0xFFFFFF)
         assertEquals(false, p.darkBarIcons)
@@ -95,7 +95,7 @@ class HomeStyleTest {
     @Test fun `a light wallpaper flips to dark text with light rims and dark bar icons`() {
         val p = HomeStyle.palette(lightWallpaper = true)
         assertEquals(0xFF000000.toInt(), p.homeText)
-        assertEquals(HomeStyle.argb(204, 255, 255, 255), p.homeOutline)  // Unity's black text: 80 % white rim
+        assertEquals(HomeStyle.argb(204, 255, 255, 255), HomeStyle.tonalOutlineColor(p.homeText))  // Unity's black text: 80 % white rim
         assertEquals(0xFFFFFF, p.listOutline and 0xFFFFFF)               // dark-grey rows: light rim
         assertEquals(0xFFFFFF, p.shadow and 0xFFFFFF)
         assertEquals(true, p.darkBarIcons)

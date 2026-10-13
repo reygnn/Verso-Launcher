@@ -120,8 +120,9 @@ internal class LauncherState(
 
     /**
      * Re-enumerate the apps (and, on the first call or with [reloadConfig], re-read the config)
-     * off the main thread. Runs on every resume so installs and uninstalls surface. The most
-     * recently REQUESTED refresh wins; see the class comment for what a concurrent toggle or
+     * off the main thread. The Activity calls it on a resume when apps may have changed or
+     * [needsRefresh] holds, on a reported package or profile change while in front, and for
+     * "~load" and a restore. The most recently REQUESTED refresh wins; see the class comment for what a concurrent toggle or
      * rename does to an in-flight one.
      */
     fun refresh(reloadConfig: Boolean = false) {
@@ -266,7 +267,9 @@ internal class LauncherState(
      */
     fun rename(key: String, systemLabel: String, name: String, tags: List<String>) {
         if (!configLoaded) return
-        val override = LauncherLogic.resolveNameOverride(name, systemLabel)
+        // Cleaned here, for every caller: the dialog filters as you type, but what is stored
+        // must hold the rule whoever commits it.
+        val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), systemLabel)
         if (override == null) config.names.remove(key) else config.names[key] = override
         if (tags.isEmpty()) config.tags.remove(key) else config.tags[key] = tags.toMutableList()
         ++labelGeneration

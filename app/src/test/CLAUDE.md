@@ -13,16 +13,16 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 403 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 410 tests):
 
 ```
-LauncherLogicTest          122  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          127  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           51  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           52  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents
-LauncherRowsTest            36  rowsFor per mode
+LauncherRowsTest            37  rowsFor per mode
 ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
                                 heal-without-rotate, isFresh
@@ -36,9 +36,9 @@ SwipeGestureTest            19  the page drag (direction, offset, release, home 
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
-RenameDialogFilterTest       8  Robolectric: the tag field's InputFilter on a real widget
+RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
 VersoConfigTest              9  snapshot deep copy, sameContent
-TapGuardTest                 6  stale-click guard
+TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
 RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
 BackupStoreTest              5  readCapped (the bounded restore read)

@@ -959,4 +959,39 @@ class LauncherLogicTest {
         assertEquals(listOf("a", "b"), LauncherLogic.tagged(rows("a", "b"), tags, "work").keys())
         assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b"), tags, "worko").keys())
     }
+
+    // ---- round 5: fixed points and safe cuts ---------------------------------
+
+    @Test fun `a command needs the tilde in the raw prompt, not just after folding`() {
+        assertNull(LauncherLogic.parseCommand("\u0307~restore"))
+        assertNull(LauncherLogic.resolveCommand("\u0307~restore"))
+        assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
+    }
+
+    @Test fun `foldLabel is its own fixed point, also where the dropped dot lets a letter compose`() {
+        val once = LauncherLogic.foldLabel("\u0130\u0301STANBUL")  // İ + combining acute
+        assertEquals("\u00EDstanbul", once)                        // í precomposed
+        assertEquals(once, LauncherLogic.foldLabel(once))
+    }
+
+    @Test fun `canonicalTag composes what its filter lets combine`() {
+        val tag = LauncherLogic.canonicalTag("\u03A9\u061C\u0345")  // Ω, a bidi mark, ypogegrammeni
+        assertEquals(tag, LauncherLogic.canonicalTag(tag))
+        assertEquals(1, tag.length)
+    }
+
+    @Test fun `a tag cut at its limit is trimmed after the cut`() {
+        val tag = LauncherLogic.canonicalTag("a".repeat(49) + " b")
+        assertEquals("a".repeat(49), tag)
+        assertEquals(tag, LauncherLogic.canonicalTag(tag))
+        assertEquals("a".repeat(99), LauncherLogic.cleanName("a".repeat(99) + " b"))
+    }
+
+    @Test fun `a cut never splits a surrogate pair or an emoji sequence`() {
+        assertEquals("a".repeat(49), LauncherLogic.canonicalTag("a".repeat(49) + "\uD83D\uDE00"))
+        assertEquals("a".repeat(99), LauncherLogic.cleanName("a".repeat(99) + "\uD83D\uDE00"))
+        val family = "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67"  // 8 chars, one glyph
+        assertEquals("a".repeat(93), LauncherLogic.cleanName("a".repeat(93) + family))
+        assertEquals("a".repeat(92) + family, LauncherLogic.cleanName("a".repeat(92) + family))
+    }
 }

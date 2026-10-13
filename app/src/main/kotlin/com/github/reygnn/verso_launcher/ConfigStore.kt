@@ -166,8 +166,8 @@ internal class ConfigStore(
             //     doesn't exist yet, so .bak appears from save #2 onward.
             //
             //     But rename promotes the primary UNVALIDATED, so first re-parse it and
-            //     skip the rotation if it no longer parses. Since a cold start serves
-            //     cfg from memory, a primary that silently went bad afterwards (bit rot,
+            //     skip the rotation if it no longer parses. After the first load the
+            //     config is served from memory, so a primary that silently went bad afterwards (bit rot,
             //     or a torn in-place fallback at step 3 last time) would otherwise be
             //     rotated straight onto .bak — destroying the last known-good backup.
             //     This read is the only place that re-checks the on-disk primary; the

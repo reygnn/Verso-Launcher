@@ -116,8 +116,8 @@ internal object ConfigJson {
         // Keep only String elements/values. Android's org.json getString() COERCES a
         // non-string scalar (123 -> "123") into a bogus key/name and throws on a
         // structural value; opt(...) as? String drops any non-string uniformly, which is
-        // both impl-independent and lenient by design (see the class KDoc: ignore, don't
-        // reject — the rest of the file still loads).
+        // both impl-independent and lenient by design (ignore, don't reject — the rest of
+        // the file still loads).
         j.optJSONArray("hidden")?.let {
             for (i in 0 until it.length()) (it.opt(i) as? String)?.let { s -> loaded.hidden += s }
         }

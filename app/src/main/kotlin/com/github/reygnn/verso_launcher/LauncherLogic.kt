@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import java.text.BreakIterator
 import java.text.Collator
 import java.text.Normalizer
 import java.util.Locale
@@ -143,6 +144,10 @@ internal object LauncherLogic {
      * did even though "~" now also opens the overview.
      */
     fun parseCommand(trimmed: String): Command? {
+        // Only what IS a command line: the fold drops invisible marks, so a combining dot in
+        // front ("\u0307~restore") would otherwise fold to a command the prompt's mode — read
+        // from the raw text — never showed.
+        if (!trimmed.startsWith("~")) return null
         val q = foldLabel(trimmed)
         if (q == "~") return Command.RELOAD
         return COMMANDS.firstOrNull { it.first == q }?.second
@@ -186,11 +191,30 @@ internal object LauncherLogic {
      *    (U+0307), so "İşCep" folded to six characters and "iş" never matched. The dot is
      *    dropped: in a ROOT-lowercased, NFC string a lone U+0307 only ever comes from İ
      *    (letters that really carry a dot above, like ż or ė, stay precomposed under NFC).
+     *  - Composed again at the end: lowercasing and dropping the dot can leave a sequence that
+     *    NFC would combine ("İ" + acute → "i" + acute), and a fold that is not its own fixed
+     *    point makes stored tags change shape on every load and labels miss their search.
      */
-    fun foldLabel(label: String): String =
-        Normalizer.normalize(label, Normalizer.Form.NFC)
+    fun foldLabel(label: String): String = nfc(
+        nfc(label)
             .lowercase(Locale.ROOT)
             .replace(COMBINING_DOT_ABOVE, "")
+    )
+
+    private fun nfc(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFC)
+
+    /**
+     * [s] cut to at most [max] chars without splitting a character: the cut falls on a
+     * grapheme boundary, so a surrogate pair, a letter with its marks or a ZWJ emoji sequence
+     * is kept whole or dropped whole — never left as a lone half that the file would store
+     * as "?".
+     */
+    fun truncate(s: String, max: Int): String {
+        if (s.length <= max) return s
+        val it = BreakIterator.getCharacterInstance(Locale.ROOT).apply { setText(s) }
+        val cut = it.preceding(max + 1).takeIf { b -> b != BreakIterator.DONE } ?: 0
+        return s.substring(0, cut)
+    }
 
     private const val COMBINING_DOT_ABOVE = "\u0307"
 
@@ -385,8 +409,11 @@ internal object LauncherLogic {
      * Typing "#work" should hand you the tag you obviously meant, not an error.
      */
     fun canonicalTag(raw: String): String =
-        foldLabel(raw).filter { it != '#' && it != ',' && !it.isISOControl() && !isSpoofChar(it) }.trim()
-            .take(MAX_TAG_LENGTH)
+        // Composed again after the filter (dropping a character can let its neighbours
+        // combine), cut, and only THEN trimmed: a cut can expose a space, and a tag ending in
+        // one is out of reach of "##", whose prompt is trimmed.
+        truncate(nfc(foldLabel(raw).filter { it != '#' && it != ',' && !it.isISOControl() && !isSpoofChar(it) }), MAX_TAG_LENGTH)
+            .trim()
 
     /** A custom name's longest form — far beyond any real label, short enough that no name can
      *  hog a row's measuring or the screen. */
@@ -410,11 +437,12 @@ internal object LauncherLogic {
 
     /**
      * A custom name as it may be stored: control and [isSpoofChar] characters removed, trimmed,
-     * at most [MAX_NAME_LENGTH] long. Applied to what the rename dialog commits and to every
+     * at most [MAX_NAME_LENGTH] long (cut on a character boundary, then trimmed — see
+     * [canonicalTag]). Applied by [LauncherState.rename] to every name it stores and to every
      * name read from a file — a restored config included.
      */
     fun cleanName(raw: String): String =
-        raw.filter { !it.isISOControl() && !isSpoofChar(it) }.trim().take(MAX_NAME_LENGTH)
+        truncate(nfc(raw.filter { !it.isISOControl() && !isSpoofChar(it) }), MAX_NAME_LENGTH).trim()
 
     /**
      * Add or remove [tag] on an app whose current tags are [current], returning the new
@@ -451,7 +479,7 @@ internal object LauncherLogic {
         Mode.COMMAND -> EmptyHint.NO_COMMAND
         Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_TAGS else EmptyHint.NO_TAG_MATCH
         Mode.FAV_REORDER -> EmptyHint.NO_FAVORITES
-        Mode.RECENTS -> EmptyHint.NO_RECENTS
+        Mode.RECENTS -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_RECENTS else EmptyHint.NO_MATCH
         Mode.HIDDEN_EDIT, Mode.FAV_EDIT -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
         Mode.NORMAL -> if (trimmed.isEmpty()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
     }
@@ -553,7 +581,7 @@ internal object LauncherLogic {
      * The whole "given the prompt, what rows does the list show?" decision, lifted out of
      * MainActivity.applyFilter so it is a single pure, exhaustively-testable mapping. The
      * Activity keeps only the SIDE EFFECTS around it — bumping shownGeneration, resetting
-     * reorderPick, the empty-recents toast, notifyDataSetChanged — and the two derived
+     * reorderPick, the empty-list hint, notifyDataSetChanged — and the two derived
      * inputs it also stores as fields ([mode] and [tagEditTag]) it computes once and passes
      * in, so there is one source of truth for each.
      *
@@ -561,7 +589,7 @@ internal object LauncherLogic {
      * "##tag" (null while the bare-"##" overview is up) — the Activity computes it because
      * the adapter needs the same value; passing it avoids canonicalising twice and drifting.
      *
-     * The branch order mirrors the old applyFilter exactly: the three non-app / bypass modes
+     * Branch order: the three non-app / bypass modes
      * first (bare-"##" tag list, the "~" command overview, the bare-"#" tag list), then the
      * per-mode app selection. Every substring index is safe because the sigil that selects a
      * mode guarantees the prompt starts with it (see [parseMode]).
@@ -590,10 +618,11 @@ internal object LauncherLogic {
             return tagsInUse(allApps, tags).map { TagRow(it) }
         }
         val apps: List<T> = when (mode) {
-            // Reorder / recents ignore any text after the sigil: the list is short and
-            // fixed, and filtering would scramble the positions the reorder acts on.
+            // Reorder ignores any text after the sigil: filtering would scramble the positions
+            // the reorder acts on.
             Mode.FAV_REORDER -> favoritesInDisplayOrder(allApps, favorites)
-            Mode.RECENTS -> recentsInDisplayOrder(allApps, recentKeys)
+            // "?gm": the recents, narrowed like a search, keeping their order.
+            Mode.RECENTS -> search(recentsInDisplayOrder(allApps, recentKeys), trimmed.substring(1).trim())
             Mode.TAG_FILTER -> tagged(allApps, tags, trimmed.substring(1).trim())
             // Edit modes list EVERY app (so anything can be toggled), narrowed by what
             // follows the sigil; membership shows as [x]/[ ] in the adapter.

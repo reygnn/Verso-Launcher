@@ -20,7 +20,7 @@ import android.widget.FrameLayout
  *
  * Read-only until decided: children get every event as usual, so taps, long-presses and
  * scrolls work untouched. Two things can take the gesture over, after which the children get
- * an ACTION_CANCEL (a scrolling list stops cleanly, the drawer's tap guard drops its pending
+ * an ACTION_CANCEL (a scrolling list stops cleanly, a pressed row drops its pending
  * click) and the rest of the gesture is the frame's:
  *  - a DRAG ([SwipeGesture.dragDirection]) once [canDrag] says the content under the finger
  *    cannot scroll that way any more — checked on every move, so a list scrolled to its end

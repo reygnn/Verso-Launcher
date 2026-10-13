@@ -14,13 +14,13 @@ every app and every sigil command lives.
 **Front (home)** — Kolibri Launcher's home layout, with Kolibri's default settings, no
 keyboard, no prompt:
 
-- The clock (60sp, light) and below it the short date and the battery level, with a
+- The clock (60dp, light) and below it the short date and the battery level, with a
   bolt while charging and a shield while battery protection holds the charge. **Double
   tap** the clock for your alarms, the date for your calendar, the battery for battery
   usage — a single stray touch does nothing, as in Kolibri.
 - Your favorites in large bold text, in your own order, top to bottom. Tap to launch,
   long-press for the rename/tags dialog (with *App info*). More favorites than fit
-  simply scroll.
+  simply scroll. Home text sizes are fixed (dp): they do not follow the system font size.
 - All home text (and the two icons) carries Kolibri's thin tonal outline, so it stays
   readable on any wallpaper without darkening it.
 - First start: Verso picks your default phone, messenger (default SMS app), email,
@@ -46,13 +46,16 @@ keyboard, no prompt:
   forth, and closes past about a quarter of the screen or on a flick (a list that can
   still scroll scrolls first, then hands over) — **Back** on an empty line, or **HOME**
   turns back to the front page. Back on a non-empty line first
-  clears it.
+  clears it (a bare `?` excepted: it goes straight home). With gesture navigation the
+  back swipe previews the close — the drawer slides down a little with your thumb and
+  drops back if you change your mind.
 - Launching an app (or leaving the launcher any other way) always brings you back to
   the front page next time.
 
 ## The command line
 
-- Lists launchable apps in light gray (`#D4D4D4`) over your wallpaper.
+- Lists launchable apps over your wallpaper — light gray (`#D4D4D4`) on a dark one,
+  dark gray (`#2B2B2B`) on a light one.
 - Lists the launchable apps of every profile through `LauncherApps` — your own plus
   a work profile or cloned apps, which carry the system's badge ("Calculator
   (Work)") and start in their own profile. Installs, uninstalls and updates show up
@@ -76,7 +79,8 @@ keyboard, no prompt:
   - `#text` — tag filter: the apps under every tag starting with `text` (so `#gam`
     finds your `games` apps). Tap or **Enter** to launch. Tags are assigned in the
     long-press dialog or in bulk with `##`; a tagged app shows here even when hidden
-  - `##` — edit tags in bulk: lists the tags in use, tap one and you get **every** app
+  - `##` — edit tags in bulk: lists every tag you defined (also one whose apps are all
+    uninstalled, so it can be reused), tap one and you get **every** app
     with an `[x]`/`[ ]` for that tag; tap a row to toggle it, saved immediately. This
     is the way to put one tag on many apps — the long-press dialog stays the way to
     invent a tag and to set several tags on one app
@@ -93,13 +97,13 @@ keyboard, no prompt:
     the front page lists them in exactly this order, top to bottom
   - `?` — the last 8 launched apps, newest nearest the command line. Kept in
     memory only, so it starts empty on every cold start; **Enter** relaunches the
-    most recent
+    most recent. `?text` narrows them like a search
   - `~[text]` — commands. Typing `~` lists the commands; typing more narrows the
     list (`~r` leaves `~restore` and `~restore-saf`). Tap a row to run it, or press
     **Enter** once what you typed can only mean one command — `~b` is enough for
     `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
     up. Each command acts once and clears the prompt:
-    - `~` / `~load` — reload the config from disk
+    - `~` / `~load` — reload the config from disk (a toast confirms it)
     - `~save` — write the in-memory config out now (saves are automatic anyway;
       this is the explicit one)
     - `~backup` — export the config to `Download/Verso/`, named after the moment it
@@ -113,7 +117,8 @@ keyboard, no prompt:
       config being replaced is first written next to it as
       `verso-pre-restore-<date>_<time>.json`; if that fails, the restore is
       aborted, so a restore never destroys what it overwrote without a trace. A
-      backup that doesn't parse changes nothing
+      backup that doesn't parse changes nothing. To undo a restore, run
+      `~restore-saf` and pick that `verso-pre-restore-…` file
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
@@ -154,7 +159,8 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no Navigation / Fragments — one `Activity` (rename is a bare platform dialog)
 - no DataStore / Room / SharedPreferences — the small amount of state (hidden
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
-  `filesDir`, written durably (temp-file + fsync + rename, then a directory
+  `filesDir` (beside it only `home-cache.txt`, a throwaway copy of the favorites for an
+  instant first frame), written durably (temp-file + fsync + rename, then a directory
   fsync so the rename itself survives power-loss, not just a crash); the previous
   good version is rotated into a `.bak` that recovery falls back to and heals the
   primary from on the next load (a newer, complete temp file left by an interrupted
@@ -180,18 +186,23 @@ and unit-tested on the JVM or a thin view class:
 - `HomePage.kt` — the front page (Kolibri's home layout); `HomeStyle.kt` holds its pure
   numbers, `OutlinedViews.kt` the outlined text/icon views.
 - `VersoConfig.kt`, `ConfigJson.kt`, `ConfigStore.kt`, `BackupStore.kt` — the config
-  model, the `verso.json` round-trip, the durable file layer and the Downloads backup.
+  model, the `verso.json` round-trip, the durable file layer and the Downloads backup;
+  `BackupFiles.kt` the backup naming rules, `RestoreSteps.kt` a restore's IO in its
+  load-bearing order.
+- `HomeCache.kt` — the favorites cached for an instant home page on a cold start.
+- `VersoApp.kt` — the process: the one IO thread and what outlives an activity
+  (recents, palette, badge labels).
 - `RenameDialog.kt` — the long-press dialog.
 
 The only
 *shipped* dependencies are the Kotlin stdlib (added automatically by AGP's
-built-in Kotlin); JUnit and org.json are `testImplementation` only, so the
-release APK stays dependency-free.
+built-in Kotlin); JUnit, org.json and Robolectric are `testImplementation`,
+androidx.test is `androidTestImplementation`, so the release stays dependency-free.
 
 ## Build
 
 ```bash
-./gradlew assembleRelease   # unsigned release APK (R8 full mode + resource shrink)
+./gradlew bundleRelease   # unsigned release AAB (R8 full mode + resource shrink)
 ```
 
 Stack matches the family baseline: AGP 9 built-in Kotlin, Gradle 9, JDK 21,

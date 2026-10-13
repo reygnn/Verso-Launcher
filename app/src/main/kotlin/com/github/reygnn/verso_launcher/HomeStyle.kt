@@ -207,7 +207,6 @@ internal data class Palette(
     val shadow: Int,
     val darkBarIcons: Boolean,
 ) {
-    val homeOutline: Int get() = HomeStyle.tonalOutlineColor(homeText)
     val listOutline: Int get() = HomeStyle.tonalOutlineColor(listText)
 }
 

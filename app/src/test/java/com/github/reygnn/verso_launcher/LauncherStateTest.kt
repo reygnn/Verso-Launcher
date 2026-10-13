@@ -281,6 +281,12 @@ class LauncherStateTest {
         }
     }
 
+    @Test fun `a rename stores the name cleaned, whoever commits it`() {
+        started()
+        state.rename(key("Alpha"), "Alpha", " Zu\u202Elu\u200B ", emptyList())
+        assertEquals("Zulu", state.config.names[key("Alpha")])
+    }
+
     @Test fun `renaming back to the system label clears the override`() {
         started()
         state.rename(key("Alpha"), "Alpha", "Zulu", emptyList())

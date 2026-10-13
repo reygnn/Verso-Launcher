@@ -120,15 +120,15 @@ import java.util.concurrent.RejectedExecutionException
  */
 class MainActivity : Activity() {
 
-    // The row types (Row/AppRow/TagRow/CommandRow) now live top-level in LauncherLogic.kt,
-    // beside the pure rowsFor that builds them, so both can be unit-tested off-device. Here
-    // they are parameterised with AppEntry: `shown` is a List<Row<AppEntry>>.
+    // The row types (Row/AppRow/TagRow/CommandRow) live top-level in LauncherLogic.kt, beside
+    // the pure rowsFor that builds them. Here they are parameterised with AppEntry: `shown` is
+    // a List<Row<AppEntry>>.
 
-    // NB: not named `foreground` — that collides with View.foreground (a
-    // Drawable) inside the apply{} blocks below and hides this Int.
     // The colours for the wallpaper behind (HomeStyle.palette): light text on a dark wallpaper,
     // dark text on a light one — switched live when the wallpaper changes (wallpaperColors).
     private var palette = HomeStyle.palette(lightWallpaper = false)
+    // NB: not named `foreground` — that collides with View.foreground (a
+    // Drawable) inside the apply{} blocks below and hides this Int.
     private val fgColor get() = palette.listText      // the drawer's text
     private val fgColorDim get() = palette.listDim    // its dimmer hint
     // The drawer sits on the bare wallpaper like the home page, so its rows get the same tonal
@@ -179,6 +179,8 @@ class MainActivity : Activity() {
     private var appsDirty = true
     private var lastRefresh = 0L
     private var resumed = false
+    // A "~load" waiting for its hand-off, to confirm it (see runCommand).
+    private var reloadToastPending = false
 
     // What outlives this instance: the one disk thread and the recents (see VersoApp).
     private val app get() = VersoApp.from(this)
@@ -219,6 +221,12 @@ class MainActivity : Activity() {
                 // OK; left up over a wholesale replace it would persist stale fields into
                 // the config that just arrived.
                 if (configReplaced) renameDialog?.dismiss()
+                // The first hand-off after a "~load" is the one that read the file: every older
+                // load is superseded by it.
+                if (reloadToastPending) {
+                    reloadToastPending = false
+                    toast(getString(R.string.toast_reloaded))
+                }
                 applyFilter(prompt.text?.toString().orEmpty())
             },
             isFreshInstall = { store.isFresh() },
@@ -248,7 +256,7 @@ class MainActivity : Activity() {
     // The long-press rename dialog, tracked only so it can be dismissed if the
     // activity is torn down while it is open — an undismissed dialog leaks its
     // window (and would crash on the resulting bad token). configChanges keeps
-    // rotation from recreating us, so process death is the realistic trigger.
+    // rotation from recreating us; a language, font-size or display-size change still does.
     private var renameDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -261,8 +269,7 @@ class MainActivity : Activity() {
         // the bar icons follow the wallpaper's palette (applyPalette).
         window.isNavigationBarContrastEnforced = false
 
-        // No always-visible keyboard any more: the front page is a quiet text home screen,
-        // and the IME belongs to the drawer only. The manifest asks for stateHidden; the
+        // The front page is a quiet text home screen, and the IME belongs to the drawer only. The manifest asks for stateHidden; the
         // drawer raises the keyboard itself when it opens (see openDrawer).
 
         // The back page. It keeps the Sigil layout exactly — list above, command line below.
@@ -593,6 +600,10 @@ class MainActivity : Activity() {
                     val from = previewFrom ?: return
                     if (!drawerOpen) return
                     dragPage(SwipeDir.DOWN, from + backEvent.progress * pageHeight() * BACK_PREVIEW_FRACTION)
+                    // The drag's own fade only starts once the drawer is two thirds down — far
+                    // past the preview. Home shows through with the gesture instead, faintly:
+                    // the drawer still covers most of the page.
+                    home.alpha = backEvent.progress * BACK_PREVIEW_HOME_ALPHA
                 }
 
                 override fun onBackCancelled() {
@@ -845,11 +856,9 @@ class MainActivity : Activity() {
         if (drawerOpen && mode != Mode.RECENTS) showKeyboard()
     }
 
-    /**
-     * Leaving the launcher (an app was started, the screen went off, the user went to
-     * recents) turns the page back home, instantly — coming back to the launcher should
-     * land on the home screen, like any launcher, not on a half-typed search.
-     */
+    /** Not in front any more: package changes from now on only mark the list dirty (see
+     *  appsMaybeChanged). The page stays as it is — a dialog or the shade on top pauses
+     *  without leaving; [onStop] turns it home. */
     override fun onPause() {
         resumed = false
         super.onPause()
@@ -869,6 +878,11 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Leaving the launcher (an app was started, the screen went off, the user went to
+     * recents) turns the page back home, instantly — coming back to the launcher should
+     * land on the home screen, like any launcher, not on a half-typed search.
+     */
     override fun onStop() {
         closeDrawer(animate = false)
         homePage.stopBattery()
@@ -898,11 +912,6 @@ class MainActivity : Activity() {
     private fun onUi(block: () -> Unit) = runOnUiThread { if (!isDestroyed) block() }
 
     /**
-     * Submit disk work to [ioExecutor]. The executor is the process's and never shut down, so
-     * a refusal is not expected; the check and the catch keep a future change that does shut
-     * it down from crashing the HOME app — a refused task is reported as false, never thrown.
-     */
-    /**
      * [task] behind a last-resort net. Hard rule 2 — a HOME app must never throw — is kept by
      * every IO function catching its own errors; this is the backstop for the one that someday
      * does not: an exception escaping on the executor (or the SAF read thread) reaches the
@@ -917,6 +926,11 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Submit disk work to [ioExecutor]. The executor is the process's and never shut down, so
+     * a refusal is not expected; the check and the catch keep a future change that does shut
+     * it down from crashing the HOME app — a refused task is reported as false, never thrown.
+     */
     private fun submitIo(task: Runnable): Boolean {
         if (ioExecutor.isShutdown) return false
         return try {
@@ -978,7 +992,12 @@ class MainActivity : Activity() {
      */
     private fun runCommand(command: Command) {
         when (command) {
-            Command.RELOAD -> state.refresh(reloadConfig = true)
+            // Confirmed once the reload has landed (see onRefreshed): if nothing changed on
+            // disk, nothing visible changes either, and a silent command looks like a dead one.
+            Command.RELOAD -> {
+                reloadToastPending = true
+                state.refresh(reloadConfig = true)
+            }
             // Toast from the IO callback, on the real result — NOT straight after
             // submitting. save only queues the write; announcing success before the
             // write is even attempted is exactly the "save you cannot see happen" this
@@ -1353,7 +1372,8 @@ class MainActivity : Activity() {
     }
 
     /**
-     * LauncherState's enumerateApps: runs on the IO thread with a config SNAPSHOT.
+     * LauncherState's enumerateApps: runs on the IO thread with a config that is not the live
+     * one — a snapshot, or the copy just read from disk.
      *
      * Through LauncherApps, the API Android provides for launchers: every profile the launcher
      * may show — the personal one plus a work profile or cloned apps — not just the current
@@ -1444,8 +1464,8 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Installs, uninstalls and updates — in any profile — refresh the list right away, even
-     * while the home page stays in front; before, they only surfaced on the next resume.
+     * Installs, uninstalls and updates — in any profile — go to [appsMaybeChanged]: a refresh
+     * right away while the launcher is in front, a dirty mark for the next resume otherwise.
      * Registered for the activity's lifetime on the main looper, where [LauncherState]
      * lives; a burst of callbacks (an app update fires several) costs little, because each
      * refresh supersedes the one before it.
@@ -1465,6 +1485,10 @@ class MainActivity : Activity() {
     /** The profile a tap on a paused app turned back on, and that app's label — for the
      *  "ready" toast once the profile is available (see launch). */
     private var waitingForProfile: Pair<UserHandle, String>? = null
+    // When that tap was. Only an answer within PROFILE_WAIT_MS gets the toast: a challenge
+    // cancelled and work apps turned on hours later from Quick Settings must not announce an
+    // app nobody just asked for. Not cleared in onStop — the work challenge covers us.
+    private var waitingSince = 0L
 
     /** A profile added, removed, paused or resumed changes which apps there are to list (and
      *  how they are drawn: a paused profile's apps are dimmed). */
@@ -1476,6 +1500,7 @@ class MainActivity : Activity() {
             val user = intent.getParcelableExtra(Intent.EXTRA_USER, UserHandle::class.java)
             if (user != waiting.first) return
             waitingForProfile = null
+            if (SystemClock.uptimeMillis() - waitingSince > PROFILE_WAIT_MS) return
             toast(getString(R.string.toast_app_ready, waiting.second), Toast.LENGTH_LONG)
         }
     }
@@ -1622,11 +1647,11 @@ class MainActivity : Activity() {
         renderHome()
     }
 
-    /** Keep the home page in step with favorites, labels and the app set. Cheap when nothing
-     *  it shows changed, so it is fine to call from every applyFilter. */
     /** The favorites the cache file holds, as last written or read (see HomeCache). */
     private var cachedFavorites: List<Pair<String, String>>? = null
 
+    /** Keep the home page in step with favorites, labels and the app set. Cheap when nothing
+     *  it shows changed, so it is fine to call from every applyFilter. */
     private fun renderHome() {
         val favs = state.favorites()
         homePage.render(favs, state.appsLoaded)
@@ -1657,6 +1682,7 @@ class MainActivity : Activity() {
                 // this one (see profilesChanged).
                 userManager.isQuietModeEnabled(user) -> {
                     waitingForProfile = user to entry.label
+                    waitingSince = SystemClock.uptimeMillis()
                     userManager.requestQuietModeEnabled(false, user)
                 }
                 // Component gone since the list loaded (uninstall race). Without this check
@@ -1908,10 +1934,14 @@ class MainActivity : Activity() {
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
         /** A return home re-enumerates anyway once the last load is this old (see onResume). */
         const val REFRESH_STALE_MS = 5 * 60 * 1000L
+        /** How long a paused profile's "ready" toast stays expected after the tap (see launch). */
+        const val PROFILE_WAIT_MS = 2 * 60 * 1000L
         /** A page drag that does not commit settles back this fast (Unity's settle-back). */
         const val DRAG_SETTLE_MS = 220L
         /** How far a back gesture's preview pulls the drawer down, as a fraction of the page. */
         const val BACK_PREVIEW_FRACTION = 0.25f
+        /** How far home fades in by the end of a back preview. */
+        const val BACK_PREVIEW_HOME_ALPHA = 0.5f
         /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */
         const val PAGE_TURN_MS = HOME_FADE_MS
         /** What a swipe down on home opens the drawer on: the recently used apps. */

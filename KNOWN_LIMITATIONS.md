@@ -58,14 +58,19 @@ intact, and the default favorites are not seeded there (the install is not fresh
 ## Gestures on the front page
 
 Swipe up (drawer) and swipe down (recent apps) are wired, as in Kolibri. Swipe
-left/right and the home double-tap do nothing. Kolibri's alarm/calendar indicators
+left/right and a double-tap on empty space do nothing (the clock, date and battery
+take a double-tap; see the README). Kolibri's alarm/calendar indicators
 next to the clock are not ported (calendar events need the READ_CALENDAR
 permission; Verso asks for none). There is no double-tap-to-lock either (that needs
 an accessibility service).
 
-The home page uses Kolibri's DEFAULT look (text size, spacing, start alignment,
-white text with a tonal outline). There is no settings screen to change it; the
-values are constants in `HomeStyle.kt`.
+The home page uses Kolibri's DEFAULT look (text size, spacing, start alignment, text
+with a tonal outline — white on a dark wallpaper, black on a light one). There is no
+settings screen to change it; the values are constants in `HomeStyle.kt`.
+
+The home text sizes are fixed in dp, so they ignore the system font size (the drawer's
+rows do follow it). Chosen for a stable layout like Kolibri's; someone who needs larger
+text gets it in the drawer, or through the display size setting, which scales both.
 
 The swipe is not available to a screen reader, so the front page exposes an
 "Open all apps" custom accessibility action (TalkBack's actions menu), and the

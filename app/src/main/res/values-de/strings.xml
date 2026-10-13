@@ -18,24 +18,26 @@
     <string name="a11y_battery">Akku %1$s</string>
     <string name="a11y_charging">Lädt</string>
     <string name="a11y_battery_protected">Akkuschutz: Ladung wird gehalten</string>
-    <string name="toast_no_app">keine passende App auf diesem Gerät</string>
+    <string name="toast_no_app">Keine passende App auf diesem Gerät</string>
     <string name="hint_rename_name">Name</string>
     <string name="hint_rename_tags">Tags (kommagetrennt)</string>
     <!-- Neutraler Button im Long-Press-Dialog: öffnet die System-App-Info. -->
     <string name="action_app_info">App-Info</string>
-    <string name="toast_not_found">nicht gefunden: %1$s</string>
-    <string name="toast_denied">verweigert: %1$s</string>
-    <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok / toast_restore_ok ist der Dateiname. -->
+    <string name="toast_not_found">Nicht gefunden: %1$s</string>
+    <string name="toast_denied">Verweigert: %1$s</string>
+    <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok ist der Dateiname, in
+         toast_restore_ok die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
     <string name="toast_saved">Konfiguration gespeichert</string>
+    <string name="toast_reloaded">Konfiguration neu geladen</string>
     <string name="toast_save_failed">Speichern fehlgeschlagen — nichts geschrieben</string>
     <string name="toast_backup_ok">Backup: Download/Verso/%1$s</string>
     <string name="toast_backup_failed">Backup fehlgeschlagen — nichts geschrieben</string>
-    <string name="toast_restore_ok">Wiederhergestellt — vorherige als Rückgängig-Punkt (%1$s)</string>
-    <string name="toast_restore_same">Nichts zu tun — das Backup ist schon aktiv</string>
+    <string name="toast_restore_ok">Wiederhergestellt — rückgängig: ~restore-saf, verso-pre-restore wählen (%1$s)</string>
+    <string name="toast_restore_same">Nichts zu tun — diese Konfiguration ist schon aktiv</string>
     <string name="toast_restore_list_failed">Download/Verso nicht lesbar — ~restore-saf versuchen</string>
     <string name="toast_restore_undo_failed">Nichts geändert — aktuelle Konfiguration nicht sicherbar</string>
     <string name="toast_restore_failed">Nichts geändert — keine lesbare Konfiguration</string>
-    <string name="toast_restore_none">Kein Backup — ~backup ausführen oder ~restore-saf</string>
+    <string name="toast_restore_none">Kein Backup — erst ~backup, oder Datei wählen: ~restore-saf</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>

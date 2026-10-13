@@ -54,8 +54,9 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   `runOnUiThread` (`MainActivity.onUi`). `LauncherState` plays the ViewModel role
   as plain Kotlin.
 - **Persistence:** one JSON file, `filesDir/verso.json` (+ `.tmp`, `.bak`), via
-  `ConfigStore` — not SharedPreferences, not DataStore. Off-device backups in
-  `Download/Verso/` via MediaStore (`BackupStore`).
+  `ConfigStore` — not SharedPreferences, not DataStore. Beside it only
+  `home-cache.txt` (`HomeCache`), a disposable copy of the favorites for the cold-start
+  frame. Off-device backups in `Download/Verso/` via MediaStore (`BackupStore`).
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath (android.jar's is a
   stub), Robolectric where a real widget is needed, **no MockK / no mocks** (fakes
   and manual queues). An `androidTest` set (androidx.test, test APK only) covers
@@ -71,11 +72,15 @@ Single `:app` module, one package:
 
 ```
 com.github.reygnn.verso_launcher/
-  VersoApp            process-wide: the IO executor, the recents
+  VersoApp            process-wide: the IO executor, the recents, palette and
+                      badge-label caches
   MainActivity        the window: both pages, commands, backup/restore orchestration,
                       app enumeration, launching
   HomePage            the front page (clock/date/battery, favorites, a11y actions)
-  HomeStyle           pure look constants + outline colour, BatteryInfo, DoubleTapGate
+  HomeStyle           pure look constants + outline colour, palette, BatteryInfo,
+                      DoubleTapGate
+  OutlinedViews       the outlined text/icon views home and drawer draw with
+  HomeCache           the favorites cached for an instant home page on a cold start
   SwipeFrame          window root; watches dispatchTouchEvent for the page-turn swipe
   SwipeGesture        pure gesture decisions: Unity's page drag + Kolibri's flick
   TapGuard            stale-click protection for list rows
@@ -91,8 +96,10 @@ com.github.reygnn.verso_launcher/
   RestoreSteps        the IO half of a restore, in its load-bearing order
 ```
 
-Data flow: `onResume`, a `LauncherApps.Callback` (install/uninstall/update) or a
-profile broadcast → `LauncherState.refresh()` → IO thread (load config once,
+Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile broadcast
+→ `MainActivity.appsMaybeChanged` (refresh now while in front, else mark dirty);
+`onResume` refreshes when dirty, when `LauncherState.needsRefresh`, or after 5 min →
+`LauncherState.refresh()` → IO thread (load config once,
 enumerate apps of every profile) → main-thread hand-off guarded by generation
 counters → `applyFilter` re-renders. Every mutation → `LauncherState.mutated()` → serialized on
 main, written on the IO thread.

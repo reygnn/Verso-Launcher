@@ -101,7 +101,7 @@ package com.github.reygnn.verso_launcher
  * `@RunWith(RobolectricTestRunner::class)`; the SDK is pinned to 36 once for
  * all classes in `src/test/resources/robolectric.properties` (no per-class
  * `@Config(sdk = …)`). The manifest's VersoApp is fine as the Application: it
- * only holds an idle executor and the in-memory recents.
+ * only holds an idle executor and in-memory caches (recents, palette, badge labels).
  *
  * Drive a plain `Activity` with `Robolectric.buildActivity(Activity::class.java)
  * .setup()` — no androidx.test / ActivityScenario on the unit-test classpath.

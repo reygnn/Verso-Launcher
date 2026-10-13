@@ -186,4 +186,18 @@ class RenameDialogFilterTest {
         harness.click(AlertDialog.BUTTON_NEGATIVE)
         assertNull(harness.committed)
     }
+
+    // ---- the name field's filters -----------------------------------------------
+
+    @Test fun `the name field drops look-alike and control characters as typed`() {
+        val field = show().nameField()
+        field.setText("Sig\u202Enal\u200B\n")
+        assertEquals("Signal", field.text.toString())
+    }
+
+    @Test fun `the name field stops at the longest name a config may hold`() {
+        val field = show().nameField()
+        field.setText("a".repeat(LauncherLogic.MAX_NAME_LENGTH + 50))
+        assertEquals(LauncherLogic.MAX_NAME_LENGTH, field.text.length)
+    }
 }
