@@ -491,6 +491,39 @@ class LauncherLogicTest {
         assertEquals(emptyList<String>(), LauncherLogic.favoritesInDisplayOrder(rows("a", "b"), emptySet()).keys())
     }
 
+    // ---- pickDefaultFavorites -----------------------------------------------
+
+    @Test fun `pickDefaultFavorites takes the first launchable candidate per slot, in slot order`() {
+        val all = rows("dialer", "sms", "mail", "chrome", "firefox", "cam")
+        val slots = listOf(
+            listOf("dialer"),
+            listOf("sms"),
+            listOf("mail"),
+            listOf("firefox", "chrome"),  // the user's default browser comes first
+            listOf("cam"),
+        )
+        assertEquals(
+            listOf("dialer", "sms", "mail", "firefox", "cam"),
+            LauncherLogic.pickDefaultFavorites(all, slots),
+        )
+    }
+
+    @Test fun `pickDefaultFavorites falls back past a candidate that is not launchable`() {
+        val all = rows("chrome")
+        assertEquals(listOf("chrome"), LauncherLogic.pickDefaultFavorites(all, listOf(listOf("gone", "chrome"))))
+    }
+
+    @Test fun `pickDefaultFavorites skips an empty slot and never adds an app twice`() {
+        val all = rows("google", "cam")
+        // One app covering phone AND messenger, a slot with no handler at all.
+        val slots = listOf(listOf("google"), listOf("google"), emptyList(), listOf("cam"))
+        assertEquals(listOf("google", "cam"), LauncherLogic.pickDefaultFavorites(all, slots))
+    }
+
+    @Test fun `pickDefaultFavorites with no launchable candidate is empty`() {
+        assertEquals(emptyList<String>(), LauncherLogic.pickDefaultFavorites(rows("a"), listOf(listOf("x"))))
+    }
+
     // ---- drawer -------------------------------------------------------------
 
     @Test fun `drawer excludes hidden apps`() {

@@ -66,6 +66,13 @@ internal class ConfigStore(
     }
 
     /**
+     * True on a fresh install: neither verso.json nor its .bak exists. Only then are default
+     * favorites seeded — an existing config with no favorites is the user's choice. A file that
+     * exists but is unreadable still counts as "not fresh": that is corruption, not a first start.
+     */
+    fun isFresh(): Boolean = !primary.exists() && !backup.exists()
+
+    /**
      * Parse one config file. Returns null when the file is absent (a normal state, not
      * logged) or unparseable (logged, so real corruption is visible) — the caller decides
      * what to fall back to. Never throws.

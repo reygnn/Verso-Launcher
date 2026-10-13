@@ -13,7 +13,9 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.SystemClock
 import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.Settings
+import android.provider.Telephony
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
@@ -188,6 +190,8 @@ class MainActivity : Activity() {
                 if (configReplaced) renameDialog?.dismiss()
                 applyFilter(prompt.text?.toString().orEmpty())
             },
+            isFreshInstall = { store.isFresh() },
+            defaultFavoriteCandidates = ::defaultFavoriteCandidates,
         )
     }
 
@@ -1066,6 +1070,50 @@ class MainActivity : Activity() {
                 null
             }
         }.sortedBy { it.labelLower }
+    }
+
+    /**
+     * LauncherState's defaultFavoriteCandidates: phone, messenger (the default SMS app), email,
+     * browser, camera — the favorites a fresh install starts with. IO thread, fresh install only.
+     *
+     * Each slot is resolved by what the app DOES, not by a package list, so it works on any
+     * vendor: the user's default handler for the job comes first, then every other handler in
+     * the system's own order (covers "no default chosen yet"). A handler package becomes its
+     * launcher activity key via getLaunchIntentForPackage — the job's activity (a dial pad, a
+     * compose screen) is usually not the one the drawer lists. Never throws: a failing slot is
+     * just empty, and LauncherLogic.pickDefaultFavorites skips it.
+     */
+    private fun defaultFavoriteCandidates(): List<List<String>> {
+        val pm = packageManager
+        fun launcherKey(pkg: String): String? =
+            pm.getLaunchIntentForPackage(pkg)?.component?.flattenToString()
+        fun handlers(intent: Intent, preferred: String? = null): List<String> = try {
+            // resolveActivity answers the ResolverActivity ("android") when no default is set —
+            // that is no app, so it is dropped by the launcherKey lookup below like any other
+            // package without a launcher entry.
+            val default = preferred
+                ?: pm.resolveActivity(intent, PackageManager.ResolveInfoFlags.of(
+                    PackageManager.MATCH_DEFAULT_ONLY.toLong()))?.activityInfo?.packageName
+            val all = pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+                .map { it.activityInfo.packageName }
+            (listOfNotNull(default) + all).distinct().mapNotNull(::launcherKey)
+        } catch (e: RuntimeException) {
+            Log.w("Verso", "resolving default favorite failed: $intent", e)
+            emptyList()
+        }
+        return listOf(
+            handlers(Intent(Intent.ACTION_DIAL)),
+            handlers(
+                Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")),
+                preferred = Telephony.Sms.getDefaultSmsPackage(this),
+            ),
+            handlers(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))),
+            handlers(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://"))
+                    .addCategory(Intent.CATEGORY_BROWSABLE),
+            ),
+            handlers(Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)),
+        )
     }
 
     private fun applyFilter(raw: String) {

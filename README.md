@@ -23,6 +23,8 @@ keyboard, no prompt:
   simply scroll.
 - All home text (and the two icons) carries Kolibri's thin tonal outline, so it stays
   readable on any wallpaper without darkening it.
+- First start: Verso picks your default phone, messenger (default SMS app), email,
+  browser and camera as starting favorites. Only once — remove them and they stay gone.
 - No favorites yet? A short hint says how to add them (tap it to open the drawer).
 - **Swipe up** → the drawer. **Swipe down** → your recently used apps (the drawer opened
   on its `?` view, without the keyboard; Back goes straight home).

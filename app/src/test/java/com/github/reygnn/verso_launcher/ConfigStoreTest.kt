@@ -74,6 +74,22 @@ class ConfigStoreTest {
     }
 
     @Test
+    fun `isFresh only while neither primary nor bak mirror exists`() {
+        assertTrue(store.isFresh())
+        store.write(json("a/1"), rotateBackup = true)
+        assertFalse(store.isFresh())
+    }
+
+    @Test
+    fun `a lone bak mirror or an unreadable primary is not a fresh install`() {
+        backup.writeText(json("a/1"))
+        assertFalse(store.isFresh())
+        backup.delete()
+        primary.writeText("{ torn")
+        assertFalse(store.isFresh())
+    }
+
+    @Test
     fun `a good primary is loaded and bak mirror is not consulted`() {
         primary.writeText(json("a/1"))
         backup.writeText(json("SHOULD-NOT-BE-READ"))

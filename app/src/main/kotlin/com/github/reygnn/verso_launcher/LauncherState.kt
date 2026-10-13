@@ -39,6 +39,9 @@ package com.github.reygnn.verso_launcher
  * @param onRefreshed   main thread, after a [refresh] hand-off was applied. [configReplaced] is
  *                      true when the config was swapped wholesale for the disk copy — anything
  *                      that captured the old one (an open rename dialog) must go.
+ * @param isFreshInstall true when no config exists on disk yet (IO thread, before the read).
+ * @param defaultFavoriteCandidates the candidate keys per default favorite slot, see
+ *                      [LauncherLogic.pickDefaultFavorites] (IO thread, fresh install only).
  */
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
@@ -48,6 +51,8 @@ internal class LauncherState(
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
     private val onRefreshed: (configReplaced: Boolean) -> Unit,
+    private val isFreshInstall: () -> Boolean = { false },
+    private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
 ) {
     /** The live config. Read freely on the main thread; mutate only through this class. */
     var config: VersoConfig = VersoConfig()
@@ -99,8 +104,16 @@ internal class LauncherState(
         val cached = if (loadConfigNow) VersoConfig() else config.snapshot()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
+            // Checked before the read: only a config that is not on disk at all gets seeded.
+            val fresh = loadConfigNow && isFreshInstall()
             val useCfg = if (loadConfigNow) loadConfig() else cached
             val loaded = enumerateApps(useCfg)
+            // Seeding needs the enumeration (a default app must be launchable to be a
+            // favorite), so a failed one seeds nothing; the next cold start tries again,
+            // since nothing was saved.
+            val seeds = if (fresh && loaded != null) {
+                LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
+            } else emptyList()
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile
                 var replaced = false
@@ -110,6 +123,13 @@ internal class LauncherState(
                     config = useCfg
                     configLoaded = true
                     replaced = true
+                    // First start: give the home page something to show. Saving here writes
+                    // verso.json, so later starts are no longer fresh and never re-seed — a
+                    // user who removes every favorite keeps an empty home page.
+                    if (seeds.isNotEmpty() && config.favorites.isEmpty()) {
+                        config.favorites.addAll(seeds)
+                        mutated()
+                    }
                 }
                 // Commit the enumeration unless a rename made its labels stale. null means the
                 // enumeration itself failed (e.g. a system_server restart): keep the last

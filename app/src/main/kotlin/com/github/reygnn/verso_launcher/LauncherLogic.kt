@@ -195,6 +195,23 @@ internal object LauncherLogic {
         return all.filter { it.key in rank }.sortedBy { rank[it.key] }
     }
 
+    /**
+     * The favorites a fresh install starts with. [slots] is one candidate list per default
+     * favorite (phone, messenger, …), each holding launcher keys in preference order — the
+     * user's default app first, then any other app that can do the job. Per slot the first
+     * candidate that is actually in [all] wins; a slot with no launchable candidate is skipped,
+     * and an app already picked for an earlier slot is not added twice (one app can cover two
+     * jobs). The result keeps slot order, which becomes the home page's top-down order.
+     */
+    fun <T : Ordered> pickDefaultFavorites(all: List<T>, slots: List<List<String>>): List<String> {
+        val launchable = all.mapTo(HashSet()) { it.key }
+        val picked = LinkedHashSet<String>()
+        for (candidates in slots) {
+            candidates.firstOrNull { it in launchable }?.let { picked += it }
+        }
+        return picked.toList()
+    }
+
     /** The drawer set: everything not hidden, PLUS any favorite even when also
      *  hidden. The single place "favoriting overrides hiding" lives, so the
      *  empty-prompt view and the "*" drawer can never disagree. */

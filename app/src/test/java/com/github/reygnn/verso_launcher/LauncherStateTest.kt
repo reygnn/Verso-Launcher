@@ -59,7 +59,15 @@ class LauncherStateTest {
         },
         writeConfig = { payload -> written += payload; writeSucceeds },
         onRefreshed = { replaced -> refreshed += replaced },
+        isFreshInstall = { fresh },
+        defaultFavoriteCandidates = { candidatesCalls++; candidates },
     )
+
+    /** What isFreshInstall() answers — "no verso.json on disk yet". */
+    private var fresh = false
+    /** The default-favorite slots the Activity would resolve. */
+    private var candidates = listOf(listOf(key("Charlie")), listOf("gone/Gone", key("Alpha")))
+    private var candidatesCalls = 0
 
     private fun app(label: String) =
         AppEntry.of(label, "com.$label".lowercase(), "com.${label.lowercase()}.Main", label)
@@ -348,6 +356,53 @@ class LauncherStateTest {
         runAll()
         assertEquals(setOf(key("Bravo")), state.config.favorites)
         assertTrue(state.appsLoaded)
+    }
+
+    // ---- default favorites -------------------------------------------------------
+
+    @Test fun `a fresh install seeds the default favorites in slot order and saves them`() {
+        fresh = true
+        state.refresh()
+        runAll()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf("Charlie", "Alpha"), state.favorites().map { it.label })
+        assertEquals(1, written.size)
+        assertTrue(written.single().startsWith("fav=${key("Charlie")},${key("Alpha")};"))
+    }
+
+    @Test fun `an existing config is never seeded, even with no favorites`() {
+        fresh = false
+        started()
+        assertTrue(state.config.favorites.isEmpty())
+        assertEquals(0, candidatesCalls)
+        assertEquals(emptyList<String>(), written)
+    }
+
+    @Test fun `a warm refresh does not seed`() {
+        started()
+        fresh = true  // e.g. the file vanished behind our back — memory is the truth now
+        state.refresh()
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+        assertEquals(0, candidatesCalls)
+    }
+
+    @Test fun `a failed first enumeration seeds nothing and saves nothing`() {
+        fresh = true
+        enumerationFails = true
+        state.refresh()
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+        assertEquals(emptyList<String>(), written)
+    }
+
+    @Test fun `a restore before the fresh cold start finished is not seeded over`() {
+        fresh = true
+        state.refresh()
+        runIo()
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
+        runAll()
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
     }
 
     // ---- AppEntry --------------------------------------------------------------
