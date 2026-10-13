@@ -49,8 +49,9 @@ cloud-sync app that scans Download, or a PC over USB can. The files outlive an
 uninstall. Keep that in mind before sharing or syncing the folder.
 
 The hidden list (like favorites, names and tags) also keeps the apps you have since
-uninstalled: nothing is ever pruned, so a reinstalled app gets its place, name and tags
-back — but a backup still names a hidden app removed years ago.
+uninstalled: nothing is pruned on its own, so a reinstalled app gets its place, name and
+tags back — but a backup still names a hidden app removed years ago until you run
+`~cleanup`, which removes those entries (after an undo point).
 
 "Exactly one backup and one undo point" holds per installation: Android lets an app
 see and replace only the files it created itself. After a reinstall the old files are

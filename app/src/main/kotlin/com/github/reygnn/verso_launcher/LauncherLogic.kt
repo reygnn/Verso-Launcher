@@ -29,7 +29,15 @@ internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAV
 /** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
  *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
  *  same reason [Mode] is — the Activity and the tests both name it. */
-internal enum class Command { RELOAD, SAVE, BACKUP, RESTORE, RESTORE_SAF }
+internal enum class Command { RELOAD, SAVE, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
+
+/**
+ * What a config keeps for apps that are no longer installed ([LauncherLogic.orphans]): their
+ * [keys], and how many entries of each section those are — what "~cleanup" offers to remove.
+ */
+internal data class Orphans(val keys: Set<String>, val favorites: Int, val hidden: Int, val names: Int, val tags: Int) {
+    val isEmpty: Boolean get() = keys.isEmpty()
+}
 
 /** The two fields the ordering/search logic needs from a row: its identity [key]
  *  and its case-folded label. AppEntry implements this, and tests fake it with a
@@ -134,7 +142,25 @@ internal object LauncherLogic {
         "~backup" to Command.BACKUP,
         "~restore" to Command.RESTORE,
         "~restore-saf" to Command.RESTORE_SAF,
+        "~cleanup" to Command.CLEANUP,
     )
+
+    /**
+     * The entries of [config] that belong to no app in [installed] (the keys of a COMPLETE
+     * enumeration — every profile read; the caller must not pass a partial one, or a profile
+     * that failed to load would look uninstalled). Kept on purpose until asked: a reinstalled
+     * app gets its place, name and tags back. "~cleanup" is the asking.
+     */
+    fun orphans(config: VersoConfig, installed: Set<String>): Orphans {
+        val favorites = config.favorites.filterNot { it in installed }
+        val hidden = config.hidden.filterNot { it in installed }
+        val names = config.names.keys.filterNot { it in installed }
+        val tags = config.tags.keys.filterNot { it in installed }
+        return Orphans(
+            keys = (favorites + hidden + names + tags).toSet(),
+            favorites = favorites.size, hidden = hidden.size, names = names.size, tags = tags.size,
+        )
+    }
 
     /**
      * The command spelled EXACTLY by [trimmed] (case-folded), or null.

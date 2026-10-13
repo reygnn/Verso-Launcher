@@ -61,6 +61,16 @@ class BackupFilesTest {
         assertFalse(BackupFiles.isTemp(base, "verso.json"))
     }
 
+    @Test fun `the cleanup undo point is a base of its own`() {
+        val cleanup = "verso-pre-cleanup"
+        val name = "verso-pre-cleanup-2026-10-13_120745.json"
+        assertTrue(BackupFiles.isPublished(cleanup, name))
+        assertFalse(BackupFiles.isPublished(base, name))
+        assertFalse(BackupFiles.isPublished(pre, name))
+        assertFalse(BackupFiles.isPublished(cleanup, "verso-pre-restore-2026-10-13_120745.json"))
+        assertFalse(BackupFiles.isPublished(cleanup, "verso-2026-10-13_120745.json"))
+    }
+
     @Test fun `unrelated look-alikes are not backups`() {
         assertFalse(BackupFiles.isPublished(base, "verso (1).json.bak"))
         assertFalse(BackupFiles.isPublished(base, "my verso.json"))

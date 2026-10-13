@@ -24,7 +24,7 @@ A launcher reduced to text. Front page ("recto"): clock, date and battery
 swipe down for the recently used apps. Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
 `#`/`##` tags, `?` recents) and the `~` commands (`~load`, `~save`, `~backup`,
-`~restore`, `~restore-saf`). Default favorites (phone, messenger, email, browser,
+`~restore`, `~restore-saf`, `~cleanup`). Default favorites (phone, messenger, email, browser,
 camera) are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look
@@ -129,7 +129,8 @@ main, written on the IO thread.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
-   name. Exactly one current backup and one undo point (`verso-pre-restore-…`).
+   name. Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
+   `verso-pre-cleanup-…`).
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to
@@ -164,6 +165,10 @@ main, written on the IO thread.
     pads for it regardless of visibility (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate
     the activity so every dp-derived pixel value is recomputed.
+14. **`~cleanup` removes only what a COMPLETE enumeration shows uninstalled** (every
+    profile and app read — a profile that failed would look uninstalled), only after the
+    user confirms the counts, and only after the undo point (`verso-pre-cleanup-…`) is
+    written. No undo point, no cleanup.
 
 ---
 

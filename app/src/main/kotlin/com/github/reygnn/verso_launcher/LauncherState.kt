@@ -279,6 +279,20 @@ internal class LauncherState(
         }.let { LauncherLogic.sortedForDrawer(it) }
     }
 
+    /**
+     * Remove every entry for [keys] — favorite, hidden, name, tags — in one save ("~cleanup",
+     * for apps that are no longer installed). Ignored before the config is loaded, like every
+     * other edit that could not be saved.
+     */
+    fun forget(keys: Set<String>) {
+        if (!configLoaded || keys.isEmpty()) return
+        config.favorites.removeAll(keys)
+        config.hidden.removeAll(keys)
+        config.names.keys.removeAll(keys)
+        config.tags.keys.removeAll(keys)
+        mutated()
+    }
+
     /** Record a launch that actually started, for the "?" view. */
     fun recordLaunch(key: String) {
         recentKeys = LauncherLogic.pushRecent(recentKeys, key, RECENTS_LIMIT)

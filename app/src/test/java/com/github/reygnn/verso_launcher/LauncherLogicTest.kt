@@ -971,4 +971,24 @@ class LauncherLogicTest {
         val typed = (1..ConfigJson.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
         assertEquals(ConfigJson.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
     }
+
+    // ---- ~cleanup -----------------------------------------------------------------
+
+    @Test fun `orphans are the entries of apps not installed, counted per section`() {
+        val config = VersoConfig(
+            hidden = linkedSetOf("gone/A", "here/B"),
+            favorites = linkedSetOf("here/B", "gone/A", "gone/C#10"),
+            names = linkedMapOf("gone/D" to "Dee", "here/B" to "Bee"),
+            tags = linkedMapOf("gone/A" to mutableListOf("x"), "here/B" to mutableListOf("y")),
+        )
+        val o = LauncherLogic.orphans(config, installed = setOf("here/B"))
+        assertEquals(setOf("gone/A", "gone/C#10", "gone/D"), o.keys)
+        assertEquals(listOf(2, 1, 1, 1), listOf(o.favorites, o.hidden, o.names, o.tags))
+        assertEquals(true, LauncherLogic.orphans(config, setOf("here/B", "gone/A", "gone/C#10", "gone/D")).isEmpty)
+    }
+
+    @Test fun `cleanup is a command of its own, also abbreviated`() {
+        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~cleanup"))
+        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
+    }
 }

@@ -40,6 +40,14 @@
     <string name="toast_restore_undo_failed">Nichts geändert — aktuelle Konfiguration nicht sicherbar</string>
     <string name="toast_restore_failed">Nichts geändert — keine lesbare Konfiguration</string>
     <string name="toast_restore_none">Kein Backup — erst ~backup, oder Datei wählen: ~restore-saf</string>
+    <string name="toast_cleanup_none">Nichts aufzuräumen</string>
+    <string name="toast_cleanup_incomplete">Nicht alle Profile lesbar — später nochmal versuchen</string>
+    <!-- %1$s: die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
+    <string name="toast_cleanup_ok">Aufgeräumt — rückgängig: ~restore-saf, verso-pre-cleanup wählen (%1$s)</string>
+    <string name="cleanup_title">Aufräumen</string>
+    <!-- %1$d Apps; dann die Einträge je Abschnitt: Favoriten, Ausgeblendet, Namen, Tag-Listen. -->
+    <string name="cleanup_message">Gespeicherte Einstellungen für %1$d nicht mehr installierte Apps:\n\nFavoriten: %2$d\nAusgeblendet: %3$d\nEigene Namen: %4$d\nTag-Listen: %5$d\n\nVorher wird die aktuelle Konfiguration gesichert (verso-pre-cleanup).</string>
+    <string name="cleanup_remove">Entfernen</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>

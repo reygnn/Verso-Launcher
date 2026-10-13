@@ -256,6 +256,8 @@ class MainActivity : Activity() {
     // window (and would crash on the resulting bad token). configChanges keeps
     // rotation from recreating us; a language, font-size or display-size change still does.
     private var renameDialog: AlertDialog? = null
+    // The "~cleanup" confirmation, tracked for the same reason.
+    private var commandDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -915,6 +917,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         // Also a dialog opened from the home page, which closeDrawer does not touch.
         renameDialog?.dismiss()
+        commandDialog?.dismiss()
         closeDrawer(animate = false)
         homePage.stopBattery()
         super.onStop()
@@ -926,6 +929,8 @@ class MainActivity : Activity() {
         // field; guarding here is belt-and-suspenders.
         renameDialog?.dismiss()
         renameDialog = null
+        commandDialog?.dismiss()
+        commandDialog = null
         // No executor shutdown: the IO thread is the process's (VersoApp.io), and work this
         // instance queued — a save above all — must still run for the next one. What it
         // would hand back to this instance's main thread is dropped by onUi instead.
@@ -1078,6 +1083,7 @@ class MainActivity : Activity() {
             Command.BACKUP -> backup()
             Command.RESTORE -> restoreConfig()
             Command.RESTORE_SAF -> pickRestoreFile()
+            Command.CLEANUP -> cleanup()
         }
     }
 
@@ -1108,6 +1114,70 @@ class MainActivity : Activity() {
             }
         }
         if (!accepted) toast(getString(R.string.toast_backup_failed))
+    }
+
+    /**
+     * "~cleanup": offer to remove what the config keeps for apps that are no longer installed.
+     * The apps are enumerated afresh, and only a COMPLETE enumeration counts — a profile that
+     * could not be read would make its apps look uninstalled. Nothing is removed without the
+     * dialog's OK, and then only after an undo point is written (see [runCleanup]).
+     */
+    private fun cleanup() {
+        if (!state.configLoaded) {
+            toast(getString(R.string.toast_not_loaded))
+            return
+        }
+        val snapshot = state.config.snapshot()
+        val accepted = submitIo {
+            val found = enumerate(snapshot)
+            onUi {
+                if (found == null || !found.complete) {
+                    toast(getString(R.string.toast_cleanup_incomplete))
+                    return@onUi
+                }
+                val orphans = LauncherLogic.orphans(state.config, found.apps.mapTo(HashSet()) { it.key })
+                if (orphans.isEmpty) toast(getString(R.string.toast_cleanup_none)) else confirmCleanup(orphans)
+            }
+        }
+        if (!accepted) toast(getString(R.string.toast_restore_undo_failed))
+    }
+
+    private fun confirmCleanup(orphans: Orphans) {
+        commandDialog?.dismiss()
+        commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(R.string.cleanup_title)
+            .setMessage(getString(
+                R.string.cleanup_message,
+                orphans.keys.size, orphans.favorites, orphans.hidden, orphans.names, orphans.tags,
+            ))
+            .setPositiveButton(R.string.cleanup_remove) { _, _ -> runCleanup(orphans.keys) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+            .apply { setOnDismissListener { d -> if (commandDialog === d) commandDialog = null } }
+        commandDialog?.show()
+    }
+
+    /**
+     * The cleanup itself, in the restore's order: the current config goes to an undo point
+     * ([PRE_CLEANUP_BASE]) first, and only once that is written are the entries removed. No
+     * undo point, no cleanup. A hand-back lost on the way leaves everything as it was.
+     */
+    private fun runCleanup(keys: Set<String>) {
+        if (!state.configLoaded) return
+        val payload = ConfigJson.serialize(state.config)
+        val accepted = submitIo {
+            val undo = backupStore.write(PRE_CLEANUP_BASE, payload)
+            onUi {
+                if (undo == null) {
+                    toast(getString(R.string.toast_restore_undo_failed))
+                    return@onUi
+                }
+                state.forget(keys)
+                refilter()
+                toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(undo)), Toast.LENGTH_LONG)
+            }
+        }
+        if (!accepted) toast(getString(R.string.toast_restore_undo_failed))
     }
 
     /**
@@ -1451,7 +1521,18 @@ class MainActivity : Activity() {
      * ([AppEntry.keyOf]) and labelled with the system's badge ("Gmail (Work)"), so the work
      * copy is neither the same row nor an identical-looking one.
      */
-    private fun loadApps(cfg: VersoConfig): List<AppEntry>? {
+    private fun loadApps(cfg: VersoConfig): List<AppEntry>? = enumerate(cfg)?.apps
+
+    /** An enumeration's result: the apps, and whether every profile and app was read. */
+    private class Enumeration(val apps: List<AppEntry>, val complete: Boolean)
+
+    /**
+     * [loadApps]'s body, also telling whether it saw EVERYTHING: a profile or an app skipped
+     * after an error makes it incomplete. "~cleanup" needs that — an app it did not see would
+     * look uninstalled.
+     */
+    private fun enumerate(cfg: VersoConfig): Enumeration? {
+        var complete = true
         val pm = packageManager
         val self = packageName
         val personal = Process.myUserHandle()
@@ -1481,7 +1562,8 @@ class MainActivity : Activity() {
                 // The serial and quiet-mode lookups are binder calls too: inside the try, so a
                 // failure drops this profile like any other instead of escaping onto the IO thread.
                 if (!isPersonal) {
-                    serial = userManager.getSerialNumberForUser(user).takeIf { it >= 0 } ?: continue
+                    serial = userManager.getSerialNumberForUser(user).takeIf { it >= 0 }
+                        ?: run { complete = false; continue }
                     // A work profile that is turned off: its apps stay listed, dimmed (AppStatus).
                     paused = userManager.isQuietModeEnabled(user)
                 }
@@ -1492,6 +1574,7 @@ class MainActivity : Activity() {
                     return null  // failure sentinel: keep the current list, don't wipe it
                 }
                 Log.w("Verso", "skipping profile $serial", e)
+                complete = false
                 continue
             }
             for (info in activities) {
@@ -1527,10 +1610,11 @@ class MainActivity : Activity() {
                     )
                 } catch (e: RuntimeException) {
                     Log.w("Verso", "skipping app", e)
+                    complete = false
                 }
             }
         }
-        return LauncherLogic.sortedForDrawer(entries)
+        return Enumeration(LauncherLogic.sortedForDrawer(entries), complete)
     }
 
     /**
@@ -2012,6 +2096,7 @@ class MainActivity : Activity() {
         /** The backups' base names: published as "<base>-<date>_<time>.json" (see BackupFiles). */
         const val BACKUP_BASE = "verso"
         const val PRE_RESTORE_BASE = "verso-pre-restore"
+        const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
         const val REQ_RESTORE = 1
         /** Kolibri's page turn: the drawer's full-height slide (anim_duration_drawer_slide)… */
         const val DRAWER_SLIDE_MS = 180L

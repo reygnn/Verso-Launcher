@@ -274,6 +274,29 @@ class LauncherStateTest {
         assertEquals(listOf("Bravo", "Charlie", "Ärzte"), labels())
     }
 
+    @Test fun `forget removes every entry of the keys in one save`() {
+        disk = VersoConfig(
+            hidden = linkedSetOf("gone/A"),
+            favorites = linkedSetOf(key("Alpha"), "gone/A"),
+            names = linkedMapOf("gone/A" to "Old"),
+            tags = linkedMapOf("gone/A" to mutableListOf("x"), key("Alpha") to mutableListOf("y")),
+        )
+        started()
+        state.forget(setOf("gone/A"))
+        runAll()
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertTrue(state.config.hidden.isEmpty())
+        assertTrue(state.config.names.isEmpty())
+        assertEquals(setOf(key("Alpha")), state.config.tags.keys)
+        assertEquals(1, written.size)
+    }
+
+    @Test fun `forget before the config is loaded changes nothing`() {
+        state.forget(setOf("gone/A"))
+        runAll()
+        assertTrue(written.isEmpty())
+    }
+
     @Test fun `a rename stores the name cleaned, whoever commits it`() {
         started()
         state.rename(key("Alpha"), "Alpha", " Zu\u202Elu\u200B ", emptyList())
