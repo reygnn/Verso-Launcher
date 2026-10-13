@@ -121,27 +121,28 @@ internal class HomePage(
 
     init {
         clock = OutlinedTextClock(activity).apply {
-            // TextClock follows the system 12/24-hour setting by itself.
-            format12Hour = "h:mm a"
-            format24Hour = "HH:mm"
+            // TextClock follows the system 12/24-hour setting by itself; the patterns are the
+            // locale's own ("h:mm a" in en-US, "a h:mm" in ko, "H:mm" in de, …).
+            format12Hour = localPattern("hmm")
+            format24Hour = localPattern("Hmm")
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-            textSize = HomeStyle.CLOCK_SP
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.CLOCK_DP)
             outlined()
             onDoubleTap(R.string.a11y_open_alarms) { openAlarms() }
         }
         val infoPad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
-        // Kolibri's short date: "Tue, 13 Oct" / "Di., 13 Okt." (localized day/month names).
+        // A short date in the locale's own order: "Tue, Oct 13" (en-US), "Di., 13. Okt." (de).
         date = OutlinedTextClock(activity).apply {
-            format12Hour = "E, d MMM"
-            format24Hour = "E, d MMM"
-            textSize = HomeStyle.INFO_SP
+            format12Hour = localPattern("EEEdMMM")
+            format24Hour = localPattern("EEEdMMM")
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
             outlined()
             setPadding(infoPad, infoPad, infoPad, infoPad)
             onDoubleTap(R.string.a11y_open_calendar) { openCalendar() }
         }
         batteryText = OutlinedTextView(activity).apply {
             text = BatteryInfo.UNKNOWN_LABEL
-            textSize = HomeStyle.INFO_SP
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
             outlined()
             setTextColor(textColor)  // like clock and date: no press dimming on a double-tap target
             setPadding(infoPad, infoPad, infoPad, infoPad)
@@ -224,7 +225,7 @@ internal class HomePage(
             val pad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
             favorites.addView(OutlinedTextView(activity).apply {
                 text = activity.getString(R.string.home_hint)
-                textSize = HomeStyle.INFO_SP
+                setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
                 outlined()
                 setPadding(pad, pad, pad, pad)
                 // Tapping the hint does what it says — a way in for anyone who doesn't swipe.
@@ -235,8 +236,8 @@ internal class HomePage(
 
         val dm = activity.resources.displayMetrics
         val textPx = HomeStyle.favoriteTextSizePx(
-            minPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, HomeStyle.INFO_SP, dm),
-            maxPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, HomeStyle.CLOCK_SP, dm) *
+            minPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP, dm),
+            maxPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.CLOCK_DP, dm) *
                 HomeStyle.MAX_FAVORITE_RELATIVE_TO_CLOCK,
         )
         val padV = HomeStyle.favoriteVerticalPaddingPx(textPx)
@@ -409,6 +410,11 @@ internal class HomePage(
     }
 
     private fun Int.dp(): Int = (this * density).toInt()
+
+    /** [skeleton] laid out the way the current locale writes it ("Tue, Oct 13" in en-US,
+     *  "Di., 13. Okt." in de) instead of one fixed order for every language. */
+    private fun localPattern(skeleton: String): String =
+        android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), skeleton)
 
     /** "Open all apps" as a TalkBack custom action on the page. */
     private inner class OpenDrawerAction : View.AccessibilityDelegate() {

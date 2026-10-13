@@ -1,5 +1,8 @@
 package com.github.reygnn.verso_launcher
 
+import java.text.NumberFormat
+import java.util.Locale
+
 import kotlin.math.pow
 
 /**
@@ -37,10 +40,14 @@ internal object HomeStyle {
     const val ICON_SIZE_DP = 28
     const val ICON_PADDING_DP = 4
 
+    // Text sizes on the home page are in dp, NOT sp: the system font scale does not apply here
+    // (display size still does). The page is a fixed composition — a 60sp clock at the largest
+    // font scale wrapped its AM/PM onto a second line and squeezed the info row. The drawer list
+    // keeps sp: it scrolls and ellipsizes, so a large font never breaks it.
     /** The clock. */
-    const val CLOCK_SP = 60f
+    const val CLOCK_DP = 60f
     /** Date and battery. Also the SMALLEST a favorite can be. */
-    const val INFO_SP = 18f
+    const val INFO_DP = 18f
 
     // ---- Kolibri defaults -----------------------------------------------------
     /** Favorites size slider (0..2) at Kolibri's default. */
@@ -154,7 +161,9 @@ internal object BatteryInfo {
     fun percent(level: Int, scale: Int): Int? =
         if (level < 0 || scale <= 0) null else (level.toLong() * 100 / scale).toInt().coerceAtMost(100)
 
-    fun label(percent: Int?): String = percent?.let { "$it%" } ?: UNKNOWN_LABEL
+    /** "87%", "87 %", "٨٧٪" — the percentage the way [locale] writes it. */
+    fun label(percent: Int?, locale: Locale = Locale.getDefault()): String =
+        percent?.let { NumberFormat.getPercentInstance(locale).format(it / 100.0) } ?: UNKNOWN_LABEL
 
     /**
      * Charging (or full on the charger) shows a bolt. Plugged in but NOT charging means the

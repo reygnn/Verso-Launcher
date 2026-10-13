@@ -126,7 +126,8 @@ class HomeStyleTest {
     }
 
     @Test fun `label falls back to Kolibri's placeholder`() {
-        assertEquals("87%", BatteryInfo.label(87))
+        assertEquals("87%", BatteryInfo.label(87, java.util.Locale.US))
+        assertEquals("87\u00A0%", BatteryInfo.label(87, java.util.Locale.GERMANY))  // German: a space
         assertEquals("---%", BatteryInfo.label(null))
     }
 
