@@ -47,9 +47,10 @@ keyboard, no prompt:
 ## The command line
 
 - Lists launchable apps in light gray (`#D4D4D4`) over your wallpaper.
-- Enumerates the current user's launchable apps via a `PackageManager`
-  MAIN/LAUNCHER query. Single-user only — no work-profile, cloned or
-  private-space handling.
+- Lists the launchable apps of every profile through `LauncherApps` — your own plus
+  a work profile or cloned apps, which carry the system's badge ("Calculator
+  (Work)") and start in their own profile. Installs, uninstalls and updates show up
+  at once, even while the launcher stays open.
 - The bottom command line drives everything; the leading character picks a mode:
   - *(empty)* — the full drawer, A to Z: everything except hidden apps, **but a
     favorite is always kept even when also hidden** (favoriting overrides hiding)

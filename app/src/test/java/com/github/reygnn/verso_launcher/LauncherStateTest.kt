@@ -48,7 +48,7 @@ class LauncherStateTest {
             if (enumerationFails) null
             else installed.map { a ->
                 val name = cfg.names[a.key] ?: a.systemLabel
-                AppEntry.of(name, a.packageName, a.className, a.systemLabel)
+                AppEntry.of(name, a.packageName, a.className, a.systemLabel, a.profile)
             }.let { LauncherLogic.sortedForDrawer(it) }
         },
         // A readable stand-in for ConfigJson (org.json is not needed to test the rules).
@@ -482,6 +482,25 @@ class LauncherStateTest {
     }
 
     // ---- AppEntry --------------------------------------------------------------
+
+    @Test fun `a personal app keeps the plain key, another profile's copy gets the serial`() {
+        val personal = AppEntry.of("Gmail", "com.google.android.gm", "com.google.android.gm.Main", "Gmail")
+        val work = AppEntry.of("Gmail (Work)", "com.google.android.gm", "com.google.android.gm.Main", "Gmail (Work)", profile = 10)
+        assertEquals("com.google.android.gm/com.google.android.gm.Main", personal.key)
+        assertEquals("com.google.android.gm/com.google.android.gm.Main#10", work.key)
+        assertEquals(work.key, work.withLabel("Mail").key)  // a rename keeps the profile
+        assertEquals(10L, work.withLabel("Mail").profile)
+    }
+
+    @Test fun `a work copy is its own row with its own favorite and name state`() {
+        val work = AppEntry.of("Charlie (Work)", "com.charlie", "com.charlie.Main", "Charlie (Work)", profile = 10)
+        installed = installed + work
+        disk = VersoConfig(favorites = linkedSetOf(key("Charlie")))
+        started()
+        assertEquals(listOf("Charlie"), state.favorites().map { it.label })
+        state.toggleFavorite(work.key)
+        assertEquals(listOf("Charlie", "Charlie (Work)"), state.favorites().map { it.label })
+    }
 
     @Test fun `the key matches ComponentName_flattenToString, so old configs keep working`() {
         val e = AppEntry.of("Mail", "com.example.mail", "com.example.mail.MainActivity", "Mail")

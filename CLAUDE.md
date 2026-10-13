@@ -28,8 +28,9 @@ plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reor
 camera) are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look
-is constants in `HomeStyle.kt`), work-profile / private-space apps, left/right
-swipe actions, any runtime permission. See `KNOWN_LIMITATIONS.md`. A new feature
+is constants in `HomeStyle.kt`), left/right swipe actions, any runtime permission.
+Apps come from `LauncherApps` across all profiles (work, clone); private space is
+untested. See `KNOWN_LIMITATIONS.md`. A new feature
 category needs explicit user agreement before it is built.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
@@ -87,9 +88,10 @@ com.github.reygnn.verso_launcher/
   BackupFiles         pure backup naming rules
 ```
 
-Data flow: `onResume` → `LauncherState.refresh()` → IO thread (load config once,
-enumerate apps) → main-thread hand-off guarded by generation counters →
-`applyFilter` re-renders. Every mutation → `LauncherState.mutated()` → serialized on
+Data flow: `onResume`, a `LauncherApps.Callback` (install/uninstall/update) or a
+profile broadcast → `LauncherState.refresh()` → IO thread (load config once,
+enumerate apps of every profile) → main-thread hand-off guarded by generation
+counters → `applyFilter` re-renders. Every mutation → `LauncherState.mutated()` → serialized on
 main, written on the IO thread.
 
 ---
@@ -117,9 +119,11 @@ main, written on the IO thread.
 7. **Restore order:** read + `parseForeign` on the IO thread (never the lenient
    `parse` for outside files) → write the undo point → only then `adopt`. No undo
    point, no restore.
-8. **Config keys are `package/class`** (`ComponentName.flattenToString()`), so configs
-   and backups written by earlier Verso versions stay readable. Don't change the key or
-   the JSON shape without a migration.
+8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
+   personal profile, so configs and backups written by earlier Verso versions stay
+   readable; an app of another profile is `package/class#<profile serial>`
+   (`AppEntry.keyOf`). Launch and app info go through `LauncherApps` with the entry's
+   profile. Don't change the key or the JSON shape without a migration.
 9. **`LauncherLogic.foldLabel` is the only fold** (NFC, `Locale.ROOT`, drop U+0307)
    for labels, needles and tags (`canonicalTag` builds on it). Lists are sorted with
    a `Collator` for the device locale (`sortedForDrawer`, `sortedTags`), never by

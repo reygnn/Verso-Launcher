@@ -3,18 +3,25 @@ package com.github.reygnn.verso_launcher
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
 import android.os.SystemClock
+import android.os.UserHandle
+import android.os.UserManager
 import android.provider.DocumentsContract
 import android.provider.MediaStore
-import android.provider.Settings
 import android.provider.Telephony
 import android.system.ErrnoException
 import android.system.Os
@@ -508,6 +515,9 @@ class MainActivity : Activity() {
                 closeDrawer()
             }
         }
+
+        // Live updates for installs/uninstalls and profile changes (see appsChanged).
+        watchApps()
     }
 
     /** Live battery level on the home page while the launcher is visible. */
@@ -641,6 +651,7 @@ class MainActivity : Activity() {
         // No executor shutdown: the IO thread is the process's (VersoApp.io), and work this
         // instance queued — a save above all — must still run for the next one. What it
         // would hand back to this instance's main thread is dropped by onUi instead.
+        unwatchApps()
         super.onDestroy()
     }
 
@@ -1046,56 +1057,135 @@ class MainActivity : Activity() {
 
     // ---- apps ---------------------------------------------------------------
 
-    /** LauncherState's enumerateApps: runs on the IO thread with a config SNAPSHOT. */
+    private val launcherApps: LauncherApps by lazy { getSystemService(LauncherApps::class.java) }
+    private val userManager: UserManager by lazy { getSystemService(UserManager::class.java) }
+
+    /**
+     * The profile an entry lives in: the personal one for [AppEntry.profile] == null, else
+     * the profile with that serial — or null when that profile no longer exists (a work
+     * profile removed since the list was loaded).
+     */
+    private fun userOf(entry: AppEntry): UserHandle? {
+        val serial = entry.profile ?: return Process.myUserHandle()
+        return userManager.getUserForSerialNumber(serial)
+    }
+
+    /**
+     * LauncherState's enumerateApps: runs on the IO thread with a config SNAPSHOT.
+     *
+     * Through LauncherApps, the API Android provides for launchers: every profile the launcher
+     * may show — the personal one plus a work profile or cloned apps — not just the current
+     * user's PackageManager view. Apps of another profile are keyed with its serial
+     * ([AppEntry.keyOf]) and labelled with the system's badge ("Gmail (Work)"), so the work
+     * copy is neither the same row nor an identical-looking one.
+     */
     private fun loadApps(cfg: VersoConfig): List<AppEntry>? {
         val pm = packageManager
         val self = packageName
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        // This runs on a background thread, and a HOME app that throws on resume
-        // loops forever — so nothing here may let an exception escape. The query
-        // and loadLabel() surface plain RuntimeExceptions (e.g. a
-        // DeadSystemRuntimeException if system_server restarts): catch broadly and
-        // return null (NOT an empty list) so the caller keeps the last-known-good
-        // list rather than blanking the home screen on a transient hiccup. A query
-        // that SUCCEEDS returns its result even when empty — the rare genuinely
-        // app-less device (only this launcher installed) still commits its emptiness.
-        val resolved = try {
-            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+        val personal = Process.myUserHandle()
+        // This runs on a background thread, and a HOME app that throws on resume loops
+        // forever — so nothing here may let an exception escape. LauncherApps and the label
+        // lookups surface plain RuntimeExceptions (a DeadSystemRuntimeException if
+        // system_server restarts, a SecurityException for a profile that turns inaccessible
+        // mid-scan). If the profile list or the PERSONAL profile cannot be read, return null
+        // (NOT an empty list) so the caller keeps the last-known-good list rather than
+        // blanking the launcher; another profile failing only drops that profile. A query
+        // that SUCCEEDS returns its result even when empty.
+        val profiles = try {
+            launcherApps.profiles
         } catch (e: RuntimeException) {
-            Log.w("Verso", "app enumeration failed", e)
-            return null  // failure sentinel: keep the current list, don't wipe it
+            Log.w("Verso", "app enumeration failed: profiles", e)
+            return null
         }
-        return resolved.mapNotNull { ri ->
-            try {
-                val ai = ri.activityInfo
-                // A component without a class name cannot be launched (and would key as
-                // "pkg/null"): skip it, as the ComponentName-based code effectively did.
-                if (ai.name.isNullOrEmpty()) return@mapNotNull null
-                if (ai.packageName == self) return@mapNotNull null  // don't list ourselves
-                // Identity is the full launcher component, not the package — a
-                // package can expose several launcher activities, each its own row.
-                // "package/class", exactly ComponentName.flattenToString().
-                val key = "${ai.packageName}/${ai.name}"
-                // The app's own label, before any override — kept on the entry
-                // (systemLabel) so a later rename can rebuild in-memory.
-                val systemLabel = ri.loadLabel(pm).toString()
-                // A custom name overrides the app's own label; otherwise the label
-                // as the system reports it. labelLower keys off the displayed text,
-                // so filtering matches what's on screen (a custom name included).
-                // LauncherLogic.foldLabel folds with Locale.ROOT — the same fold
-                // search's needle uses — so the I/i mapping stays locale-invariant.
-                val base = cfg.names[key] ?: systemLabel
-                AppEntry.of(
-                    label = base,
-                    packageName = ai.packageName,
-                    className = ai.name,
-                    systemLabel = systemLabel,
-                )
-            } catch (e: RuntimeException) {
-                Log.w("Verso", "skipping app", e)
-                null
+        val entries = mutableListOf<AppEntry>()
+        for (user in profiles) {
+            val serial: Long? = if (user == personal) null else {
+                userManager.getSerialNumberForUser(user).takeIf { it >= 0 } ?: continue
             }
-        }.let { LauncherLogic.sortedForDrawer(it) }
+            val activities = try {
+                launcherApps.getActivityList(null, user)
+            } catch (e: RuntimeException) {
+                if (serial == null) {
+                    Log.w("Verso", "app enumeration failed", e)
+                    return null  // failure sentinel: keep the current list, don't wipe it
+                }
+                Log.w("Verso", "skipping profile $serial", e)
+                continue
+            }
+            for (info in activities) {
+                try {
+                    val component = info.componentName
+                    // A component without a class name cannot be launched (and would key as
+                    // "pkg/null"): skip it.
+                    if (component.className.isNullOrEmpty()) continue
+                    if (component.packageName == self) continue  // don't list ourselves
+                    // Identity is the full launcher component, not the package — a package
+                    // can expose several launcher activities, each its own row.
+                    val key = AppEntry.keyOf(component.packageName, component.className, serial)
+                    // The app's own label, before any override — kept on the entry
+                    // (systemLabel) so a later rename can rebuild in-memory. In another
+                    // profile it carries the system's badge, so the work copy reads apart.
+                    val raw = info.label.toString()
+                    val systemLabel =
+                        if (serial == null) raw else pm.getUserBadgedLabel(raw, user).toString()
+                    // A custom name overrides the app's own label; labelLower keys off the
+                    // displayed text, so filtering matches what's on screen.
+                    entries += AppEntry.of(
+                        label = cfg.names[key] ?: systemLabel,
+                        packageName = component.packageName,
+                        className = component.className,
+                        systemLabel = systemLabel,
+                        profile = serial,
+                    )
+                } catch (e: RuntimeException) {
+                    Log.w("Verso", "skipping app", e)
+                }
+            }
+        }
+        return LauncherLogic.sortedForDrawer(entries)
+    }
+
+    /**
+     * Installs, uninstalls and updates — in any profile — refresh the list right away, even
+     * while the home page stays in front; before, they only surfaced on the next resume.
+     * Registered for the activity's lifetime on the main looper, where [LauncherState]
+     * lives; a burst of callbacks (an app update fires several) costs little, because each
+     * refresh supersedes the one before it.
+     */
+    private val appsChanged = object : LauncherApps.Callback() {
+        override fun onPackageAdded(packageName: String, user: UserHandle) = state.refresh()
+        override fun onPackageRemoved(packageName: String, user: UserHandle) = state.refresh()
+        override fun onPackageChanged(packageName: String, user: UserHandle) = state.refresh()
+        override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
+            state.refresh()
+        override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
+            state.refresh()
+        override fun onPackagesSuspended(packageNames: Array<out String>, user: UserHandle) = state.refresh()
+        override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) = state.refresh()
+    }
+
+    /** A profile added, removed, paused or resumed changes which apps there are to list. */
+    private val profilesChanged = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = state.refresh()
+    }
+
+    private fun watchApps() {
+        launcherApps.registerCallback(appsChanged, Handler(Looper.getMainLooper()))
+        registerReceiver(
+            profilesChanged,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_PROFILE_ADDED)
+                addAction(Intent.ACTION_PROFILE_REMOVED)
+                addAction(Intent.ACTION_PROFILE_AVAILABLE)
+                addAction(Intent.ACTION_PROFILE_UNAVAILABLE)
+            },
+            RECEIVER_NOT_EXPORTED,
+        )
+    }
+
+    private fun unwatchApps() {
+        launcherApps.unregisterCallback(appsChanged)
+        runCatching { unregisterReceiver(profilesChanged) }
     }
 
     /**
@@ -1214,31 +1304,44 @@ class MainActivity : Activity() {
     private fun renderHome() = homePage.render(state.favorites(), state.appsLoaded)
 
     private fun launch(entry: AppEntry) {
-        // A launcher starts the app in its own task, not nested in this one.
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            component = ComponentName(entry.packageName, entry.className)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        // Through LauncherApps, so an app of another profile starts IN that profile; it starts
+        // in its own task, not nested in this one.
+        val user = userOf(entry)
+        val component = ComponentName(entry.packageName, entry.className)
         try {
-            startActivity(intent)
-            // Only a launch that actually started counts as "recent" — the catch
-            // branches below leave the list untouched so a dead component never
-            // lingers at the top of "?".
-            state.recordLaunch(entry.key)
-        } catch (e: ActivityNotFoundException) {
-            // Component gone since the list loaded (uninstall race).
-            Log.w("Verso", "launch unavailable: ${entry.key}")
-            Toast.makeText(this, getString(R.string.toast_not_found, entry.label), Toast.LENGTH_SHORT).show()
+            when {
+                // The entry's profile is gone (a work profile removed since the list loaded).
+                user == null -> notFound(entry)
+                // A paused work profile: ask the system to turn it back on (it confirms with
+                // the user where needed) instead of failing — the default launcher may.
+                userManager.isQuietModeEnabled(user) -> userManager.requestQuietModeEnabled(false, user)
+                // Component gone since the list loaded (uninstall race). Without this check
+                // startMainActivity throws a SecurityException, which would misreport the
+                // vanished app as "denied".
+                !launcherApps.isActivityEnabled(component, user) -> {
+                    Log.w("Verso", "launch unavailable: ${entry.key}")
+                    notFound(entry)
+                }
+                else -> {
+                    launcherApps.startMainActivity(component, user, null, null)
+                    // Only a launch that actually started counts as "recent" — the other
+                    // branches leave the list untouched so a dead component never lingers
+                    // at the top of "?".
+                    state.recordLaunch(entry.key)
+                }
+            }
         } catch (e: SecurityException) {
             Log.w("Verso", "launch denied: ${entry.key}", e)
             Toast.makeText(this, getString(R.string.toast_denied, entry.label), Toast.LENGTH_SHORT).show()
         } catch (e: RuntimeException) {
             // Dead system_server or similar — don't crash HOME.
             Log.w("Verso", "launch failed: ${entry.key}", e)
-            Toast.makeText(this, getString(R.string.toast_not_found, entry.label), Toast.LENGTH_SHORT).show()
+            notFound(entry)
         }
     }
+
+    private fun notFound(entry: AppEntry) =
+        Toast.makeText(this, getString(R.string.toast_not_found, entry.label), Toast.LENGTH_SHORT).show()
 
     /**
      * Open the system "App info" screen for this component's package (uninstall, permissions,
@@ -1247,21 +1350,16 @@ class MainActivity : Activity() {
      * component gone mid-session can never crash HOME.
      */
     private fun openAppInfo(entry: AppEntry) {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.fromParts("package", entry.packageName, null)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        // The app's details page in ITS profile — a work app's settings live there.
+        val user = userOf(entry) ?: return notFound(entry)
         try {
-            startActivity(intent)
-        } catch (e: ActivityNotFoundException) {
-            Log.w("Verso", "app info unavailable: ${entry.packageName}")
-            Toast.makeText(this, getString(R.string.toast_not_found, entry.label), Toast.LENGTH_SHORT).show()
+            launcherApps.startAppDetailsActivity(ComponentName(entry.packageName, entry.className), user, null, null)
         } catch (e: SecurityException) {
-            Log.w("Verso", "app info denied: ${entry.packageName}", e)
+            Log.w("Verso", "app info denied: ${entry.key}", e)
             Toast.makeText(this, getString(R.string.toast_denied, entry.label), Toast.LENGTH_SHORT).show()
         } catch (e: RuntimeException) {
-            Log.w("Verso", "app info failed: ${entry.packageName}", e)
-            Toast.makeText(this, getString(R.string.toast_not_found, entry.label), Toast.LENGTH_SHORT).show()
+            Log.w("Verso", "app info failed: ${entry.key}", e)
+            notFound(entry)
         }
     }
 

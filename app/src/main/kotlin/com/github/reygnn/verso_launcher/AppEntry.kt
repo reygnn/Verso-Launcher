@@ -16,24 +16,43 @@ internal data class AppEntry(
     val packageName: String,
     val className: String,
     /** The app's own label as the system reports it — WITHOUT any custom name. Kept so a
-     *  rename can be applied (or cleared, falling back to this) without re-enumerating. */
+     *  rename can be applied (or cleared, falling back to this) without re-enumerating. For
+     *  an app in another profile it already carries the system's badge ("Gmail (Work)"). */
     val systemLabel: String,
+    /** The serial number of the profile (UserManager.getSerialNumberForUser) the app lives in,
+     *  or null for the user's own, personal profile. A serial, not a UserHandle: it is plain
+     *  data, stable across reboots, and the Activity maps it back when it launches. */
+    val profile: Long? = null,
 ) : Ordered {
     /**
-     * "package/class" — the identity key for hidden/favorites/names/tags everywhere, and the
-     * same string ComponentName.flattenToString() produces, so configs and backups written by
-     * an earlier Verso keep matching. Per launcher ACTIVITY, not per package: a package can
-     * expose several launcher entries, and each must toggle and rename on its own. A body val,
-     * so it stays out of equals/hashCode/copy — the constructor fields already define identity.
+     * The identity key for hidden/favorites/names/tags everywhere — see [keyOf]. Per launcher
+     * ACTIVITY, not per package: a package can expose several launcher entries, and each must
+     * toggle and rename on its own. A body val, so it stays out of equals/hashCode/copy — the
+     * constructor fields already define identity.
      */
-    override val key: String = "$packageName/$className"
+    override val key: String = keyOf(packageName, className, profile)
 
     /** The same app under a different displayed label (rename / clear rename). */
     fun withLabel(newLabel: String): AppEntry =
         copy(label = newLabel, labelLower = LauncherLogic.foldLabel(newLabel))
 
     companion object {
-        fun of(label: String, packageName: String, className: String, systemLabel: String) =
-            AppEntry(label, LauncherLogic.foldLabel(label), packageName, className, systemLabel)
+        fun of(
+            label: String,
+            packageName: String,
+            className: String,
+            systemLabel: String,
+            profile: Long? = null,
+        ) = AppEntry(label, LauncherLogic.foldLabel(label), packageName, className, systemLabel, profile)
+
+        /**
+         * "package/class" for the personal profile — exactly ComponentName.flattenToString(),
+         * the key every config and backup has always used, so they keep matching unchanged.
+         * The same app in another profile (work, clone) is a different row with its own
+         * favorite/hidden/name state, so it gets the profile's serial appended:
+         * "package/class#10". "#" cannot occur in a package or class name.
+         */
+        fun keyOf(packageName: String, className: String, profile: Long?): String =
+            if (profile == null) "$packageName/$className" else "$packageName/$className#$profile"
     }
 }

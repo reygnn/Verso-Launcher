@@ -24,11 +24,15 @@ a (re)start — see `toast_recents_empty` and `applyFilter` in `MainActivity.kt`
 If durable recents are ever wanted, persist `recentKeys` to a **separate** small
 file (not `verso.json`) and load it on start.
 
-## App enumeration is single-user
+## Private space is untested
 
-Verso enumerates only the current user's launchable apps via a `PackageManager`
-MAIN/LAUNCHER query — no work-profile, cloned or private-space apps (inherited from
-the Sigil 0.2.x line it was copied from).
+Apps are listed through `LauncherApps` across every profile the launcher is shown:
+the personal one plus a work profile or cloned apps (badged by the system, e.g.
+"Calculator (Work)"). This was verified with a managed test profile. Android 15's
+private space is a hidden profile with its own rules for which launcher sees it; it
+has not been tried on a device, so whether and when its apps appear is open. Tapping
+an app of a paused work profile asks the system to turn the profile back on — also
+not yet tried on a device.
 
 ## Gestures on the front page
 
