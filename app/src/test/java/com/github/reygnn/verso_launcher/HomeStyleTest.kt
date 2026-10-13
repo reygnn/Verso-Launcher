@@ -44,11 +44,30 @@ class HomeStyleTest {
         assertEquals(HomeStyle.argb(204, 255, 255, 255), HomeStyle.tonalOutlineColor(0xFF000000.toInt()))
     }
 
+    /** An opaque grey whose three channels are [v]. Luminances below are WCAG's for that grey. */
+    private fun grey(v: Int) = HomeStyle.argb(255, v, v, v)
+
     @Test fun `mid tones flip from a white to a black rim at luminance 0_5`() {
-        val darkGray = HomeStyle.tonalOutlineColor(0xFF555555.toInt())   // luminance ~0.09..0.1
-        val lightGray = HomeStyle.tonalOutlineColor(0xFFCCCCCC.toInt())  // luminance ~0.6
-        assertEquals(0xFFFFFF, darkGray and 0xFFFFFF)
-        assertEquals(0x000000, lightGray and 0xFFFFFF)
+        // 0xBB is luminance 0.4969, 0xBC 0.5029 — the neighbouring greys either side of 0.5,
+        // so the flip is pinned to 0.5 itself, not just "somewhere between dark and light".
+        assertEquals(HomeStyle.argb(102, 255, 255, 255), HomeStyle.tonalOutlineColor(grey(0xBB)))
+        assertEquals(HomeStyle.argb(77, 0, 0, 0), HomeStyle.tonalOutlineColor(grey(0xBC)))
+    }
+
+    @Test fun `the white rim eases from 75 to 40 percent between luminance 0_1 and 0_5`() {
+        // 0x59 is luminance 0.0999 (still the fixed 80 %), 0x5A 0.1022 (interpolation begins).
+        assertEquals(HomeStyle.argb(204, 255, 255, 255), HomeStyle.tonalOutlineColor(grey(0x59)))
+        assertEquals(HomeStyle.argb(190, 255, 255, 255), HomeStyle.tonalOutlineColor(grey(0x5A)))
+        // 0x89 is luminance 0.2502: 37.5 % of the way, 0.75 -> 0.4 gives 0.619 -> alpha 157.
+        assertEquals(HomeStyle.argb(157, 255, 255, 255), HomeStyle.tonalOutlineColor(grey(0x89)))
+    }
+
+    @Test fun `the black rim strengthens from 30 to 60 percent between luminance 0_5 and 0_9`() {
+        // 0xD0 is luminance 0.6308: 32.7 % of the way, 0.3 -> 0.6 gives 0.398 -> alpha 101.
+        assertEquals(HomeStyle.argb(101, 0, 0, 0), HomeStyle.tonalOutlineColor(grey(0xD0)))
+        // 0xF3 is luminance 0.8963 (last interpolated step), 0xF4 0.9047 (the fixed 60 %).
+        assertEquals(HomeStyle.argb(152, 0, 0, 0), HomeStyle.tonalOutlineColor(grey(0xF3)))
+        assertEquals(HomeStyle.argb(153, 0, 0, 0), HomeStyle.tonalOutlineColor(grey(0xF4)))
     }
 
     @Test fun `luminance spans 0 to 1`() {
