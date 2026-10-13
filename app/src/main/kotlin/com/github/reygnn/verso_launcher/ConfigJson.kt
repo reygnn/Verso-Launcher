@@ -51,7 +51,7 @@ internal object ConfigJson {
 
     /**
      * Parse a config that came from OUTSIDE the app — the document a "~restore" pick
-     * hands over — returning null unless it actually looks like a sigil config.
+     * hands over — returning null unless it actually looks like a Verso config.
      *
      * [parse]'s leniency is right for OUR file in filesDir, where a missing section
      * means an older or half-written copy and salvaging the rest beats failing. For a

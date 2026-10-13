@@ -102,8 +102,8 @@ import java.util.concurrent.RejectedExecutionException
  *              destroys the state it overwrote without a trace.
  *   ~restore-saf
  *              same, but PICK the file via the system document picker. The escape
- *              hatch for a config carried over from another phone — or a sigil.json
- *              from Sigil Launcher, whose format is identical (see [restoreConfig]).
+ *              hatch for a config carried over from another phone or surviving a
+ *              reinstall (see [restoreConfig]).
  * Long-press any row (home or drawer) to set a custom name and its tags.
  */
 class MainActivity : Activity() {

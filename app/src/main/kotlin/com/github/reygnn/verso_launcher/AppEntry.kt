@@ -21,8 +21,8 @@ internal data class AppEntry(
 ) : Ordered {
     /**
      * "package/class" — the identity key for hidden/favorites/names/tags everywhere, and the
-     * same string ComponentName.flattenToString() produces, so configs written by Sigil (or by
-     * an earlier Verso) keep matching. Per launcher ACTIVITY, not per package: a package can
+     * same string ComponentName.flattenToString() produces, so configs and backups written by
+     * an earlier Verso keep matching. Per launcher ACTIVITY, not per package: a package can
      * expose several launcher entries, and each must toggle and rename on its own. A body val,
      * so it stays out of equals/hashCode/copy — the constructor fields already define identity.
      */

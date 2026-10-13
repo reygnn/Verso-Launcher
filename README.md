@@ -105,10 +105,7 @@ keyboard, no prompt:
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
-      it; this is the way in for those. One dialog, no permission. A `sigil.json`
-      from Sigil Launcher has the same format, so this is also how you **bring your
-      Sigil setup over**: `~backup` in Sigil, then `~restore-saf` here and pick
-      `Download/Sigil/sigil.json`
+      it; this is the way in for those. One dialog, no permission
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
   command line (the bottom-most, since results fill upward). On an empty line
   **Enter** only drops the keyboard (see above) — it never launches.
@@ -116,10 +113,9 @@ keyboard, no prompt:
   the plain drawer in one tap, keeping the keyboard up so you can retype at once; it
   shows only while there is text to erase.
 - Long-press any row to set a custom name and its tags (comma-separated).
-- Registers as `HOME` + `LAUNCHER`, `singleTask`. Installs **next to** an existing
-  Sigil Launcher (own package `com.github.reygnn.verso_launcher`, own `verso.json`,
-  backups in `Download/Verso/`), so you can move over at your own pace and uninstall
-  Sigil afterwards.
+- Registers as `HOME` + `LAUNCHER`, `singleTask` (package
+  `com.github.reygnn.verso_launcher`, config in `verso.json`, backups in
+  `Download/Verso/`).
 
 ## Lineage
 

@@ -29,7 +29,7 @@
     <string name="toast_restore_ok">config restored — previous one saved as %1$s</string>
     <string name="toast_restore_undo_failed">restore aborted — the current config could not be saved as an undo point first. Nothing was changed.</string>
     <string name="toast_restore_failed">restore failed — the backup is not a readable verso.json. Nothing was changed.</string>
-    <string name="toast_restore_none">no backup found — run ~backup first, or ~restore-saf to pick a file (a Sigil sigil.json works too)</string>
+    <string name="toast_restore_none">no backup found — run ~backup first, or ~restore-saf to pick a file</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
     <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
          read aloud sensibly). %1$s is the app label. -->

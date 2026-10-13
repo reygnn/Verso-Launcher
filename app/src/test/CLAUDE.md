@@ -86,7 +86,7 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
   (Enter/tap) + `LauncherRowsTest` (rows).
 - Anything touching search, fold or sort → `LauncherLogicTest`, with a Turkish and
   a German/Swedish locale case.
-- Config shape → `ConfigJsonTest` (and keep Sigil configs parsing).
+- Config shape → `ConfigJsonTest` (and keep older `verso.json` files parsing).
 - Save/load durability → `ConfigStoreTest`; backup naming → `BackupFilesTest`,
   backup I/O → `BackupStoreInstrumentedTest`.
 

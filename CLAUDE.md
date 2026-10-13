@@ -33,9 +33,8 @@ swipe actions, any runtime permission. See `KNOWN_LIMITATIONS.md`. A new feature
 category needs explicit user agreement before it is built.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
-longer maintained, its GitHub repo removed, October 2026) — never port anything back.
-What stays is compatibility for people moving over: a `sigil.json` must keep restoring
-via `~restore-saf` (same format, same `package/class` keys).
+longer maintained, its GitHub repo removed, October 2026) — never port anything back,
+and there is no Sigil compatibility to keep: its only user has moved over.
 
 ---
 
@@ -118,9 +117,9 @@ main, written on the IO thread.
 7. **Restore order:** read + `parseForeign` on the IO thread (never the lenient
    `parse` for outside files) → write the undo point → only then `adopt`. No undo
    point, no restore.
-8. **Config keys are `package/class`** (`ComponentName.flattenToString()`), so Sigil
-   configs and backups stay importable for people migrating. Don't change the key or the JSON shape
-   without a migration.
+8. **Config keys are `package/class`** (`ComponentName.flattenToString()`), so configs
+   and backups written by earlier Verso versions stay readable. Don't change the key or
+   the JSON shape without a migration.
 9. **`LauncherLogic.foldLabel` is the only fold** (NFC, `Locale.ROOT`, drop U+0307)
    for labels, needles and tags (`canonicalTag` builds on it). Lists are sorted with
    a `Collator` for the device locale (`sortedForDrawer`, `sortedTags`), never by
