@@ -361,7 +361,12 @@ class MainActivity : Activity() {
             contentDescription = getString(R.string.clear_prompt)
             isFocusable = false  // keep focus (and the IME) on the prompt when tapped
             visibility = View.GONE
-            setOnClickListener { prompt.setText("") }  // TextWatcher -> applyFilter resets to NORMAL
+            setOnClickListener {
+                prompt.setText("")  // TextWatcher -> applyFilter resets to NORMAL
+                // Clearing is for retyping — so the keyboard belongs up, also after the recents
+                // view, which opened without it.
+                showKeyboard()
+            }
         }
 
         // The prompt: a bare monospace command line at the bottom.
@@ -396,7 +401,8 @@ class MainActivity : Activity() {
                 // action or the key-DOWN edge only; ignore (don't consume) the rest.
                 val enterDown = event?.keyCode == KeyEvent.KEYCODE_ENTER &&
                     event.action == KeyEvent.ACTION_DOWN
-                if (actionId != EditorInfo.IME_ACTION_GO && !enterDown) {
+                val imeAction = actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE
+                if (!imeAction && !enterDown) {
                     return@setOnEditorActionListener false
                 }
                 // A "~" command is one-shot, not a view, so it lives on Enter rather
@@ -439,6 +445,9 @@ class MainActivity : Activity() {
         val promptRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            // 48dp: the minimum touch target — the bare EditText (no background, no padding)
+            // and the × were only ~30dp tall.
+            minimumHeight = 48.dp()
             addView(prompt, LinearLayout.LayoutParams(0, WRAP, 1f))
             addView(clearButton, LinearLayout.LayoutParams(WRAP, MATCH))
         }
@@ -534,9 +543,11 @@ class MainActivity : Activity() {
             OnBackInvokedDispatcher.PRIORITY_DEFAULT
         ) {
             if (!drawerOpen) return@registerOnBackInvokedCallback
-            // The recents view is what a swipe down on home opened, so Back leaves it the way
-            // it came — straight home, like closing Kolibri's recents list.
-            if (prompt.text?.isNotEmpty() == true && mode != Mode.RECENTS) {
+            // The bare recents view ("?") is what a swipe down on home opened, so Back leaves it
+            // the way it came — straight home, like closing Kolibri's recents list. Anything
+            // typed after it ("?gm") is a search like any other: Back clears it first.
+            val text = prompt.text?.toString().orEmpty()
+            if (text.isNotEmpty() && text != RECENTS_PROMPT) {
                 prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
             } else {
                 closeDrawer()
@@ -957,6 +968,9 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Counts "~restore-saf" picks, so only the newest one's read is adopted. */
+    private var restorePick = 0
+
     /** The "~restore-saf" picker's answer. Reading stays off the main thread; only the
      *  adoption comes back to it, exactly as in [restoreConfig]. */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -971,9 +985,13 @@ class MainActivity : Activity() {
         // and every app refresh behind it. This read touches no file of the app's own, so it
         // needs none of the IO thread's ordering; the undo point and the adoption still go
         // through it (adoptRestored). Never throws: readText and parseForeign return null.
+        // Newest pick wins: a read stuck at a hung provider may finish after a later pick — its
+        // result must not be adopted over the newer one.
+        val pick = ++restorePick
         Thread(guarded("restore read") {
             val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
             onUi {
+                if (pick != restorePick) return@onUi
                 // Unlike [restoreConfig] a null here is not "no backup yet" — the user
                 // pointed at a file and it could not be read or is no config. Either way
                 // nothing was changed.
@@ -1401,6 +1419,14 @@ class MainActivity : Activity() {
     private fun applyFilter(raw: String) {
         val q = raw.trim()
         mode = LauncherLogic.parseMode(q)
+        // The keyboard's Enter key says what Enter does here: "Done" in the edit modes (it
+        // leaves them), "Go" where it launches or runs. Only switched when it changes —
+        // restarting the input connection on every keystroke would make the IME flicker.
+        val wantedAction = if (LauncherLogic.isEditMode(mode)) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_GO
+        if (prompt.imeOptions != wantedAction) {
+            prompt.imeOptions = wantedAction
+            getSystemService(InputMethodManager::class.java).restartInput(prompt)
+        }
         // The bare, empty-prompt drawer is a plain A-to-Z list and reads top-down like any
         // app drawer; every other view (search results, sigil modes) keeps Sigil's
         // bottom-anchoring, so results sit right above the command line where Enter acts.

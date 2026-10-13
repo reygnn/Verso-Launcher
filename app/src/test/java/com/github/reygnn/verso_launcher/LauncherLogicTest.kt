@@ -458,6 +458,11 @@ class LauncherLogicTest {
         assertEquals(LauncherLogic.MAX_TAG_LENGTH, LauncherLogic.canonicalTag("t".repeat(500)).length)
     }
 
+    @Test fun `the edit modes are exactly the ones whose Enter means done`() {
+        val edit = Mode.entries.filter { LauncherLogic.isEditMode(it) }.toSet()
+        assertEquals(setOf(Mode.HIDDEN_EDIT, Mode.FAV_EDIT, Mode.FAV_REORDER, Mode.TAG_EDIT), edit)
+    }
+
     // ---- tag order ----------------------------------------------------------
 
     @Test fun `tags sort in the device language's alphabet, umlauts with their base letter`() {

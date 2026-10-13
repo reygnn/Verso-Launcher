@@ -437,6 +437,10 @@ internal object LauncherLogic {
         return if (folded in list) list - folded else list + folded
     }
 
+    /** The edit modes: Enter there means "done" (it leaves the mode), not "go". */
+    fun isEditMode(mode: Mode): Boolean =
+        mode == Mode.HIDDEN_EDIT || mode == Mode.FAV_EDIT || mode == Mode.FAV_REORDER || mode == Mode.TAG_EDIT
+
     /**
      * What a rename dialog's typed [name] means for the stored name override of an app whose
      * own label the system reports as [systemLabel]: the string to STORE, or null to CLEAR any
