@@ -123,6 +123,44 @@ class LauncherStateTest {
         assertEquals(setOf(key("Bravo")), state.config.hidden)
     }
 
+    @Test fun `a reload superseded by a resume refresh still reads the file`() {
+        started()
+        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
+        state.refresh(reloadConfig = true)
+        state.refresh()  // onResume before the reload's IO ran: supersedes it
+        runAll()
+        assertEquals(2, loadConfigCalls)
+        assertEquals(setOf(key("Bravo")), state.config.hidden)
+    }
+
+    @Test fun `a reload superseded at its hand-off still reads the file`() {
+        started()
+        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
+        state.refresh(reloadConfig = true)
+        runIo()            // the reload read the file…
+        state.refresh()    // …but a resume superseded it before the hand-off
+        runAll()
+        assertEquals(setOf(key("Bravo")), state.config.hidden)
+    }
+
+    @Test fun `a completed reload is not repeated by later refreshes`() {
+        started()
+        state.refresh(reloadConfig = true)
+        runAll()
+        state.refresh()
+        runAll()
+        assertEquals(2, loadConfigCalls)
+    }
+
+    @Test fun `a restore cancels a pending reload instead of re-reading the file`() {
+        started()
+        state.refresh(reloadConfig = true)
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
+        runAll()
+        assertEquals(1, loadConfigCalls)
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+    }
+
     @Test fun `configLoaded is false until the disk copy or a restore is adopted`() {
         assertFalse(state.configLoaded)
         state.refresh()
@@ -342,6 +380,19 @@ class LauncherStateTest {
     }
 
     // ---- recents ----------------------------------------------------------------
+
+    @Test fun `recents start from the process-wide list and report every change`() {
+        val reported = mutableListOf<List<String>>()
+        val s = LauncherState(
+            io = { true }, main = {}, loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
+            serialize = { "" }, writeConfig = { true }, onRefreshed = {},
+            initialRecents = listOf("a", "b"),
+            onRecentsChanged = { reported += it },
+        )
+        assertEquals(listOf("a", "b"), s.recentKeys)
+        s.recordLaunch("c")
+        assertEquals(listOf(listOf("c", "a", "b")), reported)
+    }
 
     @Test fun `recents are newest first, de-duplicated and capped`() {
         for (i in 1..10) state.recordLaunch("k$i")

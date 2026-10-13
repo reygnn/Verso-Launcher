@@ -45,7 +45,6 @@ import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import java.io.File
 import java.io.FileDescriptor
-import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 
 /**
@@ -157,17 +156,16 @@ class MainActivity : Activity() {
     // the bare-"#" overview. Reassigned only by applyFilter (from LauncherLogic.rowsFor).
     private var shown: List<Row<AppEntry>> = emptyList()
 
-    // One-shot guard for the "recents are empty because we cold-started" toast. The
-    // launcher process is killed under memory pressure (aggressively on low-RAM
-    // devices), which silently empties the recents; the hint stops that reading as
-    // lost data. Shown at most once per process — see applyFilter.
-    private var recentsEmptyHintShown = false
+    // What outlives this instance: the one disk thread and the recents (see VersoApp).
+    private val app get() = VersoApp.from(this)
 
     // A single background thread owns ALL disk I/O — both the app reload and the
     // config write run here. Off the main thread (a tap or resume never blocks on
     // disk) and serialized against each other, so two rapid saves can't race on the
-    // temp file and reloads can't pile up into an unbounded number of threads.
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    // temp file and reloads can't pile up into an unbounded number of threads. It is the
+    // PROCESS's thread, not this instance's: a recreated activity queues behind whatever
+    // its predecessor left in flight instead of racing it on a thread of its own.
+    private val ioExecutor get() = app.io
 
     private lateinit var listView: ListView
     private lateinit var prompt: EditText
@@ -183,7 +181,7 @@ class MainActivity : Activity() {
     private val state by lazy {
         LauncherState(
             io = ::submitIo,
-            main = { task -> runOnUiThread(task) },
+            main = { task -> onUi { task.run() } },
             loadConfig = { store.load() },
             enumerateApps = ::loadApps,
             serialize = ConfigJson::serialize,
@@ -197,6 +195,8 @@ class MainActivity : Activity() {
             },
             isFreshInstall = { store.isFresh() },
             defaultFavoriteCandidates = ::defaultFavoriteCandidates,
+            initialRecents = app.recentKeys,
+            onRecentsChanged = { app.recentKeys = it },
         )
     }
 
@@ -638,20 +638,24 @@ class MainActivity : Activity() {
         // field; guarding here is belt-and-suspenders.
         renameDialog?.dismiss()
         renameDialog = null
-        // A HOME activity is rarely destroyed, but shut the IO thread down cleanly
-        // if it is. shutdown() (not shutdownNow) lets an in-flight save finish.
-        ioExecutor.shutdown()
+        // No executor shutdown: the IO thread is the process's (VersoApp.io), and work this
+        // instance queued — a save above all — must still run for the next one. What it
+        // would hand back to this instance's main thread is dropped by onUi instead.
         super.onDestroy()
     }
 
     /**
-     * Submit disk work to [ioExecutor] without ever letting a post-shutdown
-     * submission crash the app. Every caller today runs on the main thread — the
-     * same thread that calls shutdown() in onDestroy — so the isShutdown check is
-     * race-free as written; the catch is belt-and-suspenders for any future
-     * refactor that adds an off-main caller and could lose that guarantee.
-     * Dropping a task once the executor is down is fine: the activity is going
-     * away, so an unwritten save or a skipped reload no longer matters.
+     * Run [block] on the main thread for THIS instance — or not at all once it is destroyed.
+     * IO work outlives the instance that queued it (the thread is the process's); its
+     * hand-back must not then act on a dead activity: adopt a restore into a state nobody
+     * shows, toast from a gone window, re-render views that are no longer attached.
+     */
+    private fun onUi(block: () -> Unit) = runOnUiThread { if (!isDestroyed) block() }
+
+    /**
+     * Submit disk work to [ioExecutor]. The executor is the process's and never shut down, so
+     * a refusal is not expected; the check and the catch keep a future change that does shut
+     * it down from crashing the HOME app — a refused task is reported as false, never thrown.
      */
     private fun submitIo(task: Runnable): Boolean {
         if (ioExecutor.isShutdown) return false
@@ -747,7 +751,7 @@ class MainActivity : Activity() {
         val payload = if (state.configLoaded) ConfigJson.serialize(state.config) else null
         val accepted = submitIo {
             val name = backupStore.write(BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
-            runOnUiThread {
+            onUi {
                 // Name the file actually written: its name carries the time it was taken.
                 if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
                 else toast(getString(R.string.toast_backup_failed))
@@ -772,7 +776,7 @@ class MainActivity : Activity() {
             // Parsed here, off the main thread: a hostile document is parse work the UI must
             // not wait on (and the parse is where a torn temp gets rejected).
             val restored = text?.let { ConfigJson.parseForeign(it) }
-            runOnUiThread {
+            onUi {
                 // Nothing there at all is its own message: "~backup was never run" is a
                 // different problem from "the backup is broken", and saying so saves the
                 // user hunting for a file that does not exist.
@@ -833,7 +837,7 @@ class MainActivity : Activity() {
         if (resultCode != RESULT_OK || uri == null) return
         submitIo {
             val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
-            runOnUiThread {
+            onUi {
                 // Unlike [restoreConfig] a null here is not "no backup yet" — the user
                 // pointed at a file and it could not be read or is no config. Either way
                 // nothing was changed.
@@ -869,10 +873,10 @@ class MainActivity : Activity() {
         val outgoing = if (state.configLoaded) ConfigJson.serialize(state.config) else null
         val accepted = submitIo {
             val undo = backupStore.write(PRE_RESTORE_BASE, outgoing ?: ConfigJson.serialize(store.load()))
-            runOnUiThread {
+            onUi {
                 if (undo == null) {
                     toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
-                    return@runOnUiThread
+                    return@onUi
                 }
                 // Wholesale replace, save and re-render — with the epoch guard that keeps an
                 // enumeration already in flight from handing the OLD config back over this one.
@@ -1188,8 +1192,8 @@ class MainActivity : Activity() {
         // out of the rendered list but still sits in the recents, so testing the cache would
         // leave the user staring at an unexplained empty "?" — the one case the hint exists
         // for.
-        if (mode == Mode.RECENTS && shown.isEmpty() && !recentsEmptyHintShown) {
-            recentsEmptyHintShown = true
+        if (mode == Mode.RECENTS && shown.isEmpty() && !app.recentsEmptyHintShown) {
+            app.recentsEmptyHintShown = true
             Toast.makeText(this, getString(R.string.toast_recents_empty), Toast.LENGTH_LONG).show()
         }
         adapter.notifyDataSetChanged()

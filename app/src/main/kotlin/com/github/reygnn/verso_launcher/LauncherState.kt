@@ -42,6 +42,10 @@ package com.github.reygnn.verso_launcher
  * @param isFreshInstall true when no config exists on disk yet (IO thread, before the read).
  * @param defaultFavoriteCandidates the candidate keys per default favorite slot, see
  *                      [LauncherLogic.pickDefaultFavorites] (IO thread, fresh install only).
+ * @param initialRecents the "?" list to start from — the process-wide one, so an Activity
+ *                      recreated by a configuration change does not lose it.
+ * @param onRecentsChanged main thread, after every change to [recentKeys], to keep that
+ *                      process-wide copy current.
  */
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
@@ -53,6 +57,8 @@ internal class LauncherState(
     private val onRefreshed: (configReplaced: Boolean) -> Unit,
     private val isFreshInstall: () -> Boolean = { false },
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
+    initialRecents: List<String> = emptyList(),
+    private val onRecentsChanged: (List<String>) -> Unit = {},
 ) {
     /** The live config. Read freely on the main thread; mutate only through this class. */
     var config: VersoConfig = VersoConfig()
@@ -67,8 +73,8 @@ internal class LauncherState(
     var appsLoaded = false
         private set
 
-    /** The "?" view's keys, newest first. In memory only — empty after every cold start. */
-    var recentKeys: List<String> = emptyList()
+    /** The "?" view's keys, newest first. In memory only — empty after every process start. */
+    var recentKeys: List<String> = initialRecents
         private set
 
     /**
@@ -78,6 +84,14 @@ internal class LauncherState(
      */
     var configLoaded = false
         private set
+
+    /**
+     * A "~load" asked for that has not been carried out yet. A refresh is superseded by any
+     * newer one, and a plain resume-refresh does not read the file — so without this a
+     * "~load" followed by a quick pause/resume (a dialog, a translucent activity) was
+     * silently dropped. Cleared only when a load that read the file reaches its hand-off.
+     */
+    private var reloadPending = false
 
     @Volatile private var loadGeneration = 0
     @Volatile private var labelGeneration = 0
@@ -98,7 +112,8 @@ internal class LauncherState(
         // advances before the hand-off, an in-memory change already applied the newer truth.
         val labelGen = labelGeneration
         val epoch = configEpoch
-        val loadConfigNow = reloadConfig || !configLoaded
+        if (reloadConfig) reloadPending = true
+        val loadConfigNow = reloadPending || !configLoaded
         // Snapshot on the main thread — the loader must never read the live config, which a
         // rename/toggle may be mutating. Skipped when the load reads the disk copy anyway.
         val cached = if (loadConfigNow) VersoConfig() else config.snapshot()
@@ -116,6 +131,9 @@ internal class LauncherState(
             } else emptyList()
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile
+                // The file was read: the reload is done — adopted below, or deliberately not,
+                // because memory changed since the read and is the newer truth.
+                if (loadConfigNow) reloadPending = false
                 var replaced = false
                 // Adopt the disk copy only if nothing changed the config since the read; on a
                 // cold start nothing can have, so this always adopts there.
@@ -226,6 +244,7 @@ internal class LauncherState(
     /** Record a launch that actually started, for the "?" view. */
     fun recordLaunch(key: String) {
         recentKeys = LauncherLogic.pushRecent(recentKeys, key, RECENTS_LIMIT)
+        onRecentsChanged(recentKeys)
     }
 
     /**
@@ -238,6 +257,9 @@ internal class LauncherState(
     fun adopt(restored: VersoConfig) {
         config = restored
         configLoaded = true
+        // A restore supersedes a "~load" still pending: the file it would read is about to be
+        // the restored config anyway, and the refresh below must not re-read it.
+        reloadPending = false
         mutated()
         refresh()
     }

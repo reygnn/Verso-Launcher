@@ -7,6 +7,10 @@
     <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nTo put apps here, type ! in the drawer\'s search line and tap them. !! reorders them.</string>
     <string name="a11y_home">Home screen</string>
     <string name="a11y_open_drawer">Open all apps</string>
+    <!-- The double-tap targets on home: what TalkBack announces for activating them. -->
+    <string name="a11y_open_alarms">open alarms</string>
+    <string name="a11y_open_calendar">open calendar</string>
+    <string name="a11y_open_battery">open battery usage</string>
     <string name="a11y_charging">Charging</string>
     <string name="a11y_battery_protected">Battery protection: charge is being held</string>
     <string name="toast_no_app">no app for that on this device</string>

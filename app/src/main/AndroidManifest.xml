@@ -32,14 +32,19 @@
     </queries>
 
     <application
+        android:name=".VersoApp"
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/VersoTheme">
 
+        <!-- No "density" in configChanges: a display-size change recreates the activity, so
+             every pixel value it computed from the density (paddings, the swipe distance) is
+             computed afresh. Nothing is lost by that — the disk thread and the recents live
+             in VersoApp, and the config is re-read from disk. -->
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
             android:screenOrientation="portrait"
             android:exported="true"
             android:launchMode="singleTask"

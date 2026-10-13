@@ -53,9 +53,8 @@ internal class HomePage(
     private val onEdit: (AppEntry) -> Unit,
     private val onOpenDrawer: () -> Unit,
 ) {
-    // Read live, not cached: the manifest handles density changes (display size) itself, so
-    // the Activity — and this page — survive them, and rows rendered afterwards must use the
-    // new density like the text size beside them does.
+    // A display-size (density) change recreates the activity and this page with it (the
+    // manifest no longer handles "density"), so every value derived from this is fresh.
     private val density get() = activity.resources.displayMetrics.density
     private val outlinePx get() = HomeStyle.OUTLINE_DP * density
     private val textColor = HomeStyle.TEXT_COLOR
@@ -100,7 +99,7 @@ internal class HomePage(
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             textSize = HomeStyle.CLOCK_SP
             outlined()
-            onDoubleTap { openAlarms() }
+            onDoubleTap(R.string.a11y_open_alarms) { openAlarms() }
         }
         val infoPad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
         // Kolibri's short date: "Tue, 13 Oct" / "Di., 13 Okt." (localized day/month names).
@@ -110,7 +109,7 @@ internal class HomePage(
             textSize = HomeStyle.INFO_SP
             outlined()
             setPadding(infoPad, infoPad, infoPad, infoPad)
-            onDoubleTap { openCalendar() }
+            onDoubleTap(R.string.a11y_open_calendar) { openCalendar() }
         }
         batteryText = OutlinedTextView(activity).apply {
             text = BatteryInfo.UNKNOWN_LABEL
@@ -118,7 +117,7 @@ internal class HomePage(
             outlined()
             setTextColor(textColor)  // like clock and date: no press dimming on a double-tap target
             setPadding(infoPad, infoPad, infoPad, infoPad)
-            onDoubleTap { openBatteryUsage() }
+            onDoubleTap(R.string.a11y_open_battery) { openBatteryUsage() }
         }
         chargingIcon = stateIcon(R.drawable.ic_bolt_outlined, R.string.a11y_charging)
         protectedIcon = stateIcon(R.drawable.ic_shield_outlined, R.string.a11y_battery_protected)
@@ -338,10 +337,37 @@ internal class HomePage(
         setOutline(outlinePx, outlineColor)
     }
 
-    /** Fire [action] on a double tap only (Kolibri's clock / date / battery behaviour). */
-    private fun View.onDoubleTap(action: () -> Unit) {
+    /**
+     * Fire [onActivate] on a double tap only (Kolibri's clock / date / battery behaviour).
+     *
+     * A screen reader is the exception: TalkBack's own "double-tap to activate" arrives as ONE
+     * click, which the gate would always swallow — and a second activation within 300 ms is
+     * practically impossible, so the action was unreachable. An accessibility click therefore
+     * runs [onActivate] directly, and TalkBack announces what it does ([label], a string res).
+     */
+    private fun View.onDoubleTap(label: Int, onActivate: () -> Unit) {
         val gate = DoubleTapGate()
-        setOnClickListener { if (gate.tap(SystemClock.uptimeMillis())) action() }
+        setOnClickListener { if (gate.tap(SystemClock.uptimeMillis())) onActivate() }
+        accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                // Same id as the plain click: this relabels it ("double-tap to open alarms").
+                info.addAction(
+                    AccessibilityNodeInfo.AccessibilityAction(
+                        AccessibilityNodeInfo.ACTION_CLICK,
+                        activity.getString(label),
+                    )
+                )
+            }
+
+            override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
+                if (action == AccessibilityNodeInfo.ACTION_CLICK) {
+                    onActivate()
+                    return true
+                }
+                return super.performAccessibilityAction(host, action, args)
+            }
+        }
     }
 
     private fun Int.dp(): Int = (this * density).toInt()
