@@ -428,6 +428,15 @@ class LauncherStateTest {
         assertEquals(false, result)
     }
 
+    @Test fun `a refused save does not make the save queued ahead of it skip its write`() {
+        started()
+        state.toggleFavorite(key("Alpha"))   // queued
+        ioOpen = false
+        state.toggleFavorite(key("Bravo"))   // refused: it will never run
+        runAll()
+        assertEquals(listOf("fav=${key("Alpha")};hid=;names=;tags="), written)
+    }
+
     // ---- toggles ----------------------------------------------------------------
 
     @Test fun `toggling twice restores the set, and a new favorite goes last`() {

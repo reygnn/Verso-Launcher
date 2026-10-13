@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- With these rules present, Android 12+ ignores allowBackup, so cloud backup is shut off
+     here explicitly: every domain excluded. A device-to-device transfer moves verso.json
+     (the config) but not its recovery copies, which describe the old phone's last writes,
+     nor the home-cache, which is rebuilt on the first load. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="verso.json.tmp" />
+        <exclude domain="file" path="verso.json.bak" />
+        <exclude domain="file" path="home-cache.txt" />
+        <exclude domain="file" path="home-cache.txt.tmp" />
+    </device-transfer>
+</data-extraction-rules>

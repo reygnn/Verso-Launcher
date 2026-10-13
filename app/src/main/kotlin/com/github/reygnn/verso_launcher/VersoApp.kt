@@ -27,6 +27,10 @@ class VersoApp : Application() {
      *  an app of another profile, which costs a binder call each. Read and written on [io] only. */
     internal val badgedLabels = HashMap<BadgeKey, String>()
 
+    /** The wallpaper palette last applied (null: none yet in this process) — so a recreated
+     *  activity starts in the right colours. Main thread only. */
+    internal var palette: Palette? = null
+
     /** The "?" list, newest first. In memory only, so it lasts until the process dies. */
     internal var recentKeys: List<String> = emptyList()
 

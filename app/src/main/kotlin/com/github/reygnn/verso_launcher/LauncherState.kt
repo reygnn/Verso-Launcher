@@ -207,7 +207,12 @@ internal class LauncherState(
             val ok = writeConfig(payload)
             onDone?.let { cb -> main(Runnable { cb(ok) }) }
         })
-        if (!accepted) onDone?.invoke(false)
+        if (!accepted) {
+            // Refused (the executor is gone): take the number back, or a save still queued
+            // ahead would see itself superseded by one that never runs, and skip its write.
+            saveSeq--
+            onDone?.invoke(false)
+        }
     }
 
     /** Hide / unhide [key] ("-" mode). */

@@ -52,6 +52,8 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import android.window.BackEvent
+import android.window.OnBackAnimationCallback
 import android.window.OnBackInvokedDispatcher
 import java.io.File
 import java.io.FileDescriptor
@@ -563,20 +565,51 @@ class MainActivity : Activity() {
         // drawer, a non-empty prompt (a search or an edit mode) clears back to the plain
         // drawer first; Back on an empty prompt turns the page back to home (which also
         // drops the keyboard). Lives for the whole activity.
+        //
+        // Predictive back: a back gesture that will close the drawer previews it — the drawer
+        // follows the gesture down a little (BACK_PREVIEW_FRACTION of the page) over a home
+        // fading in, the same pages a drag moves. Released, the close runs on from there;
+        // cancelled, the drawer settles back. 3-button Back skips the preview and just closes.
         onBackInvokedDispatcher.registerOnBackInvokedCallback(
-            OnBackInvokedDispatcher.PRIORITY_DEFAULT
-        ) {
-            if (!drawerOpen) return@registerOnBackInvokedCallback
-            // The bare recents view ("?") is what a swipe down on home opened, so Back leaves it
-            // the way it came — straight home, like closing Kolibri's recents list. Anything
-            // typed after it ("?gm") is a search like any other: Back clears it first.
-            val text = prompt.text?.toString().orEmpty()
-            if (text.isNotEmpty() && text != RECENTS_PROMPT) {
-                prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
-            } else {
-                closeDrawer()
-            }
-        }
+            OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            object : OnBackAnimationCallback {
+                // The drawer offset the preview started from; null while no preview runs.
+                private var previewFrom: Float? = null
+
+                // The bare recents view ("?") is what a swipe down on home opened, so Back
+                // leaves it the way it came — straight home, like closing Kolibri's recents
+                // list. Anything typed after it ("?gm") is a search like any other: Back clears
+                // it first.
+                private fun closes(): Boolean {
+                    val text = prompt.text?.toString().orEmpty()
+                    return drawerOpen && (text.isEmpty() || text == RECENTS_PROMPT)
+                }
+
+                override fun onBackStarted(backEvent: BackEvent) {
+                    previewFrom = if (closes()) beginPageDrag(SwipeDir.DOWN) else null
+                }
+
+                override fun onBackProgressed(backEvent: BackEvent) {
+                    val from = previewFrom ?: return
+                    if (!drawerOpen) return
+                    dragPage(SwipeDir.DOWN, from + backEvent.progress * pageHeight() * BACK_PREVIEW_FRACTION)
+                }
+
+                override fun onBackCancelled() {
+                    // Only if the drawer is still the page in front: HOME or the screen going
+                    // off may have closed it meanwhile.
+                    if (previewFrom != null && drawerOpen) settle(open = true)
+                    previewFrom = null
+                }
+
+                override fun onBackInvoked() {
+                    previewFrom = null
+                    if (!drawerOpen) return
+                    if (closes()) closeDrawer()
+                    else prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
+                }
+            },
+        )
 
         // Live updates for installs/uninstalls and profile changes (see appsChanged).
         watchApps()
@@ -595,7 +628,19 @@ class MainActivity : Activity() {
         }
 
         // Text colours for the wallpaper behind, and live when it changes (see applyPalette).
-        applyPalette(HomeStyle.palette(wallpaperIsLight()))
+        // Asking the system is a binder call that may extract the colours from the bitmap
+        // right then (the first start after boot), so it runs on the IO thread; until it
+        // answers, the last palette this process saw (a recreated activity) or the dark one.
+        applyPalette(app.palette ?: HomeStyle.palette(lightWallpaper = false))
+        val asked = ++paletteGeneration
+        submitIo {
+            val light = wallpaperIsLight()
+            onUi {
+                // A listener call since the question is newer than this answer.
+                val answer = HomeStyle.palette(light)
+                if (asked == paletteGeneration && answer != palette) applyPalette(answer)
+            }
+        }
         WallpaperManager.getInstance(this).addOnColorsChangedListener(wallpaperColors, Handler(Looper.getMainLooper()))
     }
 
@@ -1657,8 +1702,13 @@ class MainActivity : Activity() {
     private val wallpaperColors = WallpaperManager.OnColorsChangedListener { colors, which ->
         if (which and WallpaperManager.FLAG_SYSTEM == 0) return@OnColorsChangedListener
         val light = colors != null && (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+        ++paletteGeneration
         applyPalette(HomeStyle.palette(light))
     }
+
+    // Bumped by every palette decision, so the IO thread's first answer cannot overwrite a
+    // newer one from the listener.
+    private var paletteGeneration = 0
 
     /**
      * Repaint everything that sits on the wallpaper in [p]: the home page, the drawer rows (via a
@@ -1667,6 +1717,7 @@ class MainActivity : Activity() {
      */
     private fun applyPalette(p: Palette) {
         palette = p
+        app.palette = p
         homePage.applyTextColor(p.homeText)
         prompt.setTextColor(fgColor)
         prompt.setHintTextColor(fgColorDim)
@@ -1859,6 +1910,8 @@ class MainActivity : Activity() {
         const val REFRESH_STALE_MS = 5 * 60 * 1000L
         /** A page drag that does not commit settles back this fast (Unity's settle-back). */
         const val DRAG_SETTLE_MS = 220L
+        /** How far a back gesture's preview pulls the drawer down, as a fraction of the page. */
+        const val BACK_PREVIEW_FRACTION = 0.25f
         /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */
         const val PAGE_TURN_MS = HOME_FADE_MS
         /** What a swipe down on home opens the drawer on: the recently used apps. */

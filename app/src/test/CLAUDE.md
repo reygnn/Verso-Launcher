@@ -13,13 +13,13 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 402 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 403 tests):
 
 ```
 LauncherLogicTest          122  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           50  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           51  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents
 LauncherRowsTest            36  rowsFor per mode

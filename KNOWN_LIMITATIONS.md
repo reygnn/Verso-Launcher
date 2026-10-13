@@ -49,8 +49,8 @@ cloud-sync app that scans Download, or a PC over USB can. The files outlive an
 uninstall. Keep that in mind before sharing or syncing the folder.
 
 The app's own `verso.json` is excluded from Android's cloud backup
-(`allowBackup="false"`), but Android 12+ still copies it during a device-to-device
-transfer. Entries for apps in a work profile or clone carry that profile's serial
+(`data_extraction_rules.xml`), but a device-to-device transfer copies it on purpose
+(without its `.tmp`/`.bak` recovery copies and the home cache). Entries for apps in a work profile or clone carry that profile's serial
 (`package/class#10`), which on the new phone may belong to no profile or another one;
 such entries then simply match nothing. The personal profile's config moves over
 intact, and the default favorites are not seeded there (the install is not fresh).

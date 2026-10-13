@@ -195,8 +195,9 @@ exception: the dialog is dark on every wallpaper.
   wallpaper with light text and an outline; dark/light mode does not change it.
 - **A2 (splash):** no splash attributes are set; a HOME app is started by the system
   and shows the wallpaper immediately.
-- **A3 (launcher icon):** `drawable/ic_launcher.xml`, not an adaptive `mipmap-anydpi`
-  icon with background/foreground/monochrome.
+- **A3 (launcher icon):** an adaptive icon with background, foreground and
+  monochrome layers, but in `drawable/ic_launcher.xml` (minSdk 36 needs no
+  `mipmap-anydpi-v26`) and without a separate `ic_launcher_round` — the mask rounds it.
 - **A4–A8:** not applicable — no Compose, no `ColorScheme`, no M3 dependency. The
   spirit of A5/A6 still holds: no ad-hoc colours outside the style constants, and
   nothing that only works on one wallpaper brightness (the outline exists for that).

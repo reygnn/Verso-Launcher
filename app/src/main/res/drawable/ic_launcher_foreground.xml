@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The icon's mark: a page with its corner turned — the front of the page is the home
+     screen, the back (verso) is the drawer. White lines, scaled into the adaptive icon's
+     66 dp safe zone so a round mask cannot clip the page's corners. Also the monochrome
+     layer (themed icons tint it). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.85"
+        android:scaleY="0.85">
+
+        <!-- the page outline, top-right corner cut for the fold -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineJoin="round"
+            android:pathData="M32,26 L62,26 L78,42 L78,82 L32,82 Z" />
+
+        <!-- the turned-down corner -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineJoin="round"
+            android:pathData="M62,26 L62,42 L78,42" />
+
+        <!-- three lines of text -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:pathData="M42,54 L68,54 M42,64 L68,64 M42,74 L58,74" />
+    </group>
+</vector>
