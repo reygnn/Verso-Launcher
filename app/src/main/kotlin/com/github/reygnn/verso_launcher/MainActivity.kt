@@ -31,6 +31,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.AccelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
@@ -456,23 +458,20 @@ class MainActivity : Activity() {
         home = homePage.view
 
         // The window root: both pages stacked, home underneath, plus the swipe that turns
-        // between them. Which swipes it takes is the pure SwipeGesture.claims — content
-        // that can still scroll the swiped way (a long favorites list, a scrolled drawer)
-        // keeps the gesture until it reaches its end.
+        // between them — Kolibri's: a decisive flick turns the page, a slow drag scrolls
+        // whatever is under the finger (see SwipeGesture). Which swipes it takes is the pure
+        // SwipeGesture.claims.
         val root = SwipeFrame(this).apply {
             addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
             addView(drawer, FrameLayout.LayoutParams(MATCH, MATCH))
-            claims = claims@{ dir ->
+            claims = claims@{ dir, downY ->
                 // A long-press that opened the rename dialog can carry on into a drag with the
                 // finger still down; that must not turn the page under the dialog.
                 if (renameDialog != null) return@claims false
-                val scroller: View = if (drawerOpen) listView else homePage.scroller
-                val canScroll = when (dir) {
-                    SwipeDir.UP -> scroller.canScrollVertically(1)
-                    SwipeDir.DOWN -> scroller.canScrollVertically(-1)
-                    SwipeDir.SIDEWAYS -> false
-                }
-                SwipeGesture.claims(drawerOpen, dir, canScroll)
+                // Read live, not cached: the manifest keeps the activity across a display-size
+                // (density) change.
+                val topExclusion = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
+                SwipeGesture.claims(drawerOpen, dir, downY, topExclusion)
             }
             // While a page turn is still running, the outgoing page is VISIBLE (just fading)
             // and on top for hit-testing: a quick tap would land on a row the user can no
@@ -536,16 +535,21 @@ class MainActivity : Activity() {
         drawer.animate().cancel()
         drawer.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         drawer.visibility = View.VISIBLE
-        drawer.alpha = 0f
-        drawer.translationY = PAGE_SLIDE_DP.dp().toFloat()
+        drawer.alpha = 1f
+        // Kolibri's page turn: the drawer slides up over the full height of the window (its
+        // slide_in_up, 100%p) while home fades out underneath. The parent's height, not the
+        // drawer's: a drawer that was GONE until now has not been measured yet.
+        drawer.translationY = pageHeight()
         drawer.requestApplyInsets()
         if (initialPrompt.isNotEmpty()) setPrompt(initialPrompt)
         else if (shown.isNotEmpty()) listView.setSelection(0)
         pageTurnUntil = SystemClock.uptimeMillis() + PAGE_TURN_MS
-        drawer.animate().alpha(1f).translationY(0f).setDuration(PAGE_TURN_MS).start()
-        home.animate().alpha(0f).setDuration(PAGE_TURN_MS).withEndAction {
-            if (drawerOpen) home.visibility = View.INVISIBLE
-        }.start()
+        drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS)
+            .setInterpolator(AccelerateDecelerateInterpolator()).start()
+        home.animate().alpha(0f).setDuration(HOME_FADE_MS)
+            .setInterpolator(AccelerateInterpolator()).withEndAction {
+                if (drawerOpen) home.visibility = View.INVISIBLE
+            }.start()
         // Posted: the drawer was GONE until a moment ago, so let it be laid out once before
         // the prompt takes focus and the IME is asked for.
         if (initialPrompt.isEmpty()) drawer.post { if (drawerOpen) showKeyboard() }
@@ -570,13 +574,17 @@ class MainActivity : Activity() {
         if (!animate) {
             pageTurnUntil = 0L
             home.alpha = 1f
+            drawer.translationY = 0f
             drawer.visibility = View.GONE
             return
         }
+        // Kolibri's way back: the drawer slides down off the screen (slide_out_down) while home
+        // fades in (fade_in).
         pageTurnUntil = SystemClock.uptimeMillis() + PAGE_TURN_MS
-        home.animate().alpha(1f).setDuration(PAGE_TURN_MS).start()
-        drawer.animate().alpha(0f).translationY(PAGE_SLIDE_DP.dp().toFloat())
-            .setDuration(PAGE_TURN_MS).withEndAction {
+        home.animate().alpha(1f).setDuration(HOME_FADE_MS)
+            .setInterpolator(AccelerateInterpolator()).start()
+        drawer.animate().translationY(pageHeight()).setDuration(DRAWER_SLIDE_MS)
+            .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
                 if (!drawerOpen) drawer.visibility = View.GONE
             }.start()
     }
@@ -592,6 +600,12 @@ class MainActivity : Activity() {
         if (show) controller.show(WindowInsets.Type.statusBars())
         else controller.hide(WindowInsets.Type.statusBars())
     }
+
+    /** The full height a page slides over: the window root's, falling back to the display's
+     *  before the first layout. */
+    private fun pageHeight(): Float =
+        ((drawer.parent as? View)?.height?.takeIf { it > 0 }
+            ?: resources.displayMetrics.heightPixels).toFloat()
 
     override fun onResume() {
         super.onResume()
@@ -1377,10 +1391,12 @@ class MainActivity : Activity() {
         const val BACKUP_BASE = "verso"
         const val PRE_RESTORE_BASE = "verso-pre-restore"
         const val REQ_RESTORE = 1
-        /** Duration of the home <-> drawer page turn. */
-        const val PAGE_TURN_MS = 160L
-        /** How far the drawer slides while fading, in dp. */
-        const val PAGE_SLIDE_DP = 32
+        /** Kolibri's page turn: the drawer's full-height slide (anim_duration_drawer_slide)… */
+        const val DRAWER_SLIDE_MS = 180L
+        /** …and home's fade underneath it (fade_in / fade_out). */
+        const val HOME_FADE_MS = 200L
+        /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */
+        const val PAGE_TURN_MS = HOME_FADE_MS
         /** What a swipe down on home opens the drawer on: the recently used apps. */
         const val RECENTS_PROMPT = "?"
     }

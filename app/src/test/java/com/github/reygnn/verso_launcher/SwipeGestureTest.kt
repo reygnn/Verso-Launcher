@@ -7,73 +7,75 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * JVM unit tests for [SwipeGesture] — the pure half of the home <-> drawer swipe. The touch
- * plumbing in [SwipeFrame] only feeds deltas in and acts on these answers, so this is where
- * "tap vs. swipe", "which way", "whose gesture" and "far/fast enough" are pinned.
+ * JVM unit tests for [SwipeGesture] — the pure half of the home <-> drawer swipe, ported from
+ * Kolibri's SwipeGestureAnalyzer. The touch plumbing in [SwipeFrame] only feeds deltas in and
+ * acts on these answers, so this is where "flick vs. slow drag", "which way" and "whose
+ * gesture" are pinned.
  */
 class SwipeGestureTest {
 
-    private val slop = 10f
+    /** 4 × a 10 px touch slop. */
+    private val minDistance = 40f
 
-    // ---- direction ------------------------------------------------------------
+    // ---- decisive ------------------------------------------------------------
 
-    @Test fun `inside the slop nothing is decided yet`() {
-        assertNull(SwipeGesture.direction(0f, 0f, slop))
-        assertNull(SwipeGesture.direction(10f, -10f, slop))  // exactly on the slop: still a tap
+    @Test fun `a fast upward flick is UP, a fast downward one DOWN`() {
+        // 200 px in 100 ms = 2 px/ms, well past 1.2.
+        assertEquals(SwipeDir.UP, SwipeGesture.decisive(0f, -200f, 100, minDistance))
+        assertEquals(SwipeDir.DOWN, SwipeGesture.decisive(0f, 200f, 100, minDistance))
     }
 
-    @Test fun `screen y grows downward, so a finger moving up is UP`() {
-        assertEquals(SwipeDir.UP, SwipeGesture.direction(2f, -30f, slop))
-        assertEquals(SwipeDir.DOWN, SwipeGesture.direction(-2f, 30f, slop))
+    @Test fun `a slow drag never turns the page, however far it goes`() {
+        // 600 px in 1000 ms = 0.6 px/ms: a scroll, not a swipe.
+        assertNull(SwipeGesture.decisive(0f, -600f, 1000, minDistance))
+        assertNull(SwipeGesture.decisive(0f, 600f, 1000, minDistance))
     }
 
-    @Test fun `vertical must dominate, a diagonal leaning sideways is SIDEWAYS`() {
-        assertEquals(SwipeDir.SIDEWAYS, SwipeGesture.direction(40f, -30f, slop))
-        assertEquals(SwipeDir.SIDEWAYS, SwipeGesture.direction(-30f, 30f, slop))  // a tie is not vertical
-        assertEquals(SwipeDir.UP, SwipeGesture.direction(29f, -30f, slop))
+    @Test fun `the speed threshold is strict, as in Kolibri`() {
+        assertNull(SwipeGesture.decisive(0f, -120f, 100, minDistance))   // exactly 1.2 px/ms
+        assertEquals(SwipeDir.UP, SwipeGesture.decisive(0f, -121f, 100, minDistance))
     }
 
-    // ---- claims ---------------------------------------------------------------
-
-    @Test fun `home takes an upward swipe once its favorites cannot scroll further`() {
-        assertTrue(SwipeGesture.claims(drawerOpen = false, SwipeDir.UP, contentCanScroll = false))
-        assertFalse(SwipeGesture.claims(drawerOpen = false, SwipeDir.UP, contentCanScroll = true))
+    @Test fun `a fast twitch shorter than the distance is not a swipe`() {
+        assertNull(SwipeGesture.decisive(0f, -40f, 5, minDistance))       // exactly the distance
+        assertEquals(SwipeDir.UP, SwipeGesture.decisive(0f, -41f, 5, minDistance))
     }
 
-    @Test fun `home takes a downward swipe (recents) once its favorites are at the top`() {
-        assertTrue(SwipeGesture.claims(drawerOpen = false, SwipeDir.DOWN, contentCanScroll = false))
-        assertFalse(SwipeGesture.claims(drawerOpen = false, SwipeDir.DOWN, contentCanScroll = true))
+    @Test fun `vertical must beat horizontal by the dominance factor`() {
+        assertNull(SwipeGesture.decisive(100f, -150f, 50, minDistance))   // exactly 1.5x
+        assertEquals(SwipeDir.UP, SwipeGesture.decisive(100f, -151f, 50, minDistance))
+        assertNull(SwipeGesture.decisive(300f, -10f, 50, minDistance))    // sideways
     }
 
-    @Test fun `home ignores sideways swipes`() {
-        assertFalse(SwipeGesture.claims(drawerOpen = false, SwipeDir.SIDEWAYS, contentCanScroll = false))
+    @Test fun `a zero elapsed time does not divide by zero`() {
+        assertEquals(SwipeDir.DOWN, SwipeGesture.decisive(0f, 50f, 0, minDistance))
     }
 
-    @Test fun `the drawer takes a downward swipe only with its list at the top`() {
-        assertTrue(SwipeGesture.claims(drawerOpen = true, SwipeDir.DOWN, contentCanScroll = false))
-        assertFalse(SwipeGesture.claims(drawerOpen = true, SwipeDir.DOWN, contentCanScroll = true))
+    // ---- claims --------------------------------------------------------------
+
+    private val band = 144f  // 48 dp at 3x
+
+    @Test fun `home takes up (the drawer) from anywhere`() {
+        assertTrue(SwipeGesture.claims(drawerOpen = false, SwipeDir.UP, downY = 10f, topExclusionPx = band))
+        assertTrue(SwipeGesture.claims(drawerOpen = false, SwipeDir.UP, downY = 1500f, topExclusionPx = band))
     }
 
-    @Test fun `the drawer leaves upward and sideways swipes to its list`() {
-        assertFalse(SwipeGesture.claims(drawerOpen = true, SwipeDir.UP, contentCanScroll = false))
-        assertFalse(SwipeGesture.claims(drawerOpen = true, SwipeDir.SIDEWAYS, contentCanScroll = false))
+    @Test fun `home takes down (the recents) below the top band`() {
+        assertTrue(SwipeGesture.claims(drawerOpen = false, SwipeDir.DOWN, downY = 144f, topExclusionPx = band))
+        assertTrue(SwipeGesture.claims(drawerOpen = false, SwipeDir.DOWN, downY = 900f, topExclusionPx = band))
     }
 
-    // ---- reached / flung ------------------------------------------------------
-
-    @Test fun `distance counts only in the swipe's own direction`() {
-        assertTrue(SwipeGesture.reached(SwipeDir.UP, dy = -64f, distance = 64f))
-        assertFalse(SwipeGesture.reached(SwipeDir.UP, dy = -63f, distance = 64f))
-        assertFalse(SwipeGesture.reached(SwipeDir.UP, dy = 100f, distance = 64f))  // went back down
-        assertTrue(SwipeGesture.reached(SwipeDir.DOWN, dy = 64f, distance = 64f))
-        assertFalse(SwipeGesture.reached(SwipeDir.SIDEWAYS, dy = 500f, distance = 64f))
+    @Test fun `a down that starts in the top band is left to the notification shade`() {
+        assertFalse(SwipeGesture.claims(drawerOpen = false, SwipeDir.DOWN, downY = 0f, topExclusionPx = band))
+        assertFalse(SwipeGesture.claims(drawerOpen = false, SwipeDir.DOWN, downY = 143.9f, topExclusionPx = band))
     }
 
-    @Test fun `a fast flick in the swipe's direction fires, one back the other way does not`() {
-        assertTrue(SwipeGesture.flung(SwipeDir.UP, velocityY = -900f, minVelocity = 500f))
-        assertFalse(SwipeGesture.flung(SwipeDir.UP, velocityY = -400f, minVelocity = 500f))
-        assertFalse(SwipeGesture.flung(SwipeDir.UP, velocityY = 900f, minVelocity = 500f))
-        assertTrue(SwipeGesture.flung(SwipeDir.DOWN, velocityY = 900f, minVelocity = 500f))
-        assertFalse(SwipeGesture.flung(SwipeDir.SIDEWAYS, velocityY = 9000f, minVelocity = 500f))
+    @Test fun `the drawer takes down (close) from anywhere, even the top band`() {
+        assertTrue(SwipeGesture.claims(drawerOpen = true, SwipeDir.DOWN, downY = 10f, topExclusionPx = band))
+        assertTrue(SwipeGesture.claims(drawerOpen = true, SwipeDir.DOWN, downY = 900f, topExclusionPx = band))
+    }
+
+    @Test fun `the drawer leaves up to its list`() {
+        assertFalse(SwipeGesture.claims(drawerOpen = true, SwipeDir.UP, downY = 900f, topExclusionPx = band))
     }
 }
