@@ -14,13 +14,14 @@ internal enum class DragEnd { COMMIT, CANCEL }
  * ours" is a JVM-testable mapping instead of arithmetic buried in a touch handler. [SwipeFrame]
  * only feeds it MotionEvent deltas and acts on the answers.
  *
- * Ported from Kolibri (SwipeGestureAnalyzer + GestureThresholds), whose calibration was
- * validated on real devices: a swipe counts once it has travelled [SLOP_MULTIPLIER] touch
- * slops, at an AVERAGE speed of at least [VELOCITY_PX_PER_MS] since the finger went down,
- * along an axis that beats the other by [DOMINANCE]. It is decided DURING the move — the page
- * turns while the finger is still travelling, not on release. Velocity, not scroll position,
- * separates the two intents: a slow drag never turns the page (it scrolls whatever is under
- * the finger), a decisive flick always does, wherever the list happens to stand.
+ * Two gestures. The PAGE DRAG (Unity Kolibri's DragToDismissCore, extended to opening; see the
+ * "page drag" section) follows the finger once the content under it is at its end, and the
+ * release decides. The FLICK is ported from Kolibri's SwipeGestureAnalyzer + GestureThresholds,
+ * whose calibration was validated on real devices: it counts once it has travelled
+ * [SLOP_MULTIPLIER] touch slops, at an AVERAGE speed of at least [VELOCITY_PX_PER_MS] since the
+ * finger went down, along an axis that beats the other by [DOMINANCE], decided DURING the move.
+ * It now only serves the recents swipe on home and opening the drawer while the favorites can
+ * still scroll (where no drag can start).
  *
  * Units: distances in pixels, velocities in pixels per millisecond (unit-less across
  * densities, like Kolibri's). The frame scales the touch slop and [TOP_EXCLUSION_DP] itself.

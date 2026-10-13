@@ -78,6 +78,9 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
     private var swallowing = false
     private var dragDir: SwipeDir? = null
     private var dragOffset = 0f
+    // This gesture's limit: dragMax, or more when the drag grabbed a page that was further
+    // along than that (a drawer that had only just started opening).
+    private var dragLimit = 0f
     private var velocity: VelocityTracker? = null
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -109,7 +112,7 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                 if (dir != null) {
                     val delta = if (dir == SwipeDir.UP) lastY - ev.y else ev.y - lastY
                     lastY = ev.y
-                    dragOffset = SwipeGesture.dragOffset(dragOffset, delta, dragMax(dir))
+                    dragOffset = SwipeGesture.dragOffset(dragOffset, delta, dragLimit)
                     onDrag(dir, dragOffset)
                     return true
                 }
@@ -123,8 +126,11 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                         dragDir = drag
                         if (!swallowing) cancelChildren(ev)
                         // Start where the page is, not where the finger went down: the slop
-                        // already travelled is not added, so the page does not jump.
-                        dragOffset = onDragStart(drag).coerceIn(0f, dragMax(drag))
+                        // already travelled is not added, so the page does not jump — not even
+                        // when it is caught beyond the usual limit (then that is this limit).
+                        val start = onDragStart(drag).coerceAtLeast(0f)
+                        dragLimit = maxOf(dragMax(drag), start)
+                        dragOffset = start
                         onDrag(drag, dragOffset)
                         return true
                     }
@@ -166,6 +172,16 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
      *  (Unity's rubber-band cap), the release slides the rest. */
     private fun dragMax(dir: SwipeDir): Float =
         if (dir == SwipeDir.UP) pageHeight() else pageHeight() * SwipeGesture.DRAG_MAX_CLOSE_FRACTION
+
+    /**
+     * The page was turned some other way while a drag held it — HOME, Back, the screen going
+     * off. The drag is over without a release decision: no [onDragEnd] (it would act on a page
+     * that is no longer the one it grabbed), and the rest of the gesture stays swallowed so it
+     * cannot start anything new.
+     */
+    fun abortDrag() {
+        dragDir = null
+    }
 
     private fun endDrag(end: DragEnd) {
         val dir = dragDir ?: return

@@ -26,6 +26,18 @@ internal class VersoConfig(
     val tags: MutableMap<String, MutableList<String>> = linkedMapOf(),
 ) {
     /**
+     * Whether [other] holds the same config: the same favorites in the same order (the order is
+     * the home page's), the same hidden set, names and tags. Map and set order does not count —
+     * a config read back from a file and one edited in memory can differ there and still be
+     * the same. Used to see that a restore would change nothing.
+     */
+    fun sameContent(other: VersoConfig): Boolean =
+        favorites.toList() == other.favorites.toList() &&
+            hidden == other.hidden &&
+            names == other.names &&
+            tags == other.tags
+
+    /**
      * A copy for handing to the background loader. loadApps() only READS these
      * collections; taking the copy on the main thread (where every mutation
      * also happens) means the loader owns an isolated snapshot and can't race

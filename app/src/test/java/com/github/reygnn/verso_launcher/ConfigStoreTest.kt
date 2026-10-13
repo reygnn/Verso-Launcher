@@ -130,6 +130,38 @@ class ConfigStoreTest {
     }
 
     @Test
+    fun `a torn primary with a good tmp and bak heals from the tmp by renaming it`() {
+        primary.writeText("{ torn")
+        temp.writeText(json("newest"))
+        backup.writeText(json("one/behind"))
+
+        assertEquals(listOf("newest"), store.load().favorites.toList())
+
+        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
+        assertFalse("the tmp was published, not rewritten and left behind", temp.exists())
+        assertEquals(listOf("one/behind"), ConfigJson.parse(backup.readText())!!.favorites.toList())
+    }
+
+    @Test
+    fun `if the tmp cannot be renamed the primary is written in place and the tmp kept`() {
+        temp.writeText(json("newest"))
+        backup.writeText(json("one/behind"))
+        val refusing = storeWith { from, to -> if (from == temp) false else from.renameTo(to) }
+
+        assertEquals(listOf("newest"), refusing.load().favorites.toList())
+
+        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
+        assertEquals("the recovered tmp is never truncated", listOf("newest"), ConfigJson.parse(temp.readText())!!.favorites.toList())
+    }
+
+    @Test
+    fun `a lone tmp is still a fresh install, and load recovers it`() {
+        temp.writeText(json("only/tmp"))
+        assertTrue(store.isFresh())
+        assertEquals(listOf("only/tmp"), store.load().favorites.toList())
+    }
+
+    @Test
     fun `a torn tmp falls through to the bak mirror`() {
         temp.writeText("{ torn")
         backup.writeText(json("from/bak"))

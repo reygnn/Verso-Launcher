@@ -149,7 +149,8 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   `filesDir`, written durably (temp-file + fsync + rename, then a directory
   fsync so the rename itself survives power-loss, not just a crash); the previous
   good version is rotated into a `.bak` that recovery falls back to and heals the
-  primary from on the next load; and edited only through the in-app modes above
+  primary from on the next load (a newer, complete temp file left by an interrupted
+  save is tried first); and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`
 - no ViewBinding / XML layouts — UI built in code
 

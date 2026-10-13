@@ -75,7 +75,7 @@ com.github.reygnn.verso_launcher/
   HomePage            the front page (clock/date/battery, favorites, a11y actions)
   HomeStyle           pure look constants + outline colour, BatteryInfo, DoubleTapGate
   SwipeFrame          window root; watches dispatchTouchEvent for the page-turn swipe
-  SwipeGesture        pure swipe decisions (Kolibri's calibration)
+  SwipeGesture        pure gesture decisions: Unity's page drag + Kolibri's flick
   TapGuard            stale-click protection for list rows
   RenameDialog        long-press dialog: custom name + tags
   LauncherState       config + app list + recents, and the concurrency rules (pure)
@@ -105,7 +105,11 @@ main, written on the IO thread.
    exception on the executor kills the process on every start.
 3. **One IO thread, process-wide** (`VersoApp.io`). Never create another executor,
    never shut it down. Main-thread state is mutated only on the main thread; hand-backs
-   go through `onUi`, which drops them for a destroyed instance.
+   go through `onUi`, which drops them for a destroyed instance. The one exception: the
+   document a `~restore-saf` pick points at is read on its own short-lived thread — a
+   content provider (an offline cloud drive) can block that read indefinitely, and it
+   touches no file of the app's own; the undo point and the adoption still go through
+   `VersoApp.io`.
 4. **`verso.json` write sequence is load-bearing** (`ConfigStore.write`): temp +
    fsync → rotate the primary to `.bak` only if it still parses → publish → fsync dir.
    A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`.
@@ -116,9 +120,11 @@ main, written on the IO thread.
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
    name. Exactly one current backup and one undo point (`verso-pre-restore-…`).
-7. **Restore order:** read + `parseForeign` on the IO thread (never the lenient
-   `parse` for outside files) → write the undo point → only then `adopt`. No undo
-   point, no restore.
+7. **Restore order:** read + `parseForeign` off the main thread (never the lenient
+   `parse` for outside files) → if it equals the current config, stop (an undo point
+   would replace the real one) → write the undo point → write the restored config to
+   `verso.json` in the same IO task (the restore must survive a lost hand-back) → `adopt`.
+   No undo point, no restore.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`
@@ -129,8 +135,9 @@ main, written on the IO thread.
    a `Collator` for the device locale (`sortedForDrawer`, `sortedTags`), never by
    code point.
 10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`: neither
-    primary nor `.bak` exists). An existing config with no favorites is the user's
-    choice.
+    primary nor `.bak` exists) and only into a config with no favorites (a lone `.tmp`
+    recovered on a "fresh" install keeps its own). An existing config with no favorites
+    is the user's choice.
 11. **Page turn = Unity-Kolibri's.** Closing the drawer is a drag that follows the
     finger (Unity's `DragToDismissCore`: starts once the list is at its top, 28 % of the
     height or a 3× min-fling release commits, a flick back cancels, 220 ms settle);

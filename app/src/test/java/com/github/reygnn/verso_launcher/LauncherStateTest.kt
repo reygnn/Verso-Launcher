@@ -265,6 +265,20 @@ class LauncherStateTest {
         }
     }
 
+    @Test fun `a rename re-sorts by the device language, not a fixed alphabet`() {
+        // Swedish files Ä after Z — a test with German alone could not tell that apart from a
+        // locale-blind sort.
+        val original = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.of("sv", "SE"))
+            started()
+            state.rename(key("Alpha"), "Alpha", "Ärzte", emptyList())
+            assertEquals(listOf("Bravo", "Charlie", "Ärzte"), labels())
+        } finally {
+            java.util.Locale.setDefault(original)
+        }
+    }
+
     @Test fun `renaming back to the system label clears the override`() {
         started()
         state.rename(key("Alpha"), "Alpha", "Zulu", emptyList())
@@ -444,6 +458,16 @@ class LauncherStateTest {
         assertEquals(listOf("Charlie", "Alpha"), state.favorites().map { it.label })
         assertEquals(1, written.size)
         assertTrue(written.single().startsWith("fav=${key("Charlie")},${key("Alpha")};"))
+    }
+
+    @Test fun `a fresh install whose recovered config has favorites is not seeded`() {
+        // E.g. a lone .tmp recovered: "fresh" (no primary, no .bak) but the user's own favorites.
+        fresh = true
+        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        state.refresh()
+        runAll()
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals(emptyList<String>(), written)
     }
 
     @Test fun `an existing config is never seeded, even with no favorites`() {

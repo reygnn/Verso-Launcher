@@ -30,8 +30,34 @@ class HomePageAccessibilityTest {
     /** The clock: the first TextClock on the page (the date is the second). */
     private val clock: View get() = page.view.collect<TextClock>().first()
 
+    /** The date: the second TextClock. */
+    private val date: View get() = page.view.collect<TextClock>()[1]
+
+    /** The battery: the text view showing the (still unknown) percentage. */
+    private val battery: View get() =
+        page.view.collect<android.widget.TextView>().first { it.text.toString() == BatteryInfo.UNKNOWN_LABEL }
+
     @Test fun `one accessibility click on the clock opens the alarms`() {
         assertTrue(clock.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+        assertEquals(AlarmClock.ACTION_SHOW_ALARMS, shadowOf(activity).nextStartedActivity?.action)
+    }
+
+    @Test fun `one accessibility click on the date opens the calendar`() {
+        assertTrue(date.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+        val started = shadowOf(activity).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_VIEW, started?.action)
+        assertTrue(started?.data.toString().startsWith("content://com.android.calendar/time"))
+    }
+
+    @Test fun `one accessibility click on the battery opens its usage screen`() {
+        assertTrue(battery.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+        assertEquals(android.content.Intent.ACTION_POWER_USAGE_SUMMARY, shadowOf(activity).nextStartedActivity?.action)
+    }
+
+    @Test fun `a real double tap on the clock opens the alarms`() {
+        // Robolectric's clock stands still, so two clicks land inside the double-tap window.
+        clock.performClick()
+        clock.performClick()
         assertEquals(AlarmClock.ACTION_SHOW_ALARMS, shadowOf(activity).nextStartedActivity?.action)
     }
 

@@ -4,8 +4,8 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * The verso.json file layer: reading the config with its .bak fallback, and publishing
- * it back atomically with a validated .bak rotation. [ConfigJson] owns the JSON; this owns
+ * The verso.json file layer: reading the config with its .tmp and .bak fallbacks, and
+ * publishing it back atomically with a validated .bak rotation. [ConfigJson] owns the JSON; this owns
  * the FILES.
  *
  * Lifted out of MainActivity so the rotation state machine can be unit-tested on the JVM.
@@ -60,7 +60,7 @@ internal class ConfigStore(
         // .bak still holds the previous good copy.
         parse(temp)?.let { recovered ->
             log("primary config unreadable — recovered the newer, unpublished .tmp", null)
-            write(ConfigJson.serialize(recovered), rotateBackup = false)
+            publishTemp(recovered)
             return recovered
         }
         parse(backup)?.let { recovered ->
@@ -74,6 +74,29 @@ internal class ConfigStore(
             return recovered
         }
         return VersoConfig()
+    }
+
+    /**
+     * Heal from a .tmp that just parsed: publish THAT file as the primary by renaming it, the
+     * step its interrupted write never got to. Not via [write]: write() starts by rewriting the
+     * .tmp, which would truncate the only copy of the newest config before writing it again —
+     * a crash or a full disk in that moment would leave it torn and lose the save it held.
+     * If the rename is refused, the primary is written in place (fsynced) from [recovered] and
+     * the .tmp is left alone; .bak is never touched.
+     */
+    private fun publishTemp(recovered: VersoConfig) {
+        try {
+            if (!rename(temp, primary)) {
+                FileOutputStream(primary).use { fos ->
+                    fos.write(ConfigJson.serialize(recovered).toByteArray(Charsets.UTF_8))
+                    fos.flush()
+                    fos.fd.sync()
+                }
+            }
+            syncDir(dir)
+        } catch (e: Exception) {
+            log("config heal from .tmp failed", e)
+        }
     }
 
     /**

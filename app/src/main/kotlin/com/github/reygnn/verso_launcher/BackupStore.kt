@@ -126,8 +126,21 @@ internal class BackupStore(
      * this install has none. Rows of an earlier install are not ours any more — an uninstall
      * orphans them, and they can be neither seen nor overwritten; "~restore-saf" reaches them.
      */
-    fun findLatest(base: String): Uri? =
-        listOwn()?.let { BackupFiles.latestToRestore(base, it) }?.let { uriOf(it.id) }
+    fun findLatest(base: String): Uri? = (lookupLatest(base) as? Latest.Found)?.uri
+
+    /** [findLatest], telling "this install has no backup" apart from "the folder could not be
+     *  read" — the two need different advice, and only one of them means "run ~backup". */
+    fun lookupLatest(base: String): Latest {
+        val own = listOwn() ?: return Latest.Failed
+        val entry = BackupFiles.latestToRestore(base, own) ?: return Latest.None
+        return Latest.Found(uriOf(entry.id))
+    }
+
+    sealed interface Latest {
+        data class Found(val uri: Uri) : Latest
+        data object None : Latest
+        data object Failed : Latest
+    }
 
     /**
      * Every row of ours in Download/[subDir], or null if the query failed. Without a storage

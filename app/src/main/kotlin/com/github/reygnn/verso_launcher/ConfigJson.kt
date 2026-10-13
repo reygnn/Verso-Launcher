@@ -101,7 +101,9 @@ internal object ConfigJson {
         j.optJSONObject("tags")?.let { o ->
             for (k in o.keys()) {
                 val arr = o.optJSONArray(k) ?: continue
-                val list = ArrayList<String>(arr.length())
+                // A LinkedHashSet for the de-duplication: insertion order kept, and a hostile
+                // restore file with 100k distinct tags costs linear, not quadratic, time.
+                val list = LinkedHashSet<String>()
                 // Canonicalise on the way in too, not just when the app writes them: a
                 // hand-edited or restored verso.json with an unfolded "Work", a stray
                 // "#work" or a comma inside a tag would otherwise be unreachable from the
@@ -114,11 +116,11 @@ internal object ConfigJson {
                 for (i in 0 until arr.length()) {
                     val raw = arr.opt(i) as? String ?: continue
                     val tag = LauncherLogic.canonicalTag(raw)
-                    if (tag.isNotEmpty() && tag !in list) list += tag
+                    if (tag.isNotEmpty()) list += tag
                 }
                 // Drop an empty list rather than materializing a tagless key — keeps the
                 // in-memory shape identical to what serialize() would write next time.
-                if (list.isNotEmpty()) loaded.tags[k] = list
+                if (list.isNotEmpty()) loaded.tags[k] = list.toMutableList()
             }
         }
         return loaded

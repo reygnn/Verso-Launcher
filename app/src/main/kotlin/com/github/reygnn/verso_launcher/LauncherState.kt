@@ -12,8 +12,9 @@ package com.github.reygnn.verso_launcher
  * deterministically by running the two "threads" as manual queues).
  *
  * THREADING. Every public member is for the main thread only — config and app list are only
- * ever read and mutated there. Disk and PackageManager work runs on [io] (the Activity's single
- * IO thread), and its results come back through [main] (runOnUiThread). Nothing here touches a
+ * ever read and mutated there. Disk and LauncherApps work runs on [io] (the process's single IO
+ * thread, VersoApp.io), and its results come back through [main] (runOnUiThread, dropped for a
+ * destroyed activity). Nothing here touches a
  * mutable field from the IO side except the @Volatile generation counters, which an IO task
  * reads to bail out early.
  *
@@ -39,7 +40,9 @@ package com.github.reygnn.verso_launcher
  * @param onRefreshed   main thread, after a [refresh] hand-off was applied. [configReplaced] is
  *                      true when the config was swapped wholesale for the disk copy — anything
  *                      that captured the old one (an open rename dialog) must go.
- * @param isFreshInstall true when no config exists on disk yet (IO thread, before the read).
+ * @param isFreshInstall true when neither verso.json nor its .bak exists yet (IO thread, before
+ *                      the read). A lone recoverable .tmp still counts as fresh; seeding is then
+ *                      skipped anyway, because it only fills a config with no favorites.
  * @param defaultFavoriteCandidates the candidate keys per default favorite slot, see
  *                      [LauncherLogic.pickDefaultFavorites] (IO thread, fresh install only).
  * @param initialRecents the "?" list to start from — the process-wide one, so an Activity

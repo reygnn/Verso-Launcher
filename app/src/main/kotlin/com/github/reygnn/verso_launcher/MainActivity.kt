@@ -60,14 +60,14 @@ import java.util.concurrent.RejectedExecutionException
  *
  *  - The FRONT page (recto, "home") is what a normal text launcher shows: a clock, the date
  *    and your favorites as large plain text. No keyboard, no prompt. Tap a favorite to launch
- *    it, long-press it for the rename/tags dialog. Tap the clock for the alarms, the date for
- *    the calendar.
- *  - Swipe UP and the page turns to the BACK (verso, "drawer"): every app, A to Z, with the
- *    Sigil command line at the bottom and the keyboard up. Swipe DOWN (with the list at its
- *    top), press Back on an empty prompt or press HOME to turn back.
+ *    it, long-press it for the rename/tags dialog. Double-tap the clock for the alarms, the
+ *    date for the calendar, the battery for its usage screen.
+ *  - Pull UP and the page turns to the BACK (verso, "drawer") — it follows the finger: every
+ *    app, A to Z, with the Sigil command line at the bottom and the keyboard up. Pull DOWN
+ *    (with the list at its top), press Back on an empty prompt or press HOME to turn back.
  *
- * The drawer is the original Sigil Launcher, sigils and all. It enumerates the current user's
- * launchable apps via a [android.content.pm.PackageManager] MAIN/LAUNCHER query, filters as
+ * The drawer is the original Sigil Launcher, sigils and all. It lists the launchable apps of
+ * every profile (personal, work, clone) through [android.content.pm.LauncherApps], filters as
  * you type, launches on tap/Enter.
  *
  * Config lives in the app's own internal storage (verso.json in filesDir) — no
@@ -175,6 +175,8 @@ class MainActivity : Activity() {
     // its predecessor left in flight instead of racing it on a thread of its own.
     private val ioExecutor get() = app.io
 
+    // The window root, which also runs the page drag (see SwipeFrame).
+    private lateinit var root: SwipeFrame
     private lateinit var listView: ListView
     private lateinit var prompt: EditText
     private lateinit var adapter: AppListAdapter
@@ -465,11 +467,11 @@ class MainActivity : Activity() {
         )
         home = homePage.view
 
-        // The window root: both pages stacked, home underneath, plus the swipe that turns
-        // between them — Kolibri's: a decisive flick turns the page, a slow drag scrolls
-        // whatever is under the finger (see SwipeGesture). Which swipes it takes is the pure
-        // SwipeGesture.claims.
-        val root = SwipeFrame(this).apply {
+        // The window root: both pages stacked, home underneath, plus the gestures that turn
+        // between them (see SwipeFrame): a page drag that follows the finger once the content
+        // under it is at its end, and Kolibri's flick for the recents and as the open fallback.
+        // The decisions are the pure SwipeGesture.
+        root = SwipeFrame(this).apply {
             addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
             addView(drawer, FrameLayout.LayoutParams(MATCH, MATCH))
             claims = claims@{ dir, downY ->
@@ -554,6 +556,8 @@ class MainActivity : Activity() {
     private fun openDrawer(initialPrompt: String = "") {
         if (drawerOpen) return
         drawerOpen = true
+        // A drag still holding the page must not act on it after this turn (see abortDrag).
+        root.abortDrag()
         showStatusBar(true)
         renameDialog?.dismiss()
         home.animate().cancel()
@@ -591,6 +595,9 @@ class MainActivity : Activity() {
     private fun closeDrawer(animate: Boolean = true) {
         if (!drawerOpen) return
         drawerOpen = false
+        // HOME, Back or the screen going off while a finger drags the drawer: that drag is over
+        // and must not settle the drawer back open over a home that is now in front.
+        root.abortDrag()
         showStatusBar(false)
         hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -653,6 +660,7 @@ class MainActivity : Activity() {
 
     /** The drawer follows the finger; home fades out over the first third of its travel. */
     private fun dragPage(dir: SwipeDir, offset: Float) {
+        if ((dir == SwipeDir.DOWN) != drawerOpen) return
         val height = pageHeight()
         val open = if (dir == SwipeDir.UP) offset else height - offset  // how far the drawer is up
         drawer.translationY = height - open
@@ -661,6 +669,8 @@ class MainActivity : Activity() {
 
     /** The finger lifted: finish the turn from where the page is, or settle back. */
     private fun endPageDrag(dir: SwipeDir, end: DragEnd) {
+        // Belt and braces next to abortDrag: a drag only ever ends on the page it grabbed.
+        if ((dir == SwipeDir.DOWN) != drawerOpen) return
         when {
             dir == SwipeDir.UP && end == DragEnd.COMMIT -> openDrawer()
             dir == SwipeDir.DOWN && end == DragEnd.COMMIT -> closeDrawer()
@@ -857,17 +867,20 @@ class MainActivity : Activity() {
         submitIo {
             // The newest backup of ours, whatever MediaStore named it — or, if none was ever
             // published, an interrupted first one (see BackupFiles.latestToRestore).
-            val uri = backupStore.findLatest(BACKUP_BASE)
-            val text = uri?.let { backupStore.readText(it) }
+            val latest = backupStore.lookupLatest(BACKUP_BASE)
+            val text = (latest as? BackupStore.Latest.Found)?.let { backupStore.readText(it.uri) }
             // Parsed here, off the main thread: a hostile document is parse work the UI must
             // not wait on (and the parse is where a torn temp gets rejected).
             val restored = text?.let { ConfigJson.parseForeign(it) }
             onUi {
                 // Nothing there at all is its own message: "~backup was never run" is a
-                // different problem from "the backup is broken", and saying so saves the
-                // user hunting for a file that does not exist.
+                // different problem from "the backup is broken", and both differ from "the
+                // folder could not be read" — saying which saves the user a wrong hunt.
                 when {
-                    uri == null -> toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
+                    latest is BackupStore.Latest.Failed ->
+                        toast(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
+                    latest is BackupStore.Latest.None ->
+                        toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
                     restored == null -> toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
                     else -> adoptRestored(restored)
                 }
@@ -921,7 +934,13 @@ class MainActivity : Activity() {
         val uri = data?.data
         // Backing out of the picker is not an error — say nothing.
         if (resultCode != RESULT_OK || uri == null) return
-        submitIo {
+        // Its own short-lived thread, NOT the app's IO thread: the picked document can live
+        // behind any content provider — a cloud drive offline or slow — and a read there can
+        // block for as long as the provider likes. On the IO thread that would stall every save
+        // and every app refresh behind it. This read touches no file of the app's own, so it
+        // needs none of the IO thread's ordering; the undo point and the adoption still go
+        // through it (adoptRestored). Never throws: readText and parseForeign return null.
+        Thread({
             val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
             onUi {
                 // Unlike [restoreConfig] a null here is not "no backup yet" — the user
@@ -930,7 +949,7 @@ class MainActivity : Activity() {
                 if (restored == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
                 else adoptRestored(restored)
             }
-        }
+        }, "verso-restore-read").start()
     }
 
     /**
@@ -956,14 +975,30 @@ class MainActivity : Activity() {
             "restore: ${restored.favorites.size} favorites, ${restored.hidden.size} hidden, " +
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
-        val outgoing = if (state.configLoaded) ConfigJson.serialize(state.config) else null
+        val outgoing = if (state.configLoaded) state.config.snapshot() else null
         val accepted = submitIo {
-            val undo = backupStore.write(PRE_RESTORE_BASE, outgoing ?: ConfigJson.serialize(store.load()))
+            val current = outgoing ?: store.load()
+            // Restoring what is already there changes nothing — and must not write an undo
+            // point: that would replace the real one (the config from before the FIRST restore)
+            // with a copy of the restored config. A second "~restore" by accident would
+            // otherwise quietly destroy the way back.
+            if (current.sameContent(restored)) {
+                onUi { toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG) }
+                return@submitIo
+            }
+            val undo = backupStore.write(PRE_RESTORE_BASE, ConfigJson.serialize(current))
+            if (undo == null) {
+                onUi { toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG) }
+                return@submitIo
+            }
+            // Persist the restored config right here, in the same IO task as its undo point —
+            // not only through adopt's save on the main thread. Writing the undo point has just
+            // replaced the previous one (possibly the very file being restored), so from this
+            // moment the restore must survive even if the hand-back below never runs: the
+            // activity destroyed by a configuration change, the process killed. A new instance
+            // then simply loads the restored config.
+            store.write(ConfigJson.serialize(restored), rotateBackup = true)
             onUi {
-                if (undo == null) {
-                    toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
-                    return@onUi
-                }
                 // Wholesale replace, save and re-render — with the epoch guard that keeps an
                 // enumeration already in flight from handing the OLD config back over this one.
                 state.adopt(restored)
@@ -1112,7 +1147,7 @@ class MainActivity : Activity() {
         // keep the reference so onDestroy can tear it down. The view construction lives in
         // RenameDialog; the Activity keeps only the config decisions the commit implies.
         renameDialog?.dismiss()
-        renameDialog = RenameDialog.show(
+        val dialog = RenameDialog.show(
             context = this,
             title = entry.label,
             initialName = state.config.names[key] ?: entry.systemLabel,
@@ -1126,8 +1161,11 @@ class MainActivity : Activity() {
             state.rename(key, entry.systemLabel, name, tags)
             applyFilter(prompt.text?.toString().orEmpty())
         }
-        // Clear the field on dismiss so we never hold a stale, already-gone dialog.
-        renameDialog?.setOnDismissListener { renameDialog = null }
+        renameDialog = dialog
+        // Clear the field on dismiss so we never hold a stale, already-gone dialog — but only if
+        // it still holds THIS one: Dialog delivers the dismiss listener as a posted message, so
+        // the old dialog's listener runs after the new one was assigned and must not null it.
+        dialog.setOnDismissListener { if (renameDialog === dialog) renameDialog = null }
     }
 
     // ---- apps ---------------------------------------------------------------
@@ -1174,13 +1212,17 @@ class MainActivity : Activity() {
         }
         val entries = mutableListOf<AppEntry>()
         for (user in profiles) {
-            val serial: Long? = if (user == personal) null else {
-                userManager.getSerialNumberForUser(user).takeIf { it >= 0 } ?: continue
-            }
+            val isPersonal = user == personal
+            var serial: Long? = null
             val activities = try {
+                // The serial lookup is a binder call too: inside the try, so a failure drops this
+                // profile like any other instead of escaping onto the IO thread.
+                if (!isPersonal) {
+                    serial = userManager.getSerialNumberForUser(user).takeIf { it >= 0 } ?: continue
+                }
                 launcherApps.getActivityList(null, user)
             } catch (e: RuntimeException) {
-                if (serial == null) {
+                if (isPersonal) {
                     Log.w("Verso", "app enumeration failed", e)
                     return null  // failure sentinel: keep the current list, don't wipe it
                 }
@@ -1561,9 +1603,6 @@ class MainActivity : Activity() {
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         /** Sub-folder of Downloads that "~backup" writes into. */
         const val BACKUP_DIR = "Verso"
-        // Fixed names, not timestamped ones: there is exactly ONE backup and ONE undo
-        // point, each overwritten in place. That is what lets "~restore" skip a file
-        // picker — it already knows the name of the only file it could mean.
         /** The backups' base names: published as "<base>-<date>_<time>.json" (see BackupFiles). */
         const val BACKUP_BASE = "verso"
         const val PRE_RESTORE_BASE = "verso-pre-restore"

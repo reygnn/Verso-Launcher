@@ -27,6 +27,8 @@
     <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
     <string name="toast_backup_failed">backup failed — nothing was written</string>
     <string name="toast_restore_ok">config restored — previous one saved as %1$s</string>
+    <string name="toast_restore_same">nothing to restore — the backup is the current config</string>
+    <string name="toast_restore_list_failed">could not read Download/Verso — try ~restore-saf to pick the file</string>
     <string name="toast_restore_undo_failed">restore aborted — the current config could not be saved as an undo point first. Nothing was changed.</string>
     <string name="toast_restore_failed">restore failed — the backup is not a readable verso.json. Nothing was changed.</string>
     <string name="toast_restore_none">no backup found — run ~backup first, or ~restore-saf to pick a file</string>

@@ -13,29 +13,33 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 331 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 359 tests):
 
 ```
 LauncherLogicTest          113  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           39  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           43  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, recents
 LauncherRowsTest            36  rowsFor per mode
-ConfigStoreTest             27  verso.json on real temp files: .bak rotation, .tmp
-                                recovery, heal-without-rotate, isFresh
+ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .tmp
+                                recovery (published by rename, never rewritten),
+                                heal-without-rotate, isFresh
 ConfigJsonTest              24  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting
 LauncherActionsTest         19  Enter / tap decisions
 HomeStyleTest               18  sizes, luminance, outline-colour thresholds, battery
 BackupFilesTest             14  backup naming: timestamps, patterns, restore pick, sweep
-SwipeGestureTest            11  Kolibri's swipe thresholds, top band, who claims what
+SwipeGestureTest            18  the page drag (direction, offset, release, home fade) and
+                                Kolibri's flick thresholds, top band, who claims what
+SwipeFrameTest              10  Robolectric: real MotionEvents through the frame — delta and
+                                velocity signs, limits, second finger, abortDrag, drag vs flick
 RenameDialogFilterTest       8  Robolectric: the tag field's InputFilter on a real widget
-VersoConfigTest              8  snapshot deep copy
+VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 6  stale-click guard
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest    3  Robolectric: TalkBack click on clock/date/battery
+HomePageAccessibilityTest    6  Robolectric: TalkBack click on clock/date/battery, the double tap
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`

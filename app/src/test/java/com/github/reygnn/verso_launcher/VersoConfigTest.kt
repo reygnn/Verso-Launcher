@@ -1,6 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -126,5 +127,25 @@ class VersoConfigTest {
         assertTrue(snap.favorites.isEmpty())
         assertTrue(snap.names.isEmpty())
         assertTrue(snap.tags.isEmpty())
+    }
+
+    @Test
+    fun `sameContent ignores map and set order but not the favorites order`() {
+        val a = VersoConfig(
+            favorites = linkedSetOf("a/A", "b/B"),
+            hidden = linkedSetOf("x/X", "y/Y"),
+            names = linkedMapOf("a/A" to "Alpha", "b/B" to "Bravo"),
+            tags = linkedMapOf("a/A" to mutableListOf("work")),
+        )
+        val reordered = VersoConfig(
+            favorites = linkedSetOf("a/A", "b/B"),
+            hidden = linkedSetOf("y/Y", "x/X"),
+            names = linkedMapOf("b/B" to "Bravo", "a/A" to "Alpha"),
+            tags = linkedMapOf("a/A" to mutableListOf("work")),
+        )
+        assertTrue(a.sameContent(reordered))
+        assertFalse(a.sameContent(VersoConfig(favorites = linkedSetOf("b/B", "a/A"), hidden = a.hidden, names = a.names, tags = a.tags)))
+        assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = linkedMapOf("a/A" to "Alpha"), tags = a.tags)))
+        assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = a.names, tags = linkedMapOf("a/A" to mutableListOf("home")))))
     }
 }
