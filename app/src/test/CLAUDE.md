@@ -1,0 +1,111 @@
+# CLAUDE.md (test source set)
+
+Orientation for sessions touching the tests. Not a technical manual
+— that's `java/com/github/reygnn/verso_launcher/TESTING_CONVENTIONS.kt`,
+which holds the concrete patterns. This file answers the _meta_ questions:
+what exists, what is deliberately left out, where to start.
+
+The baseline philosophy (JVM-only by default, pure logic outside Android-runtime
+classes) comes from `~/.claude/CLAUDE.md`. This project departs from the baseline
+STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not".
+
+---
+
+## What exists
+
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 331 tests):
+
+```
+LauncherLogicTest          113  modes, commands, search + foldLabel (Turkish, İ, NFC),
+                                star prefix, drawer/favorites order, Collator sort,
+                                tags, reorder, recents, default favorites
+LauncherStateTest           39  the concurrency rules: refresh/reload/rename/adopt
+                                interleavings driven as manual IO/main queues, seeding,
+                                save-before-load, recents
+LauncherRowsTest            36  rowsFor per mode
+ConfigStoreTest             27  verso.json on real temp files: .bak rotation, .tmp
+                                recovery, heal-without-rotate, isFresh
+ConfigJsonTest              24  round-trip, parseForeign's refusal of foreign JSON,
+                                hostile nesting
+LauncherActionsTest         19  Enter / tap decisions
+HomeStyleTest               18  sizes, luminance, outline-colour thresholds, battery
+BackupFilesTest             14  backup naming: timestamps, patterns, restore pick, sweep
+SwipeGestureTest            11  Kolibri's swipe thresholds, top band, who claims what
+RenameDialogFilterTest       8  Robolectric: the tag field's InputFilter on a real widget
+VersoConfigTest              8  snapshot deep copy
+TapGuardTest                 6  stale-click guard
+BackupStoreTest              5  readCapped (the bounded restore read)
+HomePageAccessibilityTest    3  Robolectric: TalkBack click on clock/date/battery
+```
+
+Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
+with a device attached, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
+
+```
+BackupStoreInstrumentedTest  BackupStore against the REAL MediaStore: publish, replace,
+                             names taken by rows we don't own, failed/crashed publish
+ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limit)
+```
+
+---
+
+## What this set deliberately does NOT have
+
+- **No MockK, no mocks at all.** Everything Android-bound is injected as a
+  function (`LauncherState`'s `io`/`main`/`loadConfig`…, `ConfigStore`'s
+  `syncDir`/`rename`, `BackupStore`'s `beforePublish`/`now`), so tests pass plain
+  lambdas and fakes. Add MockK only if a real need appears — and then MockK, never
+  Mockito.
+- **No coroutines, so no `MainDispatcherRule` / `runTest` / Turbine.** Threading is
+  modelled as two manual FIFO queues (`LauncherStateTest`), which makes every
+  interleaving deterministic.
+- **No Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic`
+  / `LauncherState`. Behaviour that only exists in the Activity is checked on a device.
+- **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
+  renaming and ownership rules — that is exactly what broke the backups — so the
+  backup layer is tested on a device instead.
+
+---
+
+## When you come into this project
+
+### Reading order
+
+1. **First** `java/com/github/reygnn/verso_launcher/TESTING_CONVENTIONS.kt`
+   — the technical reference. Mandatory before touching any test.
+2. **Then** an existing test as a template. Pick by category:
+   - Pure decision logic: `LauncherLogicTest` (fake `Row : Ordered`).
+   - Threading / state rules: `LauncherStateTest` (the queue harness at the top).
+   - File I/O: `ConfigStoreTest` (`TemporaryFolder`, injected `rename` seam).
+   - A real widget: `RenameDialogFilterTest` / `HomePageAccessibilityTest`.
+   - MediaStore / Android-only library behaviour: `androidTest/…InstrumentedTest`.
+
+### Common tasks and where they go
+
+- New `~` command or sigil mode → `LauncherLogicTest` (parse) + `LauncherActionsTest`
+  (Enter/tap) + `LauncherRowsTest` (rows).
+- Anything touching search, fold or sort → `LauncherLogicTest`, with a Turkish and
+  a German/Swedish locale case.
+- Config shape → `ConfigJsonTest` (and keep Sigil configs parsing).
+- Save/load durability → `ConfigStoreTest`; backup naming → `BackupFilesTest`,
+  backup I/O → `BackupStoreInstrumentedTest`.
+
+---
+
+## Anti-patterns we've already paid for
+
+The full list lives in `TESTING_CONVENTIONS.kt`. The headline ones here:
+
+- **A test that pins the bug.** `RenameDialogFilterTest` asserted that "İ" folds to
+  "i" + combining dot — the very bug that made "iş" miss "İşCep". When a fix breaks a
+  test, check whether the test encoded the defect before "fixing" the test.
+- **A test that passes for any threshold.** The outline-colour test used greys at
+  luminance 0.09 and 0.60 and so held for any threshold in between. Pin a boundary
+  with the neighbouring values on BOTH sides.
+- **A fixture that mirrors production.** `LauncherStateTest` once re-implemented the
+  sort with the same `sortedBy` as production; a bug in it could never show.
+- **Trusting the JVM `org.json`.** It refuses deep nesting with an exception;
+  Android's overflows the stack. Library behaviour that differs on Android gets an
+  instrumented test.
+- **Do a mutation check** for every fix: revert the fix, see the new test fail,
+  restore. A test that stays green against the bug proves nothing.
