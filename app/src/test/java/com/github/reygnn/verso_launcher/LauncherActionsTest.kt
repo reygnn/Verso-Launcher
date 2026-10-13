@@ -16,11 +16,10 @@ import org.junit.Test
  */
 class LauncherActionsTest {
 
-    private data class Fake(override val key: String, override val labelLower: String = key) : Ordered
 
-    private fun app(key: String): Row<Fake> = AppRow(Fake(key))
-    private val tag: Row<Fake> = TagRow("work")
-    private val cmd: Row<Fake> = CommandRow("~backup", Command.BACKUP)
+    private fun app(key: String): Row<OrderedFake> = AppRow(OrderedFake(key))
+    private val tag: Row<OrderedFake> = TagRow("work")
+    private val cmd: Row<OrderedFake> = CommandRow("~backup", Command.BACKUP)
 
     // ---- enterAction ---------------------------------------------------------
 
@@ -50,7 +49,7 @@ class LauncherActionsTest {
     @Test fun `a resolved command beats the empty-prompt branch`() {
         assertEquals(
             EnterAction.Run(Command.RELOAD),
-            LauncherLogic.enterAction<Fake>(Mode.COMMAND, Command.RELOAD, promptBlank = true, lastRow = null),
+            LauncherLogic.enterAction<OrderedFake>(Mode.COMMAND, Command.RELOAD, promptBlank = true, lastRow = null),
         )
     }
 
@@ -79,7 +78,7 @@ class LauncherActionsTest {
         )
         assertEquals(
             EnterAction.SetPrompt(""),
-            LauncherLogic.enterAction<Fake>(Mode.TAG_EDIT, command = null, promptBlank = false, lastRow = null),
+            LauncherLogic.enterAction<OrderedFake>(Mode.TAG_EDIT, command = null, promptBlank = false, lastRow = null),
         )
     }
 
@@ -93,7 +92,7 @@ class LauncherActionsTest {
         )
         assertEquals(
             EnterAction.DismissKeyboard,
-            LauncherLogic.enterAction<Fake>(Mode.NORMAL, command = null, promptBlank = true, lastRow = null),
+            LauncherLogic.enterAction<OrderedFake>(Mode.NORMAL, command = null, promptBlank = true, lastRow = null),
         )
     }
 
@@ -101,7 +100,7 @@ class LauncherActionsTest {
         for (mode in listOf(Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER)) {
             assertEquals(
                 "launch failed for $mode",
-                EnterAction.LaunchApp(Fake("com.a/A")),
+                EnterAction.LaunchApp(OrderedFake("com.a/A")),
                 LauncherLogic.enterAction(mode, command = null, promptBlank = false, lastRow = app("com.a/A")),
             )
         }
@@ -118,7 +117,7 @@ class LauncherActionsTest {
     @Test fun `a read mode over an empty list does nothing`() {
         assertEquals(
             EnterAction.None,
-            LauncherLogic.enterAction<Fake>(Mode.RECENTS, command = null, promptBlank = false, lastRow = null),
+            LauncherLogic.enterAction<OrderedFake>(Mode.RECENTS, command = null, promptBlank = false, lastRow = null),
         )
     }
 
@@ -136,7 +135,7 @@ class LauncherActionsTest {
     // ---- tapAction -----------------------------------------------------------
 
     @Test fun `tapping nothing (a stale position) does nothing`() {
-        assertEquals(TapAction.None, LauncherLogic.tapAction<Fake>(Mode.NORMAL, null))
+        assertEquals(TapAction.None, LauncherLogic.tapAction<OrderedFake>(Mode.NORMAL, null))
     }
 
     @Test fun `tapping a tag row drills into the right sigil for its mode`() {
@@ -153,14 +152,14 @@ class LauncherActionsTest {
         for (mode in listOf(Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER)) {
             assertEquals(
                 "launch failed for $mode",
-                TapAction.Launch(Fake("com.a/A")),
+                TapAction.Launch(OrderedFake("com.a/A")),
                 LauncherLogic.tapAction(mode, app("com.a/A")),
             )
         }
     }
 
     @Test fun `tapping an app row toggles or picks under the edit modes`() {
-        val entry = Fake("com.a/A")
+        val entry = OrderedFake("com.a/A")
         assertEquals(TapAction.ToggleHidden(entry), LauncherLogic.tapAction(Mode.HIDDEN_EDIT, app("com.a/A")))
         assertEquals(TapAction.ToggleFavorite(entry), LauncherLogic.tapAction(Mode.FAV_EDIT, app("com.a/A")))
         assertEquals(TapAction.ReorderPick(entry), LauncherLogic.tapAction(Mode.FAV_REORDER, app("com.a/A")))

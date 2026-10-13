@@ -13,13 +13,13 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 387 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 395 tests):
 
 ```
-LauncherLogicTest          120  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          122  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           44  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           46  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, recents
 LauncherRowsTest            36  rowsFor per mode
@@ -39,6 +39,7 @@ SwipeFrameTest              12  Robolectric: real MotionEvents through the frame
 RenameDialogFilterTest       8  Robolectric: the tag field's InputFilter on a real widget
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 6  stale-click guard
+HomeCacheTest                4  the cold-start favorites cache: format, parse, file
 RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
@@ -82,7 +83,7 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 1. **First** `java/com/github/reygnn/verso_launcher/TESTING_CONVENTIONS.kt`
    — the technical reference. Mandatory before touching any test.
 2. **Then** an existing test as a template. Pick by category:
-   - Pure decision logic: `LauncherLogicTest` (fake `Row : Ordered`).
+   - Pure decision logic: `LauncherLogicTest` (the shared `OrderedFake`).
    - Threading / state rules: `LauncherStateTest` (the queue harness at the top).
    - File I/O: `ConfigStoreTest` (`TemporaryFolder`, injected `rename` seam).
    - A real widget: `RenameDialogFilterTest` / `HomePageAccessibilityTest`.

@@ -47,8 +47,6 @@ internal object RenameDialog {
         onAppInfo: () -> Unit,
         onCommit: (name: String, tags: List<String>) -> Unit,
     ): AlertDialog {
-        val density = context.resources.displayMetrics.density
-        fun dp(v: Int): Int = (v * density).toInt()
 
         // No autocorrect/autocapitalize on either field: a deliberate custom name or tag
         // must not be silently "corrected" on the way in.
@@ -103,7 +101,7 @@ internal object RenameDialog {
                         typeface = Typeface.MONOSPACE
                         setTextColor(fgColor)
                         textSize = 18f
-                        setPadding(dp(12), dp(8), dp(12), dp(8))
+                        setPadding(context.dp(12), context.dp(8), context.dp(12), context.dp(8))
                     }
                     tv.text = getItem(position)
                     return tv
@@ -113,7 +111,7 @@ internal object RenameDialog {
         }
         val container = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(6), dp(12), 0)
+            setPadding(context.dp(12), context.dp(6), context.dp(12), 0)
             addView(nameInput, LinearLayout.LayoutParams(MATCH, WRAP))
             addView(tagsInput, LinearLayout.LayoutParams(MATCH, WRAP))
         }

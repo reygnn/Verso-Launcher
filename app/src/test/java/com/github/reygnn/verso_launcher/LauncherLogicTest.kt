@@ -13,10 +13,9 @@ import java.util.Locale
  */
 class LauncherLogicTest {
 
-    private data class Row(override val key: String, override val labelLower: String) : Ordered
 
     /** Rows whose key doubles as the (already ROOT-folded) label, for ordering tests. */
-    private fun rows(vararg keys: String): List<Row> = keys.map { Row(it, it) }
+    private fun rows(vararg keys: String): List<OrderedFake> = keys.map { OrderedFake(it, it) }
 
     private fun List<Ordered>.keys(): List<String> = map { it.key }
 
@@ -415,14 +414,14 @@ class LauncherLogicTest {
         // ROOT lowercases İ (U+0130) to "i" + U+0307; left in, "İşCep" never matched "iş".
         assertEquals("işcep", LauncherLogic.foldLabel("İşCep"))
         assertEquals("istanbulkart", LauncherLogic.foldLabel("İstanbulkart"))
-        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(Row("p/is", LauncherLogic.foldLabel("İşCep"))), "iş").keys())
-        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(Row("p/is", LauncherLogic.foldLabel("İşCep"))), "İŞ").keys())
+        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(OrderedFake("p/is", LauncherLogic.foldLabel("İşCep"))), "iş").keys())
+        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(OrderedFake("p/is", LauncherLogic.foldLabel("İşCep"))), "İŞ").keys())
     }
 
     @Test fun `foldLabel makes decomposed and composed text the same`() {
         val decomposed = "Cafe\u0301"  // e + combining acute
         assertEquals("café", LauncherLogic.foldLabel(decomposed))
-        assertEquals(listOf("p/c"), LauncherLogic.search(listOf(Row("p/c", LauncherLogic.foldLabel(decomposed))), "café").keys())
+        assertEquals(listOf("p/c"), LauncherLogic.search(listOf(OrderedFake("p/c", LauncherLogic.foldLabel(decomposed))), "café").keys())
     }
 
     @Test fun `foldLabel keeps letters that really carry a dot above`() {
@@ -496,13 +495,13 @@ class LauncherLogicTest {
         assertEquals(listOf("arbeit", "ärzte", "zuhause"), LauncherLogic.allTags(tags, Locale.GERMANY))
         assertEquals(
             listOf("arbeit", "ärzte", "zuhause"),
-            LauncherLogic.tagsInUse(listOf(Row("p/a", "a"), Row("p/b", "b")), tags, Locale.GERMANY),
+            LauncherLogic.tagsInUse(listOf(OrderedFake("p/a", "a"), OrderedFake("p/b", "b")), tags, Locale.GERMANY),
         )
     }
 
     // ---- sortedForDrawer ----------------------------------------------------
 
-    private fun folded(vararg labels: String) = labels.map { Row("p/$it", LauncherLogic.foldLabel(it)) }
+    private fun folded(vararg labels: String) = labels.map { OrderedFake("p/$it", LauncherLogic.foldLabel(it)) }
 
     @Test fun `German drawer files umlauts under their base letter, not after Z`() {
         val sorted = LauncherLogic.sortedForDrawer(folded("Zoom", "Übersetzer", "Bravo", "Ärzte", "Öffi", "Apotheke"), Locale.GERMANY)
@@ -524,8 +523,8 @@ class LauncherLogicTest {
         // "ma\u0001il" collates equal to "mail" (the control character is ignorable) but is the
         // smaller string; the key order alone would put p/a ("mail") first — the label
         // tie-break must decide before the key does.
-        val withControl = Row("p/b", "ma\u0001il")
-        val plain = Row("p/a", "mail")
+        val withControl = OrderedFake("p/b", "ma\u0001il")
+        val plain = OrderedFake("p/a", "mail")
         assertEquals(listOf("p/b", "p/a"), LauncherLogic.sortedForDrawer(listOf(withControl, plain), Locale.GERMANY).keys())
         assertEquals(listOf("p/b", "p/a"), LauncherLogic.sortedForDrawer(listOf(plain, withControl), Locale.GERMANY).keys())
     }
@@ -536,8 +535,8 @@ class LauncherLogicTest {
     }
 
     @Test fun `labels the collator calls equal still get a stable total order`() {
-        val a = Row("p/b", "mail")
-        val b = Row("p/a", "mail")
+        val a = OrderedFake("p/b", "mail")
+        val b = OrderedFake("p/a", "mail")
         assertEquals(listOf("p/a", "p/b"), LauncherLogic.sortedForDrawer(listOf(a, b), Locale.GERMANY).keys())
         assertEquals(listOf("p/a", "p/b"), LauncherLogic.sortedForDrawer(listOf(b, a), Locale.GERMANY).keys())
     }
@@ -566,7 +565,7 @@ class LauncherLogicTest {
             // "instagram".contains("I") and miss. (That the two sides fold the SAME way
             // is guaranteed by both using foldLabel; the ROOT-pinning itself is pinned
             // by the standalone foldLabel and search Turkish tests above/below.)
-            val all = listOf(Row("p/insta", LauncherLogic.foldLabel("Instagram")))
+            val all = listOf(OrderedFake("p/insta", LauncherLogic.foldLabel("Instagram")))
             assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
         } finally {
             Locale.setDefault(original)
@@ -581,11 +580,11 @@ class LauncherLogicTest {
     }
 
     @Test fun `search over an empty list is empty`() {
-        assertEquals(emptyList<String>(), LauncherLogic.search(emptyList<Row>(), "x").keys())
+        assertEquals(emptyList<String>(), LauncherLogic.search(emptyList<OrderedFake>(), "x").keys())
     }
 
     @Test fun `search matches a case-folded substring`() {
-        val all = listOf(Row("p/insta", "instagram"), Row("p/maps", "maps"))
+        val all = listOf(OrderedFake("p/insta", "instagram"), OrderedFake("p/maps", "maps"))
         assertEquals(listOf("p/insta"), LauncherLogic.search(all, "INSTA").keys())
         assertEquals(emptyList<String>(), LauncherLogic.search(all, "zzz").keys())
     }
@@ -596,7 +595,7 @@ class LauncherLogicTest {
             // Under tr-TR, "I".lowercase() would give the dotless "ı" and miss the
             // row — search must fold with Locale.ROOT so "I" still becomes "i".
             Locale.setDefault(Locale.of("tr", "TR"))
-            val all = listOf(Row("p/insta", "instagram"))
+            val all = listOf(OrderedFake("p/insta", "instagram"))
             assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
         } finally {
             Locale.setDefault(original)
@@ -732,7 +731,7 @@ class LauncherLogicTest {
     /** ROOT-fold, like every other matcher here: a typed "AP" must match a stored "apple"
      *  and a Turkish default locale must not turn the prefix's "i" into a dotless one. */
     @Test fun `drawerStartingWith folds the prefix with ROOT`() {
-        val all = listOf(Row("p/insta", LauncherLogic.foldLabel("Instagram")))
+        val all = listOf(OrderedFake("p/insta", LauncherLogic.foldLabel("Instagram")))
         assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "IN").keys())
         val original = Locale.getDefault()
         try {
@@ -744,7 +743,7 @@ class LauncherLogicTest {
     }
 
     @Test fun `drawerStartingWith over an empty app list is empty`() {
-        assertEquals(emptyList<String>(), LauncherLogic.drawerStartingWith(emptyList<Row>(), emptySet(), emptySet(), "x").keys())
+        assertEquals(emptyList<String>(), LauncherLogic.drawerStartingWith(emptyList<OrderedFake>(), emptySet(), emptySet(), "x").keys())
     }
 
     // ---- starPrefix ----------------------------------------------------------
@@ -782,7 +781,7 @@ class LauncherLogicTest {
      *  word "a" ("A Better Camera"), not every label starting with the letter a. */
     @Test fun `a space before the star belongs to the prefix`() {
         assertEquals("a ", LauncherLogic.starPrefix("a *"))
-        val all = listOf(Row("p/better", "a better camera"), Row("p/alpha", "alpha"))
+        val all = listOf(OrderedFake("p/better", "a better camera"), OrderedFake("p/alpha", "alpha"))
         assertEquals(listOf("p/better"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "a ").keys())
     }
 

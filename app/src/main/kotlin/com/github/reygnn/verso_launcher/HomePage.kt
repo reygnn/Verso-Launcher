@@ -409,7 +409,7 @@ internal class HomePage(
         }
     }
 
-    private fun Int.dp(): Int = (this * density).toInt()
+    private fun Int.dp(): Int = activity.dp(this)
 
     /** [skeleton] laid out the way the current locale writes it ("Tue, Oct 13" in en-US,
      *  "Di., 13. Okt." in de) instead of one fixed order for every language. */

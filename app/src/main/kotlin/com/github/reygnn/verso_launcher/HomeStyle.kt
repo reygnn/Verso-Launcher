@@ -1,5 +1,7 @@
 package com.github.reygnn.verso_launcher
 
+import android.content.Context
+
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -208,3 +210,7 @@ internal data class Palette(
     val homeOutline: Int get() = HomeStyle.tonalOutlineColor(homeText)
     val listOutline: Int get() = HomeStyle.tonalOutlineColor(listText)
 }
+
+/** [value] dp in pixels at the current display density — the one dp helper every view builder
+ *  uses (a display-size change recreates the activity, so the density read here is current). */
+internal fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

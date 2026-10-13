@@ -1724,7 +1724,7 @@ class MainActivity : Activity() {
         imm.hideSoftInputFromWindow(prompt.windowToken, 0)
     }
 
-    private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
+    private fun Int.dp(): Int = dp(this)
 
     private inner class AppListAdapter : BaseAdapter() {
         override fun getCount(): Int = shown.size

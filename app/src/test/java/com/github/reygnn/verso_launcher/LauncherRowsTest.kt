@@ -13,21 +13,18 @@ import org.junit.Test
  * sigil, the substring arithmetic, the bare-"#"/"##"/"~" special cases — was not, because
  * it sat inside the Activity's applyFilter.
  *
- * The fake is called [Fake], NOT `Row`: [LauncherLogicTest] already has a private nested
+ * The fake is called [OrderedFake], NOT `Row`: [LauncherLogicTest] already has a private nested
  * `Row` Ordered fake, and rowsFor now returns the top-level [Row] type, so reusing the
  * name here would shadow it. Same trick as everywhere else — a trivial [Ordered], never a
  * ComponentName.
  */
 class LauncherRowsTest {
 
-    private data class Fake(override val key: String, val label: String) : Ordered {
-        override val labelLower: String = LauncherLogic.foldLabel(label)
-    }
 
     private val apps = listOf(
-        Fake("com.a/A", "Alpha"),
-        Fake("com.b/B", "Bravo"),
-        Fake("com.c/C", "Charlie"),
+        orderedFake("com.a/A", "Alpha"),
+        orderedFake("com.b/B", "Bravo"),
+        orderedFake("com.c/C", "Charlie"),
     )
     private val favorites = linkedSetOf("com.c/C", "com.a/A") // rank: C=0, A=1
     private val hidden = setOf("com.b/B")
@@ -37,10 +34,10 @@ class LauncherRowsTest {
     private fun rowsFor(mode: Mode, trimmed: String, tagEditTag: String? = null) =
         LauncherLogic.rowsFor(mode, trimmed, apps, hidden, favorites, tags, recents, tagEditTag)
 
-    private fun appKeys(rows: List<Row<Fake>>) =
-        rows.filterIsInstance<AppRow<Fake>>().map { it.entry.key }
+    private fun appKeys(rows: List<Row<OrderedFake>>) =
+        rows.filterIsInstance<AppRow<OrderedFake>>().map { it.entry.key }
 
-    private fun tagNames(rows: List<Row<Fake>>) =
+    private fun tagNames(rows: List<Row<OrderedFake>>) =
         rows.filterIsInstance<TagRow>().map { it.name }
 
     // ---- NORMAL --------------------------------------------------------------
@@ -123,10 +120,10 @@ class LauncherRowsTest {
         // The shared fixture never gives >1 match for a prefix, so build one that does:
         // three "ap" apps (one a favorite) plus a non-matching banana that must drop out.
         val local = listOf(
-            Fake("com.apple/A", "Apple"),
-            Fake("com.applet/A", "Applet"),
-            Fake("com.apricot/A", "Apricot"),
-            Fake("com.banana/A", "Banana"),
+            orderedFake("com.apple/A", "Apple"),
+            orderedFake("com.applet/A", "Applet"),
+            orderedFake("com.apricot/A", "Apricot"),
+            orderedFake("com.banana/A", "Banana"),
         )
         val rows = LauncherLogic.rowsFor(
             Mode.NORMAL, "ap*", local, emptySet(), linkedSetOf("com.applet/A"),
@@ -146,7 +143,7 @@ class LauncherRowsTest {
 
     @Test fun `a star prefix over an empty app list is empty`() {
         val rows = LauncherLogic.rowsFor(
-            Mode.NORMAL, "a*", emptyList<Fake>(), emptySet(), emptySet(), emptyMap(), emptyList(), null,
+            Mode.NORMAL, "a*", emptyList<OrderedFake>(), emptySet(), emptySet(), emptyMap(), emptyList(), null,
         )
         assertTrue(appKeys(rows).isEmpty())
     }

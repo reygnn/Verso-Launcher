@@ -33,7 +33,7 @@ package com.github.reygnn.verso_launcher
  *
  * Pure decisions live in `object`s (LauncherLogic, SwipeGesture, BackupFiles,
  * HomeStyle, BatteryInfo) and are tested with plain values. Rows are faked
- * with a tiny `data class Row(key, labelLower) : Ordered`.
+ * with the shared `OrderedFake(key, labelLower)` (OrderedFake.kt).
  *
  * MockK only if a real need appears — never Mockito. Mock variables are then
  * named after what they represent, without a `mock` prefix.
