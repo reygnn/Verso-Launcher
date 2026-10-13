@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,9 +42,16 @@ class SourceGuardTest {
 
     @Test fun `no string template reaches through an object without braces`() {
         // "$BackupFiles.DIR" is "BackupFiles@1a2b.DIR" — it compiles and silently breaks
-        // (it once sent ~restore-saf's picker to a folder that does not exist).
-        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        assertFalse(Regex("""\$[A-Z][A-Za-z]*\.[A-Z]""").containsMatchIn(activity))
+        // (it once sent ~restore-saf's picker to a folder that does not exist). A CamelCase
+        // name followed by a dot inside a template is that mistake; "$FILE.tmp" or "$base.tmp"
+        // (a value, then a literal suffix) is not.
+        val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+        val offenders = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
+            f.readLines().mapIndexedNotNull { i, line ->
+                "${f.name}:${i + 1}: $line".takeIf { Regex("""\$[A-Z][a-z][A-Za-z0-9_]*\.[A-Za-z_]""").containsMatchIn(line) }
+            }
+        }.toList()
+        assertEquals(emptyList<String>(), offenders)
     }
 
     @Test fun `density stays out of configChanges`() {

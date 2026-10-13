@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 439 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 441 tests):
 
 ```
 LauncherLogicTest          133  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -46,7 +46,7 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
                                 tap, the "open all apps" action, the empty-favorites hint
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
-CleanupTest                  7  what ~cleanup may offer: complete enumeration, kept apps, parseKey
+CleanupTest                  9  what ~cleanup may offer: complete enumeration, kept apps, parseKey
 SourceGuardTest              4  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
                                 brace-less object templates

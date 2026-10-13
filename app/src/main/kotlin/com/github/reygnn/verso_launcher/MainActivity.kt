@@ -264,9 +264,10 @@ class MainActivity : Activity() {
     private var renameDialog: AlertDialog? = null
     // The "~cleanup" confirmation, tracked for the same reason.
     private var commandDialog: AlertDialog? = null
-    // A "~cleanup" check is running (see cleanup), and the ticket its result must still match:
-    // bumped whenever the page turns away (closeDrawer, HOME, onStop).
-    private var cleanupChecking = false
+    // The ticket a running "~cleanup" check was started under (null: none running), and the
+    // current one, bumped whenever the page turns away (closeDrawer, HOME, onStop) — a result
+    // must still match it to be shown (see cleanup).
+    private var checkingTicket: Int? = null
     private var cleanupTicket = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1145,14 +1146,16 @@ class MainActivity : Activity() {
             toast(getString(R.string.toast_not_loaded))
             return
         }
-        if (cleanupChecking) return  // a check is already on its way to its dialog
-        cleanupChecking = true
+        // A check already on its way to a dialog on this page: one is enough. One whose page
+        // turned away meanwhile will be dropped, so it does not block a new one.
+        if (checkingTicket == cleanupTicket) return
         val ticket = cleanupTicket
+        checkingTicket = ticket
         val snapshot = state.config.snapshot()
         val accepted = submitIo {
-            val plan = cleanupCheck(snapshot)
+            val plan = safeCleanupCheck(snapshot)
             onUi {
-                cleanupChecking = false
+                if (checkingTicket == ticket) checkingTicket = null
                 // Left meanwhile — the drawer closed, HOME, an app started, the screen off: no
                 // dialog popping up over a page that moved on, no toast over another app.
                 if (!started || ticket != cleanupTicket) return@onUi
@@ -1164,9 +1167,18 @@ class MainActivity : Activity() {
             }
         }
         if (!accepted) {
-            cleanupChecking = false
+            checkingTicket = null
             toast(getString(R.string.toast_cleanup_not_run))
         }
+    }
+
+    /** [cleanupCheck] that never throws: anything unexpected is an incomplete check — the
+     *  hand-back must always come (or "~cleanup" would stay "checking" for good). */
+    private fun safeCleanupCheck(cfg: VersoConfig): CleanupPlan = try {
+        cleanupCheck(cfg)
+    } catch (e: RuntimeException) {
+        Log.w("Verso", "cleanup check failed", e)
+        CleanupPlan.Incomplete
     }
 
     /** The IO half of a cleanup check: enumerate afresh, then ask [Cleanup.plan]. */
@@ -1192,11 +1204,21 @@ class MainActivity : Activity() {
     private fun stillThere(key: KeyParts, listed: Set<Long>): Boolean = try {
         val serial = key.profile
         if (serial == null) {
-            packageManager.getActivityInfo(
-                ComponentName(key.packageName, key.className),
-                PackageManager.ComponentInfoFlags.of(STILL_THERE_FLAGS.toLong()),
-            )
-            true
+            try {
+                packageManager.getActivityInfo(
+                    ComponentName(key.packageName, key.className),
+                    PackageManager.ComponentInfoFlags.of(STILL_THERE_FLAGS.toLong()),
+                )
+                true
+            } catch (e: PackageManager.NameNotFoundException) {
+                // No such activity loaded — but the package may still be there with its code
+                // not loaded (unmounted storage, data kept). A missing package throws again.
+                val info = packageManager.getPackageInfo(
+                    key.packageName,
+                    PackageManager.PackageInfoFlags.of((PackageManager.GET_ACTIVITIES or STILL_THERE_FLAGS).toLong()),
+                )
+                Cleanup.activityStillThere(key.className, info.activities?.map { it.name })
+            }
         } else {
             val user = userManager.getUserForSerialNumber(serial)
             when {
@@ -1242,7 +1264,7 @@ class MainActivity : Activity() {
     private fun runCleanup(confirmed: Set<String>) {
         state.cleanup(
             confirmed = confirmed,
-            recheck = ::cleanupCheck,
+            recheck = ::safeCleanupCheck,
             writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
         ) { outcome ->
             if (outcome is CleanupOutcome.Done) refilter()

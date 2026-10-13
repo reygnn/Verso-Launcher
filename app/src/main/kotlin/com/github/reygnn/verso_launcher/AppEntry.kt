@@ -76,9 +76,11 @@ internal data class AppEntry(
             return KeyParts(packageName, className, profile).takeIf { keyOf(packageName, className, profile) == key }
         }
 
-        // What Android accepts as a package name, and a (fully qualified, maybe nested) class.
+        // What Android accepts as a package name. A class name is only required to be there
+        // and free of what a key uses as separators, or whitespace — dex allows far more than
+        // Java's letters (an obfuscated "é-1"), and the system lookup judges the rest.
         private val PACKAGE = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)*")
-        private val CLASS = Regex("[A-Za-z0-9_$]+(\\.[A-Za-z0-9_$]+)*")
+        private val CLASS = Regex("[^/#\\s]+")
     }
 }
 

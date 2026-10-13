@@ -301,7 +301,9 @@ internal class LauncherState(
      * come back, a profile may be unreadable, the config may have been replaced while the dialog
      * was up) and keep only what is still an orphan AND was confirmed; write the untouched config
      * as undo point ([writeUndo]: its name, or null); only then, back on main, [forget] them.
-     * No undo point, no cleanup. [onDone] gets the outcome on the main thread.
+     * No undo point, no cleanup. [onDone] gets the outcome on the main thread. A cleanup
+     * [CleanupOutcome.Superseded] at the last step has already written its undo point, which —
+     * like any — replaced the previous cleanup's; it holds the config of before the replace.
      */
     fun cleanup(
         confirmed: Set<String>,

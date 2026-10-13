@@ -42,6 +42,15 @@ internal sealed interface CleanupOutcome {
 internal object Cleanup {
 
     /**
+     * The personal-profile verdict once the exact activity was not found but its package was:
+     * [activities] is the package's activity class names, or null/empty when its code is not
+     * loaded (on unmounted storage, uninstalled with its data kept) — nothing to judge by, so it
+     * stays. A package that lists activities without [className] renamed it in an update: gone.
+     */
+    fun activityStillThere(className: String, activities: List<String>?): Boolean =
+        activities.isNullOrEmpty() || className in activities
+
+    /**
      * What "~cleanup" may offer for [config], given the enumeration [found] (null: it failed).
      * Only a COMPLETE enumeration counts (hard rule 14). A key no app can have
      * ([AppEntry.parseKey] says null) is gone without asking; an entry of a profile that

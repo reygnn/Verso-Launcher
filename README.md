@@ -132,7 +132,7 @@ keyboard, no prompt:
       again, and the current config is saved as `verso-pre-cleanup-<date>_<time>.json`
       before anything goes. `~restore-saf` with that file undoes it — it brings back
       the whole config as it was then, so later changes go too; and the next
-      `~cleanup` replaces that undo point. Only apps gone from the device count: a
+      `~cleanup` replaces that undo point (also one that removed nothing in the end). Only apps gone from the device count: a
       disabled app, one with its icon switched off, one on an unmounted card, a system
       app removed only for you, or one in a profile Verso cannot list (or that shows no
       apps right now) keeps its entries; an entry whose launcher activity an update

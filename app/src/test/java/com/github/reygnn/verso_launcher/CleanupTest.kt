@@ -55,6 +55,17 @@ class CleanupTest {
             assertEquals(bad, null, AppEntry.parseKey(bad))
     }
 
+    @Test fun `an activity missing from a loaded package is gone, a package without loaded code stays`() {
+        assertEquals(false, Cleanup.activityStillThere("a.Old", listOf("a.New")))
+        assertEquals(true, Cleanup.activityStillThere("a.Main", listOf("a.Main", "a.Other")))
+        assertEquals(true, Cleanup.activityStillThere("a.Main", null))         // unmounted, data kept
+        assertEquals(true, Cleanup.activityStillThere("a.Main", emptyList()))
+    }
+
+    @Test fun `parseKey leaves odd but real class names to the system`() {
+        assertEquals(KeyParts("com.foo", "com.foo.\u00e9-1", null), AppEntry.parseKey("com.foo/com.foo.\u00e9-1"))
+    }
+
     @Test fun `nothing gone means nothing to do`() {
         val plan = Cleanup.plan(config, Enumeration(listOf(here), complete = true)) { true }
         assertEquals(CleanupPlan.NothingToDo, plan)
