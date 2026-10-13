@@ -126,9 +126,10 @@ internal object BatteryInfo {
     /** Shown when the level cannot be read. */
     const val UNKNOWN_LABEL = "---%"
 
-    /** Battery percentage from the intent's level/scale, or null if they are unusable. */
+    /** Battery percentage from the intent's level/scale, or null if they are unusable. Capped
+     *  at 100: a level above its scale is a misreport, not a battery past full. */
     fun percent(level: Int, scale: Int): Int? =
-        if (level < 0 || scale <= 0) null else (level.toLong() * 100 / scale).toInt()
+        if (level < 0 || scale <= 0) null else (level.toLong() * 100 / scale).toInt().coerceAtMost(100)
 
     fun label(percent: Int?): String = percent?.let { "$it%" } ?: UNKNOWN_LABEL
 

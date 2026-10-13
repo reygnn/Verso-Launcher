@@ -460,7 +460,9 @@ internal object LauncherLogic {
 
     /**
      * The "#" filter: apps carrying a tag that PREFIX-matches [needle]. [needle] is
-     * folded (ROOT), so "#gam" pulls in every app under a tag starting with "gam"
+     * canonicalised exactly like a stored tag ([canonicalTag]: folded, "#", "," and control
+     * characters dropped, trimmed) — otherwise a needle could hold characters no stored tag
+     * can, and never match. "#gam" pulls in every app under a tag starting with "gam"
      * (e.g. "games") — typing a partial shows the apps of all matching tags, which is
      * the practical behaviour for a launcher. An empty needle returns every tagged
      * app. [tags] is keyed by app key and assumed already folded (see [parseTags]).
@@ -470,7 +472,7 @@ internal object LauncherLogic {
      * hiding.
      */
     fun <T : Ordered> tagged(all: List<T>, tags: Map<String, List<String>>, needle: String): List<T> {
-        val n = foldLabel(needle)
+        val n = canonicalTag(needle)
         return all.filter { entry ->
             val ts = tags[entry.key].orEmpty()
             if (n.isEmpty()) ts.isNotEmpty() else ts.any { it.startsWith(n) }

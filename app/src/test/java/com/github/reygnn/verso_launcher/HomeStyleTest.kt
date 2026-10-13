@@ -89,6 +89,11 @@ class HomeStyleTest {
         assertNull(BatteryInfo.percent(50, 0))
     }
 
+    @Test fun `a level above its scale reads as full, never past 100 percent`() {
+        assertEquals(100, BatteryInfo.percent(100, 100))
+        assertEquals(100, BatteryInfo.percent(103, 100))
+    }
+
     @Test fun `label falls back to Kolibri's placeholder`() {
         assertEquals("87%", BatteryInfo.label(87))
         assertEquals("---%", BatteryInfo.label(null))

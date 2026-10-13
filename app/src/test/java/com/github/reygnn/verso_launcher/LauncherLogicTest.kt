@@ -591,6 +591,14 @@ class LauncherLogicTest {
         assertEquals(listOf("google", "cam"), LauncherLogic.pickDefaultFavorites(all, slots))
     }
 
+    @Test fun `a slot whose first choice is taken stays empty rather than falling through`() {
+        // The phone app is also the messenger's default: the messenger slot does not reach
+        // for its second candidate (some other SMS app the user never chose) — one app
+        // covering two jobs is shown once, not swapped for a stranger.
+        val all = rows("google", "othersms")
+        assertEquals(listOf("google"), LauncherLogic.pickDefaultFavorites(all, listOf(listOf("google"), listOf("google", "othersms"))))
+    }
+
     @Test fun `pickDefaultFavorites with no launchable candidate is empty`() {
         assertEquals(emptyList<String>(), LauncherLogic.pickDefaultFavorites(rows("a"), listOf(listOf("x"))))
     }
@@ -708,6 +716,14 @@ class LauncherLogicTest {
      *  literal search, so an app whose label really contains "*" remains findable. */
     @Test fun `starPrefix ignores a star in the middle`() {
         assertNull(LauncherLogic.starPrefix("a*b"))
+    }
+
+    /** A space before the star is part of the prefix: "a *" means labels starting with the
+     *  word "a" ("A Better Camera"), not every label starting with the letter a. */
+    @Test fun `a space before the star belongs to the prefix`() {
+        assertEquals("a ", LauncherLogic.starPrefix("a *"))
+        val all = listOf(Row("p/better", "a better camera"), Row("p/alpha", "alpha"))
+        assertEquals(listOf("p/better"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "a ").keys())
     }
 
     // ---- pushRecent ---------------------------------------------------------
@@ -836,6 +852,13 @@ class LauncherLogicTest {
         // c has no tags, so it drops out; a and b keep their incoming order.
         val result = LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "")
         assertEquals(listOf("a", "b"), result.keys())
+    }
+
+    @Test fun `tagged canonicalises its needle like a stored tag`() {
+        // Stored tags never hold "#", "," or edge spaces (canonicalTag strips them), so a
+        // needle carrying them must be stripped the same way to match at all.
+        assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "g#a").keys())
+        assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, " GA ").keys())
     }
 
     @Test fun `tagged prefix-matches a tag`() {

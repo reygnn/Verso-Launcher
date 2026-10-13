@@ -24,6 +24,17 @@ class LauncherActionsTest {
 
     // ---- enterAction ---------------------------------------------------------
 
+    /** A CommandRow only ever renders in COMMAND mode; should one still be the nearest row
+     *  in a read mode (a stale list), Enter must neither launch nor run anything. */
+    @Test fun `a command row is no Enter target outside COMMAND mode`() {
+        for (mode in listOf(Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER)) {
+            assertEquals(
+                EnterAction.None,
+                LauncherLogic.enterAction(mode, command = null, promptBlank = false, lastRow = cmd),
+            )
+        }
+    }
+
     /** A resolved command wins over EVERYTHING, including a COMMAND-mode overview still being
      *  typed ("~b" both resolves to BACKUP and is COMMAND mode). Load-bearing: the command
      *  branch is first, so an exact/unambiguous command fires rather than no-ops. */

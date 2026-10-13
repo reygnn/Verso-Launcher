@@ -49,9 +49,10 @@ class LauncherRowsTest {
     // plain alphabetical drawer — hidden non-favorites out, favorites kept even if hidden,
     // and NOT regrouped favorites-last the way "*" does.
 
-    @Test fun `empty prompt shows the drawer alphabetically, not the favorites`() {
-        // B is hidden and not a favorite -> gone. A and C stay in label order, although the
-        // favorites' rank is C before A.
+    @Test fun `empty prompt shows the drawer in its incoming order, not favorites-first`() {
+        // B is hidden and not a favorite -> gone. A and C keep the order the app list arrives
+        // in (already alphabetical: LauncherLogic.sortedForDrawer sorts it, with tests of its
+        // own), although the favorites' rank is C before A — rowsFor never regroups here.
         assertEquals(listOf("com.a/A", "com.c/C"), appKeys(rowsFor(Mode.NORMAL, "")))
     }
 
