@@ -117,6 +117,13 @@ class SwipeGestureTest {
         assertEquals(DragEnd.CANCEL, SwipeGesture.dragEnd(offset = 20f, height = height, velocity = 299f, flingVelocity = fling))
     }
 
+    @Test fun `home is gone once the drawer covers a third of the page`() {
+        assertEquals(1f, SwipeGesture.homeAlpha(open = 0f, height = 900f), 0.001f)
+        assertEquals(0.5f, SwipeGesture.homeAlpha(open = 150f, height = 900f), 0.001f)
+        assertEquals(0f, SwipeGesture.homeAlpha(open = 300f, height = 900f), 0.001f)
+        assertEquals(0f, SwipeGesture.homeAlpha(open = 900f, height = 900f), 0.001f)
+    }
+
     @Test fun `a flick back cancels even past the threshold`() {
         // "Pull far, then flick back" aborts — distance alone must not commit it (Unity's fix).
         assertEquals(DragEnd.CANCEL, SwipeGesture.dragEnd(offset = 700f, height = height, velocity = -300f, flingVelocity = fling))

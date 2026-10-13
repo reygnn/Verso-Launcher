@@ -91,6 +91,17 @@ internal object SwipeGesture {
     const val DRAG_MAX_CLOSE_FRACTION = 0.8f
 
     /**
+     * Home is fully faded once the drawer covers this share of the page. Verso's drawer is
+     * transparent over the wallpaper, so home and list text would otherwise overlap for the
+     * whole drag; fading home over the first third keeps the overlap short.
+     */
+    const val HOME_FADE_FRACTION = 1f / 3f
+
+    /** Home's alpha while the drawer is [open] px up a [height]-tall page. */
+    fun homeAlpha(open: Float, height: Float): Float =
+        (1f - open / (height * HOME_FADE_FRACTION)).coerceIn(0f, 1f)
+
+    /**
      * The direction a page drag would go for a finger that has moved [dx]/[dy] from its down
      * point, or null while it is still inside [slop] or not vertical enough. On home only "up"
      * drags (it opens the drawer); in the drawer only "down" (it closes it).

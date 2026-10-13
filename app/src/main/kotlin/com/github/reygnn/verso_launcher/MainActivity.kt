@@ -651,12 +651,12 @@ class MainActivity : Activity() {
         }
     }
 
-    /** The drawer follows the finger; home fades in step with the uncovered share of the page. */
+    /** The drawer follows the finger; home fades out over the first third of its travel. */
     private fun dragPage(dir: SwipeDir, offset: Float) {
         val height = pageHeight()
         val open = if (dir == SwipeDir.UP) offset else height - offset  // how far the drawer is up
         drawer.translationY = height - open
-        home.alpha = (1f - open / height).coerceIn(0f, 1f)
+        home.alpha = SwipeGesture.homeAlpha(open, height)
     }
 
     /** The finger lifted: finish the turn from where the page is, or settle back. */
