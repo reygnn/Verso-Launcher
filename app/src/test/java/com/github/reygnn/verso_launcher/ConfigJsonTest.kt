@@ -119,11 +119,18 @@ class ConfigJsonTest {
         // or backslash in a rename could corrupt the whole verso.json.
         val tricky = mapOf(
             "com.a/.A" to "Wörk \"Gmail\"",
-            "com.b/.B" to "back\\slash\tand\nnewline",
+            "com.b/.B" to "back\\slash",
             "com.c/.C" to "絵文字 😀",
         )
         val parsed = ConfigJson.parse(ConfigJson.serialize(config(names = tricky)))!!
         assertEquals(tricky, parsed.names)
+    }
+
+    @Test fun `control characters in a stored name are dropped on load`() {
+        // A one-line row cannot show a tab or a newline; cleanName removes them (and the
+        // invisible look-alike characters) from every name read from a file.
+        val parsed = ConfigJson.parse(ConfigJson.serialize(config(names = mapOf("com.b/.B" to "tab\tand\nnewline"))))!!
+        assertEquals("tabandnewline", parsed.names["com.b/.B"])
     }
 
     @Test fun `truncated JSON returns null - the torn-write recovery trigger`() {
@@ -140,6 +147,30 @@ class ConfigJsonTest {
         val parsed = ConfigJson.parse("""{"favorites":["x","y","x"]}""")!!
         assertEquals(listOf("x", "y"), parsed.favorites.toList())
     }
+    // ---- hostile restore files -----------------------------------------------
+
+    @Test fun `a restored name loses its look-alike characters`() {
+        val c = ConfigJson.parseForeign("""{"names":{"a/A":"Sig\u200Bnal\u202E"}}""")!!
+        assertEquals("Signal", c.names["a/A"])
+    }
+
+    @Test fun `a restored name that is nothing but invisible characters is dropped`() {
+        val c = ConfigJson.parseForeign("""{"names":{"a/A":"\u200B\u202E"}}""")!!
+        assertTrue(c.names.isEmpty())
+    }
+
+    @Test fun `a file with more entries than any real config is refused whole`() {
+        val many = (1..ConfigJson.MAX_ENTRIES + 1).joinToString(",") { "\"p/$it\"" }
+        assertNull(ConfigJson.parseForeign("""{"hidden":[$many]}"""))
+        val ok = (1..ConfigJson.MAX_ENTRIES).joinToString(",") { "\"p/$it\"" }
+        assertEquals(ConfigJson.MAX_ENTRIES, ConfigJson.parseForeign("""{"hidden":[$ok]}""")!!.hidden.size)
+    }
+
+    @Test fun `a file with too many tags on one app is refused whole`() {
+        val tags = (1..ConfigJson.MAX_TAGS_PER_APP + 1).joinToString(",") { "\"t$it\"" }
+        assertNull(ConfigJson.parseForeign("""{"tags":{"a/A":[$tags]}}"""))
+    }
+
     // ---- hostile nesting ----------------------------------------------------
 
     /** Android's org.json has no depth limit and throws StackOverflowError (an Error, not an

@@ -236,10 +236,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Under enforced edge-to-edge (Android 16) the system does NOT push our content
-        // up for the keyboard on its own — adjustResize is a no-op and the IME just
+        // Under enforced edge-to-edge (Android 16) the window never fits the system bars and
+        // the system does NOT push our content up for the keyboard on its own — the IME just
         // covers the prompt. So we own the insets and pad for the IME ourselves (below).
-        window.setDecorFitsSystemWindows(false)
 
         // No always-visible keyboard any more: the front page is a quiet text home screen,
         // and the IME belongs to the drawer only. The manifest asks for stateHidden; the
@@ -478,8 +477,8 @@ class MainActivity : Activity() {
                 // A long-press that opened the rename dialog can carry on into a drag with the
                 // finger still down; that must not turn the page under the dialog.
                 if (renameDialog != null) return@claims false
-                // Read live, not cached: the manifest keeps the activity across a display-size
-                // (density) change.
+                // Read live: cheap, and never stale (a display-size change recreates the
+                // activity anyway — "density" is not in configChanges).
                 val topExclusion = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
                 SwipeGesture.claims(drawerOpen, dir, downY, topExclusion)
             }
@@ -753,10 +752,25 @@ class MainActivity : Activity() {
      * a refusal is not expected; the check and the catch keep a future change that does shut
      * it down from crashing the HOME app — a refused task is reported as false, never thrown.
      */
+    /**
+     * [task] behind a last-resort net. Hard rule 2 — a HOME app must never throw — is kept by
+     * every IO function catching its own errors; this is the backstop for the one that someday
+     * does not: an exception escaping on the executor (or the SAF read thread) reaches the
+     * thread's uncaught handler and kills the process on every start. Logged, not swallowed
+     * silently.
+     */
+    private fun guarded(what: String, task: Runnable) = Runnable {
+        try {
+            task.run()
+        } catch (e: RuntimeException) {
+            Log.w("Verso", "$what failed", e)
+        }
+    }
+
     private fun submitIo(task: Runnable): Boolean {
         if (ioExecutor.isShutdown) return false
         return try {
-            ioExecutor.execute(task)
+            ioExecutor.execute(guarded("IO task", task))
             true
         } catch (e: RejectedExecutionException) {
             Log.w("Verso", "IO task rejected (executor shutting down)", e)
@@ -831,8 +845,9 @@ class MainActivity : Activity() {
     /**
      * "~backup": export the config to Download/[BACKUP_DIR] as a backup of [BACKUP_BASE],
      * replacing the previous one only once the new one is published (see [BackupStore.write]).
-     * There is one current backup and one undo point — no timestamps, no pile to sift through —
-     * which is what lets [restoreConfig] work without a file picker.
+     * There is one current backup and one undo point, each named after the moment it was
+     * taken (see BackupFiles) — no pile to sift through, which is what lets [restoreConfig]
+     * work without a file picker: it reads the newest one.
      *
      * Different from the .bak mirror [ConfigStore] keeps: that one rotates away after two
      * saves and lives in filesDir, so it dies with the app. This one is an ordinary file in
@@ -857,8 +872,8 @@ class MainActivity : Activity() {
     }
 
     /**
-     * "~restore": read the one backup back in. No picker — there is a single file under
-     * a known name, so there is nothing to choose.
+     * "~restore": read the newest backup back in. No picker — there is one current backup,
+     * found by pattern whatever its timestamp, so there is nothing to choose.
      *
      * The read runs on [ioExecutor]; only the adoption returns to the main thread, where
      * the config lives.
@@ -940,7 +955,7 @@ class MainActivity : Activity() {
         // and every app refresh behind it. This read touches no file of the app's own, so it
         // needs none of the IO thread's ordering; the undo point and the adoption still go
         // through it (adoptRestored). Never throws: readText and parseForeign return null.
-        Thread({
+        Thread(guarded("restore read") {
             val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
             onUi {
                 // Unlike [restoreConfig] a null here is not "no backup yet" — the user
@@ -1003,7 +1018,7 @@ class MainActivity : Activity() {
                 // A dialog opened against the pre-restore config would write its stale name
                 // and tags over what the restore just brought in.
                 renameDialog?.dismiss()
-                toast(getString(R.string.toast_restore_ok, undo), Toast.LENGTH_LONG)
+                toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(undo)), Toast.LENGTH_LONG)
             }
         }
         if (!accepted) toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
@@ -1040,17 +1055,6 @@ class MainActivity : Activity() {
         }
     }
 
-    /**
-     * "##tag": put the chosen tag on [key] or take it off, persisted immediately like the
-     * other edit modes' checkboxes.
-     *
-     * Deliberately not routed through [toggle]: that one flips membership in a flat
-     * collection, while a tag lives in a per-app LIST inside a map, and an app left with
-     * no tags must lose its KEY rather than keep an empty list (ConfigJson drops empty
-     * lists on both sides, so an empty one would vanish on the next round trip and the
-     * in-memory shape would stop matching the file). The epoch/save/notify tail is
-     * identical, and identical for the same reasons — see [toggle].
-     */
     /**
      * May the posted click still act on [shown]?
      *
@@ -1101,6 +1105,11 @@ class MainActivity : Activity() {
     private fun longPressStillValid(): Boolean =
         TapGuard.stillValid(touchDownGeneration, shownGeneration)
 
+    /**
+     * "##tag": put the chosen tag on [key] or take it off, persisted immediately like the
+     * other edit modes' checkboxes. A tag lives in a per-app list inside a map, and an app
+     * left with no tags loses its key (see [LauncherState.toggleTag]).
+     */
     private fun toggleTagOn(key: String) {
         val tag = tagEditTag ?: return
         state.toggleTag(key, tag)
@@ -1335,8 +1344,9 @@ class MainActivity : Activity() {
      */
     private fun defaultFavoriteCandidates(): List<List<String>> {
         val pm = packageManager
+        // The personal-profile key, built where every key is built (AppEntry.keyOf).
         fun launcherKey(pkg: String): String? =
-            pm.getLaunchIntentForPackage(pkg)?.component?.flattenToString()
+            pm.getLaunchIntentForPackage(pkg)?.component?.let { AppEntry.keyOf(it.packageName, it.className, null) }
         // [preferred] is a lambda, not a value, so it runs INSIDE the try: evaluated as an
         // argument it would run before it, and a throwing lookup (the SMS role on a device
         // without telephony, a vendor-modified one) would escape onto the IO thread — an
@@ -1418,7 +1428,7 @@ class MainActivity : Activity() {
         // for.
         if (mode == Mode.RECENTS && shown.isEmpty() && !app.recentsEmptyHintShown) {
             app.recentsEmptyHintShown = true
-            Toast.makeText(this, getString(R.string.toast_recents_empty), Toast.LENGTH_LONG).show()
+            toast(getString(R.string.toast_recents_empty), Toast.LENGTH_LONG)
         }
         adapter.notifyDataSetChanged()
         // Back to the empty prompt: start the A-to-Z list at A, not wherever the
@@ -1472,7 +1482,7 @@ class MainActivity : Activity() {
             }
         } catch (e: SecurityException) {
             Log.w("Verso", "launch denied: ${entry.key}", e)
-            Toast.makeText(this, getString(R.string.toast_denied, entry.label), Toast.LENGTH_SHORT).show()
+            toast(getString(R.string.toast_denied, entry.label))
         } catch (e: RuntimeException) {
             // Dead system_server or similar — don't crash HOME.
             Log.w("Verso", "launch failed: ${entry.key}", e)
@@ -1480,15 +1490,8 @@ class MainActivity : Activity() {
         }
     }
 
-    /** What a screen reader says for a dimmed row, or null for a ready app (its label). */
-    private fun unavailableDescription(entry: AppEntry): String? = when (entry.status) {
-        AppStatus.READY -> null
-        AppStatus.PAUSED -> getString(R.string.a11y_app_paused, entry.label)
-        AppStatus.ARCHIVED -> getString(R.string.a11y_app_archived, entry.label)
-    }
-
     private fun notFound(entry: AppEntry) =
-        Toast.makeText(this, getString(R.string.toast_not_found, entry.label), Toast.LENGTH_SHORT).show()
+        toast(getString(R.string.toast_not_found, entry.label))
 
     /**
      * Open the system "App info" screen for this component's package (uninstall, permissions,
@@ -1503,7 +1506,7 @@ class MainActivity : Activity() {
             launcherApps.startAppDetailsActivity(ComponentName(entry.packageName, entry.className), user, null, null)
         } catch (e: SecurityException) {
             Log.w("Verso", "app info denied: ${entry.key}", e)
-            Toast.makeText(this, getString(R.string.toast_denied, entry.label), Toast.LENGTH_SHORT).show()
+            toast(getString(R.string.toast_denied, entry.label))
         } catch (e: RuntimeException) {
             Log.w("Verso", "app info failed: ${entry.key}", e)
             notFound(entry)
@@ -1629,7 +1632,7 @@ class MainActivity : Activity() {
                 )
                 // The read modes read the label as-is — unless the dimming says something a
                 // screen reader would otherwise not hear.
-                Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND -> unavailableDescription(entry)
+                Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND -> unavailableDescription(this@MainActivity, entry)
             }
         }
     }

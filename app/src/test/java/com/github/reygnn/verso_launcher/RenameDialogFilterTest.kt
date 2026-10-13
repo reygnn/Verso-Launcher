@@ -18,11 +18,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * Robolectric tests for [RenameDialog] — the ONE part of the app that a plain JVM test
- * cannot reach, because its behaviour lives in real framework widgets: an [EditText] with
- * an [InputFilter], and an [AlertDialog] button wired to a commit lambda. Everything else
- * in the app is pure and covered in the JUnit4-only suites; this file is the reason
- * Robolectric is on the test classpath at all.
+ * Robolectric tests for [RenameDialog], whose behaviour lives in real framework widgets: an
+ * [EditText] with an [InputFilter], and an [AlertDialog] button wired to a commit lambda.
+ * (SwipeFrameTest and HomePageAccessibilityTest are the other Robolectric suites; the rest
+ * of the app is pure and covered by plain JUnit4.)
  *
  * It pins two things that were previously untested:
  *  1. The tags field folds to lowercase AS TYPED (the "show exactly what will be saved"

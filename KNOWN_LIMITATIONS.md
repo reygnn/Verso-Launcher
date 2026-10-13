@@ -37,6 +37,21 @@ turns the profile back on (then a toast says the app is ready) or offers the sys
 restore. Both were verified on the A17. Turning a profile back on needs Verso to be
 the default home app; otherwise the system refuses and Verso shows "denied".
 
+## What the backups reveal, and moving to a new phone
+
+`~backup` writes the whole config to `Download/Verso/` in plain JSON: favorites, custom
+names, tags — and the list of apps you chose to HIDE. No other app can read it without
+an "all files" permission or your own pick in the file picker, but a file manager, a
+cloud-sync app that scans Download, or a PC over USB can. The files outlive an
+uninstall. Keep that in mind before sharing or syncing the folder.
+
+The app's own `verso.json` is excluded from Android's cloud backup
+(`allowBackup="false"`), but Android 12+ still copies it during a device-to-device
+transfer. Entries for apps in a work profile or clone carry that profile's serial
+(`package/class#10`), which on the new phone may belong to no profile or another one;
+such entries then simply match nothing. The personal profile's config moves over
+intact, and the default favorites are not seeded there (the install is not fresh).
+
 ## Gestures on the front page
 
 Swipe up (drawer) and swipe down (recent apps) are wired, as in Kolibri. Swipe

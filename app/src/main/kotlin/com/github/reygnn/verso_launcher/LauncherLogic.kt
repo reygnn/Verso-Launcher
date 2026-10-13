@@ -29,7 +29,7 @@ internal enum class Command { RELOAD, SAVE, BACKUP, RESTORE, RESTORE_SAF }
 
 /** The two fields the ordering/search logic needs from a row: its identity [key]
  *  and its case-folded label. AppEntry implements this, and tests fake it with a
- *  plain data class — so the logic never has to construct a real ComponentName. */
+ *  trivial data class — so a logic test needs no app fixtures at all. */
 internal interface Ordered {
     val key: String
     val labelLower: String
@@ -41,8 +41,7 @@ internal interface Ordered {
  * assert on it without an Android runtime.
  *
  * Generic over [Ordered] for the SAME reason the rest of this file is: the app rows in
- * production carry an AppEntry (which wraps a framework ComponentName, unusable on a
- * plain JVM), while a test fakes them with a trivial [Ordered]. [AppRow] therefore holds
+ * production carry an AppEntry, while a test fakes them with a trivial [Ordered]. [AppRow] therefore holds
  * a `T`, not a concrete AppEntry; [TagRow]/[CommandRow] carry no app and are `Row<Nothing>`
  * so they slot into a `Row<T>` list for any T (the interface is `out T`).
  */
@@ -260,8 +259,8 @@ internal object LauncherLogic {
      * and a bare "*" is the empty prefix — the whole drawer. Accepting both ends is what makes
      * the feature independent of where the text caret happens to sit. The star prompt is
      * reached two ways: the user types "*" themselves (the caret then lands AFTER it, so the
-     * prefix grows behind the star: "*a", "*ab", …), or the empty-Enter shortcut sets "*" for
-     * them. Pinning the caret to one side instead was tried twice and is not something an app
+     * prefix grows behind the star: "*a", "*ab", …), or the star is typed after a prefix
+     * ("ab*"). Pinning the caret to one side instead was tried twice and is not something an app
      * can rely on — a programmatic setText restarts the input connection, and where the IME
      * leaves the caret afterwards is its business, not ours.
      */
@@ -383,7 +382,36 @@ internal object LauncherLogic {
      * Typing "#work" should hand you the tag you obviously meant, not an error.
      */
     fun canonicalTag(raw: String): String =
-        foldLabel(raw).filter { it != '#' && it != ',' && !it.isISOControl() }.trim()
+        foldLabel(raw).filter { it != '#' && it != ',' && !it.isISOControl() && !isSpoofChar(it) }.trim()
+            .take(MAX_TAG_LENGTH)
+
+    /** A custom name's longest form — far beyond any real label, short enough that no name can
+     *  hog a row's measuring or the screen. */
+    const val MAX_NAME_LENGTH = 100
+
+    /** A tag's longest form. */
+    const val MAX_TAG_LENGTH = 50
+
+    /**
+     * Invisible characters that only serve to make text LOOK different from what it is: the
+     * bidi embeddings, overrides and isolates (U+202A-E, U+2066-9), the directional marks
+     * (U+200E/F, U+061C), and the zero-width space/no-break space/word joiner (U+200B, U+FEFF,
+     * U+2060). A name carrying them can impersonate another app ("Signal" built from reversed
+     * pieces) or sort and search differently from how it reads. ZWJ/ZWNJ (U+200C/D) are kept:
+     * emoji sequences and scripts like Persian or Hindi need them.
+     */
+    fun isSpoofChar(c: Char): Boolean =
+        c in '\u202A'..'\u202E' || c in '\u2066'..'\u2069' ||
+            c == '\u200E' || c == '\u200F' || c == '\u061C' ||
+            c == '\u200B' || c == '\uFEFF' || c == '\u2060'
+
+    /**
+     * A custom name as it may be stored: control and [isSpoofChar] characters removed, trimmed,
+     * at most [MAX_NAME_LENGTH] long. Applied to what the rename dialog commits and to every
+     * name read from a file — a restored config included.
+     */
+    fun cleanName(raw: String): String =
+        raw.filter { !it.isISOControl() && !isSpoofChar(it) }.trim().take(MAX_NAME_LENGTH)
 
     /**
      * Add or remove [tag] on an app whose current tags are [current], returning the new

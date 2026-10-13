@@ -201,7 +201,7 @@ class BackupStoreInstrumentedTest {
     }
 
     @Test fun noBackupAtAllFindsNothing() {
-        assertNull(store().findLatest("verso"))
+        assertEquals(BackupStore.Latest.None, store().lookupLatest("verso"))
     }
 
     // ---- helpers -----------------------------------------------------------------------
@@ -263,7 +263,7 @@ class BackupStoreInstrumentedTest {
      *  a normal backup, then renamed in place. */
     private fun legacyWrite(store: BackupStore, name: String, payload: String) {
         store.write("verso", payload)
-        val uri = store.findLatest("verso")!!
+        val uri = (store.lookupLatest("verso") as BackupStore.Latest.Found).uri
         resolver.update(
             uri,
             android.content.ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, name) },
@@ -275,7 +275,7 @@ class BackupStoreInstrumentedTest {
 
     private fun readLatest(base: String): String? {
         val s = store()
-        return s.findLatest(base)?.let { s.readText(it) }
+        return (s.lookupLatest(base) as? BackupStore.Latest.Found)?.let { s.readText(it.uri) }
     }
 
     /** The display names of every row of ours in the folder, pending ones included. */

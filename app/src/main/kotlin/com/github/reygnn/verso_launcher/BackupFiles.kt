@@ -39,6 +39,15 @@ internal object BackupFiles {
      *  ".json" so MediaStore keeps it as given (bar a " (n)" on a clash). */
     fun tempName(base: String) = "$base.tmp.json"
 
+    /**
+     * The time a backup [name] was taken, as "HH:mm" — what a toast shows instead of the whole
+     * 40-character name, which a two-line toast would cut off. The name itself, unchanged, for
+     * anything that carries no timestamp (an older fixed-name backup).
+     */
+    fun timeOf(name: String): String =
+        Regex(""".*-\d{4}-\d{2}-\d{2}_(\d{2})(\d{2})\d{2}( \(\d+\))?\.json""").matchEntire(name)
+            ?.let { "${it.groupValues[1]}:${it.groupValues[2]}" } ?: name
+
     /** "verso-2026-10-13_120745.json", "…_120745 (1).json" — a published backup of [base].
      *  Also the earlier fixed names "verso.json" / "verso (3).json", so a backup written before
      *  the switch to timestamps is still restored, and swept by the next backup. */

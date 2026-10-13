@@ -13,10 +13,10 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 373 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 384 tests):
 
 ```
-LauncherLogicTest          116  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          120  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
 LauncherStateTest           44  the concurrency rules: refresh/reload/rename/adopt
@@ -26,12 +26,12 @@ LauncherRowsTest            36  rowsFor per mode
 ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
                                 heal-without-rotate, isFresh
-ConfigJsonTest              24  round-trip, parseForeign's refusal of foreign JSON,
-                                hostile nesting
+ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
+                                hostile nesting, look-alike characters, size limits
 LauncherActionsTest         19  Enter / tap decisions
 HomeStyleTest               20  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming
-BackupFilesTest             14  backup naming: timestamps, patterns, restore pick, sweep
+BackupFilesTest             15  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
@@ -41,7 +41,7 @@ VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 6  stale-click guard
 RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest    8  Robolectric: TalkBack click on clock/date/battery, the double
+HomePageAccessibilityTest    9  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
 ```
 

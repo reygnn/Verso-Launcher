@@ -4,7 +4,7 @@
     <string name="hint_search">&gt; suche</string>
     <string name="clear_prompt">Eingabe löschen</string>
     <!-- Startseite (Vorderseite; der Drawer ist die Rückseite). -->
-    <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nFür Favoriten hier: im Drawer ! ins Suchfeld tippen und Apps antippen. !! sortiert sie.</string>
+    <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nFür Favoriten hier: in der App-Liste ! ins Suchfeld tippen und Apps antippen. !! sortiert sie.</string>
     <string name="a11y_home">Startbildschirm</string>
     <string name="a11y_open_drawer">Alle Apps öffnen</string>
     <!-- Eine abgedunkelte App (AppStatus): was der Screenreader sagt, und der Toast, sobald eine pausierte wieder da ist. -->
@@ -15,6 +15,7 @@
     <string name="a11y_open_alarms">Wecker öffnen</string>
     <string name="a11y_open_calendar">Kalender öffnen</string>
     <string name="a11y_open_battery">Akkuverbrauch öffnen</string>
+    <string name="a11y_battery">Akku %1$s</string>
     <string name="a11y_charging">Lädt</string>
     <string name="a11y_battery_protected">Akkuschutz: Ladung wird gehalten</string>
     <string name="toast_no_app">keine passende App auf diesem Gerät</string>
@@ -24,19 +25,19 @@
     <string name="action_app_info">App-Info</string>
     <string name="toast_not_found">nicht gefunden: %1$s</string>
     <string name="toast_denied">verweigert: %1$s</string>
-    <string name="toast_recents_empty">Noch keine zuletzt genutzten Apps — die Liste wird beim Neustart geleert</string>
+    <string name="toast_recents_empty">Noch keine zuletzt genutzten Apps (leer nach Neustart)</string>
     <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok / toast_restore_ok ist der Dateiname. -->
-    <string name="toast_saved">Config auf Disk geschrieben</string>
-    <string name="toast_save_failed">Speichern fehlgeschlagen — die Config wurde NICHT geschrieben</string>
+    <string name="toast_saved">Konfiguration gespeichert</string>
+    <string name="toast_save_failed">Speichern fehlgeschlagen — nichts geschrieben</string>
     <string name="toast_backup_ok">Backup: Download/Verso/%1$s</string>
-    <string name="toast_backup_failed">Backup fehlgeschlagen — es wurde nichts geschrieben</string>
-    <string name="toast_restore_ok">Config wiederhergestellt — vorherige gesichert als %1$s</string>
-    <string name="toast_restore_same">Nichts wiederherzustellen — das Backup ist die aktuelle Config</string>
-    <string name="toast_restore_list_failed">Download/Verso konnte nicht gelesen werden — ~restore-saf zum Auswählen versuchen</string>
-    <string name="toast_restore_undo_failed">Wiederherstellung abgebrochen — die aktuelle Config konnte vorher nicht als Undo-Punkt gesichert werden. Es wurde nichts geändert.</string>
-    <string name="toast_restore_failed">Wiederherstellung fehlgeschlagen — das Backup ist keine lesbare verso.json. Es wurde nichts geändert.</string>
-    <string name="toast_restore_none">Kein Backup gefunden — erst ~backup ausführen, oder ~restore-saf zum Auswählen</string>
-    <string name="toast_restore_no_picker">Kein Dateimanager auf diesem Gerät</string>
+    <string name="toast_backup_failed">Backup fehlgeschlagen — nichts geschrieben</string>
+    <string name="toast_restore_ok">Wiederhergestellt — vorherige als Rückgängig-Punkt (%1$s)</string>
+    <string name="toast_restore_same">Nichts zu tun — das Backup ist schon aktiv</string>
+    <string name="toast_restore_list_failed">Download/Verso nicht lesbar — ~restore-saf versuchen</string>
+    <string name="toast_restore_undo_failed">Nichts geändert — aktuelle Konfiguration nicht sicherbar</string>
+    <string name="toast_restore_failed">Nichts geändert — keine lesbare Konfiguration</string>
+    <string name="toast_restore_none">Kein Backup — ~backup ausführen oder ~restore-saf</string>
+    <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>
     <string name="a11y_hidden_off">Sichtbar: %1$s. Zum Ausblenden doppeltippen.</string>

@@ -89,7 +89,9 @@ internal class HomePage(
 
     // What render() last drew: (key, label) per favorite, or null if never drawn. Lets the
     // per-keystroke re-render from the drawer skip rebuilding rows that did not change.
-    private var rendered: List<Pair<String, String>>? = null
+    // The favorites last rendered — whole entries, so a change of label OR status (a work
+    // profile paused/resumed, an archived app restored) rebuilds the rows.
+    private var rendered: List<AppEntry>? = null
 
     init {
         val clock = OutlinedTextClock(activity).apply {
@@ -186,9 +188,8 @@ internal class HomePage(
      */
     fun render(favs: List<AppEntry>, loaded: Boolean) {
         if (!loaded) return
-        val signature = favs.map { it.key to it.label }
-        if (signature == rendered) return
-        rendered = signature
+        if (favs == rendered) return
+        rendered = favs
         favorites.removeAllViews()
 
         if (favs.isEmpty()) {
@@ -226,11 +227,7 @@ internal class HomePage(
                 outlined()
                 // A paused or archived favorite is dimmed like its drawer row; TalkBack hears why.
                 alpha = HomeStyle.rowAlpha(entry.status)
-                contentDescription = when (entry.status) {
-                    AppStatus.READY -> null
-                    AppStatus.PAUSED -> activity.getString(R.string.a11y_app_paused, entry.label)
-                    AppStatus.ARCHIVED -> activity.getString(R.string.a11y_app_archived, entry.label)
-                }
+                contentDescription = unavailableDescription(activity, entry)
                 setOnClickListener { onLaunch(entry) }
                 setOnLongClickListener { onEdit(entry); true }
             }, LinearLayout.LayoutParams(WRAP, WRAP))
@@ -277,12 +274,19 @@ internal class HomePage(
 
     private fun showBattery(intent: Intent?) {
         if (intent == null) return
-        batteryText.text = BatteryInfo.label(
+        val label = BatteryInfo.label(
             BatteryInfo.percent(
                 intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
                 intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1),
             )
         )
+        // Only on a change: the broadcast repeats every few seconds while charging, and every
+        // setText on this WRAP_CONTENT view would re-lay out the whole page.
+        if (batteryText.text.toString() != label) {
+            batteryText.text = label
+            // "87%" alone reads as "87 percent" — say what it is.
+            batteryText.contentDescription = activity.getString(R.string.a11y_battery, label)
+        }
         val state = BatteryInfo.chargeState(
             intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1),
             intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0),
@@ -405,3 +409,14 @@ internal class HomePage(
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
     }
 }
+
+/**
+ * What a screen reader says for a dimmed app (see [AppStatus]) — on the home page and in the
+ * drawer alike — or null for a ready one, whose label reads fine as it is.
+ */
+internal fun unavailableDescription(context: android.content.Context, entry: AppEntry): String? =
+    when (entry.status) {
+        AppStatus.READY -> null
+        AppStatus.PAUSED -> context.getString(R.string.a11y_app_paused, entry.label)
+        AppStatus.ARCHIVED -> context.getString(R.string.a11y_app_archived, entry.label)
+    }

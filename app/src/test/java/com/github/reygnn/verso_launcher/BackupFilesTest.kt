@@ -24,6 +24,12 @@ class BackupFilesTest {
         assertEquals("verso-pre-restore-2026-10-13_090507.json", BackupFiles.publishedName(pre, at))
     }
 
+    @Test fun `a toast shows a backup's time, not its long name`() {
+        assertEquals("16:19", BackupFiles.timeOf("verso-pre-restore-2026-10-13_161931.json"))
+        assertEquals("16:19", BackupFiles.timeOf("verso-pre-restore-2026-10-13_161931 (1).json"))
+        assertEquals("verso.json", BackupFiles.timeOf("verso.json"))  // no stamp: the name itself
+    }
+
     @Test fun `names sort in time order`() {
         val earlier = BackupFiles.publishedName(base, LocalDateTime.of(2026, 9, 30, 23, 59, 59))
         val later = BackupFiles.publishedName(base, LocalDateTime.of(2026, 10, 1, 0, 0, 0))

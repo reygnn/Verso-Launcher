@@ -433,6 +433,31 @@ class LauncherLogicTest {
         assertEquals("iş", LauncherLogic.canonicalTag("İş"))
     }
 
+    // ---- names and tags: no look-alike characters, bounded length ---------
+
+    @Test fun `cleanName drops invisible bidi and zero-width characters`() {
+        // U+202E (right-to-left override) can make "lang" display reversed; U+200B is invisible.
+        assertEquals("Signal", LauncherLogic.cleanName("Sig\u200Bnal"))
+        assertEquals("evil", LauncherLogic.cleanName("\u202Eevil\u202C"))
+        assertEquals("a b", LauncherLogic.cleanName("  a\u0000 b\n "))
+    }
+
+    @Test fun `cleanName keeps the joiners real scripts and emoji need`() {
+        val family = "\uD83D\uDC68\u200D\uD83D\uDC69"  // man ZWJ woman
+        assertEquals(family, LauncherLogic.cleanName(family))
+        val persian = "\u0645\u06CC\u200C\u0634\u0648\u062F"  // ZWNJ inside a word
+        assertEquals(persian, LauncherLogic.cleanName(persian))
+    }
+
+    @Test fun `cleanName caps the length`() {
+        assertEquals(LauncherLogic.MAX_NAME_LENGTH, LauncherLogic.cleanName("x".repeat(500)).length)
+    }
+
+    @Test fun `canonicalTag drops look-alike characters and caps the length too`() {
+        assertEquals("work", LauncherLogic.canonicalTag("wo\u200Brk"))
+        assertEquals(LauncherLogic.MAX_TAG_LENGTH, LauncherLogic.canonicalTag("t".repeat(500)).length)
+    }
+
     // ---- tag order ----------------------------------------------------------
 
     @Test fun `tags sort in the device language's alphabet, umlauts with their base letter`() {

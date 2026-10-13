@@ -73,11 +73,40 @@ internal object ConfigJson {
             j.optJSONArray("favorites") != null ||
             j.optJSONObject("names") != null ||
             j.optJSONObject("tags") != null
-        if (looksLikeConfig) parseObject(j) else null
+        if (looksLikeConfig && withinLimits(j)) parseObject(j) else null
     } catch (e: Exception) {
         null
     } catch (e: StackOverflowError) {
         null  // a hostile, absurdly nested document — see [parse]
+    }
+
+    /** Most entries any section of a real config could have — a launcher with this many apps
+     *  does not exist; a file with more is not a config. */
+    const val MAX_ENTRIES = 5_000
+
+    /** Most tags one app can carry in a file. */
+    const val MAX_TAGS_PER_APP = 100
+
+    /**
+     * Whether an outside document stays within what a real config can look like. Checked before
+     * anything is adopted, and the whole document is refused rather than truncated: a file
+     * with 150 000 tags or a megabyte-long name is not a damaged config to salvage, it is not a
+     * config — and adopted, it would be carried into verso.json and every backup, and walked on
+     * every long-press. Over-long single strings are shortened by cleanName/canonicalTag.
+     */
+    private fun withinLimits(j: JSONObject): Boolean {
+        val sizes = listOf(
+            j.optJSONArray("hidden")?.length() ?: 0,
+            j.optJSONArray("favorites")?.length() ?: 0,
+            j.optJSONObject("names")?.length() ?: 0,
+            j.optJSONObject("tags")?.length() ?: 0,
+        )
+        if (sizes.any { it > MAX_ENTRIES }) return false
+        val tags = j.optJSONObject("tags") ?: return true
+        for (k in tags.keys()) {
+            if ((tags.optJSONArray(k)?.length() ?: 0) > MAX_TAGS_PER_APP) return false
+        }
+        return true
     }
 
     /** The shared body of [parse] and [parseForeign], once the caller has decided the
@@ -96,7 +125,12 @@ internal object ConfigJson {
             for (i in 0 until it.length()) (it.opt(i) as? String)?.let { s -> loaded.favorites += s }
         }
         j.optJSONObject("names")?.let { o ->
-            for (k in o.keys()) (o.opt(k) as? String)?.let { s -> loaded.names[k] = s }
+            for (k in o.keys()) {
+                // Cleaned on the way in (LauncherLogic.cleanName): a restored file must not
+                // bring invisible look-alike characters or a 100k-character name with it.
+                val name = (o.opt(k) as? String)?.let(LauncherLogic::cleanName) ?: continue
+                if (name.isNotEmpty()) loaded.names[k] = name
+            }
         }
         j.optJSONObject("tags")?.let { o ->
             for (k in o.keys()) {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Verso Launcher</string>
+    <string name="app_name" translatable="false">Verso Launcher</string>
     <string name="hint_search">&gt; search</string>
     <string name="clear_prompt">Clear prompt</string>
     <!-- Home page (the front of the page; the drawer is its back). -->
@@ -15,6 +15,8 @@
     <string name="a11y_open_alarms">open alarms</string>
     <string name="a11y_open_calendar">open calendar</string>
     <string name="a11y_open_battery">open battery usage</string>
+    <!-- What a screen reader says for the battery text; %1$s is its percentage label. -->
+    <string name="a11y_battery">battery %1$s</string>
     <string name="a11y_charging">Charging</string>
     <string name="a11y_battery_protected">Battery protection: charge is being held</string>
     <string name="toast_no_app">no app for that on this device</string>
@@ -24,18 +26,18 @@
     <string name="action_app_info">App info</string>
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
-    <string name="toast_recents_empty">No recents yet — the list resets when the launcher restarts</string>
+    <string name="toast_recents_empty">no recent apps yet — the list resets on restart</string>
     <!-- One-shot "~" commands. %1$s in toast_backup_ok / toast_restore_ok is the written file name. -->
-    <string name="toast_saved">config written to disk</string>
-    <string name="toast_save_failed">save failed — the config was NOT written</string>
+    <string name="toast_saved">config saved</string>
+    <string name="toast_save_failed">save failed — nothing written</string>
     <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
-    <string name="toast_backup_failed">backup failed — nothing was written</string>
-    <string name="toast_restore_ok">config restored — previous one saved as %1$s</string>
-    <string name="toast_restore_same">nothing to restore — the backup is the current config</string>
-    <string name="toast_restore_list_failed">could not read Download/Verso — try ~restore-saf to pick the file</string>
-    <string name="toast_restore_undo_failed">restore aborted — the current config could not be saved as an undo point first. Nothing was changed.</string>
-    <string name="toast_restore_failed">restore failed — the backup is not a readable verso.json. Nothing was changed.</string>
-    <string name="toast_restore_none">no backup found — run ~backup first, or ~restore-saf to pick a file</string>
+    <string name="toast_backup_failed">backup failed — nothing written</string>
+    <string name="toast_restore_ok">restored — previous config kept as undo point (%1$s)</string>
+    <string name="toast_restore_same">nothing to restore — the backup is already in use</string>
+    <string name="toast_restore_list_failed">Download/Verso unreadable — try ~restore-saf</string>
+    <string name="toast_restore_undo_failed">nothing changed — could not save the current config</string>
+    <string name="toast_restore_failed">nothing changed — not a readable config file</string>
+    <string name="toast_restore_none">no backup — run ~backup, or pick one: ~restore-saf</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
     <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
          read aloud sensibly). %1$s is the app label. -->

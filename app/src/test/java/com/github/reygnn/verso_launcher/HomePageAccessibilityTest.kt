@@ -79,6 +79,21 @@ class HomePageAccessibilityTest {
         assertEquals(1, drawerOpened)
     }
 
+    @Test fun `a favorite whose app is paused, then resumed, is redrawn both times`() {
+        val paused = AppEntry.of("Gmail (Work)", "com.g", "com.g.Main", "Gmail (Work)", profile = 10, status = AppStatus.PAUSED)
+        page.render(favs = listOf(paused), loaded = true)
+        assertEquals(HomeStyle.UNAVAILABLE_ALPHA, favorite("Gmail (Work)").alpha, 0f)
+        assertEquals(activity.getString(R.string.a11y_app_paused, "Gmail (Work)"), favorite("Gmail (Work)").contentDescription)
+
+        // Same key and label, only the status changed — the page must not skip the rebuild.
+        page.render(favs = listOf(paused.copy(status = AppStatus.READY)), loaded = true)
+        assertEquals(1f, favorite("Gmail (Work)").alpha, 0f)
+        assertNull(favorite("Gmail (Work)").contentDescription)
+    }
+
+    private fun favorite(label: String): View =
+        page.view.collect<android.widget.TextView>().single { it.text.toString() == label }
+
     @Test fun `a single plain tap still opens nothing`() {
         clock.performClick()
         assertNull(shadowOf(activity).nextStartedActivity)

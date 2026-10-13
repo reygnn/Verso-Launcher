@@ -17,9 +17,9 @@ import android.widget.TextView
 /**
  * The long-press "set a custom name and tags" dialog, lifted out of [MainActivity] so the
  * Activity keeps only the config decision (what an empty or unchanged field means) and the
- * dialog lifecycle. This is a pure VIEW-construction extraction: unlike the LauncherLogic
- * split it earns no unit test — every line touches a framework widget — so its whole point
- * is readability, moving ~90 lines of EditText/dropdown wiring out of the Activity.
+ * dialog lifecycle. This is a VIEW-construction extraction — every line touches a framework
+ * widget, so its behaviour is pinned by a Robolectric test (RenameDialogFilterTest) rather
+ * than a plain JVM one.
  *
  * The contract is deliberately narrow: strings in, a canonical (name, tags) pair out via
  * [onCommit]. The dialog trims the name and runs the tags through [LauncherLogic.parseTags]
@@ -54,6 +54,16 @@ internal object RenameDialog {
         // must not be silently "corrected" on the way in.
         val noSuggest = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         val nameInput = EditText(context).apply {
+            // What the field accepts is what gets stored: no invisible look-alike or control
+            // characters (LauncherLogic.isSpoofChar), at most MAX_NAME_LENGTH.
+            filters = arrayOf(
+                InputFilter { source, start, end, _, _, _ ->
+                    val sub = source.subSequence(start, end).toString()
+                    val kept = sub.filter { !it.isISOControl() && !LauncherLogic.isSpoofChar(it) }
+                    if (kept == sub) null else kept
+                },
+                InputFilter.LengthFilter(LauncherLogic.MAX_NAME_LENGTH),
+            )
             setText(initialName)
             hint = context.getString(R.string.hint_rename_name)
             isSingleLine = true

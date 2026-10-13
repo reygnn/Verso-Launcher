@@ -122,14 +122,12 @@ internal class BackupStore(
     }
 
     /**
-     * The row a restore of [base] should read (see [BackupFiles.latestToRestore]), or null if
-     * this install has none. Rows of an earlier install are not ours any more — an uninstall
-     * orphans them, and they can be neither seen nor overwritten; "~restore-saf" reaches them.
+     * The row a restore of [base] should read (see [BackupFiles.latestToRestore]) — telling
+     * "this install has no backup" apart from "the folder could not be read": the two need
+     * different advice, and only one of them means "run ~backup". Rows of an earlier install
+     * are not ours any more — an uninstall orphans them, and they can be neither seen nor
+     * overwritten; "~restore-saf" reaches them.
      */
-    fun findLatest(base: String): Uri? = (lookupLatest(base) as? Latest.Found)?.uri
-
-    /** [findLatest], telling "this install has no backup" apart from "the folder could not be
-     *  read" — the two need different advice, and only one of them means "run ~backup". */
     fun lookupLatest(base: String): Latest {
         val own = listOwn() ?: return Latest.Failed
         val entry = BackupFiles.latestToRestore(base, own) ?: return Latest.None
@@ -177,7 +175,7 @@ internal class BackupStore(
         ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
 
     /** Read a document's whole text, or null if it cannot be read. Shared by both restore
-     *  paths (the fixed-name one and the SAF picker's uri); never throws. The bound itself
+     *  paths ("~restore"'s newest own backup and the SAF picker's uri); never throws. The bound itself
      *  lives in [readCapped] so it is unit-testable without Android. */
     fun readText(uri: Uri): String? = try {
         resolver.openInputStream(uri)?.use { readCapped(it) }
