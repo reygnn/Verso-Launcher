@@ -269,6 +269,19 @@ class LauncherStateTest {
         assertEquals(false, result)
     }
 
+    @Test fun `save before the first load writes nothing and reports failure`() {
+        // The empty default in memory must never be written over the real file: it would
+        // rotate the real config into .bak and publish an empty primary.
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        state.refresh()  // the load is queued, not yet run
+        var result: Boolean? = null
+        state.save { result = it }
+        assertEquals(false, result)
+        runAll()
+        assertEquals(emptyList<String>(), written)
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+    }
+
     @Test fun `save refused by a shut-down IO thread reports failure at once`() {
         started()
         ioOpen = false

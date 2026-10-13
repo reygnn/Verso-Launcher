@@ -92,11 +92,14 @@ import java.util.concurrent.RejectedExecutionException
  *   ~ / ~load  reload verso.json from disk (the config is cached otherwise)
  *   ~save      flush the in-memory config to disk (saves are automatic; this is
  *              the explicit "write it now" for peace of mind)
- *   ~backup    export the config to Download/Verso/verso.json, replacing
- *              the previous one — there is always exactly one backup
- *   ~restore   adopt that backup again. No picker: one file, known name. The config
- *              being replaced is written next to it as verso-pre-restore.json, so
- *              a restore never destroys the state it overwrote without a trace.
+ *   ~backup    export the config to Download/Verso/verso.json, replacing the
+ *              previous one once the new one is safely published — one current
+ *              backup. MediaStore may name it "verso (1).json" when the plain name
+ *              is taken by a file this install does not own (e.g. after a reinstall)
+ *   ~restore   adopt the newest such backup again. No picker. The config being
+ *              replaced is first written next to it as verso-pre-restore.json; if
+ *              that fails the restore is aborted, so a restore never destroys the
+ *              state it overwrote without a trace.
  *   ~restore-saf
  *              same, but PICK the file via the system document picker. The escape
  *              hatch for a config carried over from another phone — or a sigil.json
@@ -679,7 +682,7 @@ class MainActivity : Activity() {
 
     /**
      * The shared-storage backup layer (Download/[BACKUP_DIR]). The MediaStore mechanics live
-     * in [BackupStore]; the Activity keeps only the orchestration that needs it — exportConfig,
+     * in [BackupStore]; the Activity keeps only the orchestration that needs it — backup,
      * restoreConfig and the "~restore-saf" picker.
      */
     private val backupStore by lazy {
@@ -706,56 +709,38 @@ class MainActivity : Activity() {
             Command.SAVE -> state.save { ok ->
                 toast(getString(if (ok) R.string.toast_saved else R.string.toast_save_failed))
             }
-            Command.BACKUP -> exportConfig(BACKUP_NAME)
+            Command.BACKUP -> backup()
             Command.RESTORE -> restoreConfig()
             Command.RESTORE_SAF -> pickRestoreFile()
         }
     }
 
     /**
-     * Export the CURRENT config to Download/[BACKUP_DIR] under a FIXED [name],
-     * replacing whatever was there before.
+     * "~backup": export the config to Download/[BACKUP_DIR] as a backup of [BACKUP_BASE],
+     * replacing the previous one only once the new one is published (see [BackupStore.write]).
+     * There is one current backup and one undo point — no timestamps, no pile to sift through —
+     * which is what lets [restoreConfig] work without a file picker.
      *
-     * There is exactly one backup and exactly one undo point — no timestamps, no
-     * accumulating pile to sift through later. That is also what lets [restoreConfig]
-     * work without a file picker: the file it has to read is the one it knows the name
-     * of.
+     * Different from the .bak mirror [ConfigStore] keeps: that one rotates away after two
+     * saves and lives in filesDir, so it dies with the app. This one is an ordinary file in
+     * shared storage that can be copied off the device.
      *
-     * Different from the .bak mirror [writeConfigFile] keeps: that one rotates away
-     * after two saves and lives in filesDir, so it dies with the app. This one is an
-     * ordinary file in shared storage that can be copied off the device.
-     *
-     * Serialized on the main thread (like [LauncherState.save]: the config is only ever mutated here,
-     * so the read is race-free), written on [ioExecutor].
+     * The config in memory once it is loaded — serialized here on the main thread, where it is
+     * only ever mutated, so the read is race-free. Before the first load lands (a fast "~b" on a
+     * cold start) memory still holds the empty default, and exporting THAT would replace the
+     * real backup with nothing; the file on disk is the truth then, read on the IO thread.
      */
-    private fun exportConfig(name: String) {
-        val payload = ConfigJson.serialize(state.config)
-        exportOnIo(name) { payload }
-    }
-
-    /**
-     * Export the config as it is ON DISK — the undo point for a restore that arrives before
-     * the config was ever loaded into memory. That happens when Android killed the launcher
-     * while the "~restore-saf" picker was open: the picker's result is delivered to a fresh
-     * process, before the first refresh has read verso.json, so the in-memory config is still
-     * the empty default and exporting IT would replace a real undo point with nothing. Read
-     * on the IO thread; queued BEFORE the restore's own save on the same single thread, so it
-     * still sees the outgoing file.
-     */
-    private fun exportDiskConfig(name: String) =
-        exportOnIo(name) { ConfigJson.serialize(store.load()) }
-
-    private fun exportOnIo(name: String, payload: () -> String) {
-        submitIo {
-            val ok = backupStore.write(name, payload())
+    private fun backup() {
+        val payload = if (state.configLoaded) ConfigJson.serialize(state.config) else null
+        val accepted = submitIo {
+            val name = backupStore.write(BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
             runOnUiThread {
-                // Name the file that was actually written: exportConfig serves both
-                // "~backup" and the undo point a restore leaves behind, and a toast
-                // naming the wrong one of the two is worse than none.
-                if (ok) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
+                // Name the file actually written — MediaStore may have made it "verso (1).json".
+                if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
                 else toast(getString(R.string.toast_backup_failed))
             }
         }
+        if (!accepted) toast(getString(R.string.toast_backup_failed))
     }
 
     /**
@@ -767,23 +752,22 @@ class MainActivity : Activity() {
      */
     private fun restoreConfig() {
         submitIo {
-            val uri = backupStore.findOwn(BACKUP_NAME)
-                // A backup interrupted between deleting the old row and renaming the new
-                // one leaves the complete payload under the temp name. Picking it up here
-                // is what makes that window RECOVERABLE rather than merely survivable —
-                // without it the user is told "no backup" while a good one sits on disk.
-                // A temp torn mid-write is no risk: parseForeign refuses anything that is
-                // not a readable config, so a half-written one is rejected, not adopted.
-                ?: backupStore.findOwn("$BACKUP_NAME.tmp")?.also {
-                    Log.w("Verso", "restore: no published backup — using an interrupted one")
-                }
+            // The newest backup of ours, whatever MediaStore named it — or, if none was ever
+            // published, an interrupted first one (see BackupFiles.latestToRestore).
+            val uri = backupStore.findLatest(BACKUP_BASE)
             val text = uri?.let { backupStore.readText(it) }
+            // Parsed here, off the main thread: a hostile document is parse work the UI must
+            // not wait on (and the parse is where a torn temp gets rejected).
+            val restored = text?.let { ConfigJson.parseForeign(it) }
             runOnUiThread {
                 // Nothing there at all is its own message: "~backup was never run" is a
                 // different problem from "the backup is broken", and saying so saves the
                 // user hunting for a file that does not exist.
-                if (text == null) toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
-                else adoptRestored(text)
+                when {
+                    uri == null -> toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
+                    restored == null -> toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                    else -> adoptRestored(restored)
+                }
             }
         }
     }
@@ -835,33 +819,33 @@ class MainActivity : Activity() {
         // Backing out of the picker is not an error — say nothing.
         if (resultCode != RESULT_OK || uri == null) return
         submitIo {
-            val text = backupStore.readText(uri)
+            val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
             runOnUiThread {
                 // Unlike [restoreConfig] a null here is not "no backup yet" — the user
-                // pointed at a file and it could not be read. Same message as a file that
-                // does not parse: either way nothing was changed.
-                if (text == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                else adoptRestored(text)
+                // pointed at a file and it could not be read or is no config. Either way
+                // nothing was changed.
+                if (restored == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                else adoptRestored(restored)
             }
         }
     }
 
     /**
-     * Adopt config text that [restoreConfig] or the "~restore-saf" picker read, back on
-     * the main thread. The caller has already established there WAS something to read.
+     * Adopt a config that [restoreConfig] or the "~restore-saf" picker read and parsed — with
+     * parseForeign, NOT parse: the lenient parser would turn any JSON object at all into an
+     * empty config and wipe everything without so much as an error. A document that did not
+     * parse never gets here, so a malformed backup leaves the live config untouched.
      *
-     * Order matters and is the whole safety story: PARSE first, so a malformed backup
-     * aborts with the live config untouched. Only with a valid config in hand is the
-     * outgoing one written out as the undo point, and only then is the new one adopted.
+     * Then the undo point — the config being replaced — is written out as a backup of
+     * [PRE_RESTORE_BASE], and ONLY once that write succeeded is [restored] adopted. A restore
+     * whose undo point could not be written is aborted: replacing the config with nothing to
+     * go back to is exactly the "destroyed without a trace" the undo point exists to prevent.
+     * The outgoing config is taken from memory here on the main thread, or — if it was never
+     * loaded in this process (the picker's result delivered to a fresh process after Android
+     * killed the launcher) — read from disk on the IO thread, where an empty default would
+     * otherwise replace a real undo point with nothing.
      */
-    private fun adoptRestored(text: String) {
-        // parseForeign, NOT parse: the lenient parser would turn any JSON object at all
-        // into an empty config and wipe everything without so much as an error.
-        val restored = ConfigJson.parseForeign(text)
-        if (restored == null) {
-            toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-            return
-        }
+    private fun adoptRestored(restored: VersoConfig) {
         // What a restore actually adopted, so a "my favorites are gone" report can be
         // settled from the log instead of guessed at.
         Log.i(
@@ -869,17 +853,24 @@ class MainActivity : Activity() {
             "restore: ${restored.favorites.size} favorites, ${restored.hidden.size} hidden, " +
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
-        // The undo point — the config being replaced. Serialized synchronously from memory, so
-        // it must run before the reassign below; or, if the config was never loaded in this
-        // process (see exportDiskConfig), taken from the file instead.
-        if (state.configLoaded) exportConfig(PRE_RESTORE_NAME) else exportDiskConfig(PRE_RESTORE_NAME)
-        // Wholesale replace, save and re-render — with the epoch guard that keeps an
-        // enumeration already in flight from handing the OLD config back over this one.
-        state.adopt(restored)
-        // A dialog opened against the pre-restore config would write its stale name and
-        // tags over what the restore just brought in.
-        renameDialog?.dismiss()
-        toast(getString(R.string.toast_restore_ok))
+        val outgoing = if (state.configLoaded) ConfigJson.serialize(state.config) else null
+        val accepted = submitIo {
+            val undo = backupStore.write(PRE_RESTORE_BASE, outgoing ?: ConfigJson.serialize(store.load()))
+            runOnUiThread {
+                if (undo == null) {
+                    toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
+                    return@runOnUiThread
+                }
+                // Wholesale replace, save and re-render — with the epoch guard that keeps an
+                // enumeration already in flight from handing the OLD config back over this one.
+                state.adopt(restored)
+                // A dialog opened against the pre-restore config would write its stale name
+                // and tags over what the restore just brought in.
+                renameDialog?.dismiss()
+                toast(getString(R.string.toast_restore_ok, undo), Toast.LENGTH_LONG)
+            }
+        }
+        if (!accepted) toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
     }
 
     /** Toasts are this launcher's only chrome — one helper so they stay uniform. */
@@ -1379,8 +1370,10 @@ class MainActivity : Activity() {
         // Fixed names, not timestamped ones: there is exactly ONE backup and ONE undo
         // point, each overwritten in place. That is what lets "~restore" skip a file
         // picker — it already knows the name of the only file it could mean.
-        const val BACKUP_NAME = "verso.json"
-        const val PRE_RESTORE_NAME = "verso-pre-restore.json"
+        /** The backups' base names: published as "<base>.json", or "<base> (n).json" when
+         *  MediaStore has to dodge a taken name (see BackupFiles). */
+        const val BACKUP_BASE = "verso"
+        const val PRE_RESTORE_BASE = "verso-pre-restore"
         const val REQ_RESTORE = 1
         /** Duration of the home <-> drawer page turn. */
         const val PAGE_TURN_MS = 160L

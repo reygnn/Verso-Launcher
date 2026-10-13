@@ -14,9 +14,20 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        // On-device tests only for what a JVM can't reproduce: the real MediaStore behind the
+        // Downloads backup (its renaming of taken names, pending rows, ownership) and Android's
+        // own org.json. Everything else stays a JVM test.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug {
+            // The release build on the device is signed with the family key, a debug build with
+            // the debug key — same applicationId and the install (e.g. for connectedAndroidTest)
+            // fails on the signature. A separate id lets both coexist; release is unaffected.
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true      // R8 (full mode is the AGP 9 default)
             isShrinkResources = true    // strip unreferenced resources too
@@ -78,8 +89,8 @@ android {
 }
 
 // No PRODUCTION dependencies — that is the feature; the release APK is Kotlin
-// stdlib + platform APIs only. The single entry below is testImplementation, so
-// it lives on the unit-test classpath and never enters the shipped APK.
+// stdlib + platform APIs only. Every entry below is testImplementation or
+// androidTestImplementation, so none of them ever enters the shipped APK.
 dependencies {
     testImplementation(libs.junit)
     // Real org.json on the unit-test classpath for the ConfigJson round-trip
@@ -90,4 +101,8 @@ dependencies {
     // here on purpose: a plain Activity with no Hilt/AppCompat is driven with Robolectric's
     // own APIs, which keeps the whole androidx.test consistent-resolution force-pin out.
     testImplementation(libs.robolectric)
+    // On-device tests (connectedAndroidTest) — test APK only, never in the shipped one.
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

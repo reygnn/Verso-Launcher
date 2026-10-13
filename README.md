@@ -88,14 +88,19 @@ keyboard, no prompt:
     - `~save` — write the in-memory config out now (saves are automatic anyway;
       this is the explicit one)
     - `~backup` — export the config to `Download/Verso/verso.json`,
-      replacing the previous one. There is always exactly one backup, never a pile
-      of timestamped copies. An ordinary file: it survives an uninstall and can be
-      copied off the device (that's how you move a config to another phone), which
-      the internal `.bak` mirror cannot
-    - `~restore` — adopt that backup again. No file picker: one file, known name.
-      The config being replaced is written next to it as
-      `verso-pre-restore.json`, so a restore never destroys what it overwrote
-      without a trace. A backup that doesn't parse changes nothing
+      replacing the previous one, but only after the new one is safely written:
+      a failed or interrupted backup never costs you the old one. One current
+      backup, never a pile of timestamped copies. If `verso.json` is taken by a
+      file this install doesn't own (left over from before a reinstall, or copied
+      in), Android names the new one `verso (1).json`; the toast shows the real
+      name. An ordinary file: it survives an uninstall and can be copied off the
+      device (that's how you move a config to another phone), which the internal
+      `.bak` mirror cannot
+    - `~restore` — adopt the newest of those backups again. No file picker. The
+      config being replaced is first written next to it as
+      `verso-pre-restore.json`; if that fails, the restore is aborted, so a
+      restore never destroys what it overwrote without a trace. A backup that
+      doesn't parse changes nothing
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to

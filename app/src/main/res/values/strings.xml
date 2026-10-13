@@ -17,12 +17,13 @@
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
     <string name="toast_recents_empty">No recents yet — the list resets when the launcher restarts</string>
-    <!-- One-shot "~" commands. %1$s in toast_backup_ok is the written file name. -->
+    <!-- One-shot "~" commands. %1$s in toast_backup_ok / toast_restore_ok is the written file name. -->
     <string name="toast_saved">config written to disk</string>
     <string name="toast_save_failed">save failed — the config was NOT written</string>
     <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
     <string name="toast_backup_failed">backup failed — nothing was written</string>
-    <string name="toast_restore_ok">config restored</string>
+    <string name="toast_restore_ok">config restored — previous one saved as %1$s</string>
+    <string name="toast_restore_undo_failed">restore aborted — the current config could not be saved as an undo point first. Nothing was changed.</string>
     <string name="toast_restore_failed">restore failed — the backup is not a readable verso.json. Nothing was changed.</string>
     <string name="toast_restore_none">no backup found — run ~backup first, or ~restore-saf to pick a file (a Sigil sigil.json works too)</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>

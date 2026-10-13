@@ -150,6 +150,15 @@ internal class LauncherState(
      * main thread; if the IO thread refused the task it gets false at once.
      */
     fun save(onDone: ((Boolean) -> Unit)? = null) {
+        // Before the first load lands, [config] is the empty default, not the user's config.
+        // Writing it would rotate the real file into .bak and publish an empty primary — one
+        // more save, or a process death before the hand-off, and every favorite is gone. Every
+        // mutation path already runs after the load (or an adopt), so this only ever stops an
+        // early "~save"; it reports failure, which is the truth.
+        if (!configLoaded) {
+            onDone?.invoke(false)
+            return
+        }
         val payload = serialize(config)
         val accepted = io(Runnable {
             val ok = writeConfig(payload)

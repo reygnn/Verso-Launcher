@@ -41,6 +41,12 @@ internal object ConfigJson {
         parseObject(JSONObject(text))
     } catch (e: Exception) {
         null
+    } catch (e: StackOverflowError) {
+        // Android's org.json parses nested arrays/objects recursively and, unlike the desktop
+        // org.json, has no depth limit: a document nested ~100 000 deep (200 KB of "[[[…")
+        // overflows the stack — verified on a device. That is an Error, not an Exception, so
+        // without this it would sail past the catch above and take the launcher down.
+        null
     }
 
     /**
@@ -70,6 +76,8 @@ internal object ConfigJson {
         if (looksLikeConfig) parseObject(j) else null
     } catch (e: Exception) {
         null
+    } catch (e: StackOverflowError) {
+        null  // a hostile, absurdly nested document — see [parse]
     }
 
     /** The shared body of [parse] and [parseForeign], once the caller has decided the

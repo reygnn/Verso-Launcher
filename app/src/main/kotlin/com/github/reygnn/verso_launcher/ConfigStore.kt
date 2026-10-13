@@ -42,8 +42,8 @@ internal class ConfigStore(
     private val temp get() = File(dir, "$CONFIG_FILE.tmp")
 
     /**
-     * Read the config, preferring the primary verso.json and falling back to the .bak
-     * mirror written by [write] if the primary is missing or unreadable. A missing file
+     * Read the config, preferring the primary verso.json and falling back to an unpublished
+     * .tmp, then to the .bak mirror written by [write], if the primary is missing or unreadable. A missing file
      * (fresh install) yields an empty config silently; a present but unparseable primary
      * is logged and .bak is tried before giving up to empty. A HOME app must never throw
      * on resume, so every error path degrades to a working (if ruleless) launcher rather
@@ -52,6 +52,17 @@ internal class ConfigStore(
      */
     fun load(): VersoConfig {
         parse(primary)?.let { return it }
+        // The temp before the .bak: a temp survives only when the most recent write did not
+        // complete its publish (every completed write renames it away), so a temp that parses
+        // is the NEWEST config — e.g. after a crash between the .bak rotation and the publish,
+        // where the primary is gone and .bak is one save behind. A temp torn mid-write does not
+        // parse and falls through to .bak. Healed without rotating, like the .bak case below:
+        // .bak still holds the previous good copy.
+        parse(temp)?.let { recovered ->
+            log("primary config unreadable — recovered the newer, unpublished .tmp", null)
+            write(ConfigJson.serialize(recovered), rotateBackup = false)
+            return recovered
+        }
         parse(backup)?.let { recovered ->
             log("primary config unreadable — recovered from .bak", null)
             // Heal the primary now instead of waiting for the next toggle: rewrite the

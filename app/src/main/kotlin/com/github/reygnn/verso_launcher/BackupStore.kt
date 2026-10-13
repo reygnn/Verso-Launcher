@@ -19,65 +19,64 @@ import java.io.InputStream
  *
  * Lifted out of MainActivity to mirror the ConfigStore split — the Activity keeps the parts
  * that are inherently Activity-bound (the "~restore-saf" ACTION_OPEN_DOCUMENT dance in
- * pickRestoreFile/onActivityResult, and adoptRestored, which replaces the live cfg). Unlike
- * ConfigStore this earns little unit-test coverage: MediaStore/ContentResolver can't run on
- * a plain JVM, so this is a readability/cohesion move, not a testability one.
+ * pickRestoreFile/onActivityResult, and adoptRestored, which replaces the live cfg). Which
+ * rows are a backup, which one a restore reads and which ones a backup replaces is decided
+ * by [BackupFiles] (JVM-tested); the MediaStore behaviour itself — its renaming of clashing
+ * names, pending rows, ownership — can only be checked on a device, so this class is covered
+ * by an instrumented test (BackupStoreInstrumentedTest).
  *
  * Everything Android-specific is injected so the class names no framework singleton:
- *   [resolver] the app's ContentResolver
- *   [subDir]   the sub-folder of Downloads to write into (e.g. "Verso")
- *   [log]      android.util.Log in the app, a collector in a test — this class never
- *              throws, so the log IS its error channel.
+ *   [resolver]      the app's ContentResolver
+ *   [subDir]        the sub-folder of Downloads to write into (e.g. "Verso")
+ *   [log]           android.util.Log in the app, a collector in a test — this class never
+ *                   throws, so the log IS its error channel
+ *   [beforePublish] runs between the complete temp and its publish. A no-op in the app; a
+ *                   seam only so the instrumented test can fail (or "crash") exactly there.
  */
 internal class BackupStore(
     private val resolver: ContentResolver,
     private val subDir: String,
     private val log: (String, Exception?) -> Unit,
+    private val beforePublish: () -> Unit = {},
 ) {
 
-    // MediaStore stores RELATIVE_PATH WITH a trailing slash; the query below must match it
-    // exactly or every backup would insert a fresh copy instead of replacing.
+    // MediaStore stores RELATIVE_PATH WITH a trailing slash; the query below must match it.
     private val relativePath get() = "${Environment.DIRECTORY_DOWNLOADS}/$subDir"
 
     /**
-     * Publish [payload] into Download/[subDir] as [name] via MediaStore. Needs no storage
-     * permission: writing into the Downloads collection is always allowed, and an app may
-     * always rewrite what it wrote itself.
+     * Publish [payload] as a backup of [base] (e.g. "verso") in Download/[subDir]. Returns the
+     * name it was published under — usually "<base>.json", "<base> (n).json" when MediaStore
+     * had to dodge a name taken by a row we do not own — or null if nothing was published.
+     * Needs no storage permission: an app may always write into the Downloads collection and
+     * rewrite what it wrote itself. Never throws — a failed backup is reported and forgotten,
+     * it must not take a HOME app down with it.
      *
-     * Temp-write then publish, the same shape ConfigStore uses for verso.json and for the
-     * same reason. Opening the live backup with "wt" truncates it AT OPEN, so a write that
-     * then failed — ENOSPC, or the OS reaping a backgrounded HOME app mid-write — used to
-     * leave a torso where the backup had been. Unlike verso.json in filesDir this file has
-     * no .bak beside it: it is the only off-device copy, so it must never be destroyed before
-     * its replacement is complete on disk.
-     *
-     * Sequence: write the payload into a PENDING temp row and fsync it -> delete the old row
-     * -> rename the temp onto its name. A crash in the publish window leaves the COMPLETE new
-     * payload under "<name>.tmp" rather than a truncated backup, and the next run clears that
-     * temp away. IS_PENDING keeps the half-written temp invisible to file managers, and is
-     * cleared as part of the same update that renames it — so a row can no longer be stranded
-     * pending, invisible to the user and on the clock for MediaStore's pending-expiry sweep.
-     *
-     * Never throws — a failed backup is reported and forgotten, it must not take a HOME app
-     * down with it. Returns whether the file was published.
+     * The invariant: the previous backup is never touched until its replacement is published.
+     * It is the only off-device copy, so it must survive every failure and every crash.
+     *   1. Insert a PENDING temp row and write + fsync the payload into it. Pending keeps the
+     *      half-written file invisible to file managers.
+     *   2. Publish: rename the temp to "<base>.json" and clear pending in ONE update, and
+     *      demand that it changed exactly that one row. The old backup still exists at this
+     *      point, so MediaStore publishes the new one as "<base> (n).json" — which is why
+     *      restores pick the newest row by pattern instead of a fixed name ([BackupFiles]).
+     *   3. Only now delete what the new backup replaces: older published copies and stranded
+     *      temps. A failure here leaves an extra file, never a missing one.
+     * A failure in 1 or 2 deletes only the temp — the old backup is untouched. A crash in 1 or 2
+     * leaves the temp, which the next backup sweeps (step 3) and a restore reads if no backup
+     * was ever published.
      */
-    fun write(name: String, payload: String): Boolean {
-        val tmpName = "$name.tmp"
+    fun write(base: String, payload: String): String? {
         var tmp: Uri? = null
         return try {
-            // A temp left behind by a previous crash would otherwise collide, and MediaStore
-            // resolves a taken DISPLAY_NAME by inventing "…(1)" rather than failing — which
-            // is how you end up with a folder full of near-duplicates.
-            findOwn(tmpName)?.let { resolver.delete(it, null, null) }
             tmp = resolver.insert(
                 MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                 ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, tmpName)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, BackupFiles.tempName(base))
                     put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
                     put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 },
-            ) ?: throw IOException("MediaStore refused an entry for $tmpName")
+            ) ?: throw IOException("MediaStore refused a temp entry for $base")
             // fsync the CONTENTS before publishing, exactly as ConfigStore does: the rename
             // must not be able to reach disk ahead of the bytes it publishes.
             resolver.openFileDescriptor(tmp, "w")?.use { pfd ->
@@ -86,72 +85,80 @@ internal class BackupStore(
                 out.flush()
                 Os.fsync(pfd.fileDescriptor)
             } ?: throw IOException("no descriptor for $tmp")
-            // Publish. Deleting the old row first because a rename onto a taken name would
-            // again produce "…(1)" instead of replacing it. This also sweeps away a row
-            // stranded pending by an older crash, since a query returns our own pending rows.
-            findOwn(name)?.let { resolver.delete(it, null, null) }
-            resolver.update(
+            beforePublish()
+            val updated = resolver.update(
                 tmp,
                 ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, BackupFiles.publishedName(base))
                     put(MediaStore.MediaColumns.IS_PENDING, 0)
                 },
                 null,
                 null,
             )
-            true
+            // A publish that touched no row left the temp pending — invisible, and on the clock
+            // for MediaStore's pending-expiry sweep. That is a failed backup, not a success.
+            if (updated != 1) throw IOException("publish of $base updated $updated rows")
+            val published = tmp
+            tmp = null  // published: from here on the catch must never delete it
+            val id = ContentUris.parseId(published)
+            val own = listOwn().orEmpty()
+            for (old in BackupFiles.replacedBy(base, id, own)) {
+                try {
+                    resolver.delete(uriOf(old.id), null, null)
+                } catch (e: Exception) {
+                    log("backup: could not remove the replaced ${old.name}", e)
+                }
+            }
+            own.firstOrNull { it.id == id }?.name ?: BackupFiles.publishedName(base)
         } catch (e: Exception) {
-            log("backup to Downloads failed", e)
-            // Drop the temp rather than leaving an invisible stub in the user's Downloads.
-            // The previous backup is untouched at every point this can be reached.
+            log("backup of $base to Downloads failed", e)
+            // Only the unpublished temp — every older backup is still in place.
             tmp?.let { runCatching { resolver.delete(it, null, null) } }
-            false
+            null
         }
     }
 
     /**
-     * The MediaStore row for OUR [name] in Download/[subDir], or null if we never wrote it —
-     * or no longer own it: an uninstall orphans the row, and the reinstalled app can then
-     * neither see nor overwrite it.
-     *
-     * Without a storage permission a query only ever returns the app's own rows, which is
-     * exactly the scope wanted here.
+     * The row a restore of [base] should read (see [BackupFiles.latestToRestore]), or null if
+     * this install has none. Rows of an earlier install are not ours any more — an uninstall
+     * orphans them, and they can be neither seen nor overwritten; "~restore-saf" reaches them.
      */
-    fun findOwn(name: String): Uri? = try {
+    fun findLatest(base: String): Uri? =
+        listOwn()?.let { BackupFiles.latestToRestore(base, it) }?.let { uriOf(it.id) }
+
+    /**
+     * Every row of ours in Download/[subDir], or null if the query failed. Without a storage
+     * permission a Downloads query only ever returns the app's own rows, which is exactly the
+     * scope wanted. MATCH_INCLUDE, because MediaStore hides IS_PENDING rows from a plain query
+     * even from the app that wrote them — and a stranded temp is precisely what the sweep and
+     * the restore fallback need to see.
+     */
+    private fun listOwn(): List<BackupFiles.Entry>? = try {
         val query = Bundle().apply {
             putString(
                 ContentResolver.QUERY_ARG_SQL_SELECTION,
-                "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND " +
-                    "${MediaStore.MediaColumns.DISPLAY_NAME}=?",
+                "${MediaStore.MediaColumns.RELATIVE_PATH}=?",
             )
-            putStringArray(
-                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
-                arrayOf("$relativePath/", name),
-            )
-            // MATCH_INCLUDE, because MediaStore hides IS_PENDING rows from a plain query even
-            // from the app that wrote them. Without this both the cleanup in write() and the
-            // recovery in restore are dead code: a temp row stranded by a crash would be
-            // invisible, so it could neither be swept away nor read back, and it would sit
-            // there — a complete, unreachable backup — until MediaStore's own pending-expiry
-            // sweep deleted it for good.
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf("$relativePath/"))
             putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
         }
         resolver.query(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.MediaColumns._ID),
+            arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME),
             query,
             null,
         )?.use { c ->
-            if (c.moveToFirst()) {
-                ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0))
-            } else {
-                null
+            buildList {
+                while (c.moveToNext()) add(BackupFiles.Entry(c.getLong(0), c.getString(1).orEmpty()))
             }
-        }
+        } ?: emptyList()
     } catch (e: Exception) {
-        log("looking up $name in Downloads failed", e)
+        log("listing Download/$subDir failed", e)
         null
     }
+
+    private fun uriOf(id: Long): Uri =
+        ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
 
     /** Read a document's whole text, or null if it cannot be read. Shared by both restore
      *  paths (the fixed-name one and the SAF picker's uri); never throws. The bound itself
@@ -164,10 +171,11 @@ internal class BackupStore(
     }
 
     companion object {
-        /** Cap for a restore read. A verso.json is small text (keys, names, tags); anything
-         *  larger is not a real config, so refuse it rather than risk an OOM on a hostile or
-         *  huge file — the write path is bounded by our own config, only reads are exposed. */
-        private const val MAX_RESTORE_BYTES = 8 * 1024 * 1024 // 8 MiB
+        /** Cap for a restore read. A verso.json is small text (keys, names, tags) — a few KB
+         *  even for hundreds of apps; anything larger is not a real config, so refuse it rather
+         *  than spend memory and parse time on a hostile or huge file — the write path is
+         *  bounded by our own config, only reads are exposed. */
+        private const val MAX_RESTORE_BYTES = 1024 * 1024 // 1 MiB
 
         /**
          * Read at most [maxBytes] from [input] as UTF-8, or null when it holds more. Extracted

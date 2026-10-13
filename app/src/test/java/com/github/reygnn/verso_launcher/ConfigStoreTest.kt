@@ -107,6 +107,44 @@ class ConfigStoreTest {
         assertTrue(loggedAbout("recovered from .bak"))
     }
 
+    /** A crash between the .bak rotation and the publish: the primary is gone, .bak is one
+     *  save behind, and the complete newest config sits in the .tmp. */
+    @Test
+    fun `a missing primary recovers the newer tmp before the older bak mirror`() {
+        temp.writeText(json("newest"))
+        backup.writeText(json("one/behind"))
+
+        assertEquals(listOf("newest"), store.load().favorites.toList())
+        assertTrue(loggedAbout("recovered the newer, unpublished .tmp"))
+    }
+
+    @Test
+    fun `recovering from tmp heals the primary and keeps the bak mirror`() {
+        temp.writeText(json("newest"))
+        backup.writeText(json("one/behind"))
+
+        store.load()
+
+        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
+        assertEquals(listOf("one/behind"), ConfigJson.parse(backup.readText())!!.favorites.toList())
+    }
+
+    @Test
+    fun `a torn tmp falls through to the bak mirror`() {
+        temp.writeText("{ torn")
+        backup.writeText(json("from/bak"))
+
+        assertEquals(listOf("from/bak"), store.load().favorites.toList())
+    }
+
+    @Test
+    fun `a good primary wins over a leftover tmp`() {
+        primary.writeText(json("primary"))
+        temp.writeText(json("stale"))
+
+        assertEquals(listOf("primary"), store.load().favorites.toList())
+    }
+
     /** The heal: after recovering, the bad primary is rewritten so later loads stop
      *  hitting the fallback and we are never left running on a single copy. */
     @Test

@@ -140,6 +140,18 @@ class ConfigJsonTest {
         val parsed = ConfigJson.parse("""{"favorites":["x","y","x"]}""")!!
         assertEquals(listOf("x", "y"), parsed.favorites.toList())
     }
+    // ---- hostile nesting ----------------------------------------------------
+
+    /** Android's org.json has no depth limit and throws StackOverflowError (an Error, not an
+     *  Exception) here — verified on a device; the desktop org.json on this classpath refuses
+     *  with a JSONException instead. Either way the contract is the same: null, no throw. The
+     *  Android path itself is pinned by ConfigJsonInstrumentedTest. */
+    @Test fun `an absurdly nested document is refused, not thrown`() {
+        val deep = "{\"favorites\":" + "[".repeat(200_000) + "]".repeat(200_000) + "}"
+        assertNull(ConfigJson.parse(deep))
+        assertNull(ConfigJson.parseForeign(deep))
+    }
+
     // ---- parseForeign -------------------------------------------------------
 
     /** The regression this exists for: a restore fed unrelated JSON used to "succeed"
