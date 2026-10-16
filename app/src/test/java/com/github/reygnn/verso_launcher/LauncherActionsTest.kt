@@ -170,9 +170,10 @@ class LauncherActionsTest {
         }
     }
 
-    /** GO with a key other than Enter (a remote's DPAD_CENTER): still one Enter — down acts,
-     *  up consumed. */
-    @Test fun `GO on another key acts on its down and consumes its up`() {
+    /** Defensive: GO with a key other than Enter is still one Enter — down acts, up consumed.
+     *  No real input takes this path (TextView hands the listener ENTER and NUMPAD_ENTER only);
+     *  it pins that such an event is never passed on half-handled. */
+    @Test fun `defensive - GO on another key acts on its down and consumes its up`() {
         assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = true, isEnterKey = false)))
         assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = false, isEnterKey = false)))
     }

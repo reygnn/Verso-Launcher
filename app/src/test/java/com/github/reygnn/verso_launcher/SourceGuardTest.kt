@@ -63,6 +63,18 @@ class SourceGuardTest {
         assertTrue(body.contains("store.readForCopy()"))
     }
 
+    @Test fun `the prompt is written through setPrompt only`() {
+        // The prompt's busy-layer InputFilter lets the activity's own writes through only via
+        // setPrompt (promptByCode). A plain setText under the layer runs the filter over an empty
+        // dest and so EMPTIES the prompt instead of writing it — silently out of step with the mode.
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val outside = activity.replace(
+            activity.substringAfter("private fun setPrompt(").substringBefore("\n    }\n"), "",
+        )
+        assertFalse(Regex("""prompt\.setText\(""").containsMatchIn(outside))
+        assertTrue(activity.contains("private fun setPrompt("))
+    }
+
     @Test fun `every command run starts through the gate`() {
         // Hard rule 15: a command that bypassed CommandGate would run with no busy layer up, and
         // the user's taps could interleave with it again. The entry points: a typed

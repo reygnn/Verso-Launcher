@@ -828,7 +828,8 @@ internal object LauncherLogic {
      * prompt and dropped the keyboard.
      *
      * [imeAction]: the call's action is GO or DONE. [key]: the event, null for a soft Enter.
-     * A GO/DONE with a key other than Enter (a remote's DPAD_CENTER) still counts.
+     * A GO/DONE with a key other than Enter counts as well — defensive only: TextView hands the
+     * listener key events for ENTER and NUMPAD_ENTER alone, so no real input takes that branch.
      */
     fun enterEdge(imeAction: Boolean, key: EnterKey?): EnterEdge = when {
         key == null -> if (imeAction) EnterEdge.ACT else EnterEdge.PASS

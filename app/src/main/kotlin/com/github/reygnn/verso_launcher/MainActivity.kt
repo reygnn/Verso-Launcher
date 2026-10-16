@@ -380,7 +380,7 @@ class MainActivity : Activity() {
                     // Clear FIRST, exactly as the Enter path does: setText fires the
                     // TextWatcher synchronously, so the mode is back to NORMAL before the
                     // command runs and the re-render can't land on a stale overview.
-                    is TapAction.Run -> { prompt.setText(""); runCommand(action.command) }
+                    is TapAction.Run -> { setPrompt(""); runCommand(action.command) }
                     // A tag row drills into that tag's apps by rewriting the prompt — the
                     // TextWatcher then re-filters. The same row type serves both overviews;
                     // which sigil it drills into is decided by the mode it was rendered in.
@@ -439,7 +439,7 @@ class MainActivity : Activity() {
             isFocusable = false  // keep focus (and the IME) on the prompt when tapped
             visibility = View.GONE
             setOnClickListener {
-                prompt.setText("")  // TextWatcher -> applyFilter resets to NORMAL
+                setPrompt("")  // TextWatcher -> applyFilter resets to NORMAL
                 // Clearing is for retyping — so the keyboard belongs up, also after the recents
                 // view, which opened without it.
                 showKeyboard()
@@ -464,6 +464,9 @@ class MainActivity : Activity() {
             // whatever it might still send while the layer is up is dropped here — a running
             // command takes no input (hard rule 15). Not isEnabled = false —
             // that takes the focus and with it the keyboard, the very flicker the flag avoids.
+            // Beware: setText runs the filters over an empty dest, so for a setText this does not
+            // drop the new text, it EMPTIES the prompt. Every write of the activity's own goes
+            // through setPrompt, which the filter lets through (SourceGuardTest pins that).
             filters = arrayOf(InputFilter { _, _, _, dest, dstart, dend ->
                 if (busyLayer != null && !promptByCode) dest.subSequence(dstart, dend) else null
             })
@@ -517,7 +520,7 @@ class MainActivity : Activity() {
                 ) {
                     // Clear the prompt BEFORE running it ("" parses to no command), so a
                     // second Enter can't fire the same command again.
-                    is EnterAction.Run -> { prompt.setText(""); runCommand(action.command) }
+                    is EnterAction.Run -> { setPrompt(""); runCommand(action.command) }
                     is EnterAction.LaunchApp -> launch(action.entry)
                     // Drill a tag ("#tag"/"##tag") or clear back to NORMAL ("").
                     // setPrompt drives the TextWatcher exactly as typing does, so
@@ -681,7 +684,7 @@ class MainActivity : Activity() {
                         // The prompt changed during the gesture (a hardware key): the preview
                         // showed a close that is not happening — put the drawer back first.
                         if (previewed) settle(open = true)
-                        prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
+                        setPrompt("")   // TextWatcher -> applyFilter resets mode to NORMAL
                     }
                 }
             },
