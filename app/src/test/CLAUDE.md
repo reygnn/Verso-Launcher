@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 523 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 527 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -30,17 +30,18 @@ LauncherStateTest           90  the concurrency rules: refresh/reload/rename/ado
 CommandGateTest             16  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, cancel of the SAF read
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             43  verso.json on real temp files: .bak rotation, .tmp
+ConfigStoreTest             45  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
                                 heal-without-rotate, isFresh, unreadable is null — not empty,
                                 set aside by renaming (never deleted, never overwritten, primary last),
-                                the set-aside copy for Download
+                                the copy for Download (read in place, first non-blank file)
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         26  Enter / tap decisions, which Enter call acts
 HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
-BackupFilesTest             18  backup naming: timestamps, patterns, restore pick, sweep
+BackupFilesTest             19  backup naming: timestamps, patterns, restore pick, sweep
+                                (never of a verso-broken copy)
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
@@ -57,10 +58,11 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
 CleanupTest                  9  what ~cleanup may offer: complete enumeration, kept apps, parseKey
-SourceGuardTest              6  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              7  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
                                 brace-less object templates, every command (incl. ~reset) through the gate,
-                                no custom names in the enumeration
+                                no custom names in the enumeration, the broken copy
+                                published before the renames
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`

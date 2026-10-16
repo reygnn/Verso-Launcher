@@ -1625,7 +1625,8 @@ class MainActivity : Activity() {
      * Only while the config is unreadable: a readable config is never touched, whatever is typed
      * (LauncherState.reset refuses as well). The check looks for an own backup on the IO thread,
      * so the dialog can point to "~restore" first — the better way out — and warn about the one
-     * trap after a reset: a "~backup" of the fresh config would replace that backup.
+     * trap after a reset: a "~backup" of the fresh config would replace that backup. When the
+     * folder cannot be listed, a backup may exist all the same: the warning stays, worded so.
      */
     private fun reset(t: CommandGate.Ticket) {
         if (!state.configUnreadable) {
@@ -1636,21 +1637,26 @@ class MainActivity : Activity() {
         val ticket = cleanupTicket
         commandIo(
             t,
-            work = { backupStore.lookupLatest(BackupFiles.BACKUP_BASE) is BackupStore.Latest.Found },
+            work = { backupStore.lookupLatest(BackupFiles.BACKUP_BASE) },
             refused = { toast(getString(R.string.toast_command_failed)) },
-        ) { hasBackup ->
+        ) { latest ->
             if (!started || ticket != cleanupTicket) return@commandIo
-            confirmReset(hasBackup)
+            confirmReset(latest)
         }
     }
 
-    private fun confirmReset(hasBackup: Boolean) {
+    private fun confirmReset(latest: BackupStore.Latest) {
         commandDialog?.dismiss()
+        val note = when (latest) {
+            is BackupStore.Latest.Found -> R.string.reset_backup_note
+            BackupStore.Latest.Failed -> R.string.reset_backup_unknown
+            else -> null
+        }
         val lines = buildList {
             add(getString(R.string.reset_message))
-            if (hasBackup) {
+            if (note != null) {
                 add("")
-                add(getString(R.string.reset_backup_note))
+                add(getString(note))
             }
         }
         commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
@@ -1665,23 +1671,30 @@ class MainActivity : Activity() {
 
     /**
      * Set an unreadable config aside (ConfigStore.setAsideUnreadable: renamed, never deleted) —
-     * for "~reset" and a restore over it, on the IO thread — and put a copy of what was set aside
-     * into Download/[BackupFiles.DIR] as "verso-broken-<date>_<time>.json". The set-aside files
-     * stay in the app's private directory, out of the user's reach on a release build; the copy
-     * is where they can get at the bytes, and where "~restore-saf" brings the config back if it
-     * was only unreadable for a moment. Best effort: a failed copy changes nothing about the
-     * set-aside (logged).
+     * for "~reset" and a restore over it, on the IO thread — with a copy in
+     * Download/[BackupFiles.DIR] as "verso-broken-<date>_<time>.json". The set-aside files stay
+     * in the app's private directory, out of the user's reach on a release build; the copy is
+     * where they can get at the bytes, and where "~restore-saf" brings the config back if it was
+     * only unreadable for a moment. Every copy is kept (BackupFiles.replacedBy).
+     *
+     * The copy FIRST, while the files still lie where they were (ConfigStore.readForCopy): once
+     * they are renamed, the next start is a fresh install's, and a process killed before the copy
+     * was published would leave the config only in the private files. Best effort: a failed copy
+     * changes nothing about the set-aside (logged). Should setAsideUnreadable find the config
+     * readable after all (its own re-check), the copy just made stays as a harmless extra.
      *
      * The names in the outcome FIRST name where the user can find the config — the copy's path,
      * or without one the set-aside primary (moved last) — since the toasts show only that one:
      * a toast holds two lines, and the private names help nobody there (ConfigStore logs them).
      */
     private fun setAsideUnreadableConfig(): ConfigStore.SetAside {
-        val aside = store.setAsideUnreadable()
-        if (aside !is ConfigStore.SetAside.Moved) return aside
-        val copy = store.readSetAside(aside.names)
+        // A config that reads after all is no case for a copy in a public folder.
+        store.load()?.let { return ConfigStore.SetAside.Readable(it) }
+        val copy = store.readForCopy()
             ?.let { backupStore.write(BackupFiles.BROKEN_BASE, it) }
             ?.let { "${Environment.DIRECTORY_DOWNLOADS}/${BackupFiles.DIR}/$it" }
+        val aside = store.setAsideUnreadable()
+        if (aside !is ConfigStore.SetAside.Moved) return aside
         return ConfigStore.SetAside.Moved(listOfNotNull(copy) + aside.names.reversed())
     }
 

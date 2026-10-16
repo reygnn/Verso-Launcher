@@ -51,6 +51,18 @@ class SourceGuardTest {
         ))
     }
 
+    @Test fun `the copy of an unreadable config is published before its files are renamed`() {
+        // Hard rule 6: once the files are renamed, the next start is a fresh install's. A process
+        // killed between the renames and the copy would leave the config only in the private
+        // files — so the copy is read and published first, while the files still lie in place.
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val body = activity.substringAfter("private fun setAsideUnreadableConfig()").substringBefore("\n    }\n")
+        val copy = body.indexOf("backupStore.write(BackupFiles.BROKEN_BASE")
+        val rename = body.indexOf("store.setAsideUnreadable()")
+        assertTrue("copy written: $copy, set aside: $rename", copy in 0 until rename)
+        assertTrue(body.contains("store.readForCopy()"))
+    }
+
     @Test fun `every command run starts through the gate`() {
         // Hard rule 15: a command that bypassed CommandGate would run with no busy layer up, and
         // the user's taps could interleave with it again. The entry points: a typed

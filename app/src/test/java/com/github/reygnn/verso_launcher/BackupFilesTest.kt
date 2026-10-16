@@ -92,6 +92,17 @@ class BackupFilesTest {
         assertEquals(emptyList<BackupFiles.Entry>(), BackupFiles.replacedBy(base, keepId = 3, own = own).filter { it.id == 2L })
     }
 
+    /** Each copy of an unreadable config may be the only one the user can reach: a second one
+     *  never sweeps the first, nor a stranded temp of it. */
+    @Test fun `a set-aside copy never replaces an earlier one`() {
+        val own = listOf(
+            BackupFiles.Entry(1, "verso-broken-2026-10-13_120745.json"),
+            BackupFiles.Entry(2, "verso-broken.tmp.json"),
+            BackupFiles.Entry(3, "verso-broken-2026-10-16_210000.json"),
+        )
+        assertEquals(emptyList<BackupFiles.Entry>(), BackupFiles.replacedBy(BackupFiles.BROKEN_BASE, keepId = 3, own = own))
+    }
+
     @Test fun `unrelated look-alikes are not backups`() {
         assertFalse(BackupFiles.isPublished(base, "verso (1).json.bak"))
         assertFalse(BackupFiles.isPublished(base, "my verso.json"))

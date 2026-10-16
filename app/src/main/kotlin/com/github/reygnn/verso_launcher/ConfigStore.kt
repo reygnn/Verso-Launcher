@@ -160,24 +160,27 @@ internal class ConfigStore(
     }
 
     /**
-     * The text of what [setAsideUnreadable] moved as [names] — the set-aside primary, else the
-     * set-aside .bak — for a copy out of the app's private directory, or null when neither can
-     * be read or it is larger than [maxBytes] (a config is a few KB; anything far beyond is not
-     * worth a copy). Never throws.
+     * The text of an unreadable config, read where it lies, for a copy out of the app's private
+     * directory — taken BEFORE [setAsideUnreadable] moves the files, so a process killed in
+     * between never leaves the user with no copy they can reach. The first of the primary, the
+     * .bak and a leftover .tmp that can be read, holds more than whitespace (a primary torn to
+     * 0 bytes says nothing, a .bak beside it may hold nearly everything) and is no larger than
+     * [maxBytes] (a config is a few KB; anything far beyond is not worth a copy); null when none
+     * is. Never throws.
      */
-    fun readSetAside(names: List<String>, maxBytes: Int = MAX_SET_ASIDE_COPY): String? {
-        val pick = names.firstOrNull { it == "$CONFIG_FILE.broken" || it.startsWith("$CONFIG_FILE.broken-") }
-            ?: names.firstOrNull { it == "$CONFIG_FILE.bak.broken" || it.startsWith("$CONFIG_FILE.bak.broken-") }
-            ?: return null
-        return try {
-            File(dir, pick).inputStream().use { input ->
-                val bytes = input.readNBytes(maxBytes + 1)
-                if (bytes.size > maxBytes) null else bytes.toString(Charsets.UTF_8)
+    fun readForCopy(maxBytes: Int = MAX_SET_ASIDE_COPY): String? {
+        for (file in listOf(primary, backup, temp)) {
+            if (!file.isFile) continue
+            try {
+                val bytes = file.inputStream().use { it.readNBytes(maxBytes + 1) }
+                if (bytes.size > maxBytes) continue
+                val text = bytes.toString(Charsets.UTF_8)
+                if (text.isNotBlank()) return text
+            } catch (e: Exception) {
+                log("${file.name} unreadable for a copy", e)
             }
-        } catch (e: Exception) {
-            log("set-aside $pick unreadable for a copy", e)
-            null
         }
+        return null
     }
 
     /** "<name>.broken", or the first free "<name>.broken-2", -3 … — never over an earlier one. */

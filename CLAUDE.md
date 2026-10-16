@@ -145,7 +145,9 @@ main, written on the IO thread.
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
    name. Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
-   `verso-pre-cleanup-…`), and one copy of a set-aside unreadable config (`verso-broken-…`).
+   `verso-pre-cleanup-…`). The copies of a set-aside unreadable config (`verso-broken-…`) are
+   the exception: every one is kept, never swept — each may be the only copy the user can
+   reach — and it is written BEFORE the files are renamed, while they still lie in place.
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to

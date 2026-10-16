@@ -80,6 +80,7 @@
     <string name="reset_title">Konfiguration zurücksetzen</string>
     <string name="reset_message">verso.json ist nicht lesbar. Zurücksetzen legt die unlesbaren Dateien beiseite — umbenannt in …broken, nicht gelöscht, mit einer Kopie in Download/Verso — und beginnt neu wie nach einer Neuinstallation: keine Namen, keine Tags, nichts ausgeblendet, die Standard-Favoriten.</string>
     <string name="reset_backup_note">Es gibt ein Backup: ~restore holt deine Konfiguration stattdessen zurück. Wenn du trotzdem zurücksetzt, kein ~backup, bevor deine Konfiguration wieder da ist — es würde das Backup durch die frische ersetzen.</string>
+    <string name="reset_backup_unknown">Der Backup-Ordner ließ sich nicht prüfen, es kann also ein Backup geben: dann holt ~restore deine Konfiguration stattdessen zurück. Wenn du trotzdem zurücksetzt, kein ~backup, bevor deine Konfiguration wieder da ist — es würde das Backup durch die frische ersetzen.</string>
     <string name="reset_confirm">Zurücksetzen</string>
     <!-- %1$s: die Namen, unter denen die unlesbaren Dateien beiseitegelegt wurden. -->
     <string name="toast_reset_done">Zurückgesetzt — die unlesbare Konfiguration liegt als %1$s beiseite</string>

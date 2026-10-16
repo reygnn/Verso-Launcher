@@ -362,28 +362,51 @@ class ConfigStoreTest {
         }
     }
 
+    /** The copy is read where the files lie, before they are set aside: the primary first. */
     @Test
-    fun `the set-aside primary is what a copy reads, else the set-aside bak`() {
+    fun `a copy reads the primary, else the bak, else a leftover tmp`() {
         primary.writeText("{ torn primary")
         backup.writeText("torn bak")
-        val names = (store.setAsideUnreadable() as ConfigStore.SetAside.Moved).names
-        assertEquals("{ torn primary", store.readSetAside(names))
+        temp.writeText("torn tmp")
+        assertEquals("{ torn primary", store.readForCopy())
+        primary.delete()
+        assertEquals("torn bak", store.readForCopy())
+        backup.delete()
+        assertEquals("torn tmp", store.readForCopy())
+        temp.delete()
+        assertEquals(null, store.readForCopy())
+    }
 
-        backup.writeText("only bak")  // a second reset, with only a .bak this time
-        val second = (store.setAsideUnreadable() as ConfigStore.SetAside.Moved).names
-        assertEquals(listOf("verso.json.bak.broken-2"), second)
-        assertEquals("only bak", store.readSetAside(second))
+    /** A primary torn to nothing says nothing; the .bak beside it may hold nearly everything. */
+    @Test
+    fun `an empty or blank file is skipped for the next`() {
+        primary.writeText("")
+        backup.writeText("{ most of it")
+        assertEquals("{ most of it", store.readForCopy())
+        primary.writeText(" \n\t ")
+        assertEquals("{ most of it", store.readForCopy())
+        backup.writeText("")
+        assertEquals(null, store.readForCopy())
     }
 
     @Test
-    fun `a set-aside copy too large or gone is no copy`() {
-        primary.writeText("12345")
+    fun `a file too large is no copy, the next one may be`() {
+        primary.writeText("123456")
+        backup.writeText("12345")
+        assertEquals("12345", store.readForCopy(maxBytes = 5))
+        assertEquals("123456", store.readForCopy(maxBytes = 6))
+        backup.delete()
+        assertEquals(null, store.readForCopy(maxBytes = 5))
+    }
+
+    /** The copy is taken before the set-aside, and the set-aside moves what the copy read. */
+    @Test
+    fun `the copy reads what the set-aside then moves`() {
+        primary.writeText("{ torn primary")
+        val copy = store.readForCopy()
         val names = (store.setAsideUnreadable() as ConfigStore.SetAside.Moved).names
-        assertEquals(null, store.readSetAside(names, maxBytes = 4))
-        assertEquals("12345", store.readSetAside(names, maxBytes = 5))
-        File(dir, "verso.json.broken").delete()
-        assertEquals(null, store.readSetAside(names))
-        assertEquals(null, store.readSetAside(emptyList()))
+        assertEquals(copy, File(dir, names.last()).readText())
+        assertEquals(null, store.readForCopy())
     }
 
     // ---- write and rotation --------------------------------------------------

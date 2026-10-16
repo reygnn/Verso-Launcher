@@ -31,8 +31,9 @@ internal object BackupFiles {
 
     /** The base names, published as "<base>-<date>_<time>.json": the backup ("~backup"), the
      *  undo points written before a restore and before a cleanup, and the copy of an unreadable
-     *  config set aside by "~reset" or a restore over it. Each base keeps its own one row and
-     *  never claims another's ([isPublished]). */
+     *  config set aside by "~reset" or a restore over it. Each base keeps its own one row — the
+     *  copies of [BROKEN_BASE] excepted, which are all kept ([replacedBy]) — and never claims
+     *  another's ([isPublished]). */
     const val BACKUP_BASE = "verso"
     const val PRE_RESTORE_BASE = "verso-pre-restore"
     const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
@@ -82,7 +83,11 @@ internal object BackupFiles {
             ?: own.filter { isTemp(base, it.name) }.maxByOrNull { it.id }
 
     /** Everything a just-published backup [keepId] of [base] replaces: the older published
-     *  copies and any stranded temps. Never [keepId] itself, never another base's rows. */
+     *  copies and any stranded temps. Never [keepId] itself, never another base's rows — and
+     *  nothing at all of [BROKEN_BASE]: each copy of an unreadable config may be the only one the
+     *  user can reach (the set-aside files are private), so a later one never replaces an
+     *  earlier one. They are rare and small; the user clears them out. */
     fun replacedBy(base: String, keepId: Long, own: List<Entry>): List<Entry> =
-        own.filter { it.id != keepId && (isPublished(base, it.name) || isTemp(base, it.name)) }
+        if (base == BROKEN_BASE) emptyList()
+        else own.filter { it.id != keepId && (isPublished(base, it.name) || isTemp(base, it.name)) }
 }
