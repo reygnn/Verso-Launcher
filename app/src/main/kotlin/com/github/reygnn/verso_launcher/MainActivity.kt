@@ -280,6 +280,10 @@ class MainActivity : Activity() {
     // recreated activity starts free — see CommandGate for why that is enough.
     private val gate = CommandGate(onBusyChanged = ::showBusy)
     private var busyLayer: Dialog? = null
+    // The busy layer's delayed wheel and way out, removed with it.
+    private var busyTimers: List<Pair<View, Runnable>> = emptyList()
+    // The busy layer's way-out hint, while the layer is up (see updateBusyHint).
+    private var busyHint: TextView? = null
     // The run the layer was last shown for, and since when (uptime): what the wheel's and the
     // way out's delays count from (see showBusy).
     private var busyRun: CommandGate.Ticket? = null
@@ -1141,9 +1145,10 @@ class MainActivity : Activity() {
      * back on the main thread — still as a step of [t], so whatever [then] starts in turn (the next
      * IO step, a LauncherState call that reports back) keeps the command running, and the command
      * ends once nothing does (CommandGate). [refused] instead, at once, when the IO thread refused
-     * the task: nothing ran. A [work] that THROWS is a bug — every IO function here catches its own
-     * errors (hard rule 2) — but it must not leave the launcher locked behind the busy layer, so it
-     * is logged and reported, and the step ends like any other.
+     * the task: nothing ran. A [work] that THROWS an Exception is a bug — every IO function here
+     * catches its own errors (hard rule 2) — but it must not leave the launcher locked behind the
+     * busy layer, so it is logged and reported, and the step ends like any other. An Error is not
+     * caught: it ends the process, and the gate with it.
      *
      * A command abandoned meanwhile ([CommandGate.cancel]) gets nothing back here; a destroyed
      * instance gets nothing at all (onUi), and its gate is gone with it.
@@ -1194,7 +1199,13 @@ class MainActivity : Activity() {
                     commandDialog?.dismiss()
                 }
                 when (outcome) {
-                    ReloadOutcome.Adopted -> toast(getString(R.string.toast_reloaded))
+                    ReloadOutcome.Adopted -> {
+                        // Drawn now, with the toast: the names are already applied (relabel), and
+                        // the refresh's hand-off would come later — until then old rows could be
+                        // tapped.
+                        refilter()
+                        toast(getString(R.string.toast_reloaded))
+                    }
                     ReloadOutcome.Unreadable -> toast(getString(R.string.toast_reload_unreadable), Toast.LENGTH_LONG)
                     ReloadOutcome.ChangedMeanwhile -> toast(getString(R.string.toast_reload_changed))
                     ReloadOutcome.NotLoaded -> toast(getString(R.string.toast_not_loaded))
@@ -1279,11 +1290,14 @@ class MainActivity : Activity() {
             visibility = View.INVISIBLE
         }
         val hint = TextView(this).apply {
-            text = getString(R.string.busy_escape_hint)
             setTextColor(palette.listText)
             typeface = listTypeface
             gravity = Gravity.CENTER
             legibleOnWallpaper()
+            // A long German line must not touch the screen edge.
+            setPadding(dp(24), 0, dp(24), 0)
+            // Spoken when it appears: the way out is no use to a TalkBack user who is never told.
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             visibility = View.INVISIBLE
         }
         val content = LinearLayout(this).apply {
@@ -1310,6 +1324,13 @@ class MainActivity : Activity() {
         // window is added asking for them and nothing flashes.
         showStatusBar(drawerOpen)
         applyBarAppearance(layer.window)
+        // A finger dragging the page when the layer comes up (a hardware Enter mid-drag) must not
+        // turn it underneath: that drag is over, and the page settles back where it was, as
+        // closeDrawer does after an abort.
+        if (root.isDragging) {
+            root.abortDrag()
+            settle(open = drawerOpen)
+        }
         layer.show()
         // The way out once a run takes too long. Every step but the "~restore-saf" read waits on
         // the one IO thread, whose calls into system services (MediaStore above all) have no
@@ -1317,8 +1338,10 @@ class MainActivity : Activity() {
         // but holding the HOME screen hostage to it is worse. So the layer steps aside — the run
         // goes on, and no other command starts until it ends (gate.start refuses) — and the user
         // has the launcher back. Edits they make meanwhile interleave with the run as they did
-        // before the gate; LauncherState's own guards (configEpoch, the cleanup's Superseded) are
-        // what keeps that safe, and why they stay.
+        // before the gate. LauncherState's own guards (configEpoch, the cleanup's Superseded) keep
+        // a "~load" or a cleanup from overwriting them, which is why they stay. A restore that
+        // lands afterwards does replace them, and they are in neither its undo point nor its
+        // config: the restore was asked for, and its config is already on disk (hard rule 7).
         var escapable = elapsed >= BUSY_ESCAPE_MS
         layer.onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT) {
             when {
@@ -1330,11 +1353,29 @@ class MainActivity : Activity() {
                 }
             }
         }
-        wheel.postDelayed({ wheel.visibility = View.VISIBLE }, (BUSY_WHEEL_DELAY_MS - elapsed).coerceAtLeast(0))
-        hint.postDelayed({
+        val showWheel = Runnable { wheel.visibility = View.VISIBLE }
+        val openWayOut = Runnable {
             escapable = true
             hint.visibility = View.VISIBLE
-        }, (BUSY_ESCAPE_MS - elapsed).coerceAtLeast(0))
+            updateBusyHint()
+        }
+        wheel.postDelayed(showWheel, (BUSY_WHEEL_DELAY_MS - elapsed).coerceAtLeast(0))
+        hint.postDelayed(openWayOut, (BUSY_ESCAPE_MS - elapsed).coerceAtLeast(0))
+        busyTimers = listOf<Pair<View, Runnable>>(wheel to showWheel, hint to openWayOut)
+        busyHint = hint
+    }
+
+    /**
+     * The way-out hint says what Back does NOW: a step Back may abandon (the "~restore-saf" read)
+     * is cancelled, anything else is stepped out of. Called when the hint appears and when the
+     * read ends (readPicked), so it never promises a cancel the run no longer allows.
+     */
+    private fun updateBusyHint() {
+        val hint = busyHint ?: return
+        if (hint.visibility != View.VISIBLE) return
+        hint.text = getString(
+            if (gate.current?.cancelable == true) R.string.busy_cancel_hint else R.string.busy_escape_hint,
+        )
     }
 
     /** Take the busy layer down, and give the drawer its keyboard back. */
@@ -1352,6 +1393,10 @@ class MainActivity : Activity() {
     }
 
     private fun dismissBusyLayer() {
+        // The layer's pending timers go with it (harmless otherwise, but they need not linger).
+        for ((view, timer) in busyTimers) view.removeCallbacks(timer)
+        busyTimers = emptyList()
+        busyHint = null
         busyLayer?.dismiss()
         busyLayer = null
     }
@@ -1751,6 +1796,7 @@ class MainActivity : Activity() {
                 onUi {
                     gate.finish(t) {
                         t.cancelable = false
+                        updateBusyHint()  // "Back cancels" no longer holds
                         // Unlike [restoreConfig] a null here is not "no backup yet" — the user
                         // pointed at a file and it could not be read or is no config. Either way
                         // nothing was changed.
@@ -1810,6 +1856,7 @@ class MainActivity : Activity() {
                 // was set aside (renamed, not deleted) instead of an undo point.
                 is RestoreSteps.Outcome.ReplacedUnreadable -> {
                     state.adopt(restored)
+                    refilter()  // drawn now, not only once the refresh lands (see reload)
                     renameDialog?.dismiss()
                     commandDialog?.dismiss()
                     toast(getString(R.string.toast_restore_replaced, outcome.setAside.firstOrNull() ?: ConfigStore.CONFIG_FILE), Toast.LENGTH_LONG)
@@ -1819,6 +1866,7 @@ class MainActivity : Activity() {
                     // Wholesale replace, save and re-render — with the epoch guard that keeps an
                     // enumeration already in flight from handing the OLD config back over this one.
                     state.adopt(restored)
+                    refilter()  // drawn now, not only once the refresh lands (see reload)
                     // A dialog opened against the pre-restore config would write its stale name
                     // and tags over what the restore just brought in.
                     renameDialog?.dismiss()

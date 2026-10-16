@@ -55,8 +55,9 @@ internal class CommandGate(private val onBusyChanged: (Boolean) -> Unit) {
      * Start [command] unless one is running — false then, and [first] does not run. [first] is the
      * command's first step and runs at once: what it holds keeps the command running; if it holds
      * nothing (it refused, or finished on the spot), the command ends as it returns. A [first] that
-     * throws gives its hold back all the same, so a bug in a command cannot leave the launcher
-     * locked: it ends with whatever steps it had already handed over, or at once.
+     * throws gives its hold back all the same: the command ends with whatever steps it had already
+     * handed over, or at once. (On the main thread such an exception still ends the process, as
+     * any would; the gate only makes sure it is not the gate that locks the launcher.)
      */
     fun start(command: Command, first: (Ticket) -> Unit): Boolean {
         if (current != null) return false

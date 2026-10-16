@@ -117,6 +117,17 @@ with that copy brings it back; if it is really damaged, the bytes are there to l
 `~backup` first:** the fresh config is nearly empty, and a backup of it replaces the
 real one in `Download/Verso/`. The same holds after clearing the app's storage.
 
+## A hanging command holds the other commands until it ends
+
+The `~` commands run one at a time, and all but the `~restore-saf` file read do
+their work on the launcher's one disk thread. Should a step hang there — a system
+service (MediaStore above all) answering no call — the busy layer offers Back
+after 10 seconds and gives the launcher back, but the command itself cannot be
+abandoned safely (a restore may already have written the config). Until it ends,
+every other `~` command says "busy", and saves queue behind it; leaving and
+restarting the launcher (the process) is what clears it. Only a step with no
+bound by nature, the read of a picked file from a cloud drive, can be cancelled.
+
 ## Leaving the launcher resets to the front page
 
 Whenever the launcher stops (an app was launched, the screen went off, the recents

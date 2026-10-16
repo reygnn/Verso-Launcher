@@ -65,6 +65,8 @@
     <string name="a11y_busy">Wird ausgeführt…</string>
     <!-- Unter dem Rad, wenn ein Befehl ungewöhnlich lange läuft, und der Toast, wenn dann Zurück gedrückt wird. -->
     <string name="busy_escape_hint">Läuft noch — Zurück gibt den Launcher solange frei</string>
+    <!-- Derselbe Moment, solange die für ~restore-saf gewählte Datei noch gelesen wird: Zurück bricht ab. -->
+    <string name="busy_cancel_hint">Datei wird noch gelesen — Zurück bricht ab, nichts ändert sich</string>
     <string name="toast_busy_waived">Läuft weiter — neue Befehle warten, bis er fertig ist</string>
     <!-- verso.json ist da, aber nicht lesbar (ConfigStore.load): die Konfiguration gilt als nicht
          geladen — Bearbeiten und Speichern sind aus, nichts vom leeren Standard landet auf der Platte. -->
