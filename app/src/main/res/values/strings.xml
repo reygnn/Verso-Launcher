@@ -66,32 +66,32 @@
     <string name="toast_command_cancelled">cancelled — nothing changed</string>
     <string name="a11y_busy">Working…</string>
     <!-- Under the wheel once a command runs unusually long, and the toast when Back is used then. -->
-    <string name="busy_escape_hint">still working — Back gives you the launcher meanwhile</string>
+    <string name="busy_escape_hint">still working — Back gives you the launcher while it runs</string>
     <!-- The same moment while the file picked for ~restore-saf is still being read: Back cancels. -->
     <string name="busy_cancel_hint">still reading the picked file — Back cancels, nothing changes</string>
-    <string name="toast_busy_waived">still running — new commands wait until it is done</string>
+    <string name="toast_busy_waived">still running — no other command until it is done</string>
     <!-- verso.json is there but cannot be read (ConfigStore.load): the config counts as not
          loaded — edits and saves are off, nothing of the empty default reaches the disk. -->
-    <string name="toast_config_unreadable">config unreadable — edits are off until it can be read (retried on every return). ~load tries now, ~restore brings back a backup, ~reset starts over</string>
+    <string name="toast_config_unreadable">config unreadable — edits off. ~load, ~restore or ~reset</string>
     <string name="toast_reload_unreadable">config unreadable — nothing loaded, nothing changed</string>
     <string name="toast_reload_changed">not loaded — the config was changed meanwhile</string>
     <string name="toast_backup_unreadable">config unreadable — no backup written, the old one is kept</string>
-    <!-- %1$s: the names the unreadable files were renamed to (verso.json.unreadable, …). -->
     <string name="toast_restore_replaced">restored — copy of the old one in Download/Verso</string>
+    <!-- %1$s: the name the unreadable primary was renamed to (verso.json.unreadable, …). -->
     <string name="toast_restore_replaced_private">restored — the old one is set aside as %1$s</string>
     <string name="toast_restore_unsaved">restored, but not saved — ~save tries again</string>
     <!-- "~reset": only while the config is unreadable; the files are renamed, never deleted. -->
     <string name="reset_title">Reset config</string>
     <string name="reset_message">verso.json cannot be read. Reset sets the unreadable files aside — renamed to …unreadable, not deleted, with a copy in Download/Verso — and starts over like a fresh install: no names, no tags, nothing hidden, the default favorites.</string>
-    <string name="reset_backup_note">A backup exists: ~restore brings your config back instead. If you reset anyway, do not run ~backup before your config is back — it would replace that backup with the fresh one.</string>
-    <string name="reset_backup_unknown">The backup folder could not be checked, so a backup may exist: if so, ~restore brings your config back instead. If you reset anyway, do not run ~backup before your config is back — it would replace that backup with the fresh one.</string>
+    <string name="reset_backup_note">A backup exists: ~restore brings your config back instead. If you reset anyway, do not run ~backup before your config is back — it would replace that backup with the fresh config.</string>
+    <string name="reset_backup_unknown">The backup folder could not be checked, so a backup may exist: if so, ~restore brings your config back instead. If you reset anyway, do not run ~backup before your config is back — it would replace that backup with the fresh config.</string>
     <string name="reset_confirm">Reset</string>
-    <!-- %1$s: the names the unreadable files were renamed to. -->
     <string name="toast_reset_done">reset — copy in Download/Verso (verso-unreadable-…)</string>
+    <!-- %1$s: the name the unreadable primary was renamed to. -->
     <string name="toast_reset_done_private">reset — set aside as %1$s</string>
     <string name="toast_reset_readable">config is readable — nothing to reset</string>
     <string name="toast_reset_readable_now">config readable again — loading it, nothing reset</string>
-    <string name="toast_reset_failed">nothing changed — the unreadable config could not be set aside</string>
+    <string name="toast_reset_failed">nothing changed — could not set the unreadable config aside</string>
     <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
          read aloud sensibly). %1$s is the app label. -->
     <string name="a11y_hidden_on">Hidden: %1$s. Double-tap to unhide.</string>
