@@ -66,7 +66,7 @@ class ConfigStoreTest {
     fun `a fresh install loads an empty config without logging`() {
         val loaded = store.load()
 
-        assertTrue(loaded.favorites.isEmpty())
+        assertTrue(loaded!!.favorites.isEmpty())
         assertEquals(emptyList<String>(), logs)
     }
 
@@ -91,7 +91,7 @@ class ConfigStoreTest {
         primary.writeText(json("a/1"))
         backup.writeText(json("SHOULD-NOT-BE-READ"))
 
-        assertEquals(listOf("a/1"), store.load().favorites.toList())
+        assertEquals(listOf("a/1"), store.load()!!.favorites.toList())
         assertEquals(emptyList<String>(), logs)
     }
 
@@ -100,7 +100,7 @@ class ConfigStoreTest {
         primary.writeText("{ this is not json")
         backup.writeText(json("from/bak"))
 
-        assertEquals(listOf("from/bak"), store.load().favorites.toList())
+        assertEquals(listOf("from/bak"), store.load()!!.favorites.toList())
         assertTrue(loggedAbout("recovered from .bak"))
     }
 
@@ -111,7 +111,7 @@ class ConfigStoreTest {
         temp.writeText(json("newest"))
         backup.writeText(json("one/behind"))
 
-        assertEquals(listOf("newest"), store.load().favorites.toList())
+        assertEquals(listOf("newest"), store.load()!!.favorites.toList())
         assertTrue(loggedAbout("recovered the newer, unpublished .tmp"))
     }
 
@@ -132,7 +132,7 @@ class ConfigStoreTest {
         temp.writeText(json("newest"))
         backup.writeText(json("one/behind"))
 
-        assertEquals(listOf("newest"), store.load().favorites.toList())
+        assertEquals(listOf("newest"), store.load()!!.favorites.toList())
 
         assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
         assertFalse("the tmp was published, not rewritten and left behind", temp.exists())
@@ -145,7 +145,7 @@ class ConfigStoreTest {
         backup.writeText(json("one/behind"))
         val refusing = storeWith { from, to -> if (from == temp) false else from.renameTo(to) }
 
-        assertEquals(listOf("newest"), refusing.load().favorites.toList())
+        assertEquals(listOf("newest"), refusing.load()!!.favorites.toList())
 
         assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
         assertEquals("the recovered tmp is never truncated", listOf("newest"), ConfigJson.parse(temp.readText())!!.favorites.toList())
@@ -155,7 +155,7 @@ class ConfigStoreTest {
     fun `a lone tmp is still a fresh install, and load recovers it`() {
         temp.writeText(json("only/tmp"))
         assertTrue(store.isFresh())
-        assertEquals(listOf("only/tmp"), store.load().favorites.toList())
+        assertEquals(listOf("only/tmp"), store.load()!!.favorites.toList())
     }
 
     @Test
@@ -163,7 +163,7 @@ class ConfigStoreTest {
         temp.writeText("{ torn")
         backup.writeText(json("from/bak"))
 
-        assertEquals(listOf("from/bak"), store.load().favorites.toList())
+        assertEquals(listOf("from/bak"), store.load()!!.favorites.toList())
     }
 
     @Test
@@ -171,7 +171,7 @@ class ConfigStoreTest {
         primary.writeText(json("primary"))
         temp.writeText(json("stale"))
 
-        assertEquals(listOf("primary"), store.load().favorites.toList())
+        assertEquals(listOf("primary"), store.load()!!.favorites.toList())
     }
 
     /** The heal: after recovering, the bad primary is rewritten so later loads stop
@@ -201,19 +201,62 @@ class ConfigStoreTest {
         assertEquals(listOf("from/bak"), ConfigJson.parse(backup.readText())!!.favorites.toList())
     }
 
+    /**
+     * This test used to pin the bug: "both unreadable degrades to an empty config". That empty
+     * config was then adopted as the user's, and the next two saves rotated the real files out —
+     * favorites, names and tags gone after one bad read. Unreadable is not empty: it is null,
+     * and nothing is written while it holds.
+     */
     @Test
-    fun `both files unreadable degrades to an empty config rather than throwing`() {
+    fun `both files unreadable is no config at all, never an empty one, and writes nothing`() {
         primary.writeText("{ torn")
         backup.writeText("also not json")
 
-        assertTrue(store.load().favorites.isEmpty())
+        assertEquals(null, store.load())
+        assertTrue(loggedAbout("config unreadable"))
+        assertEquals("{ torn", primary.readText())
+        assertEquals("also not json", backup.readText())
+        assertFalse(temp.exists())
+    }
+
+    @Test
+    fun `an unreadable primary with no bak mirror is no config at all`() {
+        // E.g. after the first save, before a second one made the .bak.
+        primary.writeText("{ torn")
+
+        assertEquals(null, store.load())
+        assertEquals("{ torn", primary.readText())
+    }
+
+    @Test
+    fun `an unreadable lone bak mirror is no config at all`() {
+        backup.writeText("not json")
+
+        assertEquals(null, store.load())
+    }
+
+    @Test
+    fun `a torn tmp with nothing published is a fresh install, not an unreadable config`() {
+        // The very first save crashed mid-write: no config was ever published.
+        temp.writeText("{ torn")
+
+        assertTrue(store.load()!!.favorites.isEmpty())
+        assertFalse(loggedAbout("config unreadable"))
+    }
+
+    @Test
+    fun `an unreadable primary with a good tmp is no unreadable config`() {
+        primary.writeText("{ torn")
+        temp.writeText(json("newest"))
+
+        assertEquals(listOf("newest"), store.load()!!.favorites.toList())
     }
 
     @Test
     fun `a directory where the config should be is treated as absent, not fatal`() {
         File(dir, "verso.json").mkdirs()
 
-        assertTrue(store.load().favorites.isEmpty())
+        assertTrue(store.load()!!.favorites.isEmpty())
     }
 
     // ---- write and rotation --------------------------------------------------
@@ -311,7 +354,7 @@ class ConfigStoreTest {
         )
 
         store.write(ConfigJson.serialize(original), rotateBackup = true)
-        val loaded = store.load()
+        val loaded = store.load()!!
 
         assertEquals(listOf("f/1", "f/2"), loaded.favorites.toList())
         assertEquals(listOf("h/1"), loaded.hidden.toList())
@@ -327,7 +370,7 @@ class ConfigStoreTest {
         store.write(json("second"), rotateBackup = true)   // .bak = "first"
         assertTrue(primary.delete())
 
-        val loaded = store.load()
+        val loaded = store.load()!!
 
         assertEquals(listOf("first"), loaded.favorites.toList())
         assertTrue(backup.exists())

@@ -90,6 +90,27 @@ The swipe is not available to a screen reader, so the front page exposes an
 "Open all apps" custom accessibility action (TalkBack's actions menu), and the
 empty-favorites hint is tappable.
 
+## An unreadable config with no backup locks editing
+
+If `verso.json` is there but cannot be read — and neither can `.bak` — the config
+counts as **not loaded**: the drawer still lists and launches every app, but every
+edit and save is refused with a toast, so the empty default in memory can never be
+written over the real file (one bad read used to cost all favorites, names and tags
+that way). It is retried on every return to the launcher and by `~load`, so a
+passing read error heals by itself.
+
+Meanwhile the drawer shows the hidden apps too: nothing is hidden in the empty
+default that stands in for the unreadable config in memory (it is never saved).
+
+If the files stay unreadable (both corrupt), `~restore` or `~restore-saf` with any
+`verso*.json` is the way out — over an unreadable config even without an undo
+point, since there is nothing readable to keep. Without any backup there is no way
+out inside Verso yet; clearing the app's storage starts it fresh. **After clearing
+storage, run `~restore` before anything else, and never `~backup` first:** the fresh
+config is empty, and a backup of it replaces the real one in `Download/Verso/` (the
+backup files outlive the cleared storage). A command that starts over with an empty
+config would close that gap, but it is a new feature and not built.
+
 ## Leaving the launcher resets to the front page
 
 Whenever the launcher stops (an app was launched, the screen went off, the recents

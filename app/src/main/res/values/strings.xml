@@ -67,6 +67,13 @@
     <!-- Under the wheel once a command runs unusually long, and the toast when Back is used then. -->
     <string name="busy_escape_hint">still working — Back gives you the launcher meanwhile</string>
     <string name="toast_busy_waived">still running — new commands wait until it is done</string>
+    <!-- verso.json is there but cannot be read (ConfigStore.load): the config counts as not
+         loaded — edits and saves are off, nothing of the empty default reaches the disk. -->
+    <string name="toast_config_unreadable">config unreadable — edits are off until it can be read (retried on every return). ~load tries now, ~restore brings back a backup</string>
+    <string name="toast_reload_unreadable">config unreadable — nothing loaded, nothing changed</string>
+    <string name="toast_reload_changed">not loaded — the config was changed meanwhile</string>
+    <string name="toast_backup_unreadable">config unreadable — no backup written, the old one is kept</string>
+    <string name="toast_restore_replaced">restored — the unreadable config could not be kept (no undo point)</string>
     <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
          read aloud sensibly). %1$s is the app label. -->
     <string name="a11y_hidden_on">Hidden: %1$s. Double-tap to unhide.</string>

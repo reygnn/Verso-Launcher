@@ -48,7 +48,11 @@ class LauncherStateTest {
         main = { task -> mainQueue.addLast(task) },
         // A copy, like a real read: the file and the live config must never be one object,
         // or a test could pass only because a mutation also "changed the disk".
-        loadConfig = { loadConfigCalls++; if (loadThrows) throw IllegalStateException("read"); disk.snapshot() },
+        loadConfig = {
+            loadConfigCalls++
+            if (loadThrows) throw IllegalStateException("read")
+            if (diskUnreadable) null else disk.snapshot()
+        },
         enumerateApps = {
             enumerations++
             if (enumerationFails) null else installed.reversed()
@@ -72,6 +76,8 @@ class LauncherStateTest {
     /** A collaborator that throws although it never should: the report must come all the same
      *  (a "~" command waits for it behind the busy layer). */
     private var loadThrows = false
+    /** The file is there but cannot be read: ConfigStore.load gives null. */
+    private var diskUnreadable = false
     private var writeThrows = false
 
     /** Run the IO queue's next task the way the IO thread's guard does: an exception is caught
@@ -145,9 +151,9 @@ class LauncherStateTest {
     // ---- "~load": reload() ------------------------------------------------------------
 
     /** What each reload reported, in order. */
-    private val reloads = mutableListOf<Boolean>()
+    private val reloads = mutableListOf<ReloadOutcome>()
 
-    private fun reload() = state.reload { adopted -> reloads += adopted }
+    private fun reload() = state.reload { outcome -> reloads += outcome }
 
     @Test fun `reload forces a fresh read of the file and reports it adopted`() {
         started()
@@ -156,7 +162,7 @@ class LauncherStateTest {
         runAll()
         assertEquals(2, loadConfigCalls)
         assertEquals(setOf(key("Bravo")), state.config.hidden)
-        assertEquals(listOf(true), reloads)
+        assertEquals(listOf(ReloadOutcome.Adopted), reloads)
     }
 
     @Test fun `reload shows the names it read at once, before its refresh lands`() {
@@ -187,7 +193,7 @@ class LauncherStateTest {
         state.refresh()    // onResume before the reload's IO ran
         runAll()
         assertEquals(setOf(key("Bravo")), state.config.hidden)
-        assertEquals(listOf(true), reloads)
+        assertEquals(listOf(ReloadOutcome.Adopted), reloads)
     }
 
     @Test fun `a resume refresh between a reload's read and its hand-off does not drop it`() {
@@ -198,7 +204,7 @@ class LauncherStateTest {
         state.refresh()    // …and a resume asks for a refresh before the hand-off
         runAll()
         assertEquals(setOf(key("Bravo")), state.config.hidden)
-        assertEquals(listOf(true), reloads)
+        assertEquals(listOf(ReloadOutcome.Adopted), reloads)
     }
 
     @Test fun `a completed reload is not repeated by later refreshes`() {
@@ -220,39 +226,39 @@ class LauncherStateTest {
         assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
     }
 
-    @Test fun `a restore before a reload's hand-off is kept, and the reload reports not adopted`() {
+    @Test fun `a restore before a reload's hand-off is kept, and the reload says it changed meanwhile`() {
         started()
         disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
         reload()
         state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
         runAll()
         assertEquals(setOf(key("Bravo")), state.config.favorites)
-        assertEquals(listOf(false), reloads)
+        assertEquals(listOf(ReloadOutcome.ChangedMeanwhile), reloads)
     }
 
-    @Test fun `reload before the first load reads nothing and reports not adopted at once`() {
+    @Test fun `reload before the first load reads nothing and says so at once`() {
         reload()
-        assertEquals(listOf(false), reloads)
+        assertEquals(listOf(ReloadOutcome.NotLoaded), reloads)
         assertTrue(ioQueue.isEmpty())
         assertEquals(0, loadConfigCalls)
         assertFalse(state.configLoaded)
     }
 
-    @Test fun `a reload whose read throws still reports, as not adopted`() {
+    @Test fun `a reload whose read throws still reports, as failed`() {
         started()
         loadThrows = true
         reload()
         assertTrue("the exception still reaches the IO guard", runIoGuarded() is IllegalStateException)
         runMain()
-        assertEquals(listOf(false), reloads)
+        assertEquals(listOf(ReloadOutcome.Failed), reloads)
         assertTrue(state.configLoaded)
     }
 
-    @Test fun `reload refused by a shut-down IO thread reports not adopted at once`() {
+    @Test fun `reload refused by a shut-down IO thread reports failed at once`() {
         started()
         ioOpen = false
         reload()
-        assertEquals(listOf(false), reloads)
+        assertEquals(listOf(ReloadOutcome.Failed), reloads)
         assertEquals(1, loadConfigCalls)
     }
 
@@ -327,7 +333,7 @@ class LauncherStateTest {
         runAll()
 
         assertEquals(setOf(key("Alpha")), state.config.favorites)
-        assertEquals("not adopted", listOf(false), reloads)
+        assertEquals("not adopted", listOf(ReloadOutcome.ChangedMeanwhile), reloads)
         assertTrue("no wholesale replace reported", refreshed.none { it })
     }
 
@@ -546,6 +552,134 @@ class LauncherStateTest {
         state.rename(key("Alpha"), "Alpha", "", listOf("work"))
         state.rename(key("Alpha"), "Alpha", "", emptyList())
         assertFalse(key("Alpha") in state.config.tags)
+    }
+
+    // ---- an unreadable config: not loaded, edits off, nothing written ---------------------
+
+    /** Cold start with the file there but unreadable (ConfigStore.load gave null). */
+    private fun startedUnreadable() {
+        diskUnreadable = true
+        state.refresh()
+        runAll()
+        written.clear()
+        refreshed.clear()
+    }
+
+    @Test fun `an unreadable config on the first load stays not loaded, writes nothing, lists the apps`() {
+        startedUnreadable()
+        assertFalse(state.configLoaded)
+        assertTrue(state.configUnreadable)
+        assertTrue("the drawer still lists the apps", state.appsLoaded)
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+        assertTrue("retried on the next resume", state.needsRefresh)
+        assertEquals(emptyList<String>(), written)
+    }
+
+    @Test fun `every edit while the config is unreadable changes nothing and saves nothing`() {
+        // The empty default in memory must never reach the disk: saved, it would rotate the real
+        // file into .bak and push it out with the next save.
+        startedUnreadable()
+        state.toggleFavorite(key("Alpha"))
+        state.toggleHidden(key("Bravo"))
+        state.toggleTag(key("Charlie"), "work")
+        assertFalse(state.moveFavorite(key("Alpha"), key("Bravo")))
+        state.rename(key("Alpha"), "Alpha", "Zulu", listOf("x"))
+        state.forget(setOf(key("Alpha")))
+        var saved: Boolean? = null
+        state.save { saved = it }
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+        assertTrue(state.config.hidden.isEmpty())
+        assertTrue(state.config.tags.isEmpty())
+        assertTrue(state.config.names.isEmpty())
+        assertEquals(false, saved)
+        assertEquals(emptyList<String>(), written)
+    }
+
+    @Test fun `the next refresh that can read the file loads it and ends the unreadable state`() {
+        startedUnreadable()
+        diskUnreadable = false
+        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")), names = linkedMapOf(key("Alpha") to "Zulu"))
+        state.refresh()
+        runAll()
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
+        assertEquals(listOf(true), refreshed)
+        assertFalse(state.needsRefresh)
+    }
+
+    @Test fun `a config read after an unreadable start shows its names even if that load's list fails`() {
+        // The list committed while the config was unreadable shows system labels; the config that
+        // arrives later must relabel it although its own enumeration failed.
+        startedUnreadable()
+        diskUnreadable = false
+        disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
+        enumerationFails = true
+        state.refresh()
+        runAll()
+        assertTrue(state.configLoaded)
+        assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
+    }
+
+    @Test fun `reload while the config is unreadable tries again, unreadable again, then adopted`() {
+        startedUnreadable()
+        reload()
+        runAll()
+        assertEquals(listOf(ReloadOutcome.Unreadable), reloads)
+        assertTrue(state.configUnreadable)
+        assertEquals(emptyList<String>(), written)
+
+        diskUnreadable = false
+        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        reload()
+        runAll()
+        assertEquals(listOf(ReloadOutcome.Unreadable, ReloadOutcome.Adopted), reloads)
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals("a reload writes nothing", emptyList<String>(), written)
+    }
+
+    @Test fun `a reload that finds the file unreadable keeps the loaded config and writes nothing`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        started()
+        diskUnreadable = true
+        reload()
+        runAll()
+        assertEquals(listOf(ReloadOutcome.Unreadable), reloads)
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertTrue(state.configLoaded)
+        assertFalse("a loaded config is not unreadable", state.configUnreadable)
+        assertEquals(emptyList<String>(), written)
+        // …and stays editable.
+        state.toggleFavorite(key("Bravo"))
+        runAll()
+        assertEquals(1, written.size)
+    }
+
+    @Test fun `a restore is the way out of an unreadable config`() {
+        startedUnreadable()
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Charlie"))))
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        runAll()
+        assertEquals(listOf("fav=${key("Charlie")};hid=;names=;tags="), written)
+        assertEquals(setOf(key("Charlie")), state.config.favorites)
+        assertFalse(state.needsRefresh)
+    }
+
+    @Test fun `a toggle before the first load is ignored, and the load still lands`() {
+        // Before: the toggle changed the empty default (unsaved) and bumped the epoch, so the
+        // first load did NOT adopt the disk copy — the launcher stayed unloaded until a resume.
+        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        state.refresh()
+        state.toggleFavorite(key("Alpha"))
+        runAll()
+        assertTrue(state.configLoaded)
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals(emptyList<String>(), written)
     }
 
     // ---- enumeration failure ------------------------------------------------------

@@ -66,6 +66,13 @@
     <!-- Unter dem Rad, wenn ein Befehl ungewöhnlich lange läuft, und der Toast, wenn dann Zurück gedrückt wird. -->
     <string name="busy_escape_hint">Läuft noch — Zurück gibt den Launcher solange frei</string>
     <string name="toast_busy_waived">Läuft weiter — neue Befehle warten, bis er fertig ist</string>
+    <!-- verso.json ist da, aber nicht lesbar (ConfigStore.load): die Konfiguration gilt als nicht
+         geladen — Bearbeiten und Speichern sind aus, nichts vom leeren Standard landet auf der Platte. -->
+    <string name="toast_config_unreadable">Konfiguration unlesbar — Bearbeiten gesperrt, bis sie lesbar ist (wird bei jeder Rückkehr neu versucht). ~load versucht es sofort, ~restore holt ein Backup zurück</string>
+    <string name="toast_reload_unreadable">Konfiguration unlesbar — nichts geladen, nichts geändert</string>
+    <string name="toast_reload_changed">Nicht geladen — die Konfiguration wurde inzwischen geändert</string>
+    <string name="toast_backup_unreadable">Konfiguration unlesbar — kein Backup geschrieben, das alte bleibt</string>
+    <string name="toast_restore_replaced">Wiederhergestellt — die unlesbare Konfiguration ließ sich nicht sichern (kein Rücksprungpunkt)</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>
     <string name="a11y_hidden_off">Sichtbar: %1$s. Zum Ausblenden doppeltippen.</string>

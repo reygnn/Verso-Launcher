@@ -33,7 +33,8 @@ package com.github.reygnn.verso_launcher
  *
  * @param io            submit a task to the IO thread; false if it was refused (shutting down).
  * @param main          run a task on the main thread (posted — never inline from IO).
- * @param loadConfig    read verso.json (IO thread).
+ * @param loadConfig    read verso.json (IO thread): null when a published copy exists but cannot
+ *                      be read (ConfigStore.load) — never an empty stand-in for it.
  * @param enumerateApps list the launchable apps under their system labels — no custom name
  *                      applied (IO thread); null if the enumeration itself failed — the
  *                      last-known-good list is then kept. Any order is right; drawer order by
@@ -56,7 +57,7 @@ package com.github.reygnn.verso_launcher
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
-    private val loadConfig: () -> VersoConfig,
+    private val loadConfig: () -> VersoConfig?,
     private val enumerateApps: () -> List<AppEntry>?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
@@ -106,8 +107,21 @@ internal class LauncherState(
      * The config is read from disk once, then [config] IS the cache: the app is its only
      * writer, so re-reading it on every resume would be wasted I/O. "~load" ([reload]) forces
      * a read.
+     *
+     * Every edit and every save waits for it: before, [config] is the empty default, and an
+     * edit on it — saved — would push the real file out (hard rule 5).
      */
     var configLoaded = false
+        private set
+
+    /**
+     * True while the config exists on disk but could not be read: the last read found a
+     * published copy and nothing that parses (ConfigStore.load gave null). The config then stays
+     * NOT loaded — no edit, no save, nothing of the empty default reaches the disk — and every
+     * [refresh] tries again ([needsRefresh] holds), as does "~load". A restore ([adopt]) is the
+     * way out when the file stays unreadable. False again once a config is loaded.
+     */
+    var configUnreadable = false
         private set
 
     @Volatile private var loadGeneration = 0
@@ -146,11 +160,15 @@ internal class LauncherState(
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile
                 var replaced = false
+                // The file is there but could not be read: stay not loaded (edits stay off) and
+                // say so; the next refresh tries again. Unless a restore was adopted meanwhile.
+                if (loadConfigNow && diskConfig == null && !configLoaded) configUnreadable = true
                 // Adopt the disk copy only if nothing changed the config since the read — a
                 // restore adopted before the first load landed is the newer truth.
                 if (diskConfig != null && configEpoch == epoch) {
                     config = diskConfig
                     configLoaded = true
+                    configUnreadable = false
                     replaced = true
                     // First start: give the home page something to show. Saving here writes
                     // verso.json, so later starts are no longer fresh and never re-seed — a
@@ -164,14 +182,14 @@ internal class LauncherState(
                 // config. null means the enumeration itself failed (e.g. a system_server
                 // restart): keep the last known-good list rather than blanking the launcher.
                 lastLoadCommitted = loaded != null
-                // Shown under the names as they are NOW — a rename, a restore since the request
-                // included. (A config replaced here is the first load's, and no list was
-                // committed before it, so a failed enumeration leaves nothing to relabel.)
                 if (loaded != null) {
                     enumerated = loaded
                     appsLoaded = true
-                    relabel()
                 }
+                // Shown under the names as they are NOW — a rename, a restore since the request
+                // included. Also when only the config arrived: a list committed while the config
+                // was unreadable is still showing system labels.
+                if (loaded != null || replaced) relabel()
                 onRefreshed(replaced)
             })
         })
@@ -227,6 +245,8 @@ internal class LauncherState(
     fun toggleFavorite(key: String) = toggleIn(config.favorites, key)
 
     private fun toggleIn(set: MutableSet<String>, key: String) {
+        // Like every edit: none before the config is loaded (see configLoaded).
+        if (!configLoaded) return
         if (!set.remove(key)) set.add(key)
         mutated()
     }
@@ -237,6 +257,7 @@ internal class LauncherState(
      * with the file it was just written to.
      */
     fun toggleTag(key: String, tag: String) {
+        if (!configLoaded) return
         val next = LauncherLogic.toggleTag(config.tags[key], tag)
         if (next.isEmpty()) config.tags.remove(key) else config.tags[key] = next.toMutableList()
         mutated()
@@ -247,6 +268,8 @@ internal class LauncherState(
      * when the move is impossible or a no-op (either key gone, or the same row).
      */
     fun moveFavorite(pickedKey: String, targetKey: String): Boolean {
+        // No configLoaded check needed: before the load the favorites are the empty default
+        // (every other edit is refused), so there is nothing to move and reorder says null.
         val newOrder = LauncherLogic.reorder(config.favorites.toList(), pickedKey, targetKey)
             ?: return false
         config.favorites.clear()
@@ -366,44 +389,59 @@ internal class LauncherState(
      * Adopt a restored config wholesale ("~restore"). The caller has already parsed it (a
      * malformed backup never gets here) and written the outgoing config out as the undo point.
      * Saves, then re-renders through a [refresh] — without re-reading the file just queued for
-     * writing.
+     * writing. Also the way out of an unreadable config ([configUnreadable]): it loads one.
      */
     fun adopt(restored: VersoConfig) = replace(restored, persist = true)
 
     /**
      * "~load": read verso.json again ([loadConfig], on [io]) and adopt it wholesale, back on
-     * [main]; no save — it IS the file. [onDone] gets whether the file was adopted: false before
-     * the first load (that load is the read), when the IO thread refused the task (at once, then),
-     * or when the config changed while the file was read — memory is the newer truth then, as for
-     * any disk read. The Activity runs "~load" behind its busy layer (CommandGate), so normally no
-     * edit comes in between — but the user may step out of a stalled run, and this class must be
-     * right on its own anyway.
+     * [main]; no save — it IS the file. [onDone] gets the [ReloadOutcome], each with its own
+     * message: adopted; the file unreadable (nothing adopted — never an empty stand-in, the
+     * config in memory stays as it is); the config changed while the file was read (memory is
+     * the newer truth, as for any disk read); the first load still on its way (that load IS the
+     * read); or the task refused or failed. While the config is unreadable, "~load" is the way to
+     * try again at once. The Activity runs "~load" behind its busy layer (CommandGate), so
+     * normally no edit comes in between — but the user may step out of a stalled run, and this
+     * class must be right on its own anyway.
      */
-    fun reload(onDone: (adopted: Boolean) -> Unit) {
-        if (!configLoaded) {
-            onDone(false)
+    fun reload(onDone: (ReloadOutcome) -> Unit) {
+        if (!configLoaded && !configUnreadable) {
+            onDone(ReloadOutcome.NotLoaded)
             return
         }
         val epoch = configEpoch
         val accepted = io(Runnable {
-            // Reported even if the read throws (it never should — ConfigStore.load degrades to an
-            // empty config instead), as not adopted; the exception still reaches the IO guard.
+            // Reported even if the read throws (it never should — ConfigStore.load catches its
+            // own errors), as failed; the exception still reaches the IO guard.
+            var threw = true
             var loaded: VersoConfig? = null
             try {
                 loaded = loadConfig()
+                threw = false
             } finally {
                 val read = loaded
+                val failed = threw
                 main(Runnable {
-                    if (read != null && configEpoch == epoch) {
-                        replace(read, persist = false)
-                        onDone(true)
-                    } else {
-                        onDone(false)
-                    }
+                    onDone(
+                        when {
+                            failed -> ReloadOutcome.Failed
+                            read == null -> {
+                                // Unreadable now, whatever was loaded before: keep what memory
+                                // holds. Still unreadable if it was; a loaded config stays loaded.
+                                if (!configLoaded) configUnreadable = true
+                                ReloadOutcome.Unreadable
+                            }
+                            configEpoch != epoch -> ReloadOutcome.ChangedMeanwhile
+                            else -> {
+                                replace(read, persist = false)
+                                ReloadOutcome.Adopted
+                            }
+                        },
+                    )
                 })
             }
         })
-        if (!accepted) onDone(false)
+        if (!accepted) onDone(ReloadOutcome.Failed)
     }
 
     /**
@@ -416,6 +454,7 @@ internal class LauncherState(
     private fun replace(next: VersoConfig, persist: Boolean) {
         config = next
         configLoaded = true
+        configUnreadable = false
         if (persist) mutated() else ++configEpoch
         relabel()
         refresh()
@@ -440,4 +479,18 @@ internal class LauncherState(
         /** How many apps "?" remembers. */
         const val RECENTS_LIMIT = 8
     }
+}
+
+/** How a "~load" ended ([LauncherState.reload]). */
+internal sealed interface ReloadOutcome {
+    /** The file was read and adopted. */
+    data object Adopted : ReloadOutcome
+    /** The file is there but could not be read: nothing adopted, memory as it was. */
+    data object Unreadable : ReloadOutcome
+    /** The config changed while the file was read: memory, the newer truth, was kept. */
+    data object ChangedMeanwhile : ReloadOutcome
+    /** The first load is still on its way: it is the read. */
+    data object NotLoaded : ReloadOutcome
+    /** The IO thread refused the task, or the read failed unexpectedly: nothing changed. */
+    data object Failed : ReloadOutcome
 }

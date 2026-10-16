@@ -31,6 +31,17 @@ class RestoreStepsTest {
         assertEquals(emptyList<String>(), calls)
     }
 
+    @Test fun `an unreadable current config is replaced without an undo point, the way out`() {
+        val outcome = RestoreSteps.run(
+            current = null,
+            restored = cfg("new/New"),
+            writeUndo = { calls += "undo"; undoName },
+            writeConfig = { payload -> calls += "config:" + ConfigJson.parse(payload)!!.favorites.joinToString(); true },
+        )
+        assertEquals(RestoreSteps.Outcome.ReplacedUnreadable, outcome)
+        assertEquals("nothing readable to keep: no undo point", listOf("config:new/New"), calls)
+    }
+
     @Test fun `no undo point, no restore`() {
         undoName = null
         val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))

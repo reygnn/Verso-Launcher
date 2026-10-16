@@ -127,10 +127,16 @@ main, written on the IO thread.
    `VersoApp.io`.
 4. **`verso.json` write sequence is load-bearing** (`ConfigStore.write`): temp +
    fsync → rotate the primary to `.bak` only if it still parses → publish → fsync dir.
-   A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`.
-5. **`LauncherState.save` refuses before the config is loaded** — the empty default
-   must never be written over the real file. `~backup` before the load exports the
-   disk copy.
+   A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`,
+   and returns **null — never an empty config — when a published copy (primary or `.bak`)
+   exists but none parses**; only with no published copy at all is the empty config real.
+5. **No edit, no save before the config is loaded** — the empty default must never be
+   written over the real file. `LauncherState` refuses every edit and `save` until then;
+   the Activity says why (`editable()`). An unreadable config (`load()` null,
+   `configUnreadable`) counts as not loaded and stays so: retried on every resume and by
+   `~load`, ended by a successful read or a restore. `~backup` before the load exports the
+   disk copy — and writes nothing if that is unreadable, keeping the old backup. Home is
+   drawn and its cache written only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
@@ -140,7 +146,8 @@ main, written on the IO thread.
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to
    `verso.json` in the same IO task (the restore must survive a lost hand-back) → `adopt`.
-   No undo point, no restore.
+   No undo point, no restore — except over an unreadable config: nothing readable is there
+   to keep, and the restore is the way out of that state (`Outcome.ReplacedUnreadable`).
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`

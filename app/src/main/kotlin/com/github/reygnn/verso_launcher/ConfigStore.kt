@@ -43,14 +43,20 @@ internal class ConfigStore(
 
     /**
      * Read the config, preferring the primary verso.json and falling back to an unpublished
-     * .tmp, then to the .bak mirror written by [write], if the primary is missing or unreadable. A missing file
-     * (fresh install) yields an empty config silently; a present but unparseable primary
-     * is logged and .bak is tried before giving up to empty. A HOME app must never throw
-     * on resume, so every error path degrades to a working (if ruleless) launcher rather
-     * than crashing — and a single torn read of the primary no longer discards the user's
-     * favorites/hidden/names/tags.
+     * .tmp, then to the .bak mirror written by [write], if the primary is missing or unreadable.
+     * A HOME app must never throw on resume, so no path here does — and a single torn read of
+     * the primary does not discard the user's favorites/hidden/names/tags.
+     *
+     * Two kinds of "nothing to read", told apart:
+     *  - No published copy at all (neither primary nor .bak is a file): a fresh install, or one
+     *    whose very first save never got published. The empty config IS the truth then.
+     *  - A published copy exists, but nothing parses — a read error, or corruption of both:
+     *    returns NULL. The user's config is there, just not to be had right now, and an empty
+     *    default must never stand in for it: saved, it would rotate the real primary into .bak
+     *    and push it out with the next save. Callers treat null as "not loaded" — no edit, no
+     *    save, no backup of it (hard rule 5) — and try again later.
      */
-    fun load(): VersoConfig {
+    fun load(): VersoConfig? {
         parse(primary)?.let { return it }
         // The temp before the .bak: a temp survives only when the most recent write did not
         // complete its publish (every completed write renames it away), so a temp that parses
@@ -72,6 +78,11 @@ internal class ConfigStore(
             // very backup we just read from.
             write(ConfigJson.serialize(recovered), rotateBackup = false)
             return recovered
+        }
+        // isFile, not exists(): a directory where a file should be holds no config either.
+        if (primary.isFile || backup.isFile) {
+            log("config unreadable — not loaded, nothing written", null)
+            return null
         }
         return VersoConfig()
     }

@@ -182,6 +182,8 @@ class MainActivity : Activity() {
     private var resumed = false
     // Between onStart and onStop: the launcher can be seen (see cleanup).
     private var started = false
+    // Whether the unreadable config was reported already (once per episode, see onRefreshed).
+    private var unreadableShown = false
 
     // What outlives this instance: the one disk thread and the recents (see VersoApp).
     private val app get() = VersoApp.from(this)
@@ -209,7 +211,9 @@ class MainActivity : Activity() {
      * Activity hands it its IO thread, the main thread and the Android-side readers/writers,
      * and re-renders when a refresh lands.
      */
-    private val state by lazy {
+    // Typed explicitly: onRefreshed below reads state itself (configUnreadable), which an
+    // inferred type would make recursive.
+    private val state: LauncherState by lazy {
         LauncherState(
             io = ::submitIo,
             main = { task -> onUi { task.run() } },
@@ -225,6 +229,13 @@ class MainActivity : Activity() {
                     renameDialog?.dismiss()
                     // Its counts were for the config just replaced.
                     commandDialog?.dismiss()
+                }
+                // The file is there but unreadable: say so once per episode — the drawer works,
+                // edits are off, and ~load / ~restore are the ways out. Every resume retries.
+                if (!state.configUnreadable) unreadableShown = false
+                else if (!unreadableShown && started) {
+                    unreadableShown = true
+                    toast(getString(R.string.toast_config_unreadable), Toast.LENGTH_LONG)
                 }
                 refilter()
             },
@@ -347,16 +358,16 @@ class MainActivity : Activity() {
                 // LauncherActionsTest); the Activity keeps only the side effects.
                 when (val action = LauncherLogic.tapAction(mode, shown.getOrNull(position))) {
                     is TapAction.Launch -> launch(action.entry)
-                    is TapAction.ToggleHidden -> {
+                    is TapAction.ToggleHidden -> if (editable()) {
                         state.toggleHidden(action.entry.key)
                         afterToggle()
                     }
-                    is TapAction.ToggleFavorite -> {
+                    is TapAction.ToggleFavorite -> if (editable()) {
                         state.toggleFavorite(action.entry.key)
                         afterToggle()
                     }
-                    is TapAction.ReorderPick -> reorderTap(action.entry.key)
-                    is TapAction.ToggleTag -> toggleTagOn(action.entry.key)
+                    is TapAction.ReorderPick -> if (editable()) reorderTap(action.entry.key)
+                    is TapAction.ToggleTag -> if (editable()) toggleTagOn(action.entry.key)
                     // Clear FIRST, exactly as the Enter path does: setText fires the
                     // TextWatcher synchronously, so the mode is back to NORMAL before the
                     // command runs and the re-render can't land on a stale overview.
@@ -1165,27 +1176,47 @@ class MainActivity : Activity() {
     /**
      * "~load": read verso.json again and adopt it ([LauncherState.reload]). Confirmed once the
      * file is adopted: if nothing changed on disk, nothing visible changes either, and a silent
-     * command looks like a dead one. Before the first load there is nothing to reload yet — that
-     * load is the read.
+     * command looks like a dead one. Every other outcome says what happened instead — above all
+     * an unreadable file, which leaves the config in memory untouched. While the config is
+     * unreadable, this is the way to try again at once.
      */
     private fun reload(t: CommandGate.Ticket) {
-        if (!state.configLoaded) {
-            toast(getString(R.string.toast_not_loaded))
-            return
-        }
         if (!gate.hold(t)) return
-        state.reload { adopted ->
+        state.reload { outcome ->
             gate.finish(t) {
-                if (adopted) {
+                if (outcome == ReloadOutcome.Adopted) {
                     // Normally none can be open (the busy layer), but one may be after the user
                     // stepped out of a stalled run (showBusy): opened against the old config, it
                     // would write its stale name and tags over the file just read.
                     renameDialog?.dismiss()
                     commandDialog?.dismiss()
                 }
-                toast(getString(if (adopted) R.string.toast_reloaded else R.string.toast_command_failed))
+                when (outcome) {
+                    ReloadOutcome.Adopted -> toast(getString(R.string.toast_reloaded))
+                    ReloadOutcome.Unreadable -> toast(getString(R.string.toast_reload_unreadable), Toast.LENGTH_LONG)
+                    ReloadOutcome.ChangedMeanwhile -> toast(getString(R.string.toast_reload_changed))
+                    ReloadOutcome.NotLoaded -> toast(getString(R.string.toast_not_loaded))
+                    ReloadOutcome.Failed -> toast(getString(R.string.toast_command_failed))
+                }
             }
         }
+    }
+
+    /**
+     * Edits only on a loaded config (hard rule 5): before it, an edit could not be saved — and
+     * while the config is unreadable, an edit on the empty default in memory must not happen at
+     * all. Says why when it refuses.
+     */
+    private fun editable(): Boolean {
+        if (state.configLoaded) return true
+        toastNotLoaded()
+        return false
+    }
+
+    /** Why the config cannot be used yet: still loading, or there but unreadable. */
+    private fun toastNotLoaded() {
+        if (state.configUnreadable) toast(getString(R.string.toast_config_unreadable), Toast.LENGTH_LONG)
+        else toast(getString(R.string.toast_not_loaded))
     }
 
     /**
@@ -1197,7 +1228,7 @@ class MainActivity : Activity() {
      */
     private fun save(t: CommandGate.Ticket) {
         if (!state.configLoaded) {
-            toast(getString(R.string.toast_not_loaded))
+            toastNotLoaded()
             return
         }
         if (!gate.hold(t)) return
@@ -1337,18 +1368,27 @@ class MainActivity : Activity() {
      * The config in memory once it is loaded — serialized here on the main thread, where it is
      * only ever mutated, so the read is race-free. Before the first load lands (a fast "~b" on a
      * cold start) memory still holds the empty default, and exporting THAT would replace the
-     * real backup with nothing; the file on disk is the truth then, read on the IO thread.
+     * real backup with nothing; the file on disk is the truth then, read on the IO thread. If
+     * that file cannot be read either, no backup is written at all: the previous one — the only
+     * copy off the device — stays, rather than being replaced by an empty config.
      */
     private fun backup(t: CommandGate.Ticket) {
         val payload = if (state.configLoaded) ConfigJson.serialize(state.config) else null
         commandIo(
             t,
-            work = { backupStore.write(BackupFiles.BACKUP_BASE, payload ?: ConfigJson.serialize(store.load())) },
+            work = {
+                val text = payload ?: store.load()?.let { ConfigJson.serialize(it) }
+                // (name written or null, whether there was a config to write at all)
+                (text?.let { backupStore.write(BackupFiles.BACKUP_BASE, it) }) to (text != null)
+            },
             refused = { toast(getString(R.string.toast_backup_failed)) },
-        ) { name ->
-            // Name the file actually written: its name carries the time it was taken.
-            if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
-            else toast(getString(R.string.toast_backup_failed))
+        ) { (name, readable) ->
+            when {
+                !readable -> toast(getString(R.string.toast_backup_unreadable), Toast.LENGTH_LONG)
+                // Name the file actually written: its name carries the time it was taken.
+                name != null -> toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
+                else -> toast(getString(R.string.toast_backup_failed))
+            }
         }
     }
 
@@ -1364,7 +1404,7 @@ class MainActivity : Activity() {
      */
     private fun cleanup(t: CommandGate.Ticket) {
         if (!state.configLoaded) {
-            toast(getString(R.string.toast_not_loaded))
+            toastNotLoaded()
             return
         }
         val ticket = cleanupTicket
@@ -1642,8 +1682,10 @@ class MainActivity : Activity() {
      * go back to is exactly the "destroyed without a trace" the undo point exists to prevent.
      * The outgoing config is taken from memory here on the main thread, or — if it was never
      * loaded in this process (the picker's result delivered to a fresh process after Android
-     * killed the launcher) — read from disk on the IO thread, where an empty default would
-     * otherwise replace a real undo point with nothing.
+     * killed the launcher, or the config is unreadable) — read from disk on the IO thread, where
+     * an empty default would otherwise replace a real undo point with nothing. If the file cannot
+     * be read there either, the restore goes ahead without an undo point (RestoreSteps): it is
+     * the way out of an unreadable config.
      */
     private fun adoptRestored(t: CommandGate.Ticket, restored: VersoConfig) {
         // What a restore actually adopted, so a "my favorites are gone" report can be
@@ -1671,6 +1713,13 @@ class MainActivity : Activity() {
             when (outcome) {
                 RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
                 RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
+                // The way out of an unreadable config: nothing readable was there to keep.
+                RestoreSteps.Outcome.ReplacedUnreadable -> {
+                    state.adopt(restored)
+                    renameDialog?.dismiss()
+                    commandDialog?.dismiss()
+                    toast(getString(R.string.toast_restore_replaced), Toast.LENGTH_LONG)
+                }
                 is RestoreSteps.Outcome.Done -> {
                     // Wholesale replace, save and re-render — with the epoch guard that keeps an
                     // enumeration already in flight from handing the OLD config back over this one.
@@ -1812,7 +1861,7 @@ class MainActivity : Activity() {
     private fun promptRename(entry: AppEntry) {
         // The home page can show cached favorites before the config is loaded; the dialog
         // would open on the empty default (no tags) and its edit could not be saved.
-        if (!state.configLoaded) return
+        if (!editable()) return
         val key = entry.key
         // Dismiss any dialog already up (rapid long-presses) before opening a new one, and
         // keep the reference so onDestroy can tear it down. The view construction lives in
@@ -2167,10 +2216,15 @@ class MainActivity : Activity() {
      *  it shows changed, so it is fine to call from every applyFilter. */
     private fun renderHome() {
         val favs = state.favorites()
-        homePage.render(favs, state.appsLoaded)
+        // Only with the config loaded: an unreadable one has no favorites in memory, and drawing
+        // that would show the no-favorites hint — home keeps what it shows (the cached favorites)
+        // until the config can be read.
+        val ready = state.appsLoaded && state.configLoaded
+        homePage.render(favs, ready)
         // Keep the cold-start cache in step with what home really shows — written only when
-        // the favorites (keys, labels) actually changed, never on a plain re-render.
-        if (state.appsLoaded) {
+        // the favorites (keys, labels) actually changed, never on a plain re-render, and never
+        // from a config that is not loaded (that would empty the cache).
+        if (ready) {
             val pairs = favs.map { it.key to it.label }
             if (pairs != cachedFavorites) {
                 cachedFavorites = pairs

@@ -13,24 +13,25 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 477 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 490 tests):
 
 ```
 LauncherLogicTest          138  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           75  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           83  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents, reports that
                                 come even when a collaborator throws, names applied
-                                to a list that carries none
+                                to a list that carries none, an unreadable config
+                                (not loaded, edits off, ~load retries, restore way out)
 CommandGateTest             16  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, cancel of the SAF read
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .tmp
+ConfigStoreTest             34  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
-                                heal-without-rotate, isFresh
+                                heal-without-rotate, isFresh, unreadable is null — not empty
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         19  Enter / tap decisions
@@ -45,7 +46,8 @@ RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilte
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-RestoreStepsTest             3  the restore's IO order: undo point, then config; no-op restore
+RestoreStepsTest             4  the restore's IO order: undo point, then config; no-op restore;
+                                over an unreadable config without an undo point
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
