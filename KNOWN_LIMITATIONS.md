@@ -53,7 +53,8 @@ uninstalled: nothing is pruned on its own, so a reinstalled app gets its place, 
 tags back — but a backup still names a hidden app removed years ago until you run
 `~cleanup`, which removes those entries (after an undo point).
 
-"Exactly one backup and one undo point of each kind" holds per installation: Android lets an app
+"Exactly one backup and one undo point of each kind" (the `verso-unreadable-…` copies
+excepted: every one is kept, see `~reset`) holds per installation: Android lets an app
 see and replace only the files it created itself. After a reinstall the old files are
 no longer Verso's — they stay in `Download/Verso/`, invisible to `~restore` (reachable
 with `~restore-saf`), and new ones are written beside them. A debug build is another

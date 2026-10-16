@@ -208,9 +208,9 @@ main, written on the IO thread.
     layer and not usable — without the flag the system hides it with every command and the list
     jumps. The prompt's input filter and Enter guard are the second line. A run ends
     with its last step, never by a "done" call: every step `hold`s the run before it starts
-    (`commandIo` for an IO step) and `finish`es it back on main, whatever happened. The gate
-    belongs to the activity, so a hand-back `onUi` drops dies with it; the next instance
-    starts free. No run spans another activity or a dialog waiting on the user (the SAF picker,
+    (`commandIo`, i.e. `CommandGate.io`, for an IO step) and `finish`es it back on main,
+    whatever happened. The gate belongs to the activity: a hand-back that `onUi` drops for a
+    destroyed instance goes with its gate, and the next instance starts free. No run spans another activity or a dialog waiting on the user (the SAF picker,
     the cleanup and reset confirmations): those end the run, and their answer starts a new one. Only a
     step with no time bound — the SAF document read — is `cancelable`: Back (or HOME) abandons
     it, and its late answer finds its ticket ended. Any other step may be stuck in a system
@@ -218,7 +218,9 @@ main, written on the IO thread.
     offers a way out instead — Back takes it down, the run goes on, no other command starts
     until it ends. Edits made meanwhile interleave as before the gate, which is why
     `LauncherState` keeps its own guards (`configEpoch`, the cleanup's `Superseded`). Every
-    step reports back on every path (IO steps from a `finally`, `LauncherState` included).
+    step reports back on every path: `CommandGate.io` catches what its work throws and hands it
+    back, `LauncherState`'s save/reload/cleanup/reset report from a `finally`. An `Error` is not
+    caught — it ends the process, and the gate with it.
     `~load` is `LauncherState.reload`, its own task, not a refresh that a newer one could
     supersede.
 

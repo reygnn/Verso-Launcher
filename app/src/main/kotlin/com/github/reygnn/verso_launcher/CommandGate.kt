@@ -16,7 +16,8 @@ package com.github.reygnn.verso_launcher
  * command once nothing else holds it.
  *
  * The gate belongs to the Activity, not the process. Every step reports back on every path — an
- * IO step from a finally, LauncherState's save/reload/cleanup too — so a hand-back that never
+ * IO step through [io], which catches what its work throws; LauncherState's save/reload/cleanup
+ * from a finally — so a hand-back that never
  * arrives is one that onUi dropped for a destroyed instance, whose gate and busy layer are gone
  * with it. The next instance starts free and needs nothing more: whatever it reads of the config —
  * its first load, or the file itself for a command run before that load (~backup, a restore's

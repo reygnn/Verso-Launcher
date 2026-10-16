@@ -24,16 +24,19 @@ package com.github.reygnn.verso_launcher
  *
  *   LauncherState(io, main, loadConfig, enumerateApps, serialize, writeConfig,
  *                 onRefreshed, isFreshInstall, defaultFavoriteCandidates,
- *                 initialRecents, onRecentsChanged)
+ *                 setAsideConfig, initialRecents, onRecentsChanged)
  *   CommandGate(onBusyChanged)                    // the busy layer, as a lambda
- *   ConfigStore(dir, log, syncDir, rename)        // rename: force a refusal
+ *   CommandGate.io(ticket, submit, post, …)       // an IO step: the queues, injected
+ *   ConfigStore(dir, log, syncDir, rename, readText)  // force a refused rename, a read error
  *   BackupStore(resolver, subDir, log, beforePublish, now)
  *
  * The `log` parameter is the error channel of classes that never throw: a
  * test collects the messages and asserts on them.
  *
  * Pure decisions live in `object`s (LauncherLogic, SwipeGesture, BackupFiles,
- * HomeStyle, BatteryInfo) and are tested with plain values. Rows are faked
+ * HomeStyle, BatteryInfo, Cleanup) and are tested with plain values; the IO
+ * halves of ~restore and ~backup are pure steps over injected functions
+ * (RestoreSteps, BackupSteps), tested by recording the calls in order. Rows are faked
  * with the shared `OrderedFake(key, labelLower)` (OrderedFake.kt).
  *
  * MockK only if a real need appears — never Mockito. Mock variables are then

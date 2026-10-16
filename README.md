@@ -119,13 +119,17 @@ keyboard, no prompt:
       costs you the old one. Always just the one current backup, never a pile. An
       ordinary file: it survives an uninstall and can be copied off the device
       (that's how you move a config to another phone), which the internal `.bak`
-      mirror cannot
+      mirror cannot. While the config cannot be read, `~backup` writes nothing and
+      the old backup stays — rather than replacing it with an empty config
     - `~restore` — adopt the newest of those backups again. No file picker. The
       config being replaced is first written next to it as
       `verso-pre-restore-<date>_<time>.json`; if that fails, the restore is
       aborted, so a restore never destroys what it overwrote without a trace. A
       backup that doesn't parse changes nothing. To undo a restore, run
-      `~restore-saf` and pick that `verso-pre-restore-…` file
+      `~restore-saf` and pick that `verso-pre-restore-…` file. Over a config that
+      cannot be read there is nothing to keep as an undo point: its files are set
+      aside instead (renamed, with a copy as `verso-unreadable-…` beside the
+      backups) — the way out of an unreadable config
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to

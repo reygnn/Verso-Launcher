@@ -88,7 +88,7 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 
 - **No MockK, no mocks at all.** Everything Android-bound is injected as a
   function (`LauncherState`'s `io`/`main`/`loadConfig`…, `ConfigStore`'s
-  `syncDir`/`rename`, `BackupStore`'s `beforePublish`/`now`), so tests pass plain
+  `syncDir`/`rename`/`readText`, `BackupStore`'s `beforePublish`/`now`), so tests pass plain
   lambdas and fakes. Add MockK only if a real need appears — and then MockK, never
   Mockito.
 - **No coroutines, so no `MainDispatcherRule` / `runTest` / Turbine.** Threading is
@@ -122,7 +122,8 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 ### Common tasks and where they go
 
 - New `~` command or sigil mode → `LauncherLogicTest` (parse) + `LauncherActionsTest`
-  (Enter/tap) + `LauncherRowsTest` (rows).
+  (Enter/tap) + `LauncherRowsTest` (rows); a new `~` command also goes through the gate
+  — `SourceGuardTest` checks its entry point, `CommandGateTest` the gate itself.
 - Anything touching search, fold or sort → `LauncherLogicTest`, with a Turkish and
   a German/Swedish locale case.
 - Config shape → `ConfigJsonTest` (and keep older `verso.json` files parsing).
