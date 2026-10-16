@@ -90,7 +90,7 @@ The swipe is not available to a screen reader, so the front page exposes an
 "Open all apps" custom accessibility action (TalkBack's actions menu), and the
 empty-favorites hint is tappable.
 
-## An unreadable config with no backup locks editing
+## An unreadable config locks editing until it is read, restored or reset
 
 If `verso.json` is there but cannot be read — and neither can `.bak` — the config
 counts as **not loaded**: the drawer still lists and launches every app, but every
@@ -103,13 +103,19 @@ Meanwhile the drawer shows the hidden apps too: nothing is hidden in the empty
 default that stands in for the unreadable config in memory (it is never saved).
 
 If the files stay unreadable (both corrupt), `~restore` or `~restore-saf` with any
-`verso*.json` is the way out — over an unreadable config even without an undo
-point, since there is nothing readable to keep. Without any backup there is no way
-out inside Verso yet; clearing the app's storage starts it fresh. **After clearing
-storage, run `~restore` before anything else, and never `~backup` first:** the fresh
-config is empty, and a backup of it replaces the real one in `Download/Verso/` (the
-backup files outlive the cleared storage). A command that starts over with an empty
-config would close that gap, but it is a new feature and not built.
+`verso*.json` is the way out — over an unreadable config without an undo point,
+since there is nothing readable to keep; the unreadable files are set aside instead
+(`verso.json.broken`, …). Without any backup, `~reset` starts over like a fresh
+install, setting the files aside the same way. Set aside means renamed, never
+deleted, and an earlier set-aside is never overwritten (`.broken-2`, …). The app's
+files directory is private, though — out of reach without root on a release build —
+so the set-aside config is also copied to `Download/Verso/verso-broken-<date>_<time>.json`
+(the latest one; best effort). If it was only unreadable for a moment, `~restore-saf`
+with that copy brings it back; if it is really damaged, the bytes are there to look at.
+
+**After a reset, run `~restore` before anything else if you have a backup, and never
+`~backup` first:** the fresh config is nearly empty, and a backup of it replaces the
+real one in `Download/Verso/`. The same holds after clearing the app's storage.
 
 ## Leaving the launcher resets to the front page
 

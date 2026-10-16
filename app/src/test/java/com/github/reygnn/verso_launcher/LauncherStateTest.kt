@@ -71,6 +71,21 @@ class LauncherStateTest {
         onRefreshed = { replaced -> refreshed += replaced },
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
+        // What ConfigStore.setAsideUnreadable does to "the disk": checks first, and a moved
+        // config leaves no published copy behind — the next read is a fresh install's.
+        setAsideConfig = {
+            setAsideCalls++
+            when {
+                setAsideFails -> ConfigStore.SetAside.Failed
+                !diskUnreadable -> ConfigStore.SetAside.Readable(disk.snapshot())
+                else -> {
+                    diskUnreadable = false
+                    disk = VersoConfig()
+                    fresh = true
+                    ConfigStore.SetAside.Moved(listOf("verso.json.broken"))
+                }
+            }
+        },
     )
 
     /** A collaborator that throws although it never should: the report must come all the same
@@ -78,6 +93,8 @@ class LauncherStateTest {
     private var loadThrows = false
     /** The file is there but cannot be read: ConfigStore.load gives null. */
     private var diskUnreadable = false
+    private var setAsideFails = false
+    private var setAsideCalls = 0
     private var writeThrows = false
 
     /** Run the IO queue's next task the way the IO thread's guard does: an exception is caught
@@ -668,6 +685,96 @@ class LauncherStateTest {
         assertEquals(listOf("fav=${key("Charlie")};hid=;names=;tags="), written)
         assertEquals(setOf(key("Charlie")), state.config.favorites)
         assertFalse(state.needsRefresh)
+    }
+
+    // ---- "~reset": only while unreadable; set aside, then start over like a fresh install ----
+
+    private val resets = mutableListOf<ResetOutcome>()
+
+    private fun reset() = state.reset { resets += it }
+
+    @Test fun `reset on a readable config touches nothing and says so at once`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        started()
+        reset()
+        assertEquals(listOf(ResetOutcome.NotUnreadable), resets)
+        assertTrue(ioQueue.isEmpty())
+        assertEquals(0, setAsideCalls)
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+    }
+
+    @Test fun `reset while the first load is still on its way touches nothing`() {
+        state.refresh()
+        reset()
+        assertEquals(listOf(ResetOutcome.NotUnreadable), resets)
+        assertEquals(0, setAsideCalls)
+    }
+
+    @Test fun `reset of an unreadable config sets it aside and starts over like a fresh install`() {
+        startedUnreadable()
+        reset()
+        runAll()
+        assertEquals(listOf(ResetOutcome.Done(listOf("verso.json.broken"))), resets)
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        // The first-load path of a fresh install: the default favorites, seeded and saved.
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(1, written.size)
+        assertFalse(state.needsRefresh)
+    }
+
+    @Test fun `reset of a file that reads after all moves nothing and loads it`() {
+        startedUnreadable()
+        diskUnreadable = false
+        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        reset()
+        runAll()
+        assertEquals(listOf(ResetOutcome.WasReadable), resets)
+        assertTrue(state.configLoaded)
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals("nothing seeded, nothing written", emptyList<String>(), written)
+    }
+
+    @Test fun `a reset whose set-aside fails leaves the config unreadable`() {
+        startedUnreadable()
+        setAsideFails = true
+        reset()
+        runAll()
+        assertEquals(listOf(ResetOutcome.Failed), resets)
+        assertFalse(state.configLoaded)
+        assertTrue(state.configUnreadable)
+        assertEquals(emptyList<String>(), written)
+    }
+
+    @Test fun `a reset refused by the IO thread reports failed at once`() {
+        startedUnreadable()
+        ioOpen = false
+        reset()
+        assertEquals(listOf(ResetOutcome.Failed), resets)
+        assertEquals(0, setAsideCalls)
+        assertTrue(state.configUnreadable)
+    }
+
+    @Test fun `a reset whose set-aside throws still reports, as failed`() {
+        val s = LauncherState(
+            io = { task -> ioQueue.addLast(task); true },
+            main = { task -> mainQueue.addLast(task) },
+            loadConfig = { null },
+            enumerateApps = { emptyList() },
+            serialize = { "" },
+            writeConfig = { true },
+            onRefreshed = {},
+            setAsideConfig = { throw IllegalStateException("aside") },
+        )
+        s.refresh()
+        runAll()
+        assertTrue(s.configUnreadable)
+        var outcome: ResetOutcome? = null
+        s.reset { outcome = it }
+        assertTrue("the exception still reaches the IO guard", runIoGuarded() is IllegalStateException)
+        runMain()
+        assertEquals(ResetOutcome.Failed, outcome)
+        assertTrue(s.configUnreadable)
     }
 
     @Test fun `a toggle before the first load is ignored, and the load still lands`() {

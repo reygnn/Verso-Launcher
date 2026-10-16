@@ -29,7 +29,7 @@ internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAV
 /** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
  *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
  *  same reason [Mode] is — the Activity and the tests both name it. */
-internal enum class Command { RELOAD, SAVE, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
+internal enum class Command { RELOAD, SAVE, BACKUP, RESTORE, RESTORE_SAF, CLEANUP, RESET }
 
 /**
  * What a config keeps for apps that are no longer installed ([LauncherLogic.orphans]): their
@@ -133,10 +133,13 @@ internal object LauncherLogic {
      *
      * Ordered harmless-first: ~load and ~save only touch our own verso.json, ~backup
      * only writes a copy out to Downloads; then the ones that CHANGE the live config —
-     * ~restore, ~restore-saf and ~cleanup. The overview is bottom-anchored, so these sit
-     * nearest the prompt: each is guarded instead — an undo point first, and a picker
-     * (~restore-saf) or a confirmation dialog (~cleanup) — and none runs on a mistyped
-     * prefix, since an ambiguous one resolves to nothing.
+     * ~restore, ~restore-saf and ~cleanup — and last ~reset, which starts over. The overview
+     * is bottom-anchored, so these sit nearest the prompt: each is guarded instead — an undo
+     * point first, and a picker (~restore-saf) or a confirmation dialog (~cleanup, ~reset) —
+     * and none runs on a mistyped prefix, since an ambiguous one resolves to nothing.
+     *
+     * ~reset is spelled to be hard to hit by accident: "~r", "~re" and "~res" all still fit
+     * ~restore, so Enter needs at least "~rese". It only ever acts on an unreadable config.
      */
     val COMMANDS: List<Pair<String, Command>> = listOf(
         "~load" to Command.RELOAD,
@@ -145,6 +148,7 @@ internal object LauncherLogic {
         "~restore" to Command.RESTORE,
         "~restore-saf" to Command.RESTORE_SAF,
         "~cleanup" to Command.CLEANUP,
+        "~reset" to Command.RESET,
     )
 
     /**

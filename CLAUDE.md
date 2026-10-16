@@ -24,7 +24,7 @@ A launcher reduced to text. Front page ("recto"): clock, date and battery
 swipe down for the recently used apps. Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
 `#`/`##` tags, `?` recents) and the `~` commands (`~load`, `~save`, `~backup`,
-`~restore`, `~restore-saf`, `~cleanup`). Default favorites (phone, messenger, email, browser,
+`~restore`, `~restore-saf`, `~cleanup`, `~reset`). Default favorites (phone, messenger, email, browser,
 camera) are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look
@@ -134,20 +134,26 @@ main, written on the IO thread.
    written over the real file. `LauncherState` refuses every edit and `save` until then;
    the Activity says why (`editable()`). An unreadable config (`load()` null,
    `configUnreadable`) counts as not loaded and stays so: retried on every resume and by
-   `~load`, ended by a successful read or a restore. `~backup` before the load exports the
+   `~load`, ended by a successful read, a restore, or `~reset`. `~reset` acts ONLY on an
+   unreadable config (after a confirmation): it sets the files aside — renamed `*.broken`,
+   NEVER deleted (`ConfigStore.setAsideUnreadable`, which re-checks first and moves the
+   primary last, so a refused rename always leaves a published copy), with a copy in
+   `Download/Verso/verso-broken-…` — and starts over through the fresh-install first load. `~backup` before the load exports the
    disk copy — and writes nothing if that is unreadable, keeping the old backup. Home is
    drawn and its cache written only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
    name. Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
-   `verso-pre-cleanup-…`).
+   `verso-pre-cleanup-…`), and one copy of a set-aside unreadable config (`verso-broken-…`).
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to
    `verso.json` in the same IO task (the restore must survive a lost hand-back) → `adopt`.
    No undo point, no restore — except over an unreadable config: nothing readable is there
-   to keep, and the restore is the way out of that state (`Outcome.ReplacedUnreadable`).
+   to keep, and the restore is the way out of that state. Its files are then set aside
+   (renamed, never written over) in place of the undo point; if that fails, nothing is
+   written (`Outcome.ReplacedUnreadable` / `SetAsideFailed`).
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`
@@ -171,7 +177,7 @@ main, written on the IO thread.
     disables intercept mid-gesture); the decisions are pure in `SwipeGesture`. Details that
     are easy to break: taps are swallowed while a page turn runs (`swallowTaps`, ~200 ms);
     a second finger cancels a drag; a drag can grab a page still moving and continues from
-    there; an open dialog (rename, `~cleanup`) or the busy layer of a running `~` command blocks
+    there; an open dialog (rename, `~cleanup`, `~reset`) or the busy layer of a running `~` command blocks
     both drag and flick; a page turned some other way
     (HOME, Back, screen off) aborts a running drag without a release decision (`abortDrag`).
 12. **Status bar hidden on the home page only**, shown in the drawer. The home page
@@ -189,14 +195,15 @@ main, written on the IO thread.
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
 15. **The `~` commands run one at a time, behind a busy layer** (`CommandGate`). A typed
-    command (`runCommand`), the `~restore-saf` pick's answer and a confirmed `~cleanup` each
+    command (`runCommand`), the `~restore-saf` pick's answer and a confirmed `~cleanup` or
+    `~reset` each
     start a run with `gate.start`; while it runs, a see-through full-window dialog takes every
     touch and key, so no edit, page turn or second command can come in between. A run ends
     with its last step, never by a "done" call: every step `hold`s the run before it starts
     (`commandIo` for an IO step) and `finish`es it back on main, whatever happened. The gate
     belongs to the activity, so a hand-back `onUi` drops dies with it; the next instance
     starts free. No run spans another activity or a dialog waiting on the user (the SAF picker,
-    the cleanup confirmation): those end the run, and their answer starts a new one. Only a
+    the cleanup and reset confirmations): those end the run, and their answer starts a new one. Only a
     step with no time bound — the SAF document read — is `cancelable`: Back (or HOME) abandons
     it, and its late answer finds its ticket ended. Any other step may be stuck in a system
     service with no timeout, but abandoning it is not safe; after `BUSY_ESCAPE_MS` the layer

@@ -259,6 +259,133 @@ class ConfigStoreTest {
         assertTrue(store.load()!!.favorites.isEmpty())
     }
 
+    // ---- setAsideUnreadable: "~reset", and a restore over an unreadable config ---------
+
+    @Test
+    fun `an unreadable config is set aside by renaming, never deleted, and the next load is fresh`() {
+        primary.writeText("{ torn")
+        backup.writeText("also not json")
+        temp.writeText("{ torn too")
+
+        val aside = store.setAsideUnreadable()
+
+        assertEquals(
+            ConfigStore.SetAside.Moved(listOf("verso.json.tmp.broken", "verso.json.bak.broken", "verso.json.broken")),
+            aside,
+        )
+        assertEquals("{ torn", File(dir, "verso.json.broken").readText())
+        assertEquals("also not json", File(dir, "verso.json.bak.broken").readText())
+        assertEquals("{ torn too", File(dir, "verso.json.tmp.broken").readText())
+        assertFalse(primary.exists())
+        assertFalse(backup.exists())
+        assertFalse(temp.exists())
+        assertTrue(store.isFresh())
+        assertTrue(store.load()!!.favorites.isEmpty())
+    }
+
+    @Test
+    fun `a second set-aside never overwrites the first one's files`() {
+        primary.writeText("first")
+        store.setAsideUnreadable()
+        primary.writeText("second")
+
+        val aside = store.setAsideUnreadable()
+
+        assertEquals(ConfigStore.SetAside.Moved(listOf("verso.json.broken-2")), aside)
+        assertEquals("first", File(dir, "verso.json.broken").readText())
+        assertEquals("second", File(dir, "verso.json.broken-2").readText())
+    }
+
+    @Test
+    fun `a readable config is never set aside`() {
+        primary.writeText(json("keep/Me"))
+
+        val aside = store.setAsideUnreadable()
+
+        assertEquals(listOf("keep/Me"), (aside as ConfigStore.SetAside.Readable).config.favorites.toList())
+        assertEquals(json("keep/Me"), primary.readText())
+        assertFalse(File(dir, "verso.json.broken").exists())
+    }
+
+    @Test
+    fun `a config recoverable from the bak mirror is recovered, not set aside`() {
+        primary.writeText("{ torn")
+        backup.writeText(json("from/bak"))
+
+        val aside = store.setAsideUnreadable()
+
+        assertEquals(listOf("from/bak"), (aside as ConfigStore.SetAside.Readable).config.favorites.toList())
+        assertFalse(File(dir, "verso.json.broken").exists())
+    }
+
+    @Test
+    fun `with no config at all nothing is set aside or created`() {
+        val aside = store.setAsideUnreadable()
+
+        assertTrue((aside as ConfigStore.SetAside.Readable).config.favorites.isEmpty())
+        assertEquals(emptyList<String>(), dir.list()!!.toList())
+    }
+
+    @Test
+    fun `a refused rename leaves the config unreadable and deletes nothing`() {
+        primary.writeText("{ torn")
+        backup.writeText("also not json")
+        temp.writeText("{ torn too")
+        val refusing = storeWith { from, to -> if (from == backup) false else from.renameTo(to) }
+
+        val aside = refusing.setAsideUnreadable()
+
+        assertEquals(ConfigStore.SetAside.Failed, aside)
+        assertTrue(loggedAbout("could not set verso.json.bak aside"))
+        assertEquals("{ torn too", File(dir, "verso.json.tmp.broken").readText())  // moved before
+        assertEquals("also not json", backup.readText())
+        assertEquals("{ torn", primary.readText())
+        assertEquals("still unreadable", null, refusing.load())
+    }
+
+    /** The primary goes last: whatever rename is refused, a published copy stays, so "failed"
+     *  stays true — no silent fresh start (and default-favorite seeding) on the next load. With
+     *  the .tmp moved last instead, its refusal came after primary and .bak were gone. */
+    @Test
+    fun `whichever rename is refused, a published copy stays`() {
+        for (refused in listOf("tmp", "bak", "primary")) {
+            dir.listFiles()!!.forEach { it.delete() }
+            primary.writeText("{ torn")
+            backup.writeText("also not json")
+            temp.writeText("{ torn too")
+            val target = mapOf("tmp" to temp, "bak" to backup, "primary" to primary).getValue(refused)
+            val refusing = storeWith { from, to -> if (from == target) false else from.renameTo(to) }
+
+            assertEquals(refused, ConfigStore.SetAside.Failed, refusing.setAsideUnreadable())
+            assertFalse("$refused refused: not a fresh install", refusing.isFresh())
+            assertEquals(refused, null, refusing.load())
+        }
+    }
+
+    @Test
+    fun `the set-aside primary is what a copy reads, else the set-aside bak`() {
+        primary.writeText("{ torn primary")
+        backup.writeText("torn bak")
+        val names = (store.setAsideUnreadable() as ConfigStore.SetAside.Moved).names
+        assertEquals("{ torn primary", store.readSetAside(names))
+
+        backup.writeText("only bak")  // a second reset, with only a .bak this time
+        val second = (store.setAsideUnreadable() as ConfigStore.SetAside.Moved).names
+        assertEquals(listOf("verso.json.bak.broken-2"), second)
+        assertEquals("only bak", store.readSetAside(second))
+    }
+
+    @Test
+    fun `a set-aside copy too large or gone is no copy`() {
+        primary.writeText("12345")
+        val names = (store.setAsideUnreadable() as ConfigStore.SetAside.Moved).names
+        assertEquals(null, store.readSetAside(names, maxBytes = 4))
+        assertEquals("12345", store.readSetAside(names, maxBytes = 5))
+        File(dir, "verso.json.broken").delete()
+        assertEquals(null, store.readSetAside(names))
+        assertEquals(null, store.readSetAside(emptyList()))
+    }
+
     // ---- write and rotation --------------------------------------------------
 
     @Test

@@ -241,6 +241,7 @@ class MainActivity : Activity() {
             },
             isFreshInstall = { store.isFresh() },
             defaultFavoriteCandidates = ::defaultFavoriteCandidates,
+            setAsideConfig = ::setAsideUnreadableConfig,
             initialRecents = app.recentKeys,
             onRecentsChanged = { app.recentKeys = it },
         )
@@ -1129,6 +1130,7 @@ class MainActivity : Activity() {
                 // (onActivityResult).
                 Command.RESTORE_SAF -> pickRestoreFile()
                 Command.CLEANUP -> cleanup(t)
+                Command.RESET -> reset(t)
             }
         }
         if (!accepted) toast(getString(R.string.toast_busy))
@@ -1547,6 +1549,96 @@ class MainActivity : Activity() {
     }
 
     /**
+     * "~reset": start over when the config stays unreadable — the way out when there is no
+     * backup to restore. Two runs, like "~cleanup": this one checks and asks, the dialog's OK
+     * starts the set-aside as a run of its own ([runReset]).
+     *
+     * Only while the config is unreadable: a readable config is never touched, whatever is typed
+     * (LauncherState.reset refuses as well). The check looks for an own backup on the IO thread,
+     * so the dialog can point to "~restore" first — the better way out — and warn about the one
+     * trap after a reset: a "~backup" of the fresh config would replace that backup.
+     */
+    private fun reset(t: CommandGate.Ticket) {
+        if (!state.configUnreadable) {
+            toast(getString(if (state.configLoaded) R.string.toast_reset_readable else R.string.toast_not_loaded))
+            return
+        }
+        // The page-turn ticket ~cleanup uses: no dialog popping up over a page that moved on.
+        val ticket = cleanupTicket
+        commandIo(
+            t,
+            work = { backupStore.lookupLatest(BackupFiles.BACKUP_BASE) is BackupStore.Latest.Found },
+            refused = { toast(getString(R.string.toast_command_failed)) },
+        ) { hasBackup ->
+            if (!started || ticket != cleanupTicket) return@commandIo
+            confirmReset(hasBackup)
+        }
+    }
+
+    private fun confirmReset(hasBackup: Boolean) {
+        commandDialog?.dismiss()
+        val lines = buildList {
+            add(getString(R.string.reset_message))
+            if (hasBackup) {
+                add("")
+                add(getString(R.string.reset_backup_note))
+            }
+        }
+        commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(R.string.reset_title)
+            .setMessage(lines.joinToString("\n"))
+            .setPositiveButton(R.string.reset_confirm) { _, _ -> runReset() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+            .apply { setOnDismissListener { d -> if (commandDialog === d) commandDialog = null } }
+        commandDialog?.show()
+    }
+
+    /**
+     * Set an unreadable config aside (ConfigStore.setAsideUnreadable: renamed, never deleted) —
+     * for "~reset" and a restore over it, on the IO thread — and put a copy of what was set aside
+     * into Download/[BackupFiles.DIR] as "verso-broken-<date>_<time>.json". The set-aside files
+     * stay in the app's private directory, out of the user's reach on a release build; the copy
+     * is where they can get at the bytes, and where "~restore-saf" brings the config back if it
+     * was only unreadable for a moment. Best effort: a failed copy changes nothing about the
+     * set-aside (logged).
+     *
+     * The names in the outcome FIRST name where the user can find the config — the copy's path,
+     * or without one the set-aside primary (moved last) — since the toasts show only that one:
+     * a toast holds two lines, and the private names help nobody there (ConfigStore logs them).
+     */
+    private fun setAsideUnreadableConfig(): ConfigStore.SetAside {
+        val aside = store.setAsideUnreadable()
+        if (aside !is ConfigStore.SetAside.Moved) return aside
+        val copy = store.readSetAside(aside.names)
+            ?.let { backupStore.write(BackupFiles.BROKEN_BASE, it) }
+            ?.let { "${Environment.DIRECTORY_DOWNLOADS}/${BackupFiles.DIR}/$it" }
+        return ConfigStore.SetAside.Moved(listOfNotNull(copy) + aside.names.reversed())
+    }
+
+    /** OK: [LauncherState.reset] sets the unreadable config aside and starts over. */
+    private fun runReset() {
+        val accepted = gate.start(Command.RESET) { t ->
+            if (!gate.hold(t)) return@start
+            state.reset { outcome ->
+                gate.finish(t) {
+                    // Whatever the next read finds, report it afresh: an unreadable config found
+                    // again after this must say so again (see onRefreshed).
+                    unreadableShown = false
+                    when (outcome) {
+                        is ResetOutcome.Done ->
+                            toast(getString(R.string.toast_reset_done, outcome.setAside.firstOrNull() ?: ConfigStore.CONFIG_FILE), Toast.LENGTH_LONG)
+                        ResetOutcome.WasReadable -> toast(getString(R.string.toast_reset_readable_now), Toast.LENGTH_LONG)
+                        ResetOutcome.NotUnreadable -> toast(getString(R.string.toast_reset_readable))
+                        ResetOutcome.Failed -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
+                    }
+                }
+            }
+        }
+        if (!accepted) toast(getString(R.string.toast_busy))
+    }
+
+    /**
      * "~restore": read the newest backup back in. No picker — there is one current backup,
      * found by pattern whatever its timestamp, so there is nothing to choose.
      *
@@ -1684,8 +1776,8 @@ class MainActivity : Activity() {
      * loaded in this process (the picker's result delivered to a fresh process after Android
      * killed the launcher, or the config is unreadable) — read from disk on the IO thread, where
      * an empty default would otherwise replace a real undo point with nothing. If the file cannot
-     * be read there either, the restore goes ahead without an undo point (RestoreSteps): it is
-     * the way out of an unreadable config.
+     * be read there either, its files are set aside (renamed, not deleted) in place of an undo
+     * point, and the restore goes ahead (RestoreSteps): it is the way out of an unreadable config.
      */
     private fun adoptRestored(t: CommandGate.Ticket, restored: VersoConfig) {
         // What a restore actually adopted, so a "my favorites are gone" report can be
@@ -1706,6 +1798,7 @@ class MainActivity : Activity() {
                     restored = restored,
                     writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload) },
                     writeConfig = { payload -> store.write(payload, rotateBackup = true) },
+                    setAside = ::setAsideUnreadableConfig,
                 )
             },
             refused = { toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG) },
@@ -1713,13 +1806,15 @@ class MainActivity : Activity() {
             when (outcome) {
                 RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
                 RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
-                // The way out of an unreadable config: nothing readable was there to keep.
-                RestoreSteps.Outcome.ReplacedUnreadable -> {
+                // The way out of an unreadable config: nothing readable was there to keep, so it
+                // was set aside (renamed, not deleted) instead of an undo point.
+                is RestoreSteps.Outcome.ReplacedUnreadable -> {
                     state.adopt(restored)
                     renameDialog?.dismiss()
                     commandDialog?.dismiss()
-                    toast(getString(R.string.toast_restore_replaced), Toast.LENGTH_LONG)
+                    toast(getString(R.string.toast_restore_replaced, outcome.setAside.firstOrNull() ?: ConfigStore.CONFIG_FILE), Toast.LENGTH_LONG)
                 }
+                RestoreSteps.Outcome.SetAsideFailed -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
                 is RestoreSteps.Outcome.Done -> {
                     // Wholesale replace, save and re-render — with the epoch guard that keeps an
                     // enumeration already in flight from handing the OLD config back over this one.

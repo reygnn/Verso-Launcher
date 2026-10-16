@@ -16,8 +16,11 @@ internal object RestoreSteps {
         /** Undo point [undoName] written, then the restored config persisted. */
         data class Done(val undoName: String) : Outcome
         /** The current config could not be read, so there was nothing to keep as an undo point:
-         *  the restored config was persisted over it — the way out of an unreadable config. */
-        data object ReplacedUnreadable : Outcome
+         *  its files were set aside as [setAside] (renamed, not deleted), then the restored
+         *  config persisted — the way out of an unreadable config. */
+        data class ReplacedUnreadable(val setAside: List<String>) : Outcome
+        /** The unreadable config could not be set aside: nothing was written. */
+        data object SetAsideFailed : Outcome
     }
 
     /**
@@ -26,7 +29,9 @@ internal object RestoreSteps {
      * 2. Write the undo point — [current] — through [writeUndo] (the backup's published name,
      *    or null). No undo point, no restore — with one exception: [current] null, the config
      *    on disk unreadable (ConfigStore.load). There is nothing readable to keep then, and the
-     *    restore is the way out of that state; refusing it would leave the launcher without one.
+     *    restore is the way out of that state. Its files are set aside instead ([setAside]:
+     *    renamed, never deleted, never written over) — and if THAT fails, nothing is written. If
+     *    the file reads after all, its config is the undo point as usual.
      * 3. Persist [restored] through [writeConfig] right away, in the same IO task: writing the
      *    undo point has just replaced the previous one (possibly the very file being restored),
      *    so from here the restore must survive even if the main-thread hand-off never runs.
@@ -36,13 +41,19 @@ internal object RestoreSteps {
         restored: VersoConfig,
         writeUndo: (String) -> String?,
         writeConfig: (String) -> Boolean,
+        setAside: () -> ConfigStore.SetAside,
     ): Outcome {
-        if (current == null) {
-            writeConfig(ConfigJson.serialize(restored))
-            return Outcome.ReplacedUnreadable
+        val outgoing = current ?: when (val aside = setAside()) {
+            // Readable after all (a passing read error): the normal path, with its undo point.
+            is ConfigStore.SetAside.Readable -> aside.config
+            is ConfigStore.SetAside.Moved -> {
+                writeConfig(ConfigJson.serialize(restored))
+                return Outcome.ReplacedUnreadable(aside.names)
+            }
+            ConfigStore.SetAside.Failed -> return Outcome.SetAsideFailed
         }
-        if (current.sameContent(restored)) return Outcome.Unchanged
-        val undo = writeUndo(ConfigJson.serialize(current)) ?: return Outcome.UndoFailed
+        if (outgoing.sameContent(restored)) return Outcome.Unchanged
+        val undo = writeUndo(ConfigJson.serialize(outgoing)) ?: return Outcome.UndoFailed
         writeConfig(ConfigJson.serialize(restored))
         return Outcome.Done(undo)
     }

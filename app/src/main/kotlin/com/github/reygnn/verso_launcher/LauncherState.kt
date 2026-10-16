@@ -49,6 +49,8 @@ package com.github.reygnn.verso_launcher
  *                      skipped anyway, because it only fills a config with no favorites.
  * @param defaultFavoriteCandidates the candidate keys per default favorite slot, see
  *                      [LauncherLogic.pickDefaultFavorites] (IO thread, fresh install only).
+ * @param setAsideConfig move an unreadable config out of the way (IO thread; "~reset") —
+ *                      ConfigStore.setAsideUnreadable: renamed, never deleted, and checked first.
  * @param initialRecents the "?" list to start from — the process-wide one, so an Activity
  *                      recreated by a configuration change does not lose it.
  * @param onRecentsChanged main thread, after every change to [recentKeys], to keep that
@@ -64,6 +66,7 @@ internal class LauncherState(
     private val onRefreshed: (configReplaced: Boolean) -> Unit,
     private val isFreshInstall: () -> Boolean = { false },
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
+    private val setAsideConfig: () -> ConfigStore.SetAside = { ConfigStore.SetAside.Failed },
     initialRecents: List<String> = emptyList(),
     private val onRecentsChanged: (List<String>) -> Unit = {},
 ) {
@@ -119,7 +122,8 @@ internal class LauncherState(
      * published copy and nothing that parses (ConfigStore.load gave null). The config then stays
      * NOT loaded — no edit, no save, nothing of the empty default reaches the disk — and every
      * [refresh] tries again ([needsRefresh] holds), as does "~load". A restore ([adopt]) is the
-     * way out when the file stays unreadable. False again once a config is loaded.
+     * way out when the file stays unreadable, and "~reset" ([reset]) when there is no backup.
+     * False again once a config is loaded.
      */
     var configUnreadable = false
         private set
@@ -445,6 +449,50 @@ internal class LauncherState(
     }
 
     /**
+     * "~reset": the way out of a config that stays unreadable with no backup to restore. Only
+     * while the config is unreadable ([configUnreadable]) — a readable one is never touched:
+     * [onDone] gets [ResetOutcome.NotUnreadable] at once, and nothing is read or moved.
+     *
+     * On [io] the unreadable files are set aside ([setAsideConfig]: renamed, never deleted, and
+     * only if they still do not read). Back on [main] the launcher starts over the way a fresh
+     * install does: the config counts as not loaded, not unreadable, and [refresh] takes the
+     * first-load path — it finds no file, reads the empty config and seeds the default
+     * favorites. If the file reads after all, nothing was moved, and the same [refresh] loads it.
+     * If the set-aside fails, the config stays unreadable.
+     */
+    fun reset(onDone: (ResetOutcome) -> Unit) {
+        if (configLoaded || !configUnreadable) {
+            onDone(ResetOutcome.NotUnreadable)
+            return
+        }
+        val accepted = io(Runnable {
+            // Reported even if the set-aside throws (it never should — it catches its own
+            // errors), as failed; the exception still reaches the IO guard.
+            var aside: ConfigStore.SetAside = ConfigStore.SetAside.Failed
+            try {
+                aside = setAsideConfig()
+            } finally {
+                val result = aside
+                main(Runnable {
+                    val outcome = when (result) {
+                        is ConfigStore.SetAside.Readable -> ResetOutcome.WasReadable
+                        is ConfigStore.SetAside.Moved -> ResetOutcome.Done(result.names)
+                        ConfigStore.SetAside.Failed -> ResetOutcome.Failed
+                    }
+                    // Start over through the first load — unless a restore loaded a config
+                    // meanwhile (possible only after stepping out of a stalled run).
+                    if (outcome != ResetOutcome.Failed && !configLoaded) {
+                        configUnreadable = false
+                        refresh()
+                    }
+                    onDone(outcome)
+                })
+            }
+        })
+        if (!accepted) onDone(ResetOutcome.Failed)
+    }
+
+    /**
      * The common tail of [adopt] and [reload]: swap the config wholesale and show its names at
      * once ([relabel]), then refresh — a fresh list, and the re-render through its hand-off
      * (onRefreshed). Bumps configEpoch, which a disk read still in flight checks (the first load
@@ -493,4 +541,16 @@ internal sealed interface ReloadOutcome {
     data object NotLoaded : ReloadOutcome
     /** The IO thread refused the task, or the read failed unexpectedly: nothing changed. */
     data object Failed : ReloadOutcome
+}
+
+/** How a "~reset" ended ([LauncherState.reset]). */
+internal sealed interface ResetOutcome {
+    /** The unreadable config was set aside as [setAside]; the launcher starts over. */
+    data class Done(val setAside: List<String>) : ResetOutcome
+    /** The file reads after all: nothing was moved, and it is being loaded. */
+    data object WasReadable : ResetOutcome
+    /** The config is not unreadable (loaded, or its first load still on the way): untouched. */
+    data object NotUnreadable : ResetOutcome
+    /** The set-aside failed, or the IO thread refused the task: still unreadable, nothing lost. */
+    data object Failed : ResetOutcome
 }

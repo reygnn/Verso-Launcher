@@ -265,9 +265,10 @@ class LauncherLogicTest {
     @Test fun `typing narrows the overview`() {
         assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~b").map { it.first })
         assertEquals(
-            listOf("~restore", "~restore-saf"),
+            listOf("~restore", "~restore-saf", "~reset"),
             LauncherLogic.commandsMatching("~r").map { it.first },
         )
+        assertEquals(listOf("~restore", "~restore-saf"), LauncherLogic.commandsMatching("~rest").map { it.first })
         assertEquals(listOf("~restore-saf"), LauncherLogic.commandsMatching("~restore-").map { it.first })
         assertEquals(emptyList<String>(), LauncherLogic.commandsMatching("~zzz").map { it.first })
     }
@@ -297,6 +298,14 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.resolveCommand("~r"))
         assertNull(LauncherLogic.resolveCommand("~re"))
         assertNull(LauncherLogic.resolveCommand("~restor"))
+    }
+
+    /** ~reset starts over: it must take more than a slip of the finger. Every abbreviation up
+     *  to "~res" still fits ~restore too, so it resolves to nothing; "~rese" is the shortest. */
+    @Test fun `reset needs at least four letters to run on Enter`() {
+        assertNull(LauncherLogic.resolveCommand("~res"))
+        assertEquals(Command.RESET, LauncherLogic.resolveCommand("~rese"))
+        assertEquals(Command.RESET, LauncherLogic.resolveCommand("~reset"))
     }
 
     /** The list and the test must not drift: a command added to COMMANDS without a line

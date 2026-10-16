@@ -13,31 +13,34 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 490 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 511 tests):
 
 ```
-LauncherLogicTest          138  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          139  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           83  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           90  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents, reports that
                                 come even when a collaborator throws, names applied
                                 to a list that carries none, an unreadable config
-                                (not loaded, edits off, ~load retries, restore way out)
+                                (not loaded, edits off, ~load retries, restore way out),
+                                ~reset (only while unreadable, starts over fresh)
 CommandGateTest             16  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, cancel of the SAF read
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             34  verso.json on real temp files: .bak rotation, .tmp
+ConfigStoreTest             43  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
-                                heal-without-rotate, isFresh, unreadable is null — not empty
+                                heal-without-rotate, isFresh, unreadable is null — not empty,
+                                set aside by renaming (never deleted, never overwritten, primary last),
+                                the set-aside copy for Download
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         19  Enter / tap decisions
 HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
-BackupFilesTest             17  backup naming: timestamps, patterns, restore pick, sweep
+BackupFilesTest             18  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
@@ -46,8 +49,8 @@ RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilte
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-RestoreStepsTest             4  the restore's IO order: undo point, then config; no-op restore;
-                                over an unreadable config without an undo point
+RestoreStepsTest             7  the restore's IO order: undo point, then config; no-op restore;
+                                over an unreadable config: set aside first, never written over
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
@@ -56,7 +59,7 @@ HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in 
 CleanupTest                  9  what ~cleanup may offer: complete enumeration, kept apps, parseKey
 SourceGuardTest              6  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
-                                brace-less object templates, every command through the gate,
+                                brace-less object templates, every command (incl. ~reset) through the gate,
                                 no custom names in the enumeration
 ```
 

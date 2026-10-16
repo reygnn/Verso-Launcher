@@ -144,6 +144,14 @@ keyboard, no prompt:
       unless every profile could be read. Don't run it while a new phone is still reinstalling
       your apps — those not back yet count as gone. Old files in `Download/Verso/`
       are left to a file manager (Android lets Verso touch only its own)
+    - `~reset` — only when the config file cannot be read at all (Verso then says so,
+      and edits are off): after a confirmation, the unreadable files are set aside —
+      renamed to `verso.json.broken` and so on, never deleted, with a copy in
+      `Download/Verso/verso-broken-<date>_<time>.json` — and Verso starts over
+      like a fresh install, default favorites included. On a readable config it does
+      nothing. If you have a backup, `~restore` is the better way out; and after a
+      reset, don't run `~backup` before your config is back, or the fresh config
+      replaces that backup. Enter needs at least `~rese` (shorter fits `~restore` too)
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
   command line (the bottom-most, since results fill upward). On an empty line
   **Enter** only drops the keyboard (see above) — it never launches.

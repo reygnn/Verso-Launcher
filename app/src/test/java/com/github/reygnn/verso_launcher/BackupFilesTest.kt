@@ -62,7 +62,9 @@ class BackupFilesTest {
     }
 
     @Test fun `every base is distinct and claims no other base's files`() {
-        val bases = listOf(BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE)
+        val bases = listOf(
+            BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE, BackupFiles.BROKEN_BASE,
+        )
         assertEquals(bases.size, bases.toSet().size)
         for (a in bases) for (b in bases) if (a != b) {
             assertFalse("$a claims $b", BackupFiles.isPublished(a, "$b-2026-10-13_120745.json"))
@@ -79,6 +81,15 @@ class BackupFilesTest {
         assertFalse(BackupFiles.isPublished(pre, name))
         assertFalse(BackupFiles.isPublished(cleanup, "verso-pre-restore-2026-10-13_120745.json"))
         assertFalse(BackupFiles.isPublished(cleanup, "verso-2026-10-13_120745.json"))
+    }
+
+    @Test fun `a set-aside copy is never taken for the backup, so restore and its sweep leave it alone`() {
+        val broken = "verso-broken-2026-10-13_120745.json"
+        assertTrue(BackupFiles.isPublished(BackupFiles.BROKEN_BASE, broken))
+        assertFalse(BackupFiles.isPublished(base, broken))
+        val own = listOf(BackupFiles.Entry(1, "verso-2026-10-12_090000.json"), BackupFiles.Entry(2, broken))
+        assertEquals(1L, BackupFiles.latestToRestore(base, own)!!.id)
+        assertEquals(emptyList<BackupFiles.Entry>(), BackupFiles.replacedBy(base, keepId = 3, own = own).filter { it.id == 2L })
     }
 
     @Test fun `unrelated look-alikes are not backups`() {

@@ -53,12 +53,14 @@ class SourceGuardTest {
 
     @Test fun `every command run starts through the gate`() {
         // Hard rule 15: a command that bypassed CommandGate would run with no busy layer up, and
-        // the user's taps could interleave with it again. The three entry points: a typed
-        // command, the "~restore-saf" pick's answer, a confirmed "~cleanup".
+        // the user's taps could interleave with it again. The entry points: a typed
+        // command, the "~restore-saf" pick's answer, a confirmed "~cleanup" or "~reset".
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
         assertTrue(activity.contains("gate.start(command)"))
         assertTrue(activity.contains("gate.start(Command.RESTORE_SAF)"))
         assertTrue(activity.contains("gate.start(Command.CLEANUP)"))
+        assertTrue(activity.contains("gate.start(Command.RESET)"))
+        assertTrue(activity.contains("Command.RESET -> reset(t)"))
         // The ways a command used to guard itself piecemeal stay gone.
         for (gone in listOf("restorePick", "checkingTicket", "reloadToastPending", "reloadConfig")) {
             assertFalse("$gone is back", activity.contains(gone))

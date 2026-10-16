@@ -29,12 +29,14 @@ internal object BackupFiles {
     /** Sub-folder of Downloads the backups go to. */
     const val DIR = "Verso"
 
-    /** The base names, published as "<base>-<date>_<time>.json": the backup ("~backup"), and
-     *  the undo points written before a restore and before a cleanup. Each base keeps its own
-     *  one row and never claims another's ([isPublished]). */
+    /** The base names, published as "<base>-<date>_<time>.json": the backup ("~backup"), the
+     *  undo points written before a restore and before a cleanup, and the copy of an unreadable
+     *  config set aside by "~reset" or a restore over it. Each base keeps its own one row and
+     *  never claims another's ([isPublished]). */
     const val BACKUP_BASE = "verso"
     const val PRE_RESTORE_BASE = "verso-pre-restore"
     const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
+    const val BROKEN_BASE = "verso-broken"
 
     /** One of the app's own rows in the backup folder. */
     data class Entry(val id: Long, val name: String)

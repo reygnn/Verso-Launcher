@@ -110,6 +110,84 @@ internal class ConfigStore(
         }
     }
 
+    /** What [setAsideUnreadable] did. */
+    sealed interface SetAside {
+        /** The config reads after all — or there is none (a fresh install): nothing was moved.
+         *  [config] is what [load] gave. */
+        data class Readable(val config: VersoConfig) : SetAside
+        /** The unreadable files were renamed to [names]; no published copy is left, so the next
+         *  [load] is a fresh install's. */
+        data class Moved(val names: List<String>) : SetAside
+        /** A rename was refused (logged): what was moved stays moved, the rest stays — still
+         *  unreadable, nothing lost. */
+        data object Failed : SetAside
+    }
+
+    /**
+     * Move an unreadable config out of the way — "~reset", and a restore over an unreadable
+     * config. Renamed, NEVER deleted: "<name>.broken" (or ".broken-2", -3 … beside an earlier
+     * one), so the bytes stay for a manual rescue — the launcher can only ever tell that a file
+     * cannot be read NOW, never that it is lost for good. A leftover .tmp, the .bak and the
+     * primary all go — in that order, the primary last, so a refused rename (or a crash in
+     * between) always leaves a published copy behind: still unreadable, as [SetAside.Failed]
+     * says, never a silent fresh start on the next load. With all three moved, no published
+     * copy is left: the next [load] is a fresh install's.
+     *
+     * Checks first, with [load] itself: a config that reads after all (a passing read error,
+     * or a .tmp/.bak it can recover from) is returned untouched as [SetAside.Readable].
+     * Never throws.
+     */
+    fun setAsideUnreadable(): SetAside {
+        load()?.let { return SetAside.Readable(it) }
+        return try {
+            val moved = mutableListOf<String>()
+            for (file in listOf(temp, backup, primary)) {
+                if (!file.isFile) continue
+                val target = freeBrokenName(file)
+                if (!rename(file, target)) {
+                    log("could not set ${file.name} aside", null)
+                    return SetAside.Failed
+                }
+                moved += target.name
+            }
+            syncDir(dir)
+            log("unreadable config set aside: ${moved.joinToString()}", null)
+            SetAside.Moved(moved)
+        } catch (e: Exception) {
+            log("setting the unreadable config aside failed", e)
+            SetAside.Failed
+        }
+    }
+
+    /**
+     * The text of what [setAsideUnreadable] moved as [names] — the set-aside primary, else the
+     * set-aside .bak — for a copy out of the app's private directory, or null when neither can
+     * be read or it is larger than [maxBytes] (a config is a few KB; anything far beyond is not
+     * worth a copy). Never throws.
+     */
+    fun readSetAside(names: List<String>, maxBytes: Int = MAX_SET_ASIDE_COPY): String? {
+        val pick = names.firstOrNull { it == "$CONFIG_FILE.broken" || it.startsWith("$CONFIG_FILE.broken-") }
+            ?: names.firstOrNull { it == "$CONFIG_FILE.bak.broken" || it.startsWith("$CONFIG_FILE.bak.broken-") }
+            ?: return null
+        return try {
+            File(dir, pick).inputStream().use { input ->
+                val bytes = input.readNBytes(maxBytes + 1)
+                if (bytes.size > maxBytes) null else bytes.toString(Charsets.UTF_8)
+            }
+        } catch (e: Exception) {
+            log("set-aside $pick unreadable for a copy", e)
+            null
+        }
+    }
+
+    /** "<name>.broken", or the first free "<name>.broken-2", -3 … — never over an earlier one. */
+    private fun freeBrokenName(file: File): File {
+        var target = File(dir, "${file.name}.broken")
+        var n = 1
+        while (target.exists()) target = File(dir, "${file.name}.broken-${++n}")
+        return target
+    }
+
     /**
      * True on a fresh install: neither verso.json nor its .bak exists. Only then are default
      * favorites seeded — an existing config with no favorites is the user's choice. A file that
@@ -219,5 +297,7 @@ internal class ConfigStore(
 
     companion object {
         const val CONFIG_FILE = "verso.json"
+        /** Cap for [readSetAside]'s copy — the same 1 MiB a restore reads at most. */
+        const val MAX_SET_ASIDE_COPY = 1024 * 1024
     }
 }

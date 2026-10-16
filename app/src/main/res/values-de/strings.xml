@@ -68,11 +68,22 @@
     <string name="toast_busy_waived">Läuft weiter — neue Befehle warten, bis er fertig ist</string>
     <!-- verso.json ist da, aber nicht lesbar (ConfigStore.load): die Konfiguration gilt als nicht
          geladen — Bearbeiten und Speichern sind aus, nichts vom leeren Standard landet auf der Platte. -->
-    <string name="toast_config_unreadable">Konfiguration unlesbar — Bearbeiten gesperrt, bis sie lesbar ist (wird bei jeder Rückkehr neu versucht). ~load versucht es sofort, ~restore holt ein Backup zurück</string>
+    <string name="toast_config_unreadable">Konfiguration unlesbar — Bearbeiten gesperrt, bis sie lesbar ist (wird bei jeder Rückkehr neu versucht). ~load versucht es sofort, ~restore holt ein Backup zurück, ~reset beginnt neu</string>
     <string name="toast_reload_unreadable">Konfiguration unlesbar — nichts geladen, nichts geändert</string>
     <string name="toast_reload_changed">Nicht geladen — die Konfiguration wurde inzwischen geändert</string>
     <string name="toast_backup_unreadable">Konfiguration unlesbar — kein Backup geschrieben, das alte bleibt</string>
-    <string name="toast_restore_replaced">Wiederhergestellt — die unlesbare Konfiguration ließ sich nicht sichern (kein Rücksprungpunkt)</string>
+    <!-- %1$s: die Namen, unter denen die unlesbaren Dateien beiseitegelegt wurden (verso.json.broken, …). -->
+    <string name="toast_restore_replaced">Wiederhergestellt — die unlesbare Konfiguration liegt jetzt als %1$s beiseite (kein Rücksprungpunkt)</string>
+    <!-- "~reset": nur bei unlesbarer Konfiguration; die Dateien werden umbenannt, nie gelöscht. -->
+    <string name="reset_title">Konfiguration zurücksetzen</string>
+    <string name="reset_message">verso.json ist nicht lesbar. Zurücksetzen legt die unlesbaren Dateien beiseite — umbenannt in …broken, nicht gelöscht, mit einer Kopie in Download/Verso — und beginnt neu wie nach einer Neuinstallation: keine Namen, keine Tags, nichts ausgeblendet, die Standard-Favoriten.</string>
+    <string name="reset_backup_note">Es gibt ein Backup: ~restore holt deine Konfiguration stattdessen zurück. Wenn du trotzdem zurücksetzt, kein ~backup, bevor deine Konfiguration wieder da ist — es würde das Backup durch die frische ersetzen.</string>
+    <string name="reset_confirm">Zurücksetzen</string>
+    <!-- %1$s: die Namen, unter denen die unlesbaren Dateien beiseitegelegt wurden. -->
+    <string name="toast_reset_done">Zurückgesetzt — die unlesbare Konfiguration liegt als %1$s beiseite</string>
+    <string name="toast_reset_readable">Konfiguration ist lesbar — nichts zurückzusetzen</string>
+    <string name="toast_reset_readable_now">Konfiguration wieder lesbar — wird geladen, nichts zurückgesetzt</string>
+    <string name="toast_reset_failed">Nichts geändert — die unlesbare Konfiguration ließ sich nicht beiseitelegen</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>
     <string name="a11y_hidden_off">Sichtbar: %1$s. Zum Ausblenden doppeltippen.</string>
