@@ -1178,26 +1178,18 @@ class MainActivity : Activity() {
         work: () -> T,
         refused: () -> Unit,
         then: (T) -> Unit,
-    ) {
-        if (!gate.hold(t)) return
-        val accepted = submitIo {
-            val result = try {
-                Result.success(work())
-            } catch (e: Exception) {
-                Log.w("Verso", "~${t.command.name.lowercase()} failed", e)
-                Result.failure(e)
-            }
-            onUi {
-                gate.finish(t) {
-                    result.fold(onSuccess = then, onFailure = { toast(getString(R.string.toast_command_error)) })
-                }
-            }
-        }
-        if (!accepted) {
-            gate.release(t)
-            refused()
-        }
-    }
+    ) = gate.io(
+        t,
+        submit = ::submitIo,
+        post = { block -> onUi(block) },
+        work = work,
+        refused = refused,
+        failed = { e ->
+            Log.w("Verso", "~${t.command.name.lowercase()} failed", e)
+            toast(getString(R.string.toast_command_error))
+        },
+        then = then,
+    )
 
     /**
      * "~load": read verso.json again and adopt it ([LauncherState.reload]). Confirmed once the
@@ -1450,18 +1442,23 @@ class MainActivity : Activity() {
         val payload = if (state.configLoaded) ConfigJson.serialize(state.config) else null
         commandIo(
             t,
+            // The IO half and its rule (memory, else the file, never an empty default) — see
+            // BackupSteps.
             work = {
-                val text = payload ?: store.load()?.let { ConfigJson.serialize(it) }
-                // (name written or null, whether there was a config to write at all)
-                (text?.let { backupStore.write(BackupFiles.BACKUP_BASE, it) }) to (text != null)
+                BackupSteps.run(
+                    inMemory = payload,
+                    loadDisk = { store.load() },
+                    serialize = { ConfigJson.serialize(it) },
+                    write = { backupStore.write(BackupFiles.BACKUP_BASE, it) },
+                )
             },
             refused = { toast(getString(R.string.toast_backup_failed)) },
-        ) { (name, readable) ->
-            when {
-                !readable -> toast(getString(R.string.toast_backup_unreadable), Toast.LENGTH_LONG)
+        ) { outcome ->
+            when (outcome) {
+                BackupSteps.Outcome.Unreadable -> toast(getString(R.string.toast_backup_unreadable), Toast.LENGTH_LONG)
                 // Name the file actually written: its name carries the time it was taken.
-                name != null -> toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
-                else -> toast(getString(R.string.toast_backup_failed))
+                is BackupSteps.Outcome.Written -> toast(getString(R.string.toast_backup_ok, outcome.name), Toast.LENGTH_LONG)
+                BackupSteps.Outcome.WriteFailed -> toast(getString(R.string.toast_backup_failed))
             }
         }
     }
@@ -1880,7 +1877,8 @@ class MainActivity : Activity() {
             // change, write the undo point, persist the restored config — see RestoreSteps.
             work = {
                 RestoreSteps.run(
-                    current = outgoing ?: store.load(),
+                    inMemory = outgoing,
+                    loadDisk = { store.load() },
                     restored = restored,
                     writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload) },
                     writeConfig = { payload -> store.write(payload, rotateBackup = true) },

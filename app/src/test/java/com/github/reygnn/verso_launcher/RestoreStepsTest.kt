@@ -14,11 +14,17 @@ class RestoreStepsTest {
     private var undoName: String? = "verso-pre-restore-2026-10-13_120000.json"
     private var configWritten = true
 
+    /** "The file on disk", read only when the config is not in memory (null: unreadable). */
+    private var disk: VersoConfig? = null
+    private var diskLoads = 0
+
     /** What setting the unreadable config aside does (ConfigStore.setAsideUnreadable). */
     private var aside: ConfigStore.SetAside = ConfigStore.SetAside.Moved(listOf("verso.json.broken"))
 
+    /** [current] is the config in memory; null: not loaded, so the disk ([disk]) is read. */
     private fun run(current: VersoConfig?, restored: VersoConfig) = RestoreSteps.run(
-        current = current,
+        inMemory = current,
+        loadDisk = { diskLoads++; disk },
         restored = restored,
         writeUndo = { payload -> calls += "undo:" + ConfigJson.parse(payload)!!.favorites.joinToString(); undoName },
         writeConfig = { payload -> calls += "config:" + ConfigJson.parse(payload)!!.favorites.joinToString(); configWritten },
@@ -55,6 +61,23 @@ class RestoreStepsTest {
         val outcome = run(current = null, restored = cfg("new/New"))
         assertEquals(RestoreSteps.Outcome.Done("verso-pre-restore-2026-10-13_120000.json"), outcome)
         assertEquals(listOf("aside", "undo:old/Old", "config:new/New"), calls)
+    }
+
+    /** Before the first load memory holds the empty default: the undo point is the file on disk,
+     *  never that empty default — which would replace the real undo point with nothing. */
+    @Test fun `not loaded yet, the undo point is the config on disk`() {
+        disk = cfg("disk/Disk")
+        val outcome = run(current = null, restored = cfg("new/New"))
+        assertEquals(RestoreSteps.Outcome.Done("verso-pre-restore-2026-10-13_120000.json"), outcome)
+        assertEquals(listOf("undo:disk/Disk", "config:new/New"), calls)
+        assertEquals(1, diskLoads)
+    }
+
+    @Test fun `a loaded config is the undo point, the disk is not read`() {
+        disk = cfg("disk/Disk")
+        run(current = cfg("old/Old"), restored = cfg("new/New"))
+        assertEquals(listOf("undo:old/Old", "config:new/New"), calls)
+        assertEquals(0, diskLoads)
     }
 
     @Test fun `a readable current config is never set aside`() {

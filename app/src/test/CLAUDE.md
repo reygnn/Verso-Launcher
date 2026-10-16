@@ -13,24 +13,25 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 530 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 545 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           90  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           92  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents, reports that
                                 come even when a collaborator throws, names applied
                                 to a list that carries none, an unreadable config
                                 (not loaded, edits off, ~load retries, restore way out),
                                 ~reset (only while unreadable, starts over fresh)
-CommandGateTest             16  one "~" command at a time: a run ends with its last step,
-                                refusal, hand-over, exceptions, cancel of the SAF read
+CommandGateTest             21  one "~" command at a time: a run ends with its last step,
+                                refusal, hand-over, exceptions, cancel of the SAF read; io,
+                                the real glue of an IO step (refused, throws, abandoned)
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             45  verso.json on real temp files: .bak rotation, .tmp
+ConfigStoreTest             46  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
                                 heal-without-rotate, isFresh, unreadable is null — not empty,
                                 set aside by renaming (never deleted, never overwritten, primary last),
@@ -50,7 +51,10 @@ RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilte
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-RestoreStepsTest             9  the restore's IO order: undo point, then config; no-op restore;
+BackupStepsTest              4  ~backup's IO half: memory, else the file, never an empty config
+                                over the real backup (rule 5)
+RestoreStepsTest            11  the restore's IO order: undo point (memory, else the file), then
+                                config; no-op restore;
                                 over an unreadable config: set aside first, never written over;
                                 a failed config write is reported, not taken for a restore
 BackupStoreTest              5  readCapped (the bounded restore read)
@@ -59,11 +63,12 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
 CleanupTest                  9  what ~cleanup may offer: complete enumeration, kept apps, parseKey
-SourceGuardTest              8  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              9  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
                                 brace-less object templates, every command (incl. ~reset) through the gate,
                                 no custom names in the enumeration, the broken copy
-                                published before the renames, the prompt written via setPrompt only
+                                published before the renames, the prompt written via setPrompt only,
+                                the restore-saf read cancelable
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`

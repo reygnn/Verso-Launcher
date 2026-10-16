@@ -75,6 +75,14 @@ class SourceGuardTest {
         assertTrue(activity.contains("private fun setPrompt("))
     }
 
+    @Test fun `the restore-saf read is the one step Back may abandon`() {
+        // Hard rule 15: a content provider can hold that read up for good; Back must be able to
+        // abandon it. Only CommandGate.cancel reads the flag, so nothing else would notice.
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val body = activity.substringAfter("private fun readPicked(").substringBefore("\n    }\n")
+        assertTrue(body.contains("t.cancelable = true"))
+    }
+
     @Test fun `every command run starts through the gate`() {
         // Hard rule 15: a command that bypassed CommandGate would run with no busy layer up, and
         // the user's taps could interleave with it again. The entry points: a typed

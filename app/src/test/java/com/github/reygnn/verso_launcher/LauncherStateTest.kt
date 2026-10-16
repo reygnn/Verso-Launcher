@@ -687,6 +687,21 @@ class LauncherStateTest {
         assertFalse(state.needsRefresh)
     }
 
+    /** A restore adopted while an unreadable first load is still on its way back: the adopted
+     *  config stays, loaded and NOT unreadable — both at once would make the toasts and "~reset"
+     *  misreport. (Today adopt's own refresh supersedes that hand-back, so the `!configLoaded`
+     *  guard in it is a second line no test can reach; this pins what the user sees.) */
+    @Test fun `a restore adopted while an unreadable first load is in flight stays the config`() {
+        diskUnreadable = true
+        state.refresh()
+        runIo()  // the read: unreadable; its hand-back waits on main
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Charlie"))))
+        runAll()
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        assertEquals(setOf(key("Charlie")), state.config.favorites)
+    }
+
     // ---- "~reset": only while unreadable; set aside, then start over like a fresh install ----
 
     private val resets = mutableListOf<ResetOutcome>()
@@ -721,6 +736,18 @@ class LauncherStateTest {
         assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
         assertEquals(1, written.size)
         assertFalse(state.needsRefresh)
+    }
+
+    /** Between the reset's hand-back and the first load it starts, the config is no longer
+     *  unreadable (it was set aside) and not loaded yet. */
+    @Test fun `right after a reset the config is no longer unreadable, the first load on its way`() {
+        startedUnreadable()
+        reset()
+        runIo()
+        runMain()  // the reset's hand-back; its refresh now waits on IO
+        assertFalse(state.configUnreadable)
+        assertFalse(state.configLoaded)
+        assertTrue(ioQueue.isNotEmpty())
     }
 
     @Test fun `reset of a file that reads after all moves nothing and loads it`() {

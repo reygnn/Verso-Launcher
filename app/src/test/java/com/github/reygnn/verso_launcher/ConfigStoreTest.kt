@@ -283,6 +283,15 @@ class ConfigStoreTest {
         assertTrue(store.load()!!.favorites.isEmpty())
     }
 
+    /** The renames are durable only once the directory is synced, like any publish. */
+    @Test
+    fun `a set-aside syncs the directory`() {
+        primary.writeText("{ torn")
+        dirSyncs = 0
+        store.setAsideUnreadable()
+        assertEquals(1, dirSyncs)
+    }
+
     @Test
     fun `a second set-aside never overwrites the first one's files`() {
         primary.writeText("first")

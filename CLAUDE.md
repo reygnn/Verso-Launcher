@@ -95,6 +95,7 @@ com.github.reygnn.verso_launcher/
   BackupStore         Download/Verso via MediaStore
   BackupFiles         pure backup naming rules
   RestoreSteps        the IO half of a restore, in its load-bearing order
+  BackupSteps         the IO half of ~backup: memory, else the file, never an empty config
   Cleanup             pure "~cleanup" decisions: what may be offered (CleanupPlan)
 ```
 

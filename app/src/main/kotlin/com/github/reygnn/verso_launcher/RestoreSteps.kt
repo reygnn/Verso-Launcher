@@ -45,12 +45,17 @@ internal object RestoreSteps {
      *    result counts: [Outcome.WriteFailed], or [Outcome.ReplacedUnreadable] with saved false.
      */
     fun run(
-        current: VersoConfig?,
+        inMemory: VersoConfig?,
+        loadDisk: () -> VersoConfig?,
         restored: VersoConfig,
         writeUndo: (String) -> String?,
         writeConfig: (String) -> Boolean,
         setAside: () -> ConfigStore.SetAside,
     ): Outcome {
+        // What the undo point keeps: the config in memory once it is loaded, else the file on
+        // disk — never the empty default memory holds before the first load, which would replace
+        // the real undo point with nothing.
+        val current = inMemory ?: loadDisk()
         val outgoing = current ?: when (val aside = setAside()) {
             // Readable after all (a passing read error): the normal path, with its undo point.
             is ConfigStore.SetAside.Readable -> aside.config

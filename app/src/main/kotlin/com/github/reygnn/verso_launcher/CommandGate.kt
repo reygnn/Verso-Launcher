@@ -108,6 +108,47 @@ internal class CommandGate(private val onBusyChanged: (Boolean) -> Unit) {
     }
 
     /**
+     * One IO step of [ticket] (MainActivity.commandIo): [work] through [submit] (the IO thread),
+     * then [then] with its result back through [post] (the main thread) — still as a step of
+     * [ticket], so whatever [then] starts in turn keeps the command running, and the command ends
+     * once nothing does. [refused] instead, at once, when [submit] refused the task: nothing ran,
+     * and the hold is given back. A [work] that THROWS an Exception is a bug — every IO function
+     * catches its own errors (hard rule 2) — but it must not leave the launcher locked behind the
+     * busy layer: [failed] gets it back on the main thread, and the step ends like any other. An
+     * Error is not caught: it ends the process, and the gate with it. A ticket that has ended
+     * (abandoned by [cancel]) starts nothing, and gets nothing back.
+     *
+     * Only the task handed to [submit] runs off the main thread, and it touches nothing here.
+     */
+    fun <T> io(
+        ticket: Ticket,
+        submit: (Runnable) -> Boolean,
+        post: (() -> Unit) -> Unit,
+        work: () -> T,
+        refused: () -> Unit,
+        failed: (Exception) -> Unit,
+        then: (T) -> Unit,
+    ) {
+        if (!hold(ticket)) return
+        val accepted = submit(Runnable {
+            val result = try {
+                Result.success(work())
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            post {
+                finish(ticket) {
+                    result.fold(onSuccess = then, onFailure = { failed(it as Exception) })
+                }
+            }
+        })
+        if (!accepted) {
+            release(ticket)
+            refused()
+        }
+    }
+
+    /**
      * Back on the busy layer: abandon the running command if it allows that right now
      * ([Ticket.cancelable]). Its outstanding steps still finish, find their ticket ended and do
      * nothing. True when a command was abandoned.

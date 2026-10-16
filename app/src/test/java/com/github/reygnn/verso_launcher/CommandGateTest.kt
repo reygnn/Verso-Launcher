@@ -25,11 +25,17 @@ class CommandGateTest {
     private fun runNext() = pending.removeFirst().run()
     private fun runAll() { while (pending.isNotEmpty()) runNext() }
 
-    /** What MainActivity.commandIo does: hold [t] now, finish it when the step runs. */
-    private fun step(t: CommandGate.Ticket, then: () -> Unit = {}) {
-        if (!gate.hold(t)) return
-        pending.addLast(Runnable { gate.finish(t, then) })
-    }
+    /** An IO step through the real [CommandGate.io] (what MainActivity.commandIo calls): the IO
+     *  task and its hand-back to main collapsed into one entry of [pending]. */
+    private fun step(t: CommandGate.Ticket, then: () -> Unit = {}) = gate.io(
+        t,
+        submit = { task -> pending.addLast(task); true },
+        post = { block -> block() },
+        work = {},
+        refused = { fail("not refused") },
+        failed = { throw it },
+        then = { then() },
+    )
 
     // ---- start / end ----------------------------------------------------------------
 
@@ -198,5 +204,92 @@ class CommandGateTest {
         var ran = false
         gate.finish(ticket!!) { ran = true }
         assertFalse(ran)
+    }
+
+    // ---- io: the glue between a step and the IO thread (MainActivity.commandIo) ----------
+
+    private val ioTasks = ArrayDeque<Runnable>()
+    private val mainTasks = ArrayDeque<() -> Unit>()
+    private var ioOpen = true
+
+    private fun <T> ioStep(
+        t: CommandGate.Ticket,
+        work: () -> T,
+        refused: () -> Unit = {},
+        failed: (Exception) -> Unit = {},
+        then: (T) -> Unit = {},
+    ) = gate.io(
+        t,
+        submit = { task -> if (ioOpen) { ioTasks.addLast(task); true } else false },
+        post = { block -> mainTasks.addLast(block) },
+        work = work, refused = refused, failed = failed, then = then,
+    )
+
+    private fun drainIo() { while (ioTasks.isNotEmpty() || mainTasks.isNotEmpty()) {
+        while (ioTasks.isNotEmpty()) ioTasks.removeFirst().run()
+        while (mainTasks.isNotEmpty()) mainTasks.removeFirst()()
+    } }
+
+    @Test fun `io hands its result back on main, once, and the command ends with it`() {
+        val results = mutableListOf<Int>()
+        gate.start(Command.BACKUP) { t -> ioStep(t, work = { 42 }, then = { results += it }) }
+        assertTrue(gate.busy)
+        while (ioTasks.isNotEmpty()) ioTasks.removeFirst().run()
+        assertEquals("nothing back before main runs", emptyList<Int>(), results)
+        assertTrue(gate.busy)
+        drainIo()
+        assertEquals(listOf(42), results)
+        assertFalse(gate.busy)
+    }
+
+    /** A refused task gives its hold back at once: no busy layer left waiting for a step that
+     *  never runs. */
+    @Test fun `io refused by the IO thread reports at once and leaves the gate free`() {
+        ioOpen = false
+        var refused = 0
+        var then = 0
+        gate.start(Command.SAVE) { t -> ioStep(t, work = { 1 }, refused = { refused++ }, then = { then++ }) }
+        assertEquals(1, refused)
+        assertEquals(0, then)
+        assertFalse(gate.busy)
+        assertEquals("never announced", emptyList<Boolean>(), announced)
+    }
+
+    /** A work that throws is a bug, but must not lock the launcher behind the busy layer. */
+    @Test fun `io whose work throws reports on main and ends the command`() {
+        val failures = mutableListOf<String>()
+        var then = 0
+        gate.start(Command.RESTORE) { t ->
+            ioStep(t, work = { throw IllegalStateException("boom") }, failed = { failures += it.message!! }, then = { then++ })
+        }
+        drainIo()
+        assertEquals(listOf("boom"), failures)
+        assertEquals(0, then)
+        assertFalse(gate.busy)
+    }
+
+    @Test fun `io of an abandoned command starts nothing`() {
+        var started = false
+        gate.start(Command.RESTORE_SAF) { t ->
+            t.cancelable = true
+            ioStep(t, work = { 1 })
+            assertTrue(gate.cancel())
+            ioStep(t, work = { started = true })
+        }
+        drainIo()
+        assertFalse(started)
+        assertFalse(gate.busy)
+    }
+
+    @Test fun `io abandoned in flight gets nothing back`() {
+        var then = 0
+        gate.start(Command.RESTORE_SAF) { t ->
+            t.cancelable = true
+            ioStep(t, work = { 1 }, then = { then++ })
+        }
+        assertTrue(gate.cancel())
+        drainIo()
+        assertEquals(0, then)
+        assertNull(gate.current)
     }
 }
