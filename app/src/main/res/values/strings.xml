@@ -114,4 +114,5 @@
     <string name="empty_no_favorites">no favorites yet — add some with !</string>
     <string name="empty_no_recents">no recent apps yet — the list resets on restart</string>
     <string name="empty_no_command">no such command — ~ lists them all</string>
+    <string name="empty_not_loaded">config not loaded — edits off</string>
 </resources>

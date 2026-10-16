@@ -99,6 +99,16 @@ class HomePageAccessibilityTest {
         assertEquals(0xFF000000.toInt(), (favorite("Gmail") as android.widget.TextView).currentTextColor)
     }
 
+    /** While the config is unreadable, home keeps the cached favorites and is told "not loaded"
+     *  on every render; a colour switch must still redraw the rows that are on screen. */
+    @Test fun `a colour switch after a not-loaded render redraws the favorites on screen`() {
+        val gmail = AppEntry.of("Gmail", "com.g", "com.g.Main", "Gmail")
+        page.render(favs = listOf(gmail), loaded = true)
+        page.render(favs = emptyList(), loaded = false)
+        page.applyTextColor(0xFF000000.toInt())
+        assertEquals(0xFF000000.toInt(), (favorite("Gmail") as android.widget.TextView).currentTextColor)
+    }
+
     private fun favorite(label: String): View =
         page.view.collect<android.widget.TextView>().single { it.text.toString() == label }
 

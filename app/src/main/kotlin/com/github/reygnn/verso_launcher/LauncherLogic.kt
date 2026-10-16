@@ -24,7 +24,7 @@ internal enum class Mode {
 }
 
 /** The kinds of empty list, each with its own explanation (see [LauncherLogic.emptyHint]). */
-internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
+internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND, NOT_LOADED }
 
 /** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
  *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
@@ -553,8 +553,18 @@ internal object LauncherLogic {
      * would have shown (mirrors [rowsFor]). Bare "#"/"##" with nothing listed means there are
      * no tags yet, "!!" no favorites, "?" no recents; a needle that matched nothing is a "no
      * match" of its kind; an empty plain drawer has no apps at all.
+     *
+     * With the config not loaded ([configLoaded] false — unreadable, or a reset's first load on
+     * its way), the views that list config — favorites to reorder, tags — are empty because
+     * nothing is in memory, not because nothing exists: "no favorites yet" would be false, and
+     * the way it offers (add some with "!") is refused. [EmptyHint.NOT_LOADED] says so instead.
      */
-    fun emptyHint(mode: Mode, trimmed: String, tagEditTag: String?): EmptyHint = when (mode) {
+    fun emptyHint(mode: Mode, trimmed: String, tagEditTag: String?, configLoaded: Boolean = true): EmptyHint = when {
+        !configLoaded && (mode == Mode.FAV_REORDER || mode == Mode.TAG_FILTER || mode == Mode.TAG_EDIT) -> EmptyHint.NOT_LOADED
+        else -> emptyHintLoaded(mode, trimmed, tagEditTag)
+    }
+
+    private fun emptyHintLoaded(mode: Mode, trimmed: String, tagEditTag: String?): EmptyHint = when (mode) {
         Mode.TAG_EDIT -> if (tagEditTag == null) EmptyHint.NO_TAGS else EmptyHint.NO_APPS
         Mode.COMMAND -> EmptyHint.NO_COMMAND
         Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_TAGS else EmptyHint.NO_TAG_MATCH

@@ -2400,7 +2400,7 @@ class MainActivity : Activity() {
         // before the apps have loaded, when "no apps" would be false. Set only when it changes:
         // the view is a live region, and TalkBack would repeat it on every keystroke.
         val hint = if (!state.appsLoaded) "" else getString(
-            when (LauncherLogic.emptyHint(mode, q, tagEditTag)) {
+            when (LauncherLogic.emptyHint(mode, q, tagEditTag, state.configLoaded)) {
                 EmptyHint.NO_MATCH -> R.string.empty_no_match
                 EmptyHint.NO_APPS -> R.string.empty_no_apps
                 EmptyHint.NO_TAGS -> R.string.empty_no_tags
@@ -2408,6 +2408,7 @@ class MainActivity : Activity() {
                 EmptyHint.NO_FAVORITES -> R.string.empty_no_favorites
                 EmptyHint.NO_RECENTS -> R.string.empty_no_recents
                 EmptyHint.NO_COMMAND -> R.string.empty_no_command
+                EmptyHint.NOT_LOADED -> R.string.empty_not_loaded
             }
         )
         if (emptyView.text.toString() != hint) emptyView.text = hint

@@ -13,10 +13,10 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 546 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 548 tests):
 
 ```
-LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          145  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
@@ -59,7 +59,7 @@ RestoreStepsTest            11  the restore's IO order: undo point (memory, else
                                 over an unreadable config: set aside first, never written over;
                                 a failed config write is reported, not taken for a restore
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
+HomePageAccessibilityTest   11  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits

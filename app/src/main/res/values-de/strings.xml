@@ -112,4 +112,5 @@
     <string name="empty_no_favorites">Noch keine Favoriten — mit ! hinzufügen</string>
     <string name="empty_no_recents">Noch keine zuletzt genutzten Apps (leer nach Neustart)</string>
     <string name="empty_no_command">Kein solcher Befehl — ~ zeigt alle</string>
+    <string name="empty_not_loaded">Konfiguration nicht geladen — Bearbeiten aus</string>
 </resources>

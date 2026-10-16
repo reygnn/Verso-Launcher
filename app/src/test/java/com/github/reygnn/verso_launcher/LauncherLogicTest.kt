@@ -504,6 +504,20 @@ class LauncherLogicTest {
         assertEquals(EmptyHint.NO_COMMAND, LauncherLogic.emptyHint(Mode.COMMAND, "~xyz", null))
     }
 
+    /** Not loaded (unreadable): the config views are empty because nothing is in memory — they
+     *  must not claim "no favorites / no tags yet, add some", which is refused. The views that
+     *  list apps, not config, keep their hints. */
+    @Test fun `with the config not loaded, the config views say so instead of no favorites or tags`() {
+        assertEquals(EmptyHint.NOT_LOADED, LauncherLogic.emptyHint(Mode.FAV_REORDER, "!!", null, configLoaded = false))
+        assertEquals(EmptyHint.NOT_LOADED, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#", null, configLoaded = false))
+        assertEquals(EmptyHint.NOT_LOADED, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#wo", null, configLoaded = false))
+        assertEquals(EmptyHint.NOT_LOADED, LauncherLogic.emptyHint(Mode.TAG_EDIT, "##", null, configLoaded = false))
+        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.NORMAL, "", null, configLoaded = false))
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.FAV_EDIT, "!xyz", null, configLoaded = false))
+        assertEquals(EmptyHint.NO_RECENTS, LauncherLogic.emptyHint(Mode.RECENTS, "?", null, configLoaded = false))
+        assertEquals(EmptyHint.NO_COMMAND, LauncherLogic.emptyHint(Mode.COMMAND, "~xyz", null, configLoaded = false))
+    }
+
     @Test fun `the edit modes are exactly the ones whose Enter means done`() {
         val edit = Mode.entries.filter { LauncherLogic.isEditMode(it) }.toSet()
         assertEquals(setOf(Mode.HIDDEN_EDIT, Mode.FAV_EDIT, Mode.FAV_REORDER, Mode.TAG_EDIT), edit)

@@ -213,8 +213,10 @@ internal class HomePage(
      * between finger-down and the click can never redirect a tap to another app.
      */
     fun render(favs: List<AppEntry>, loaded: Boolean) {
-        lastRender = favs to loaded
+        // A "not yet" draws nothing and so must not be what a colour switch replays: the rows
+        // on screen (the cached favorites while the config is unreadable) are.
         if (!loaded) return
+        lastRender = favs to loaded
         if (favs == rendered) return
         rendered = favs
         favorites.removeAllViews()
