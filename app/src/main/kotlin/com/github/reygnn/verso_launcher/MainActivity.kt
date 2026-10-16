@@ -1063,13 +1063,12 @@ class MainActivity : Activity() {
         return super.onKeyDown(keyCode, event)
     }
 
-    /** The character a plain key press types, or null (a modifier chord, a control key). */
-    private fun printable(event: KeyEvent): String? {
-        if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) return null
-        val c = event.unicodeChar
-        if (c == 0 || Character.isISOControl(c)) return null
-        return String(Character.toChars(c))
-    }
+    /** The character a plain key press types, or null — see [LauncherLogic.typedChar]. */
+    private fun printable(event: KeyEvent): String? = LauncherLogic.typedChar(
+        unicodeChar = event.unicodeChar,
+        chord = event.isCtrlPressed || event.isMetaPressed ||
+            event.metaState and KeyEvent.META_ALT_LEFT_ON != 0,
+    )
 
     /** Append [c] to the command line and put the typing back there. */
     private fun typeIntoPrompt(c: String) {

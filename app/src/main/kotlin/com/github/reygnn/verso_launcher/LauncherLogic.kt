@@ -797,6 +797,26 @@ internal object LauncherLogic {
     }
 
     /**
+     * The character a key press types when it starts typing on the home page or the list, or
+     * null when it types nothing there. [unicodeChar] is KeyEvent.unicodeChar; [chord] is a
+     * Ctrl, Meta or LEFT Alt chord (a shortcut, not typing). Right Alt is AltGr, which types
+     * "@", "€", "{" on a German layout — those count.
+     *
+     * Null as well for anything that is no valid code point — above all a dead key ("^", "´"
+     * on a German keyboard), whose unicodeChar carries KeyCharacterMap.COMBINING_ACCENT, the
+     * sign bit: Character.toChars rejects that negative Int with an exception, which crashed
+     * the launcher on every press. Ignoring it is enough: in the prompt itself the TextView
+     * composes accents on its own. And null for 0 and for a control character.
+     */
+    fun typedChar(unicodeChar: Int, chord: Boolean): String? {
+        if (chord) return null
+        if (unicodeChar == 0 || !Character.isValidCodePoint(unicodeChar) || Character.isISOControl(unicodeChar)) {
+            return null
+        }
+        return String(Character.toChars(unicodeChar))
+    }
+
+    /**
      * Which call of the command line's editor-action listener is THE Enter. A soft keyboard's
      * Enter arrives once, as the GO/DONE action with no event. A key Enter — a hardware or
      * Bluetooth keyboard, or a key the keyboard app forwards — arrives as a call per key event:
