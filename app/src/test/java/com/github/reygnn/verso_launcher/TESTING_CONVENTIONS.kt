@@ -25,6 +25,7 @@ package com.github.reygnn.verso_launcher
  *   LauncherState(io, main, loadConfig, enumerateApps, serialize, writeConfig,
  *                 onRefreshed, isFreshInstall, defaultFavoriteCandidates,
  *                 initialRecents, onRecentsChanged)
+ *   CommandGate(onBusyChanged)                    // the busy layer, as a lambda
  *   ConfigStore(dir, log, syncDir, rename)        // rename: force a refusal
  *   BackupStore(resolver, subDir, log, beforePublish, now)
  *
@@ -53,9 +54,9 @@ package com.github.reygnn.verso_launcher
  *   io = { task -> ioQueue.addLast(task); true }
  *   main = { task -> mainQueue.addLast(task) }
  *
- *   state.refresh(reloadConfig = true)
+ *   state.refresh()
  *   runIo()             // the load ran …
- *   state.refresh()     // … a resume supersedes it before the hand-off
+ *   state.rename(…)     // … a rename lands before the hand-off
  *   runAll()
  *
  * A test decides exactly when the background half runs and when its result

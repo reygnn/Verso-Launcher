@@ -104,7 +104,11 @@ keyboard, no prompt:
     list (`~r` leaves `~restore` and `~restore-saf`). Tap a row to run it, or press
     **Enter** once what you typed can only mean one command — `~b` is enough for
     `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
-    up. Each command acts once and clears the prompt:
+    up. Each command acts once and clears the prompt. Commands run one at a time:
+    while one runs, the launcher takes no input, and a wheel shows if it takes a
+    moment. Back only cancels the read of a file picked for `~restore-saf` (a cloud
+    drive may never answer); nothing has changed at that point. Should any other
+    command hang (10 s), Back gives you the launcher back while it finishes:
     - `~` / `~load` — reload the config from disk (a toast confirms it)
     - `~save` — write the in-memory config out now (saves are automatic anyway;
       this is the explicit one)

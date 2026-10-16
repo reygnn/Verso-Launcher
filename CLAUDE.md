@@ -86,6 +86,7 @@ com.github.reygnn.verso_launcher/
   TapGuard            stale-click protection for list rows
   RenameDialog        long-press dialog: custom name + tags
   LauncherState       config + app list + recents, and the concurrency rules (pure)
+  CommandGate         the "~" commands one at a time: a run ends with its last step (pure)
   LauncherLogic       all pure decisions: modes, commands, search/fold, sort, rows,
                       Enter/tap actions, tags, default favorites
   AppEntry, VersoConfig   the data
@@ -160,7 +161,8 @@ main, written on the IO thread.
     disables intercept mid-gesture); the decisions are pure in `SwipeGesture`. Details that
     are easy to break: taps are swallowed while a page turn runs (`swallowTaps`, ~200 ms);
     a second finger cancels a drag; a drag can grab a page still moving and continues from
-    there; an open dialog (rename, `~cleanup`) blocks both drag and flick; a page turned some other way
+    there; an open dialog (rename, `~cleanup`) or the busy layer of a running `~` command blocks
+    both drag and flick; a page turned some other way
     (HOME, Back, screen off) aborts a running drag without a release decision (`abortDrag`).
 12. **Status bar hidden on the home page only**, shown in the drawer. The home page
     pads for it regardless of visibility (`getInsetsIgnoringVisibility`).
@@ -176,6 +178,24 @@ main, written on the IO thread.
     (`verso-pre-cleanup-…`), and — unless the config was replaced meanwhile — the removal
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
+15. **The `~` commands run one at a time, behind a busy layer** (`CommandGate`). A typed
+    command (`runCommand`), the `~restore-saf` pick's answer and a confirmed `~cleanup` each
+    start a run with `gate.start`; while it runs, a see-through full-window dialog takes every
+    touch and key, so no edit, page turn or second command can come in between. A run ends
+    with its last step, never by a "done" call: every step `hold`s the run before it starts
+    (`commandIo` for an IO step) and `finish`es it back on main, whatever happened. The gate
+    belongs to the activity, so a hand-back `onUi` drops dies with it; the next instance
+    starts free. No run spans another activity or a dialog waiting on the user (the SAF picker,
+    the cleanup confirmation): those end the run, and their answer starts a new one. Only a
+    step with no time bound — the SAF document read — is `cancelable`: Back (or HOME) abandons
+    it, and its late answer finds its ticket ended. Any other step may be stuck in a system
+    service with no timeout, but abandoning it is not safe; after `BUSY_ESCAPE_MS` the layer
+    offers a way out instead — Back takes it down, the run goes on, no other command starts
+    until it ends. Edits made meanwhile interleave as before the gate, which is why
+    `LauncherState` keeps its own guards (`configEpoch`, the cleanup's `Superseded`). Every
+    step reports back on every path (IO steps from a `finally`, `LauncherState` included).
+    `~load` is `LauncherState.reload`, its own task, not a refresh that a newer one could
+    supersede.
 
 ---
 

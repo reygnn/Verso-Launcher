@@ -2,6 +2,7 @@ package com.github.reygnn.verso_launcher
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.Dialog
 import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
@@ -12,6 +13,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
@@ -38,8 +40,10 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
@@ -50,6 +54,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import android.window.BackEvent
@@ -177,8 +182,6 @@ class MainActivity : Activity() {
     private var resumed = false
     // Between onStart and onStop: the launcher can be seen (see cleanup).
     private var started = false
-    // A "~load" waiting for its hand-off, to confirm it (see runCommand).
-    private var reloadToastPending = false
 
     // What outlives this instance: the one disk thread and the recents (see VersoApp).
     private val app get() = VersoApp.from(this)
@@ -223,14 +226,6 @@ class MainActivity : Activity() {
                     // Its counts were for the config just replaced.
                     commandDialog?.dismiss()
                 }
-                // The first hand-off after a "~load" is the one that read the file: every older
-                // load is superseded by it.
-                // Only when the file was adopted: a change made while it loaded keeps memory, the
-                // newer truth, and then nothing was reloaded to confirm.
-                if (reloadToastPending) {
-                    reloadToastPending = false
-                    if (configReplaced) toast(getString(R.string.toast_reloaded))
-                }
                 refilter()
             },
             isFreshInstall = { store.isFresh() },
@@ -264,11 +259,22 @@ class MainActivity : Activity() {
     private var renameDialog: AlertDialog? = null
     // The "~cleanup" confirmation, tracked for the same reason.
     private var commandDialog: AlertDialog? = null
-    // The ticket a running "~cleanup" check was started under (null: none running), and the
-    // current one, bumped whenever the page turns away (closeDrawer, HOME, onStop) — a result
-    // must still match it to be shown (see cleanup).
-    private var checkingTicket: Int? = null
+    // Bumped whenever the page turns away (closeDrawer, HOME, onStop): a "~cleanup" check must
+    // still match the value it started under to show its dialog (see cleanup).
     private var cleanupTicket = 0
+
+    // The running "~" command, one at a time (CommandGate, hard rule 15), and the busy layer
+    // that covers the window while it runs (showBusy). Both belong to this instance: a
+    // recreated activity starts free — see CommandGate for why that is enough.
+    private val gate = CommandGate(onBusyChanged = ::showBusy)
+    private var busyLayer: Dialog? = null
+    // The run the layer was last shown for, and since when (uptime): what the wheel's and the
+    // way out's delays count from (see showBusy).
+    private var busyRun: CommandGate.Ticket? = null
+    private var busySince = 0L
+    // A run whose layer the user stepped out of (Back, once the way out was open): it runs on
+    // without one, and onStart does not put it back.
+    private var waived: CommandGate.Ticket? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -547,8 +553,9 @@ class MainActivity : Activity() {
             addView(drawer, FrameLayout.LayoutParams(MATCH, MATCH))
             claims = claims@{ dir, downY ->
                 // A long-press that opened the rename dialog can carry on into a drag with the
-                // finger still down; that must not turn the page under the dialog.
-                if (renameDialog != null || commandDialog != null) return@claims false
+                // finger still down; that must not turn the page under the dialog — nor under
+                // the busy layer of a running "~" command.
+                if (renameDialog != null || commandDialog != null || busyLayer != null) return@claims false
                 // Read live: cheap, and never stale (a display-size change recreates the
                 // activity anyway — "density" is not in configChanges).
                 val topExclusion = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
@@ -571,7 +578,7 @@ class MainActivity : Activity() {
             // down to close it — once the content under the finger is at its end that way.
             isDrawerOpen = { this@MainActivity.drawerOpen }
             canDrag = canDrag@{ dir ->
-                if (renameDialog != null || commandDialog != null) return@canDrag false
+                if (renameDialog != null || commandDialog != null || busyLayer != null) return@canDrag false
                 when (dir) {
                     SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
                     SwipeDir.DOWN -> !listView.canScrollVertically(-1)
@@ -685,6 +692,9 @@ class MainActivity : Activity() {
         super.onStart()
         started = true
         homePage.startBattery()
+        // A command still running from before onStop: its busy layer went with the stop
+        // (showBusy leaves out a run the user stepped out of).
+        if (gate.busy) showBusy(true)
     }
 
     // ---- turning the page ---------------------------------------------------
@@ -797,10 +807,14 @@ class MainActivity : Activity() {
      * still brings it — and the notification shade — in transiently, so nothing is out of reach.
      */
     private fun showStatusBar(show: Boolean) {
-        val controller = window.insetsController ?: return
-        controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        if (show) controller.show(WindowInsets.Type.statusBars())
-        else controller.hide(WindowInsets.Type.statusBars())
+        // The busy layer too, while it is up: it is the focused window then, and the focused
+        // window's request is the one the system follows.
+        for (w in listOfNotNull(window, busyLayer?.window)) {
+            val controller = w.insetsController ?: continue
+            controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (show) controller.show(WindowInsets.Type.statusBars())
+            else controller.hide(WindowInsets.Type.statusBars())
+        }
     }
 
     /**
@@ -935,6 +949,9 @@ class MainActivity : Activity() {
         // Also a dialog opened from the home page, which closeDrawer does not touch.
         renameDialog?.dismiss()
         commandDialog?.dismiss()
+        // The busy layer only: the command itself runs on, and onStart puts the layer back if
+        // it is still running then (and the user did not step out of it).
+        dismissBusyLayer()
         closeDrawer(animate = false)
         homePage.stopBattery()
         super.onStop()
@@ -948,6 +965,7 @@ class MainActivity : Activity() {
         renameDialog = null
         commandDialog?.dismiss()
         commandDialog = null
+        dismissBusyLayer()
         // No executor shutdown: the IO thread is the process's (VersoApp.io), and work this
         // instance queued — a save above all — must still run for the next one. What it
         // would hand back to this instance's main thread is dropped by onUi instead.
@@ -1037,6 +1055,8 @@ class MainActivity : Activity() {
         renameDialog?.dismiss()
         commandDialog?.dismiss()
         cleanupTicket++
+        // HOME abandons what Back would (the "~restore-saf" read): back to a clean home screen.
+        if (gate.cancel()) toast(getString(R.string.toast_command_cancelled))
         // Also clears the prompt (closeDrawer always does), so the next swipe up opens on
         // the plain drawer rather than whatever mode was last typed.
         closeDrawer()
@@ -1077,33 +1097,230 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Run a one-shot "~" command. RELOAD stays silent — its effect is the list
-     * redrawing, which is its own feedback. The other three do their work off-screen
-     * (or in another app entirely), so each one reports back with a toast; a save you
-     * cannot see happen is a save you do not trust.
+     * Run a one-shot "~" command — one at a time, behind the busy layer (hard rule 15): the
+     * command holds the [gate] until its last step is over, and while it does, nothing the user
+     * does can come in between (see CommandGate). The commands do their work off-screen (or in
+     * another app entirely), so each one reports back with a toast, on its real result; a save
+     * you cannot see happen is a save you do not trust.
+     *
+     * Behind the busy layer no second start can come from the UI; one can once the user stepped
+     * out of a stalled run (showBusy), and then this refusal is what keeps it one at a time.
      */
     private fun runCommand(command: Command) {
-        when (command) {
-            // Confirmed once the reload has landed (see onRefreshed): if nothing changed on
-            // disk, nothing visible changes either, and a silent command looks like a dead one.
-            Command.RELOAD -> {
-                reloadToastPending = true
-                state.refresh(reloadConfig = true)
+        val accepted = gate.start(command) { t ->
+            when (command) {
+                Command.RELOAD -> reload(t)
+                Command.SAVE -> save(t)
+                Command.BACKUP -> backup(t)
+                Command.RESTORE -> restoreConfig(t)
+                // Only the picker: it is another activity, and Android may kill this process
+                // while it is up, so no command can span it. Its answer starts a run of its own
+                // (onActivityResult).
+                Command.RESTORE_SAF -> pickRestoreFile()
+                Command.CLEANUP -> cleanup(t)
             }
-            // Toast from the IO callback, on the real result — NOT straight after
-            // submitting. save only queues the write; announcing success before the
-            // write is even attempted is exactly the "save you cannot see happen" this
-            // command exists to rule out.
-            // Before the first load there is nothing of the user's in memory to write — say
-            // so rather than report a failed write.
-            Command.SAVE -> if (!state.configLoaded) toast(getString(R.string.toast_not_loaded)) else state.save { ok ->
+        }
+        if (!accepted) toast(getString(R.string.toast_busy))
+    }
+
+    /**
+     * One IO step of the running command [t]: [work] on the IO thread, then [then] with its result
+     * back on the main thread — still as a step of [t], so whatever [then] starts in turn (the next
+     * IO step, a LauncherState call that reports back) keeps the command running, and the command
+     * ends once nothing does (CommandGate). [refused] instead, at once, when the IO thread refused
+     * the task: nothing ran. A [work] that THROWS is a bug — every IO function here catches its own
+     * errors (hard rule 2) — but it must not leave the launcher locked behind the busy layer, so it
+     * is logged and reported, and the step ends like any other.
+     *
+     * A command abandoned meanwhile ([CommandGate.cancel]) gets nothing back here; a destroyed
+     * instance gets nothing at all (onUi), and its gate is gone with it.
+     */
+    // The result type is T, not R: R is the resource class, which a type parameter would shadow.
+    private fun <T> commandIo(
+        t: CommandGate.Ticket,
+        work: () -> T,
+        refused: () -> Unit,
+        then: (T) -> Unit,
+    ) {
+        if (!gate.hold(t)) return
+        val accepted = submitIo {
+            val result = try {
+                Result.success(work())
+            } catch (e: Exception) {
+                Log.w("Verso", "~${t.command.name.lowercase()} failed", e)
+                Result.failure(e)
+            }
+            onUi {
+                gate.finish(t) {
+                    result.fold(onSuccess = then, onFailure = { toast(getString(R.string.toast_command_error)) })
+                }
+            }
+        }
+        if (!accepted) {
+            gate.release(t)
+            refused()
+        }
+    }
+
+    /**
+     * "~load": read verso.json again and adopt it ([LauncherState.reload]). Confirmed once the
+     * file is adopted: if nothing changed on disk, nothing visible changes either, and a silent
+     * command looks like a dead one. Before the first load there is nothing to reload yet — that
+     * load is the read.
+     */
+    private fun reload(t: CommandGate.Ticket) {
+        if (!state.configLoaded) {
+            toast(getString(R.string.toast_not_loaded))
+            return
+        }
+        if (!gate.hold(t)) return
+        state.reload { adopted ->
+            gate.finish(t) {
+                if (adopted) {
+                    // Normally none can be open (the busy layer), but one may be after the user
+                    // stepped out of a stalled run (showBusy): opened against the old config, it
+                    // would write its stale name and tags over the file just read.
+                    renameDialog?.dismiss()
+                    commandDialog?.dismiss()
+                }
+                toast(getString(if (adopted) R.string.toast_reloaded else R.string.toast_command_failed))
+            }
+        }
+    }
+
+    /**
+     * "~save": toast from the write's own callback, on the real result — NOT straight after
+     * submitting. save only queues the write; announcing success before the write is even
+     * attempted is exactly the "save you cannot see happen" this command exists to rule out.
+     * Before the first load there is nothing of the user's in memory to write — say so rather
+     * than report a failed write.
+     */
+    private fun save(t: CommandGate.Ticket) {
+        if (!state.configLoaded) {
+            toast(getString(R.string.toast_not_loaded))
+            return
+        }
+        if (!gate.hold(t)) return
+        state.save { ok ->
+            gate.finish(t) {
                 toast(getString(if (ok) R.string.toast_saved else R.string.toast_save_failed))
             }
-            Command.BACKUP -> backup()
-            Command.RESTORE -> restoreConfig()
-            Command.RESTORE_SAF -> pickRestoreFile()
-            Command.CLEANUP -> cleanup()
         }
+    }
+
+    /**
+     * The busy layer of a running "~" command ([gate]'s onBusyChanged): a see-through dialog
+     * over the whole window. Being a window of its own on top, it takes every touch and every
+     * key — no tap, no typing, no page turn, no second command reaches the activity while it is
+     * up — which is what lets a command run without guarding against the user at each step.
+     *
+     * The wheel only shows after [BUSY_WHEEL_DELAY_MS]: most commands are done long before, and a
+     * wheel flashing up for a moment would only be noise. Back abandons the command if it allows
+     * that right now (the "~restore-saf" read, see readPicked); after [BUSY_ESCAPE_MS] it takes the
+     * layer down while the run goes on (the way out, below); before that it is swallowed.
+     *
+     * Only while the activity is started: onStop takes the layer down (a dialog must not outlive
+     * the visible activity's window), onStart puts it back for a command still running — unless
+     * the user stepped out of that run.
+     */
+    private fun showBusy(busy: Boolean) {
+        if (!busy) {
+            waived = null
+            takeBusyLayerDown()
+            return
+        }
+        val running = gate.current ?: return
+        if (busyLayer != null || !started || running === waived) return
+        // Timed from the run's first layer, not each layer: one re-shown by onStart picks up
+        // where the run is (wheel at once, the way out as soon as it is due). A run that starts
+        // while stopped (a SAF answer before onStart) is timed from that first layer.
+        if (running !== busyRun) {
+            busyRun = running
+            busySince = SystemClock.uptimeMillis()
+        }
+        val elapsed = SystemClock.uptimeMillis() - busySince
+        val wheel = ProgressBar(this).apply {
+            isIndeterminate = true
+            indeterminateTintList = ColorStateList.valueOf(palette.listText)
+            contentDescription = getString(R.string.a11y_busy)
+            visibility = View.INVISIBLE
+        }
+        val hint = TextView(this).apply {
+            text = getString(R.string.busy_escape_hint)
+            setTextColor(palette.listText)
+            typeface = listTypeface
+            gravity = Gravity.CENTER
+            legibleOnWallpaper()
+            visibility = View.INVISIBLE
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            // Announced when the layer appears, so a screen-reader user knows why taps do nothing.
+            accessibilityPaneTitle = getString(R.string.a11y_busy)
+            addView(wheel, LinearLayout.LayoutParams(WRAP, WRAP))
+            addView(hint, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(16) })
+        }
+        val layer = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
+        layer.setContentView(content)
+        layer.setTitle(getString(R.string.a11y_busy))
+        // Not cancelable: Back, a tap outside — nothing takes the layer down but the command's
+        // end, Back on a step that may be abandoned, or Back once the way out is open (below).
+        layer.setCancelable(false)
+        layer.setCanceledOnTouchOutside(false)
+        // See-through means see-through: no dim flashing over the page with every command.
+        layer.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        busyLayer = layer
+        // The layer is the focused window once shown, and the system follows the focused window's
+        // requests for the bars: ask the way the page under it does — the status bar hidden on
+        // home (hard rule 12), the bar icons in the wallpaper's contrast — BEFORE show(), so the
+        // window is added asking for them and nothing flashes.
+        showStatusBar(drawerOpen)
+        applyBarAppearance(layer.window)
+        layer.show()
+        // The way out once a run takes too long. Every step but the "~restore-saf" read waits on
+        // the one IO thread, whose calls into system services (MediaStore above all) have no
+        // timeout; abandoning such a step is not safe (a restore's config may already be written),
+        // but holding the HOME screen hostage to it is worse. So the layer steps aside — the run
+        // goes on, and no other command starts until it ends (gate.start refuses) — and the user
+        // has the launcher back. Edits they make meanwhile interleave with the run as they did
+        // before the gate; LauncherState's own guards (configEpoch, the cleanup's Superseded) are
+        // what keeps that safe, and why they stay.
+        var escapable = elapsed >= BUSY_ESCAPE_MS
+        layer.onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT) {
+            when {
+                gate.cancel() -> toast(getString(R.string.toast_command_cancelled))
+                escapable -> {
+                    waived = gate.current
+                    takeBusyLayerDown()
+                    toast(getString(R.string.toast_busy_waived), Toast.LENGTH_LONG)
+                }
+            }
+        }
+        wheel.postDelayed({ wheel.visibility = View.VISIBLE }, (BUSY_WHEEL_DELAY_MS - elapsed).coerceAtLeast(0))
+        hint.postDelayed({
+            escapable = true
+            hint.visibility = View.VISIBLE
+        }, (BUSY_ESCAPE_MS - elapsed).coerceAtLeast(0))
+    }
+
+    /** Take the busy layer down, and give the drawer its keyboard back. */
+    private fun takeBusyLayerDown() {
+        val wasUp = busyLayer != null
+        dismissBusyLayer()
+        // The layer took the focus, and with it the drawer's keyboard: give it back the way
+        // onResume does — once the focus is back (posted), and not under a dialog the command
+        // left up (the cleanup confirmation).
+        if (wasUp) prompt.post {
+            if (started && drawerOpen && busyLayer == null && renameDialog == null &&
+                commandDialog == null && prompt.text?.toString() != RECENTS_PROMPT
+            ) showKeyboard()
+        }
+    }
+
+    private fun dismissBusyLayer() {
+        busyLayer?.dismiss()
+        busyLayer = null
     }
 
     /**
@@ -1122,17 +1339,17 @@ class MainActivity : Activity() {
      * cold start) memory still holds the empty default, and exporting THAT would replace the
      * real backup with nothing; the file on disk is the truth then, read on the IO thread.
      */
-    private fun backup() {
+    private fun backup(t: CommandGate.Ticket) {
         val payload = if (state.configLoaded) ConfigJson.serialize(state.config) else null
-        val accepted = submitIo {
-            val name = backupStore.write(BackupFiles.BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
-            onUi {
-                // Name the file actually written: its name carries the time it was taken.
-                if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
-                else toast(getString(R.string.toast_backup_failed))
-            }
+        commandIo(
+            t,
+            work = { backupStore.write(BackupFiles.BACKUP_BASE, payload ?: ConfigJson.serialize(store.load())) },
+            refused = { toast(getString(R.string.toast_backup_failed)) },
+        ) { name ->
+            // Name the file actually written: its name carries the time it was taken.
+            if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
+            else toast(getString(R.string.toast_backup_failed))
         }
-        if (!accepted) toast(getString(R.string.toast_backup_failed))
     }
 
     /**
@@ -1140,35 +1357,31 @@ class MainActivity : Activity() {
      * The check ([cleanupCheck]) runs on the IO thread: a fresh, COMPLETE enumeration, and only
      * entries whose package is gone from the device altogether. Nothing is removed without the
      * dialog's OK, and then [LauncherState.cleanup] checks again and writes an undo point first.
+     *
+     * Two commands, not one: the check ends when its dialog comes up, and the OK starts the
+     * removal as a run of its own ([runCleanup]). The dialog is modal itself, and a command held
+     * across it would keep the busy layer waiting on the user's answer for as long as they like.
      */
-    private fun cleanup() {
+    private fun cleanup(t: CommandGate.Ticket) {
         if (!state.configLoaded) {
             toast(getString(R.string.toast_not_loaded))
             return
         }
-        // A check already on its way to a dialog on this page: one is enough. One whose page
-        // turned away meanwhile will be dropped, so it does not block a new one.
-        if (checkingTicket == cleanupTicket) return
         val ticket = cleanupTicket
-        checkingTicket = ticket
         val snapshot = state.config.snapshot()
-        val accepted = submitIo {
-            val plan = safeCleanupCheck(snapshot)
-            onUi {
-                if (checkingTicket == ticket) checkingTicket = null
-                // Left meanwhile — the drawer closed, HOME, an app started, the screen off: no
-                // dialog popping up over a page that moved on, no toast over another app.
-                if (!started || ticket != cleanupTicket) return@onUi
-                when (plan) {
-                    CleanupPlan.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
-                    CleanupPlan.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
-                    is CleanupPlan.Offer -> confirmCleanup(plan.orphans)
-                }
+        commandIo(
+            t,
+            work = { safeCleanupCheck(snapshot) },
+            refused = { toast(getString(R.string.toast_cleanup_not_run)) },
+        ) { plan ->
+            // Left meanwhile — the drawer closed, HOME, an app started, the screen off: no
+            // dialog popping up over a page that moved on, no toast over another app.
+            if (!started || ticket != cleanupTicket) return@commandIo
+            when (plan) {
+                CleanupPlan.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
+                CleanupPlan.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
+                is CleanupPlan.Offer -> confirmCleanup(plan.orphans)
             }
-        }
-        if (!accepted) {
-            checkingTicket = null
-            toast(getString(R.string.toast_cleanup_not_run))
         }
     }
 
@@ -1260,28 +1473,37 @@ class MainActivity : Activity() {
         commandDialog?.show()
     }
 
-    /** OK: [LauncherState.cleanup] re-checks, writes the undo point, then removes. */
+    /**
+     * OK: [LauncherState.cleanup] re-checks, writes the undo point, then removes — the confirmed
+     * removal of a "~cleanup", as a command run of its own (see [cleanup]).
+     */
     private fun runCleanup(confirmed: Set<String>) {
-        state.cleanup(
-            confirmed = confirmed,
-            recheck = ::safeCleanupCheck,
-            writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
-        ) { outcome ->
-            if (outcome is CleanupOutcome.Done) refilter()
-            // Gone meanwhile (an app in front, the screen off): the result stands, but no toast
-            // over another app.
-            if (!started) return@cleanup
-            when (outcome) {
-                CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_not_run))
-                CleanupOutcome.Superseded -> toast(getString(R.string.toast_cleanup_superseded))
-                CleanupOutcome.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
-                CleanupOutcome.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
-                CleanupOutcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed))
-                is CleanupOutcome.Done -> {
-                    toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
+        val accepted = gate.start(Command.CLEANUP) { t ->
+            if (!gate.hold(t)) return@start
+            state.cleanup(
+                confirmed = confirmed,
+                recheck = ::safeCleanupCheck,
+                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
+            ) { outcome ->
+                gate.finish(t) {
+                    if (outcome is CleanupOutcome.Done) refilter()
+                    // Gone meanwhile (an app in front, the screen off): the result stands, but no
+                    // toast over another app.
+                    if (!started) return@finish
+                    when (outcome) {
+                        CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_not_run))
+                        CleanupOutcome.Superseded -> toast(getString(R.string.toast_cleanup_superseded))
+                        CleanupOutcome.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
+                        CleanupOutcome.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
+                        CleanupOutcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed))
+                        is CleanupOutcome.Done -> {
+                            toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
+                        }
+                    }
                 }
             }
         }
+        if (!accepted) toast(getString(R.string.toast_busy))
     }
 
     /**
@@ -1291,27 +1513,30 @@ class MainActivity : Activity() {
      * The read runs on [ioExecutor]; only the adoption returns to the main thread, where
      * the config lives.
      */
-    private fun restoreConfig() {
-        submitIo {
-            // The newest backup of ours, whatever MediaStore named it — or, if none was ever
-            // published, an interrupted first one (see BackupFiles.latestToRestore).
-            val latest = backupStore.lookupLatest(BackupFiles.BACKUP_BASE)
-            val text = (latest as? BackupStore.Latest.Found)?.let { backupStore.readText(it.uri) }
-            // Parsed here, off the main thread: a hostile document is parse work the UI must
-            // not wait on (and the parse is where a torn temp gets rejected).
-            val restored = text?.let { ConfigJson.parseForeign(it) }
-            onUi {
-                // Nothing there at all is its own message: "~backup was never run" is a
-                // different problem from "the backup is broken", and both differ from "the
-                // folder could not be read" — saying which saves the user a wrong hunt.
-                when {
-                    latest is BackupStore.Latest.Failed ->
-                        toast(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
-                    latest is BackupStore.Latest.None ->
-                        toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
-                    restored == null -> toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                    else -> adoptRestored(restored)
-                }
+    private fun restoreConfig(t: CommandGate.Ticket) {
+        commandIo(
+            t,
+            work = {
+                // The newest backup of ours, whatever MediaStore named it — or, if none was ever
+                // published, an interrupted first one (see BackupFiles.latestToRestore).
+                val latest = backupStore.lookupLatest(BackupFiles.BACKUP_BASE)
+                val text = (latest as? BackupStore.Latest.Found)?.let { backupStore.readText(it.uri) }
+                // Parsed here, off the main thread: a hostile document is parse work the UI must
+                // not wait on (and the parse is where a torn temp gets rejected).
+                latest to text?.let { ConfigJson.parseForeign(it) }
+            },
+            refused = { toast(getString(R.string.toast_command_failed)) },
+        ) { (latest, restored) ->
+            // Nothing there at all is its own message: "~backup was never run" is a
+            // different problem from "the backup is broken", and both differ from "the
+            // folder could not be read" — saying which saves the user a wrong hunt.
+            when {
+                latest is BackupStore.Latest.Failed ->
+                    toast(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
+                latest is BackupStore.Latest.None ->
+                    toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
+                restored == null -> toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                else -> adoptRestored(t, restored)
             }
         }
     }
@@ -1354,35 +1579,53 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Counts "~restore-saf" picks, so only the newest one's read is adopted. */
-    private var restorePick = 0
-
-    /** The "~restore-saf" picker's answer. Reading stays off the main thread; only the
-     *  adoption comes back to it, exactly as in [restoreConfig]. */
+    /** The "~restore-saf" picker's answer: a command run of its own (the picker could not be
+     *  part of one, see runCommand). Reading stays off the main thread; only the adoption comes
+     *  back to it, exactly as in [restoreConfig]. */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQ_RESTORE) return
         val uri = data?.data
         // Backing out of the picker is not an error — say nothing.
         if (resultCode != RESULT_OK || uri == null) return
-        // Its own short-lived thread, NOT the app's IO thread: the picked document can live
-        // behind any content provider — a cloud drive offline or slow — and a read there can
-        // block for as long as the provider likes. On the IO thread that would stall every save
-        // and every app refresh behind it. This read touches no file of the app's own, so it
-        // needs none of the IO thread's ordering; the undo point and the adoption still go
-        // through it (adoptRestored). Never throws: readText and parseForeign return null.
-        // Newest pick wins: a read stuck at a hung provider may finish after a later pick — its
-        // result must not be adopted over the newer one.
-        val pick = ++restorePick
+        val accepted = gate.start(Command.RESTORE_SAF) { t -> readPicked(t, uri) }
+        if (!accepted) toast(getString(R.string.toast_busy))
+    }
+
+    /**
+     * Read and parse the document a "~restore-saf" pick points at, then adopt it.
+     *
+     * Its own short-lived thread, NOT the app's IO thread: the picked document can live behind
+     * any content provider — a cloud drive offline or slow — and a read there can block for as
+     * long as the provider likes. On the IO thread that would stall every save and every app
+     * refresh behind it. This read touches no file of the app's own, so it needs none of the IO
+     * thread's ordering; the undo point and the adoption still go through it (adoptRestored).
+     *
+     * The one step with no bound on how long it takes, so the only one Back may abandon
+     * ([CommandGate.Ticket.cancelable]): the busy layer must never hold the HOME screen hostage
+     * to a stalled provider. An abandoned read that answers late finds its ticket ended and is
+     * not adopted — nor is it over a newer pick's. Never throws: readText and parseForeign
+     * return null; the hand-back is posted from a finally all the same, so the step always ends.
+     */
+    private fun readPicked(t: CommandGate.Ticket, uri: Uri) {
+        if (!gate.hold(t)) return
+        t.cancelable = true
         Thread(guarded("restore read") {
-            val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
-            onUi {
-                if (pick != restorePick) return@onUi
-                // Unlike [restoreConfig] a null here is not "no backup yet" — the user
-                // pointed at a file and it could not be read or is no config. Either way
-                // nothing was changed.
-                if (restored == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                else adoptRestored(restored)
+            var restored: VersoConfig? = null
+            try {
+                restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
+            } finally {
+                val read = restored
+                onUi {
+                    gate.finish(t) {
+                        t.cancelable = false
+                        // Unlike [restoreConfig] a null here is not "no backup yet" — the user
+                        // pointed at a file and it could not be read or is no config. Either way
+                        // nothing was changed.
+                        if (read == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                        else adoptRestored(t, read)
+                    }
+                }
             }
         }, "verso-restore-read").start()
     }
@@ -1402,7 +1645,7 @@ class MainActivity : Activity() {
      * killed the launcher) — read from disk on the IO thread, where an empty default would
      * otherwise replace a real undo point with nothing.
      */
-    private fun adoptRestored(restored: VersoConfig) {
+    private fun adoptRestored(t: CommandGate.Ticket, restored: VersoConfig) {
         // What a restore actually adopted, so a "my favorites are gone" report can be
         // settled from the log instead of guessed at.
         Log.i(
@@ -1411,38 +1654,35 @@ class MainActivity : Activity() {
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
         val outgoing = if (state.configLoaded) state.config.snapshot() else null
-        val accepted = submitIo {
+        commandIo(
+            t,
             // The IO half in its load-bearing order (CLAUDE.md rule 7): stop if nothing would
             // change, write the undo point, persist the restored config — see RestoreSteps.
-            val outcome = RestoreSteps.run(
-                current = outgoing ?: store.load(),
-                restored = restored,
-                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload) },
-                writeConfig = { payload -> store.write(payload, rotateBackup = true) },
-            )
-            val undo = when (outcome) {
-                RestoreSteps.Outcome.Unchanged -> {
-                    onUi { toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG) }
-                    return@submitIo
+            work = {
+                RestoreSteps.run(
+                    current = outgoing ?: store.load(),
+                    restored = restored,
+                    writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload) },
+                    writeConfig = { payload -> store.write(payload, rotateBackup = true) },
+                )
+            },
+            refused = { toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG) },
+        ) { outcome ->
+            when (outcome) {
+                RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
+                RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
+                is RestoreSteps.Outcome.Done -> {
+                    // Wholesale replace, save and re-render — with the epoch guard that keeps an
+                    // enumeration already in flight from handing the OLD config back over this one.
+                    state.adopt(restored)
+                    // A dialog opened against the pre-restore config would write its stale name
+                    // and tags over what the restore just brought in.
+                    renameDialog?.dismiss()
+                    commandDialog?.dismiss()
+                    toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
                 }
-                RestoreSteps.Outcome.UndoFailed -> {
-                    onUi { toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG) }
-                    return@submitIo
-                }
-                is RestoreSteps.Outcome.Done -> outcome.undoName
-            }
-            onUi {
-                // Wholesale replace, save and re-render — with the epoch guard that keeps an
-                // enumeration already in flight from handing the OLD config back over this one.
-                state.adopt(restored)
-                // A dialog opened against the pre-restore config would write its stale name
-                // and tags over what the restore just brought in.
-                renameDialog?.dismiss()
-                commandDialog?.dismiss()
-                toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(undo)), Toast.LENGTH_LONG)
             }
         }
-        if (!accepted) toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
     }
 
     /** Toasts are this launcher's only chrome — one helper so they stay uniform. */
@@ -2033,10 +2273,16 @@ class MainActivity : Activity() {
         clearButton.legibleOnWallpaper()
         emptyView.setTextColor(palette.listDim)
         emptyView.setOutline(outlinePx, palette.listOutline)
+        // The busy layer too, while it is up: the bars follow the focused window.
+        for (w in listOfNotNull(window, busyLayer?.window)) applyBarAppearance(w)
+        adapter.notifyDataSetChanged()
+    }
+
+    /** Dark bar icons on a light wallpaper, light ones on a dark one ([palette]), for [w]. */
+    private fun applyBarAppearance(w: Window?) {
         val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-        window.insetsController?.setSystemBarsAppearance(if (p.darkBarIcons) lightBars else 0, lightBars)
-        adapter.notifyDataSetChanged()
+        w?.insetsController?.setSystemBarsAppearance(if (palette.darkBarIcons) lightBars else 0, lightBars)
     }
 
     /**
@@ -2202,6 +2448,11 @@ class MainActivity : Activity() {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         const val REQ_RESTORE = 1
+        // How long a "~" command runs before its busy layer shows the wheel (see showBusy).
+        const val BUSY_WHEEL_DELAY_MS = 300L
+        // How long before the busy layer offers its way out (Back) — far beyond any healthy
+        // command, which ends within a second or two (see showBusy).
+        const val BUSY_ESCAPE_MS = 10_000L
         /** What [stillThere] finds an app by: also disabled and uninstalled-with-data ones. */
         const val STILL_THERE_FLAGS = PackageManager.MATCH_DISABLED_COMPONENTS or
             PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS or PackageManager.MATCH_UNINSTALLED_PACKAGES

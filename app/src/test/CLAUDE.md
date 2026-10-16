@@ -13,15 +13,18 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 441 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 467 tests):
 
 ```
 LauncherLogicTest          133  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           62  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           71  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
-                                save-before-load, needsRefresh, recents
+                                save-before-load, needsRefresh, recents, reports that
+                                come even when a collaborator throws
+CommandGateTest             16  one "~" command at a time: a run ends with its last step,
+                                refusal, hand-over, exceptions, cancel of the SAF read
 LauncherRowsTest            37  rowsFor per mode
 ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
@@ -47,9 +50,9 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
 CleanupTest                  9  what ~cleanup may offer: complete enumeration, kept apps, parseKey
-SourceGuardTest              4  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              5  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
-                                brace-less object templates
+                                brace-less object templates, every command through the gate
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
@@ -76,7 +79,7 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
   interleaving deterministic.
 - **No Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic`
   / `LauncherState`. Behaviour that only exists in the Activity is checked on a device;
-  `SourceGuardTest` scans the source for the two edits there that would be silently
+  `SourceGuardTest` scans the source for the edits there that would be silently
   dangerous.
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the

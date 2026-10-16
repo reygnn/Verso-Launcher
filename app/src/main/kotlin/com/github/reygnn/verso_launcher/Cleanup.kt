@@ -24,7 +24,8 @@ internal sealed interface CleanupPlan {
 
 /** How a confirmed "~cleanup" ended ([LauncherState.cleanup]). */
 internal sealed interface CleanupOutcome {
-    /** The config is not loaded yet, or the IO thread refused the task. */
+    /** The config is not loaded yet, the IO thread refused the task, or the task failed
+     *  unexpectedly: nothing removed. */
     data object Refused : CleanupOutcome
     /** The check before removing found an incomplete enumeration: nothing removed. */
     data object Incomplete : CleanupOutcome

@@ -57,6 +57,16 @@
     <string name="toast_cleanup_not_run">nothing changed — try again</string>
     <string name="toast_cleanup_superseded">nothing changed — the config was replaced meanwhile</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
+    <!-- A "~" command runs behind a busy layer, one at a time (CommandGate). -->
+    <string name="toast_busy">busy — wait for the running command</string>
+    <string name="toast_command_failed">nothing changed — try again</string>
+    <string name="toast_command_error">unexpected error — the command did not report back</string>
+    <!-- Back during the "~restore-saf" read, the only step that can be abandoned. -->
+    <string name="toast_command_cancelled">cancelled — nothing changed</string>
+    <string name="a11y_busy">Working…</string>
+    <!-- Under the wheel once a command runs unusually long, and the toast when Back is used then. -->
+    <string name="busy_escape_hint">still working — Back gives you the launcher meanwhile</string>
+    <string name="toast_busy_waived">still running — new commands wait until it is done</string>
     <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
          read aloud sensibly). %1$s is the app label. -->
     <string name="a11y_hidden_on">Hidden: %1$s. Double-tap to unhide.</string>

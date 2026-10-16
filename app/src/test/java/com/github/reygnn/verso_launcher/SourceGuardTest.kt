@@ -37,7 +37,21 @@ class SourceGuardTest {
         assertTrue(Regex("""complete = false""").findAll(activity).count() >= 4)
         // The undo point goes to its own base, never over the backup or the restore undo point.
         assertTrue(Regex("""backupStore\.write\(\s*BackupFiles\.PRE_CLEANUP_BASE""").containsMatchIn(activity))
-        assertTrue(activity.contains("Command.CLEANUP -> cleanup()"))
+        assertTrue(activity.contains("Command.CLEANUP -> cleanup(t)"))
+    }
+
+    @Test fun `every command run starts through the gate`() {
+        // Hard rule 15: a command that bypassed CommandGate would run with no busy layer up, and
+        // the user's taps could interleave with it again. The three entry points: a typed
+        // command, the "~restore-saf" pick's answer, a confirmed "~cleanup".
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        assertTrue(activity.contains("gate.start(command)"))
+        assertTrue(activity.contains("gate.start(Command.RESTORE_SAF)"))
+        assertTrue(activity.contains("gate.start(Command.CLEANUP)"))
+        // The ways a command used to guard itself piecemeal stay gone.
+        for (gone in listOf("restorePick", "checkingTicket", "reloadToastPending", "reloadConfig")) {
+            assertFalse("$gone is back", activity.contains(gone))
+        }
     }
 
     @Test fun `no string template reaches through an object without braces`() {

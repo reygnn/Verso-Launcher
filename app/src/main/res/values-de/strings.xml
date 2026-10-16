@@ -56,6 +56,16 @@
     <string name="toast_cleanup_not_run">Nichts geändert — bitte nochmal versuchen</string>
     <string name="toast_cleanup_superseded">Nichts geändert — Konfiguration wurde inzwischen ersetzt</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
+    <!-- Ein "~"-Befehl läuft hinter einer Sperrebene, einer nach dem anderen (CommandGate). -->
+    <string name="toast_busy">Beschäftigt — laufenden Befehl abwarten</string>
+    <string name="toast_command_failed">Nichts geändert — bitte nochmal versuchen</string>
+    <string name="toast_command_error">Unerwarteter Fehler — der Befehl hat kein Ergebnis gemeldet</string>
+    <!-- Zurück während des "~restore-saf"-Lesens, des einzigen abbrechbaren Schritts. -->
+    <string name="toast_command_cancelled">Abgebrochen — nichts geändert</string>
+    <string name="a11y_busy">Wird ausgeführt…</string>
+    <!-- Unter dem Rad, wenn ein Befehl ungewöhnlich lange läuft, und der Toast, wenn dann Zurück gedrückt wird. -->
+    <string name="busy_escape_hint">Läuft noch — Zurück gibt den Launcher solange frei</string>
+    <string name="toast_busy_waived">Läuft weiter — neue Befehle warten, bis er fertig ist</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>
     <string name="a11y_hidden_off">Sichtbar: %1$s. Zum Ausblenden doppeltippen.</string>

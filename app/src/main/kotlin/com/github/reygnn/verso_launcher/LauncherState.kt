@@ -24,9 +24,9 @@ package com.github.reygnn.verso_launcher
  *   labelGeneration — bumped by [rename] only. A rename changes what enumeration produces
  *                     (labels), so a load whose name snapshot predates it must not commit its
  *                     now-stale app list.
- *   configEpoch     — bumped by ANY config mutation. Guards a disk reload's wholesale config
- *                     replace: if the config changed since the read, memory holds the newer
- *                     truth and must not be clobbered by the older file.
+ *   configEpoch     — bumped by ANY config mutation. Guards a disk read's wholesale config
+ *                     replace (the first load, [reload]): if the config changed since the read,
+ *                     memory holds the newer truth and must not be clobbered by the older file.
  * A membership toggle therefore never throws an enumeration away (new installs still surface);
  * only a rename invalidates one, because only a rename makes its labels wrong.
  *
@@ -96,18 +96,11 @@ internal class LauncherState(
     /**
      * True once [config] holds the real config (read from disk, or adopted from a restore).
      * The config is read from disk once, then [config] IS the cache: the app is its only
-     * writer, so re-reading it on every resume would be wasted I/O. "~load" forces a read.
+     * writer, so re-reading it on every resume would be wasted I/O. "~load" ([reload]) forces
+     * a read.
      */
     var configLoaded = false
         private set
-
-    /**
-     * A "~load" asked for that has not been carried out yet. A refresh is superseded by any
-     * newer one, and a plain resume-refresh does not read the file — so without this a
-     * "~load" followed by a quick pause/resume (a dialog, a translucent activity) was
-     * silently dropped. Cleared only when a load that read the file reaches its hand-off.
-     */
-    private var reloadPending = false
 
     @Volatile private var loadGeneration = 0
     @Volatile private var labelGeneration = 0
@@ -119,20 +112,19 @@ internal class LauncherState(
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, config.favorites)
 
     /**
-     * Re-enumerate the apps (and, on the first call or with [reloadConfig], re-read the config)
-     * off the main thread. The Activity calls it on a resume when apps may have changed or
-     * [needsRefresh] holds, on a reported package or profile change while in front, and for
-     * "~load" and a restore. The most recently REQUESTED refresh wins; see the class comment for what a concurrent toggle or
-     * rename does to an in-flight one.
+     * Re-enumerate the apps (and, until the config is loaded, read it first) off the main thread.
+     * The Activity calls it on a resume when apps may have changed or [needsRefresh] holds, and
+     * on a reported package or profile change while in front; [reload] and [adopt] call it after
+     * replacing the config. The most recently REQUESTED refresh wins; see the class comment for
+     * what a concurrent toggle or rename does to an in-flight one.
      */
-    fun refresh(reloadConfig: Boolean = false) {
+    fun refresh() {
         val generation = ++loadGeneration
         // Captured at REQUEST time, together with the snapshot the load reads from: if either
         // advances before the hand-off, an in-memory change already applied the newer truth.
         val labelGen = labelGeneration
         val epoch = configEpoch
-        if (reloadConfig) reloadPending = true
-        val loadConfigNow = reloadPending || !configLoaded
+        val loadConfigNow = !configLoaded
         // Snapshot on the main thread — the loader must never read the live config, which a
         // rename/toggle may be mutating. Skipped when the load reads the disk copy anyway.
         val cached = if (loadConfigNow) VersoConfig() else config.snapshot()
@@ -150,12 +142,9 @@ internal class LauncherState(
             } else emptyList()
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile
-                // The file was read: the reload is done — adopted below, or deliberately not,
-                // because memory changed since the read and is the newer truth.
-                if (loadConfigNow) reloadPending = false
                 var replaced = false
-                // Adopt the disk copy only if nothing changed the config since the read; on a
-                // cold start nothing can have, so this always adopts there.
+                // Adopt the disk copy only if nothing changed the config since the read — a
+                // restore adopted before the first load landed is the newer truth.
                 if (loadConfigNow && configEpoch == epoch) {
                     config = useCfg
                     configLoaded = true
@@ -205,8 +194,16 @@ internal class LauncherState(
             // durable write (a parse, a rename, 2-3 fsyncs) and let that one do it. An
             // explicit "~save" (onDone) is never skipped: it reports a real write.
             if (onDone == null && seq != saveSeq) return@Runnable
-            val ok = writeConfig(payload)
-            onDone?.let { cb -> main(Runnable { cb(ok) }) }
+            // Reported even if the write throws (it never should — ConfigStore catches its own
+            // errors): a "~save" waits for this report behind the busy layer. The exception
+            // itself still reaches the IO thread's guard and is logged there.
+            var ok = false
+            try {
+                ok = writeConfig(payload)
+            } finally {
+                val written = ok
+                onDone?.let { cb -> main(Runnable { cb(written) }) }
+            }
         })
         if (!accepted) {
             // Refused (the executor is gone): take the number back, or a save still queued
@@ -258,7 +255,7 @@ internal class LauncherState(
      * re-enumeration — and the list re-sorted, since a rename can move an app alphabetically.
      *
      * Bumps labelGeneration so an in-flight load holding a pre-rename name snapshot drops its
-     * stale list, and configEpoch so an in-flight "~load" keeps this name over the disk copy.
+     * stale list, and configEpoch so an in-flight disk read keeps this name over the file.
      * Installs/uninstalls since the last load are picked up by the next [refresh], not here.
      *
      * Ignored before the config is loaded (the home page can already show cached favorites
@@ -321,25 +318,33 @@ internal class LauncherState(
         val snapshot = config.snapshot()
         val payload = serialize(config)
         val accepted = io(Runnable {
-            val outcome = when (val plan = recheck(snapshot)) {
-                CleanupPlan.Incomplete -> CleanupOutcome.Incomplete
-                CleanupPlan.NothingToDo -> CleanupOutcome.NothingToDo
-                is CleanupPlan.Offer -> {
-                    val keys = plan.orphans.keys intersect confirmed
-                    if (keys.isEmpty()) CleanupOutcome.NothingToDo
-                    else writeUndo(payload)?.let { CleanupOutcome.Done(it, keys) } ?: CleanupOutcome.UndoFailed
-                }
-            }
-            main(Runnable {
-                when {
-                    outcome !is CleanupOutcome.Done -> onDone(outcome)
-                    config !== base -> onDone(CleanupOutcome.Superseded)
-                    else -> {
-                        forget(outcome.keys)
-                        onDone(outcome)
+            // Reported even if the re-check or the undo point throws (neither should — both
+            // catch their own errors): as Refused, and nothing is removed, since only a Done
+            // removes. The exception still reaches the IO thread's guard and is logged there.
+            var outcome: CleanupOutcome = CleanupOutcome.Refused
+            try {
+                outcome = when (val plan = recheck(snapshot)) {
+                    CleanupPlan.Incomplete -> CleanupOutcome.Incomplete
+                    CleanupPlan.NothingToDo -> CleanupOutcome.NothingToDo
+                    is CleanupPlan.Offer -> {
+                        val keys = plan.orphans.keys intersect confirmed
+                        if (keys.isEmpty()) CleanupOutcome.NothingToDo
+                        else writeUndo(payload)?.let { CleanupOutcome.Done(it, keys) } ?: CleanupOutcome.UndoFailed
                     }
                 }
-            })
+            } finally {
+                val result = outcome
+                main(Runnable {
+                    when {
+                        result !is CleanupOutcome.Done -> onDone(result)
+                        config !== base -> onDone(CleanupOutcome.Superseded)
+                        else -> {
+                            forget(result.keys)
+                            onDone(result)
+                        }
+                    }
+                })
+            }
         })
         if (!accepted) onDone(CleanupOutcome.Refused)
     }
@@ -353,17 +358,58 @@ internal class LauncherState(
     /**
      * Adopt a restored config wholesale ("~restore"). The caller has already parsed it (a
      * malformed backup never gets here) and written the outgoing config out as the undo point.
-     * Bumps configEpoch for the same reason a reload checks it: an enumeration already in
-     * flight captured the OLD config and must not hand it back over this one. Saves, then
-     * re-renders through a [refresh] — without re-reading the file just queued for writing.
+     * Saves, then re-renders through a [refresh] — without re-reading the file just queued for
+     * writing.
      */
-    fun adopt(restored: VersoConfig) {
-        config = restored
+    fun adopt(restored: VersoConfig) = replace(restored, persist = true)
+
+    /**
+     * "~load": read verso.json again ([loadConfig], on [io]) and adopt it wholesale, back on
+     * [main]; no save — it IS the file. [onDone] gets whether the file was adopted: false before
+     * the first load (that load is the read), when the IO thread refused the task (at once, then),
+     * or when the config changed while the file was read — memory is the newer truth then, as for
+     * any disk read. The Activity runs "~load" behind its busy layer (CommandGate), so normally no
+     * edit comes in between — but the user may step out of a stalled run, and this class must be
+     * right on its own anyway.
+     */
+    fun reload(onDone: (adopted: Boolean) -> Unit) {
+        if (!configLoaded) {
+            onDone(false)
+            return
+        }
+        val epoch = configEpoch
+        val accepted = io(Runnable {
+            // Reported even if the read throws (it never should — ConfigStore.load degrades to an
+            // empty config instead), as not adopted; the exception still reaches the IO guard.
+            var loaded: VersoConfig? = null
+            try {
+                loaded = loadConfig()
+            } finally {
+                val read = loaded
+                main(Runnable {
+                    if (read != null && configEpoch == epoch) {
+                        replace(read, persist = false)
+                        onDone(true)
+                    } else {
+                        onDone(false)
+                    }
+                })
+            }
+        })
+        if (!accepted) onDone(false)
+    }
+
+    /**
+     * The common tail of [adopt] and [reload]: swap the config wholesale, then re-enumerate for
+     * it ([refresh] — newest wins, so a load in flight with the OLD config never lands over it).
+     * Bumps configEpoch for the same reason a disk read checks it: an enumeration already in
+     * flight captured the old config and must not hand it back over this one. [persist] saves the
+     * new config (a restore); a reload has just read it from the file.
+     */
+    private fun replace(next: VersoConfig, persist: Boolean) {
+        config = next
         configLoaded = true
-        // A restore supersedes a "~load" still pending: the file it would read is about to be
-        // the restored config anyway, and the refresh below must not re-read it.
-        reloadPending = false
-        mutated()
+        if (persist) mutated() else ++configEpoch
         refresh()
     }
 
