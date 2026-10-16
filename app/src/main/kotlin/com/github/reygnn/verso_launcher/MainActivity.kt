@@ -1889,14 +1889,26 @@ class MainActivity : Activity() {
             when (outcome) {
                 RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
                 RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
+                // The old config is still on disk, unchanged: adopting would show a restore that
+                // the next start takes back.
+                RestoreSteps.Outcome.WriteFailed -> toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
                 // The way out of an unreadable config: nothing readable was there to keep, so it
-                // was set aside (renamed, not deleted) instead of an undo point.
+                // was set aside (renamed, not deleted) instead of an undo point. Adopted even when
+                // its write failed (no config left on disk then): adopt saves again, as does the
+                // next change or "~save".
                 is RestoreSteps.Outcome.ReplacedUnreadable -> {
                     state.adopt(restored)
                     refilter()  // drawn now, not only once the refresh lands (see reload)
                     renameDialog?.dismiss()
                     commandDialog?.dismiss()
-                    toast(getString(R.string.toast_restore_replaced, outcome.setAside.firstOrNull() ?: ConfigStore.CONFIG_FILE), Toast.LENGTH_LONG)
+                    toast(
+                        if (outcome.saved) {
+                            getString(R.string.toast_restore_replaced, outcome.setAside.firstOrNull() ?: ConfigStore.CONFIG_FILE)
+                        } else {
+                            getString(R.string.toast_restore_unsaved)
+                        },
+                        Toast.LENGTH_LONG,
+                    )
                 }
                 RestoreSteps.Outcome.SetAsideFailed -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
                 is RestoreSteps.Outcome.Done -> {

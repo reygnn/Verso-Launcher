@@ -38,6 +38,7 @@
     <string name="toast_restore_same">Nichts zu tun — diese Konfiguration ist schon aktiv</string>
     <string name="toast_restore_list_failed">Download/Verso nicht lesbar — ~restore-saf versuchen</string>
     <string name="toast_restore_undo_failed">Nichts geändert — aktuelle Konfiguration nicht sicherbar</string>
+    <string name="toast_restore_write_failed">Nichts geändert — wiederhergestellte Konfiguration nicht schreibbar</string>
     <string name="toast_restore_failed">Nichts geändert — keine lesbare Konfiguration</string>
     <string name="toast_restore_none">Kein Backup — erst ~backup, oder Datei wählen: ~restore-saf</string>
     <string name="toast_cleanup_none">Nichts aufzuräumen</string>
@@ -76,6 +77,7 @@
     <string name="toast_backup_unreadable">Konfiguration unlesbar — kein Backup geschrieben, das alte bleibt</string>
     <!-- %1$s: die Namen, unter denen die unlesbaren Dateien beiseitegelegt wurden (verso.json.broken, …). -->
     <string name="toast_restore_replaced">Wiederhergestellt — die unlesbare Konfiguration liegt jetzt als %1$s beiseite (kein Rücksprungpunkt)</string>
+    <string name="toast_restore_unsaved">Wiederhergestellt, aber nicht gespeichert — ~save versucht es erneut</string>
     <!-- "~reset": nur bei unlesbarer Konfiguration; die Dateien werden umbenannt, nie gelöscht. -->
     <string name="reset_title">Konfiguration zurücksetzen</string>
     <string name="reset_message">verso.json ist nicht lesbar. Zurücksetzen legt die unlesbaren Dateien beiseite — umbenannt in …broken, nicht gelöscht, mit einer Kopie in Download/Verso — und beginnt neu wie nach einer Neuinstallation: keine Namen, keine Tags, nichts ausgeblendet, die Standard-Favoriten.</string>

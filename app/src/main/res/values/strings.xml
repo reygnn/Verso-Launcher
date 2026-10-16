@@ -39,6 +39,7 @@
     <string name="toast_restore_same">nothing to restore — that config is already in use</string>
     <string name="toast_restore_list_failed">Download/Verso unreadable — try ~restore-saf</string>
     <string name="toast_restore_undo_failed">nothing changed — could not save the current config</string>
+    <string name="toast_restore_write_failed">nothing changed — could not write the restored config</string>
     <string name="toast_restore_failed">nothing changed — not a readable config file</string>
     <string name="toast_restore_none">no backup — run ~backup, or pick one: ~restore-saf</string>
     <string name="toast_cleanup_none">nothing to clean up</string>
@@ -77,6 +78,7 @@
     <string name="toast_backup_unreadable">config unreadable — no backup written, the old one is kept</string>
     <!-- %1$s: the names the unreadable files were renamed to (verso.json.broken, …). -->
     <string name="toast_restore_replaced">restored — the unreadable config was set aside as %1$s (no undo point)</string>
+    <string name="toast_restore_unsaved">restored, but not saved — ~save tries again</string>
     <!-- "~reset": only while the config is unreadable; the files are renamed, never deleted. -->
     <string name="reset_title">Reset config</string>
     <string name="reset_message">verso.json cannot be read. Reset sets the unreadable files aside — renamed to …broken, not deleted, with a copy in Download/Verso — and starts over like a fresh install: no names, no tags, nothing hidden, the default favorites.</string>

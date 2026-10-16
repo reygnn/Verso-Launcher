@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 527 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 529 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -50,8 +50,9 @@ RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilte
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-RestoreStepsTest             7  the restore's IO order: undo point, then config; no-op restore;
-                                over an unreadable config: set aside first, never written over
+RestoreStepsTest             9  the restore's IO order: undo point, then config; no-op restore;
+                                over an unreadable config: set aside first, never written over;
+                                a failed config write is reported, not taken for a restore
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint

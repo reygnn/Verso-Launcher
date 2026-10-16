@@ -12,6 +12,7 @@ class RestoreStepsTest {
 
     private val calls = mutableListOf<String>()
     private var undoName: String? = "verso-pre-restore-2026-10-13_120000.json"
+    private var configWritten = true
 
     /** What setting the unreadable config aside does (ConfigStore.setAsideUnreadable). */
     private var aside: ConfigStore.SetAside = ConfigStore.SetAside.Moved(listOf("verso.json.broken"))
@@ -20,7 +21,7 @@ class RestoreStepsTest {
         current = current,
         restored = restored,
         writeUndo = { payload -> calls += "undo:" + ConfigJson.parse(payload)!!.favorites.joinToString(); undoName },
-        writeConfig = { payload -> calls += "config:" + ConfigJson.parse(payload)!!.favorites.joinToString(); true },
+        writeConfig = { payload -> calls += "config:" + ConfigJson.parse(payload)!!.favorites.joinToString(); configWritten },
         setAside = { calls += "aside"; aside },
     )
 
@@ -59,6 +60,24 @@ class RestoreStepsTest {
     @Test fun `a readable current config is never set aside`() {
         run(current = cfg("old/Old"), restored = cfg("new/New"))
         assertTrue("aside" !in calls)
+    }
+
+    /** The write is atomic: a failed one leaves the old config on disk, so the restore must not
+     *  be adopted — the next start would take it back. */
+    @Test fun `a failed config write is no restore`() {
+        configWritten = false
+        val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))
+        assertEquals(RestoreSteps.Outcome.WriteFailed, outcome)
+        assertEquals(listOf("undo:old/Old", "config:new/New"), calls)
+    }
+
+    /** Over an unreadable config the files are already set aside when the write fails: nothing
+     *  published is left. Reported as not saved, so the Activity adopts it and saves again. */
+    @Test fun `a failed write over an unreadable config is reported as not saved`() {
+        configWritten = false
+        val outcome = run(current = null, restored = cfg("new/New"))
+        assertEquals(RestoreSteps.Outcome.ReplacedUnreadable(listOf("verso.json.broken"), saved = false), outcome)
+        assertEquals(listOf("aside", "config:new/New"), calls)
     }
 
     @Test fun `no undo point, no restore`() {
