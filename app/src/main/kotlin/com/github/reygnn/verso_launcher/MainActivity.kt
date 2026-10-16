@@ -286,6 +286,9 @@ class MainActivity : Activity() {
     private var promptByCode = false
     // The busy layer's delayed wheel and way out, removed with it.
     private var busyTimers: List<Pair<View, Runnable>> = emptyList()
+    // Whether the soft keyboard was up when the busy layer came (showBusy): only then does
+    // takeBusyLayerDown give it back — a keyboard the user had put away stays away.
+    private var keyboardUnderLayer = false
     // The busy layer's way-out hint, while the layer is up (see updateBusyHint).
     private var busyHint: TextView? = null
     // The run the layer was last shown for, and since when (uptime): what the wheel's and the
@@ -1297,7 +1300,6 @@ class MainActivity : Activity() {
         val wheel = ProgressBar(this).apply {
             isIndeterminate = true
             indeterminateTintList = ColorStateList.valueOf(palette.listText)
-            contentDescription = getString(R.string.a11y_busy)
             visibility = View.INVISIBLE
         }
         val hint = TextView(this).apply {
@@ -1314,13 +1316,15 @@ class MainActivity : Activity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            // Announced when the layer appears, so a screen-reader user knows why taps do nothing.
-            accessibilityPaneTitle = getString(R.string.a11y_busy)
             addView(wheel, LinearLayout.LayoutParams(WRAP, WRAP))
             addView(hint, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(16) })
         }
         val layer = Dialog(this, R.style.VersoBusyLayer)
         layer.setContentView(content)
+        // The window's name, and the one thing TalkBack says when it comes: why taps do nothing.
+        // Said once — no pane title, no label on the wheel (hidden for the first 300 ms anyway):
+        // a 20 ms "~save" brings the layer too, and three announcements of it would be noise.
+        // The way-out hint is a live region of its own.
         layer.setTitle(getString(R.string.a11y_busy))
         // Not cancelable: Back, a tap outside — nothing takes the layer down but the command's
         // end, Back on a step that may be abandoned, or Back once the way out is open (below).
@@ -1342,6 +1346,9 @@ class MainActivity : Activity() {
         // window is added asking for them and nothing flashes.
         showStatusBar(drawerOpen)
         applyBarAppearance(layer.window)
+        // As for the page itself (onCreate): no translucent scrim behind a 3-button navigation
+        // bar, which would flash up for as long as a command runs.
+        layer.window?.isNavigationBarContrastEnforced = false
         // A finger dragging the page when the layer comes up (a hardware Enter mid-drag) must not
         // turn it underneath: that drag is over, and the page settles back where it was, as
         // closeDrawer does after an abort.
@@ -1349,6 +1356,9 @@ class MainActivity : Activity() {
             root.abortDrag()
             settle(open = drawerOpen)
         }
+        // Read before the layer takes the focus. Unknown counts as down: rather a keyboard left
+        // away, as on main, than one popped up unasked.
+        keyboardUnderLayer = window.decorView.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
         layer.show()
         // The way out once a run takes too long. Every step but the "~restore-saf" read waits on
         // the one IO thread, whose calls into system services (MediaStore above all) have no
@@ -1396,15 +1406,17 @@ class MainActivity : Activity() {
         )
     }
 
-    /** Take the busy layer down, and make sure the drawer has its keyboard. */
+    /** Take the busy layer down, and give the drawer its keyboard back if it had it. */
     private fun takeBusyLayerDown() {
-        val wasUp = busyLayer != null
+        val keyboardWasUp = busyLayer != null && keyboardUnderLayer
+        keyboardUnderLayer = false
         dismissBusyLayer()
         // The keyboard normally stayed up under the layer (FLAG_ALT_FOCUSABLE_IM, see showBusy),
         // and this changes nothing. Should a device have hidden it anyway, give it back the way
         // onResume does — once the focus is back (posted), and not under a dialog the command
-        // left up (the cleanup and reset confirmations).
-        if (wasUp) prompt.post {
+        // left up (the cleanup and reset confirmations). Only if it was up when the layer came:
+        // a keyboard the user had put away (Back, to see the whole list) stays away.
+        if (keyboardWasUp) prompt.post {
             if (started && drawerOpen && busyLayer == null && renameDialog == null &&
                 commandDialog == null && prompt.text?.toString() != RECENTS_PROMPT
             ) showKeyboard()
