@@ -92,8 +92,9 @@ empty-favorites hint is tappable.
 
 ## An unreadable config locks editing until it is read, restored or reset
 
-If `verso.json` is there but cannot be read — and neither can `.bak` — the config
-counts as **not loaded**: the drawer still lists and launches every app, but every
+If `verso.json` is there but cannot be read — and neither can `.bak`, or reading
+`verso.json` fails outright (an I/O error, which `.bak` must not paper over: it is one
+save behind) — the config counts as **not loaded**: the drawer still lists and launches every app, but every
 edit and save is refused with a toast, so the empty default in memory can never be
 written over the real file (one bad read used to cost all favorites, names and tags
 that way). It is retried on every return to the launcher and by `~load`, so a

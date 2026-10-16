@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 545 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 546 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -31,9 +31,10 @@ CommandGateTest             21  one "~" command at a time: a run ends with its l
                                 refusal, hand-over, exceptions, cancel of the SAF read; io,
                                 the real glue of an IO step (refused, throws, abandoned)
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             46  verso.json on real temp files: .bak rotation, .tmp
+ConfigStoreTest             47  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
                                 heal-without-rotate, isFresh, unreadable is null — not empty,
+                                a primary that cannot be read is never healed over,
                                 set aside by renaming (never deleted, never overwritten, primary last),
                                 the copy for Download (read in place, first non-blank file)
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,

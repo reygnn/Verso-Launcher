@@ -55,9 +55,22 @@ internal class ConfigStore(
      *    default must never stand in for it: saved, it would rotate the real primary into .bak
      *    and push it out with the next save. Callers treat null as "not loaded" — no edit, no
      *    save, no backup of it (hard rule 5) — and try again later.
+     *
+     * And a primary that could not be READ (an I/O error) is not a torn one: its content may be
+     * perfectly good — the newest save. Healing from .bak then would write the config from
+     * before that save over it, losing the latest change for good. So no fallback and no heal
+     * for a read error: null, "not to be had right now", and the next load tries again. Only a
+     * primary that reads but does not parse (or is missing) falls back to .tmp and .bak.
      */
     fun load(): VersoConfig? {
-        parse(primary)?.let { return it }
+        when (val first = read(primary)) {
+            is Read.Parsed -> return first.config
+            Read.Failed -> {
+                log("primary config could not be read — not replaced from a fallback, tried again later", null)
+                return null
+            }
+            Read.Absent, Read.Corrupt -> Unit
+        }
         // The temp before the .bak: a temp survives only when the most recent write did not
         // complete its publish (every completed write renames it away), so a temp that parses
         // is the NEWEST config — e.g. after a crash between the .bak rotation and the publish,
@@ -203,18 +216,30 @@ internal class ConfigStore(
      * logged) or unparseable (logged, so real corruption is visible) — the caller decides
      * what to fall back to. Never throws.
      */
-    private fun parse(file: File): VersoConfig? {
-        if (!file.isFile) return null
+    private fun parse(file: File): VersoConfig? = (read(file) as? Read.Parsed)?.config
+
+    /** What reading one config file gave — [load] tells a read error from a torn file. */
+    private sealed interface Read {
+        data object Absent : Read
+        /** The file is there, but reading it threw (logged): its content is unknown. */
+        data object Failed : Read
+        /** Read, but not a config (logged). */
+        data object Corrupt : Read
+        data class Parsed(val config: VersoConfig) : Read
+    }
+
+    private fun read(file: File): Read {
+        if (!file.isFile) return Read.Absent
         val text = try {
             file.readText()
         } catch (e: Exception) {
             log("config unreadable: ${file.path}", e)
-            return null
+            return Read.Failed
         }
         // ConfigJson owns the JSON parsing (and is unit-tested); it returns null, never
         // throws, on malformed input — log here where the file path is known.
-        return ConfigJson.parse(text)
-            ?: run { log("config unparseable: ${file.path}", null); null }
+        return ConfigJson.parse(text)?.let { Read.Parsed(it) }
+            ?: run { log("config unparseable: ${file.path}", null); Read.Corrupt }
     }
 
     /**

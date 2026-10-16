@@ -174,6 +174,24 @@ class ConfigStoreTest {
         assertEquals(listOf("primary"), store.load()!!.favorites.toList())
     }
 
+    /** A primary that cannot be READ is no torn one: it may hold the newest save. Healing from
+     *  .bak would write the config from before that save over it and lose the latest change for
+     *  good — so nothing falls back and nothing is written; the next load tries again. */
+    @Test
+    fun `a primary that cannot be read is not replaced from the bak mirror`() {
+        primary.writeText(json("newest/save"))
+        backup.writeText(json("one/behind"))
+        assertTrue(primary.setReadable(false))
+        try {
+            assertEquals(null, store.load())
+            assertTrue(loggedAbout("not replaced from a fallback"))
+        } finally {
+            primary.setReadable(true)
+        }
+        assertEquals(listOf("newest/save"), ConfigJson.parse(primary.readText())!!.favorites.toList())
+        assertEquals(listOf("newest/save"), store.load()!!.favorites.toList())
+    }
+
     /** The heal: after recovering, the bad primary is rewritten so later loads stop
      *  hitting the fallback and we are never left running on a single copy. */
     @Test

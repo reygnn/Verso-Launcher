@@ -131,6 +131,8 @@ main, written on the IO thread.
    A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`,
    and returns **null — never an empty config — when a published copy (primary or `.bak`)
    exists but none parses**; only with no published copy at all is the empty config real.
+   A primary that cannot be READ (an I/O error) is no torn one — it may hold the newest save:
+   null at once, no fallback, no heal, the next load tries again.
 5. **No edit, no save before the config is loaded** — the empty default must never be
    written over the real file. `LauncherState` refuses every edit and `save` until then;
    the Activity says why (`editable()`). An unreadable config (`load()` null,
