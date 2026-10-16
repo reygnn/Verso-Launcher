@@ -13,16 +13,18 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 467 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 477 tests):
 
 ```
-LauncherLogicTest          133  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          138  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
-                                tags, reorder, recents, default favorites
-LauncherStateTest           71  the concurrency rules: refresh/reload/rename/adopt
+                                custom names applied (named), tags, reorder, recents,
+                                default favorites
+LauncherStateTest           75  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents, reports that
-                                come even when a collaborator throws
+                                come even when a collaborator throws, names applied
+                                to a list that carries none
 CommandGateTest             16  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, cancel of the SAF read
 LauncherRowsTest            37  rowsFor per mode
@@ -50,9 +52,10 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
 CleanupTest                  9  what ~cleanup may offer: complete enumeration, kept apps, parseKey
-SourceGuardTest              5  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              6  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
-                                brace-less object templates, every command through the gate
+                                brace-less object templates, every command through the gate,
+                                no custom names in the enumeration
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`

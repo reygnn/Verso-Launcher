@@ -40,6 +40,17 @@ class SourceGuardTest {
         assertTrue(activity.contains("Command.CLEANUP -> cleanup(t)"))
     }
 
+    @Test fun `the enumeration carries no custom names`() {
+        // Names are applied on the main thread from the live config (LauncherLogic.named). An
+        // enumeration that baked them in again would go stale with every rename in flight — the
+        // race a whole counter (labelGeneration) once existed to catch.
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        assertTrue(activity.contains("private fun enumerate(): Enumeration?"))
+        assertFalse(Regex("""\.names\s*\[""").containsMatchIn(
+            activity.substringAfter("private fun enumerate(").substringBefore("\n    }\n"),
+        ))
+    }
+
     @Test fun `every command run starts through the gate`() {
         // Hard rule 15: a command that bypassed CommandGate would run with no busy layer up, and
         // the user's taps could interleave with it again. The three entry points: a typed

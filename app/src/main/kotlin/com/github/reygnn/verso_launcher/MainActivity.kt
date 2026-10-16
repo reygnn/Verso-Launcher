@@ -1396,7 +1396,7 @@ class MainActivity : Activity() {
 
     /** The IO half of a cleanup check: enumerate afresh, then ask [Cleanup.plan]. */
     private fun cleanupCheck(cfg: VersoConfig): CleanupPlan {
-        val found = enumerate(cfg)
+        val found = enumerate()
         val listed = try {
             launcherApps.profiles.mapTo(HashSet()) { userManager.getSerialNumberForUser(it) }
         } catch (e: RuntimeException) {
@@ -1829,8 +1829,8 @@ class MainActivity : Activity() {
             fgColor = DIALOG_TEXT,
             onAppInfo = { openAppInfo(entry) },
         ) { name, tags ->
-            // Name override, tags, save, in-memory relabel + re-sort — and the counters that
-            // keep an in-flight load from undoing it: LauncherState.rename.
+            // Name override, tags, save, in-memory relabel + re-sort: LauncherState.rename. A load
+            // in flight cannot undo it — it carries no names, they are applied at its hand-off.
             state.rename(key, entry.systemLabel, name, tags)
             refilter()
         }
@@ -1857,8 +1857,10 @@ class MainActivity : Activity() {
     }
 
     /**
-     * LauncherState's enumerateApps: runs on the IO thread with a config that is not the live
-     * one — a snapshot, or the copy just read from disk.
+     * LauncherState's enumerateApps, on the IO thread: every launchable app under its own
+     * (system) label. No config: the custom names are applied by LauncherState on the main
+     * thread, from the live config (LauncherLogic.named), so nothing the user does while this
+     * runs can make its result stale.
      *
      * Through LauncherApps, the API Android provides for launchers: every profile the launcher
      * may show — the personal one plus a work profile or cloned apps — not just the current
@@ -1866,14 +1868,14 @@ class MainActivity : Activity() {
      * ([AppEntry.keyOf]) and labelled with the system's badge ("Gmail (Work)"), so the work
      * copy is neither the same row nor an identical-looking one.
      */
-    private fun loadApps(cfg: VersoConfig): List<AppEntry>? = enumerate(cfg)?.apps
+    private fun loadApps(): List<AppEntry>? = enumerate()?.apps
 
     /**
      * [loadApps]'s body, also telling whether it saw EVERYTHING: a profile or an app skipped
      * after an error makes it incomplete. "~cleanup" needs that — an app it did not see would
      * look uninstalled.
      */
-    private fun enumerate(cfg: VersoConfig): Enumeration? {
+    private fun enumerate(): Enumeration? {
         var complete = true
         val emptyProfiles = HashSet<Long>()
         val pm = packageManager
@@ -1935,10 +1937,9 @@ class MainActivity : Activity() {
                     if (component.className.isNullOrEmpty()) continue
                     if (component.packageName == self) continue  // don't list ourselves
                     // Identity is the full launcher component, not the package — a package
-                    // can expose several launcher activities, each its own row.
-                    val key = AppEntry.keyOf(component.packageName, component.className, serial)
-                    // The app's own label, before any override — kept on the entry
-                    // (systemLabel) so a later rename can rebuild in-memory. In another
+                    // can expose several launcher activities, each its own row (AppEntry.key).
+                    // The app's own label — the only one an enumeration knows; the custom
+                    // names are applied over it later (LauncherLogic.named). In another
                     // profile it carries the system's badge, so the work copy reads apart.
                     val raw = info.label.toString()
                     // The badge is a binder call per app (DevicePolicyManager strings for a work
@@ -1946,10 +1947,8 @@ class MainActivity : Activity() {
                     val systemLabel = if (serial == null) raw else {
                         app.badgedLabels.getOrPut(VersoApp.BadgeKey(serial, raw, locale)) { pm.getUserBadgedLabel(raw, user).toString() }
                     }
-                    // A custom name overrides the app's own label; labelLower keys off the
-                    // displayed text, so filtering matches what's on screen.
                     entries += AppEntry.of(
-                        label = cfg.names[key] ?: systemLabel,
+                        label = systemLabel,
                         packageName = component.packageName,
                         className = component.className,
                         systemLabel = systemLabel,
@@ -1964,6 +1963,10 @@ class MainActivity : Activity() {
                 }
             }
         }
+        // Sorted by system label here, on the IO thread. The drawer order depends on the custom
+        // names too, so LauncherLogic.named sorts again on the main thread after applying them —
+        // but sortedWith is a stable merge sort that runs through input already in order in
+        // about one comparison per app, so with a few renamed apps that re-sort is nearly free.
         return Enumeration(LauncherLogic.sortedForDrawer(entries), complete, emptyProfiles)
     }
 

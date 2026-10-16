@@ -482,6 +482,46 @@ class LauncherLogicTest {
         )
     }
 
+    // ---- named: custom names applied to an enumeration ------------------------------
+
+    /** An enumerated app: label = its own system label, as an enumeration delivers it. */
+    private fun sys(label: String) = AppEntry.of(label, "p.${label.lowercase()}", "C", label)
+
+    @Test fun `named shows a custom name and keeps the system label beside it`() {
+        val shown = LauncherLogic.named(listOf(sys("Alpha")), mapOf(sys("Alpha").key to "Zulu"), Locale.GERMANY)
+        assertEquals("Zulu", shown.single().label)
+        assertEquals("zulu", shown.single().labelLower)  // search sees what is on screen
+        assertEquals("Alpha", shown.single().systemLabel)
+    }
+
+    @Test fun `named falls back to the system label for an entry that carries a stale name`() {
+        val stale = sys("Alpha").withLabel("Old")       // e.g. a list relabelled before
+        val shown = LauncherLogic.named(listOf(stale), emptyMap(), Locale.GERMANY)
+        assertEquals("Alpha", shown.single().label)
+        assertEquals("alpha", shown.single().labelLower)
+    }
+
+    @Test fun `named keeps an entry whose label already fits as it is`() {
+        val alpha = sys("Alpha")
+        assertSame(alpha, LauncherLogic.named(listOf(alpha), emptyMap(), Locale.GERMANY).single())
+    }
+
+    @Test fun `named sorts by the shown label in the device language`() {
+        val apps = listOf(sys("Zoom"), sys("Bravo"), sys("Alpha"))
+        val names = mapOf(sys("Alpha").key to "Ärzte")
+        // German files Ä under A …
+        assertEquals(listOf("Ärzte", "Bravo", "Zoom"), LauncherLogic.named(apps, names, Locale.GERMANY).map { it.label })
+        // … Swedish after Z: the order follows the name, in the user's alphabet.
+        assertEquals(listOf("Bravo", "Zoom", "Ärzte"), LauncherLogic.named(apps, names, Locale.of("sv", "SE")).map { it.label })
+    }
+
+    @Test fun `named applies names to a work copy by its own key only`() {
+        val personal = AppEntry.of("Gmail", "p.gmail", "C", "Gmail")
+        val work = AppEntry.of("Gmail (Work)", "p.gmail", "C", "Gmail (Work)", profile = 10)
+        val shown = LauncherLogic.named(listOf(personal, work), mapOf(work.key to "Job mail"), Locale.GERMANY)
+        assertEquals(listOf("Gmail", "Job mail"), shown.map { it.label })
+    }
+
     // ---- sortedForDrawer ----------------------------------------------------
 
     private fun folded(vararg labels: String) = labels.map { OrderedFake("p/$it", LauncherLogic.foldLabel(it)) }

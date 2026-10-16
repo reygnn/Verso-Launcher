@@ -256,14 +256,32 @@ internal object LauncherLogic {
     private const val COMBINING_DOT_ABOVE = "\u0307"
 
     /**
+     * [apps] as shown: each under its custom name from [names] if it has one, else its own
+     * [AppEntry.systemLabel] — then in drawer order ([sortedForDrawer]), since a name can move an
+     * app alphabetically. The one place a custom name becomes a label: an enumeration delivers
+     * system labels only, and LauncherState derives what is shown from it and the live config.
+     * An entry whose label already fits is kept as it is (no re-fold). Input already in drawer
+     * order by system label (the enumeration's) makes the sort nearly free: it is stable and
+     * runs through ordered input in about one comparison per app.
+     */
+    fun named(apps: List<AppEntry>, names: Map<String, String>, locale: Locale = Locale.getDefault()): List<AppEntry> =
+        sortedForDrawer(
+            apps.map { e ->
+                val label = names[e.key] ?: e.systemLabel
+                if (label == e.label) e else e.withLabel(label)
+            },
+            locale,
+        )
+
+    /**
      * [all] in drawer order: alphabetical the way the user's language sorts — "Ärzte" next to
      * "Apotheke", not after "Zoom" as plain code-point order puts every umlaut and accent. The
      * collation follows [locale] (the device's), because "alphabetical" differs by language:
      * German files Ä under A, Swedish after Z. Ties the collator considers equal fall back to
      * the folded label and then the key, so the order is total and stable across loads.
      *
-     * A Collator per call: they are not thread-safe, and this runs on the IO thread (the
-     * enumeration) as well as the main thread (a rename's re-sort).
+     * A Collator per call: they are not thread-safe, and nothing here may assume which thread
+     * it runs on.
      */
     fun <T : Ordered> sortedForDrawer(all: List<T>, locale: Locale = Locale.getDefault()): List<T> {
         val collator = Collator.getInstance(locale)

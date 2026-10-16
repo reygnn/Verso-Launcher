@@ -103,7 +103,10 @@ Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile bro
 `onResume` refreshes when dirty, when `LauncherState.needsRefresh`, or after 5 min →
 `LauncherState.refresh()` → IO thread (load config once,
 enumerate apps of every profile) → main-thread hand-off guarded by generation
-counters → `applyFilter` re-renders. Every mutation → `LauncherState.mutated()` → serialized on
+counters → `applyFilter` re-renders. An enumeration carries no config: it lists system
+labels only, and the custom names are applied on the main thread from the live config
+(`LauncherLogic.named`, at the hand-off and after every change to the names) — so no
+edit can make an in-flight enumeration stale, and none is ever thrown away for one. Every mutation → `LauncherState.mutated()` → serialized on
 main, written on the IO thread.
 
 ---

@@ -18,23 +18,26 @@ package com.github.reygnn.verso_launcher
  * mutable field from the IO side except the @Volatile generation counters, which an IO task
  * reads to bail out early.
  *
- * THE THREE COUNTERS keep three concerns from stepping on each other:
+ * THE TWO COUNTERS keep two concerns from stepping on each other:
  *   loadGeneration  — bumped by [refresh] only. "Newest enumeration wins": an older in-flight
  *                     load bails (before its work if still queued, at the hand-off otherwise).
- *   labelGeneration — bumped by [rename] only. A rename changes what enumeration produces
- *                     (labels), so a load whose name snapshot predates it must not commit its
- *                     now-stale app list.
  *   configEpoch     — bumped by ANY config mutation. Guards a disk read's wholesale config
  *                     replace (the first load, [reload]): if the config changed since the read,
  *                     memory holds the newer truth and must not be clobbered by the older file.
- * A membership toggle therefore never throws an enumeration away (new installs still surface);
- * only a rename invalidates one, because only a rename makes its labels wrong.
+ *
+ * AN ENUMERATION CARRIES NO CONFIG. It lists the apps under their own (system) labels; the
+ * custom names are applied here, on the main thread, from the live config ([relabel]) — at its
+ * hand-off and after every change to the names. So nothing the user does in the meantime can make
+ * an enumeration stale: a toggle, a rename, a restore never throws one away, and new installs
+ * always surface.
  *
  * @param io            submit a task to the IO thread; false if it was refused (shutting down).
  * @param main          run a task on the main thread (posted — never inline from IO).
  * @param loadConfig    read verso.json (IO thread).
- * @param enumerateApps list the launchable apps for a config snapshot (IO thread); null if the
- *                      enumeration itself failed — the last-known-good list is then kept.
+ * @param enumerateApps list the launchable apps under their system labels — no custom name
+ *                      applied (IO thread); null if the enumeration itself failed — the
+ *                      last-known-good list is then kept. Any order is right; drawer order by
+ *                      system label makes the main thread's re-sort ([relabel]) nearly free.
  * @param serialize     config -> file text (main thread, so it reads a consistent config).
  * @param writeConfig   persist that text durably (IO thread); true on success.
  * @param onRefreshed   main thread, after a [refresh] hand-off was applied. [configReplaced] is
@@ -54,7 +57,7 @@ internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
     private val loadConfig: () -> VersoConfig,
-    private val enumerateApps: (VersoConfig) -> List<AppEntry>?,
+    private val enumerateApps: () -> List<AppEntry>?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
     private val onRefreshed: (configReplaced: Boolean) -> Unit,
@@ -67,9 +70,15 @@ internal class LauncherState(
     var config: VersoConfig = VersoConfig()
         private set
 
-    /** Every launchable app in drawer order ([LauncherLogic.sortedForDrawer]: the device language's alphabet). */
+    /**
+     * Every launchable app as shown: under its custom name if it has one, in drawer order (the
+     * device language's alphabet) — [LauncherLogic.named] of [enumerated] and the live names.
+     */
     var apps: List<AppEntry> = emptyList()
         private set
+
+    /** The last committed enumeration, as the system reports it: system labels, no names. */
+    private var enumerated: List<AppEntry> = emptyList()
 
     /** False until the first enumeration has committed: an empty [apps] then means "not
      *  loaded yet", not "no apps" — the home page must not flash its no-favorites hint. */
@@ -78,10 +87,9 @@ internal class LauncherState(
 
     /**
      * True while the launcher is not current: the config is not loaded yet, or the last load
-     * that reached its hand-off did not commit its app list (the enumeration failed, or a
-     * rename made its labels stale). The Activity refreshes on resume while this holds, even
-     * when no package change was reported — otherwise a dropped load is only retried once the
-     * stale timer runs out.
+     * that reached its hand-off did not commit its app list (the enumeration failed). The
+     * Activity refreshes on resume while this holds, even when no package change was reported —
+     * otherwise a failed load is only retried once the stale timer runs out.
      */
     val needsRefresh: Boolean
         get() = !configLoaded || !lastLoadCommitted
@@ -103,7 +111,6 @@ internal class LauncherState(
         private set
 
     @Volatile private var loadGeneration = 0
-    @Volatile private var labelGeneration = 0
     @Volatile private var configEpoch = 0
     // Counts save requests; read on the IO thread to skip a write a newer one supersedes.
     @Volatile private var saveSeq = 0
@@ -115,25 +122,21 @@ internal class LauncherState(
      * Re-enumerate the apps (and, until the config is loaded, read it first) off the main thread.
      * The Activity calls it on a resume when apps may have changed or [needsRefresh] holds, and
      * on a reported package or profile change while in front; [reload] and [adopt] call it after
-     * replacing the config. The most recently REQUESTED refresh wins; see the class comment for
-     * what a concurrent toggle or rename does to an in-flight one.
+     * replacing the config. The most recently REQUESTED refresh wins; nothing else drops one
+     * (see the class comment).
      */
     fun refresh() {
         val generation = ++loadGeneration
-        // Captured at REQUEST time, together with the snapshot the load reads from: if either
-        // advances before the hand-off, an in-memory change already applied the newer truth.
-        val labelGen = labelGeneration
+        // Captured at REQUEST time: if it advances before the hand-off, an in-memory change
+        // already applied the newer truth, and the disk copy read here must not replace it.
         val epoch = configEpoch
         val loadConfigNow = !configLoaded
-        // Snapshot on the main thread — the loader must never read the live config, which a
-        // rename/toggle may be mutating. Skipped when the load reads the disk copy anyway.
-        val cached = if (loadConfigNow) VersoConfig() else config.snapshot()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             // Checked before the read: only a config that is not on disk at all gets seeded.
             val fresh = loadConfigNow && isFreshInstall()
-            val useCfg = if (loadConfigNow) loadConfig() else cached
-            val loaded = enumerateApps(useCfg)
+            val diskConfig = if (loadConfigNow) loadConfig() else null
+            val loaded = enumerateApps()
             // Seeding needs the enumeration (a default app must be launchable to be a
             // favorite), so a failed one seeds nothing; the next cold start tries again,
             // since nothing was saved.
@@ -145,8 +148,8 @@ internal class LauncherState(
                 var replaced = false
                 // Adopt the disk copy only if nothing changed the config since the read — a
                 // restore adopted before the first load landed is the newer truth.
-                if (loadConfigNow && configEpoch == epoch) {
-                    config = useCfg
+                if (diskConfig != null && configEpoch == epoch) {
+                    config = diskConfig
                     configLoaded = true
                     replaced = true
                     // First start: give the home page something to show. Saving here writes
@@ -157,13 +160,17 @@ internal class LauncherState(
                         mutated()
                     }
                 }
-                // Commit the enumeration unless a rename made its labels stale. null means the
-                // enumeration itself failed (e.g. a system_server restart): keep the last
-                // known-good list rather than blanking the launcher.
-                lastLoadCommitted = labelGeneration == labelGen && loaded != null
-                if (lastLoadCommitted && loaded != null) {
-                    apps = loaded
+                // Commit the enumeration — always, whatever changed meanwhile: it carries no
+                // config. null means the enumeration itself failed (e.g. a system_server
+                // restart): keep the last known-good list rather than blanking the launcher.
+                lastLoadCommitted = loaded != null
+                // Shown under the names as they are NOW — a rename, a restore since the request
+                // included. (A config replaced here is the first load's, and no list was
+                // committed before it, so a failed enumeration leaves nothing to relabel.)
+                if (loaded != null) {
+                    enumerated = loaded
                     appsLoaded = true
+                    relabel()
                 }
                 onRefreshed(replaced)
             })
@@ -254,13 +261,13 @@ internal class LauncherState(
      * [tags] arrive already canonical. The new label is applied to [apps] in memory — no
      * re-enumeration — and the list re-sorted, since a rename can move an app alphabetically.
      *
-     * Bumps labelGeneration so an in-flight load holding a pre-rename name snapshot drops its
-     * stale list, and configEpoch so an in-flight disk read keeps this name over the file.
+     * Bumps configEpoch so an in-flight disk read keeps this name over the file. An in-flight
+     * enumeration is unaffected: it carries no names, they are applied at its hand-off.
      * Installs/uninstalls since the last load are picked up by the next [refresh], not here.
      *
      * Ignored before the config is loaded (the home page can already show cached favorites
      * then): the edit could not be saved, and its epoch bump would make the first load drop
-     * both the disk config and its app list.
+     * the disk config it is waiting for.
      */
     fun rename(key: String, systemLabel: String, name: String, tags: List<String>) {
         if (!configLoaded) return
@@ -269,11 +276,8 @@ internal class LauncherState(
         val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), systemLabel)
         if (override == null) config.names.remove(key) else config.names[key] = override
         if (tags.isEmpty()) config.tags.remove(key) else config.tags[key] = tags.toMutableList()
-        ++labelGeneration
         mutated()
-        apps = apps.map { e ->
-            if (e.key != key) e else e.withLabel(config.names[key] ?: e.systemLabel)
-        }.let { LauncherLogic.sortedForDrawer(it) }
+        relabel()
     }
 
     /**
@@ -290,6 +294,9 @@ internal class LauncherState(
         config.names.keys.removeAll(keys)
         config.tags.keys.removeAll(keys)
         mutated()
+        // Normally the keys of apps that are gone, so nothing shown changes — but a forgotten
+        // name of an app still listed must not linger on screen.
+        relabel()
     }
 
     /**
@@ -400,17 +407,27 @@ internal class LauncherState(
     }
 
     /**
-     * The common tail of [adopt] and [reload]: swap the config wholesale, then re-enumerate for
-     * it ([refresh] — newest wins, so a load in flight with the OLD config never lands over it).
-     * Bumps configEpoch for the same reason a disk read checks it: an enumeration already in
-     * flight captured the old config and must not hand it back over this one. [persist] saves the
-     * new config (a restore); a reload has just read it from the file.
+     * The common tail of [adopt] and [reload]: swap the config wholesale and show its names at
+     * once ([relabel]), then refresh — a fresh list, and the re-render through its hand-off
+     * (onRefreshed). Bumps configEpoch, which a disk read still in flight checks (the first load
+     * must not land over a restore adopted before it). [persist] saves the new config (a restore);
+     * a reload has just read it from the file.
      */
     private fun replace(next: VersoConfig, persist: Boolean) {
         config = next
         configLoaded = true
         if (persist) mutated() else ++configEpoch
+        relabel()
         refresh()
+    }
+
+    /**
+     * [apps] from the last enumeration and the live names: the one place a custom name becomes a
+     * label ([LauncherLogic.named]). Main thread, after every change to the names and at every
+     * hand-off that commits an enumeration or replaces the config.
+     */
+    private fun relabel() {
+        apps = LauncherLogic.named(enumerated, config.names)
     }
 
     /** The common tail of every config change: advance the epoch, then persist. */
