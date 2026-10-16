@@ -31,6 +31,7 @@ import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import android.text.Editable
+import android.text.InputFilter
 import android.text.InputType
 import android.text.TextUtils
 import android.text.TextWatcher
@@ -280,6 +281,9 @@ class MainActivity : Activity() {
     // recreated activity starts free — see CommandGate for why that is enough.
     private val gate = CommandGate(onBusyChanged = ::showBusy)
     private var busyLayer: Dialog? = null
+    // True while this class itself writes the prompt (setPrompt): the busy layer's input filter
+    // lets those through and drops only what the keyboard types.
+    private var promptByCode = false
     // The busy layer's delayed wheel and way out, removed with it.
     private var busyTimers: List<Pair<View, Runnable>> = emptyList()
     // The busy layer's way-out hint, while the layer is up (see updateBusyHint).
@@ -455,6 +459,14 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or
                 InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             imeOptions = EditorInfo.IME_ACTION_GO
+            // The busy layer leaves the soft keyboard up (FLAG_ALT_FOCUSABLE_IM, see showBusy) and
+            // normally takes its keys itself; the keyboard stays bound to this view, though, so
+            // whatever it might still send while the layer is up is dropped here — a running
+            // command takes no input (hard rule 15). Not isEnabled = false —
+            // that takes the focus and with it the keyboard, the very flicker the flag avoids.
+            filters = arrayOf(InputFilter { _, _, _, dest, dstart, dend ->
+                if (busyLayer != null && !promptByCode) dest.subSequence(dstart, dend) else null
+            })
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
@@ -472,6 +484,8 @@ class MainActivity : Activity() {
                 // key-down and the key-up, so without this guard "~", a launch and
                 // the edit-mode "done" gesture would each fire twice. Handle the GO
                 // action or the key-DOWN edge only; ignore (don't consume) the rest.
+                // The keyboard's Enter while the busy layer is up (see the filter above): swallowed.
+                if (busyLayer != null) return@setOnEditorActionListener true
                 val enterDown = (event?.keyCode == KeyEvent.KEYCODE_ENTER ||
                     event?.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) &&
                     event.action == KeyEvent.ACTION_DOWN
@@ -785,7 +799,7 @@ class MainActivity : Activity() {
         hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         prompt.clearFocus()
-        if (prompt.text?.isNotEmpty() == true) prompt.setText("")
+        if (prompt.text?.isNotEmpty() == true) setPrompt("")
         home.animate().cancel()
         drawer.animate().cancel()
         home.visibility = View.VISIBLE
@@ -1308,7 +1322,7 @@ class MainActivity : Activity() {
             addView(wheel, LinearLayout.LayoutParams(WRAP, WRAP))
             addView(hint, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(16) })
         }
-        val layer = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
+        val layer = Dialog(this, R.style.VersoBusyLayer)
         layer.setContentView(content)
         layer.setTitle(getString(R.string.a11y_busy))
         // Not cancelable: Back, a tap outside — nothing takes the layer down but the command's
@@ -1317,6 +1331,13 @@ class MainActivity : Activity() {
         layer.setCanceledOnTouchOutside(false)
         // See-through means see-through: no dim flashing over the page with every command.
         layer.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        // Focused but no input-method target: without this the system hides the drawer's keyboard
+        // the moment the layer takes the focus and takeBusyLayerDown shows it again — a jump of
+        // the list with every command, however short. A window with this flag sits above the
+        // input method, so the keyboard stays visible but its keys land on the layer (seen on
+        // One UI, API 36). Should a device order it differently, the keyboard is still bound to
+        // the prompt, whose input filter and Enter handler drop what it sends while the layer is up.
+        layer.window?.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
         busyLayer = layer
         // The layer is the focused window once shown, and the system follows the focused window's
         // requests for the bars: ask the way the page under it does — the status bar hidden on
@@ -1378,13 +1399,14 @@ class MainActivity : Activity() {
         )
     }
 
-    /** Take the busy layer down, and give the drawer its keyboard back. */
+    /** Take the busy layer down, and make sure the drawer has its keyboard. */
     private fun takeBusyLayerDown() {
         val wasUp = busyLayer != null
         dismissBusyLayer()
-        // The layer took the focus, and with it the drawer's keyboard: give it back the way
+        // The keyboard normally stayed up under the layer (FLAG_ALT_FOCUSABLE_IM, see showBusy),
+        // and this changes nothing. Should a device have hidden it anyway, give it back the way
         // onResume does — once the focus is back (posted), and not under a dialog the command
-        // left up (the cleanup confirmation).
+        // left up (the cleanup and reset confirmations).
         if (wasUp) prompt.post {
             if (started && drawerOpen && busyLayer == null && renameDialog == null &&
                 commandDialog == null && prompt.text?.toString() != RECENTS_PROMPT
@@ -2527,7 +2549,12 @@ class MainActivity : Activity() {
      * TextWatcher synchronously, exactly as typing does.
      */
     private fun setPrompt(text: String) {
-        prompt.setText(text)
+        promptByCode = true
+        try {
+            prompt.setText(text)
+        } finally {
+            promptByCode = false
+        }
         prompt.setSelection(text.length)
     }
 

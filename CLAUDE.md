@@ -198,7 +198,10 @@ main, written on the IO thread.
     command (`runCommand`), the `~restore-saf` pick's answer and a confirmed `~cleanup` or
     `~reset` each
     start a run with `gate.start`; while it runs, a see-through full-window dialog takes every
-    touch and key, so no edit, page turn or second command can come in between. A run ends
+    touch and key, so no edit, page turn or second command can come in between. Its window is
+    `FLAG_ALT_FOCUSABLE_IM` (theme `VersoBusyLayer`): the drawer's keyboard stays up, under the
+    layer and not usable — without the flag the system hides it with every command and the list
+    jumps. The prompt's input filter and Enter guard are the second line. A run ends
     with its last step, never by a "done" call: every step `hold`s the run before it starts
     (`commandIo` for an IO step) and `finish`es it back on main, whatever happened. The gate
     belongs to the activity, so a hand-back `onUi` drops dies with it; the next instance

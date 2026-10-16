@@ -13,4 +13,15 @@
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+    <!-- The busy layer over a running "~" command (MainActivity.showBusy): a full-window,
+         see-through dialog. A Material parent, not the old Theme.Translucent.NoTitleBar:
+         that Holo-era theme does not draw the system bar backgrounds, and the status bar
+         flashed black as the layer came and went. -->
+    <style name="VersoBusyLayer" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>
