@@ -85,6 +85,23 @@ internal sealed interface EnterAction<out T : Ordered> {
 }
 
 /**
+ * One key event as the command line's editor-action listener sees it, in plain values so the
+ * decision below stays free of android.view.KeyEvent: is it the key-DOWN, its repeat count
+ * (a held key repeats its down), and is it an Enter key (ENTER or NUMPAD_ENTER).
+ */
+internal data class EnterKey(val down: Boolean, val repeatCount: Int, val isEnterKey: Boolean)
+
+/** What the editor-action listener does with one call ([LauncherLogic.enterEdge]). */
+internal enum class EnterEdge {
+    /** The one call per Enter that acts ([LauncherLogic.enterAction]). */
+    ACT,
+    /** The rest of an Enter already acted on (its key-up, a held key's repeats): swallowed. */
+    CONSUME,
+    /** Not an Enter at all: left to the TextView. */
+    PASS,
+}
+
+/**
  * What a TAP on a list row should DO, decided purely from the mode and the tapped row. Lifted
  * out of MainActivity's setOnItemClickListener for the same reason [EnterAction] is: the
  * per-mode dispatch is real branching logic that belongs in a tested pure function, not inlined
@@ -777,6 +794,27 @@ internal object LauncherLogic {
             else -> EnterAction.None
         }
         else -> EnterAction.SetPrompt("")
+    }
+
+    /**
+     * Which call of the command line's editor-action listener is THE Enter. A soft keyboard's
+     * Enter arrives once, as the GO/DONE action with no event. A key Enter — a hardware or
+     * Bluetooth keyboard, or a key the keyboard app forwards — arrives as a call per key event:
+     * the down, the repeats while it is held, and the up, all of them carrying the GO action
+     * (seen on One UI) or none. Only the first down acts; the rest is consumed, not passed on —
+     * passed back, the TextView's own handling of the up drops the keyboard. Present since the
+     * first commit: the old guard acted on "GO action OR key-down", so the up acted again — an
+     * app launched twice from one Enter, and an Enter that ran a command then saw the cleared
+     * prompt and dropped the keyboard.
+     *
+     * [imeAction]: the call's action is GO or DONE. [key]: the event, null for a soft Enter.
+     * A GO/DONE with a key other than Enter (a remote's DPAD_CENTER) still counts.
+     */
+    fun enterEdge(imeAction: Boolean, key: EnterKey?): EnterEdge = when {
+        key == null -> if (imeAction) EnterEdge.ACT else EnterEdge.PASS
+        !imeAction && !key.isEnterKey -> EnterEdge.PASS
+        key.down && key.repeatCount == 0 -> EnterEdge.ACT
+        else -> EnterEdge.CONSUME
     }
 
     /**

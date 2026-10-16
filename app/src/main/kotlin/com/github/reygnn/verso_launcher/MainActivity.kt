@@ -479,19 +479,22 @@ class MainActivity : Activity() {
                 }
             })
             setOnEditorActionListener { _, actionId, event ->
-                // Act once per Enter. A soft-keyboard action arrives once with a
-                // null event; a hardware/Bluetooth Enter invokes this on BOTH the
-                // key-down and the key-up, so without this guard "~", a launch and
-                // the edit-mode "done" gesture would each fire twice. Handle the GO
-                // action or the key-DOWN edge only; ignore (don't consume) the rest.
                 // The keyboard's Enter while the busy layer is up (see the filter above): swallowed.
                 if (busyLayer != null) return@setOnEditorActionListener true
-                val enterDown = (event?.keyCode == KeyEvent.KEYCODE_ENTER ||
-                    event?.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) &&
-                    event.action == KeyEvent.ACTION_DOWN
+                // Act once per Enter: a key Enter calls this for its down, its repeats and its
+                // up, each with the GO action — only the first down acts (LauncherLogic.enterEdge).
                 val imeAction = actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE
-                if (!imeAction && !enterDown) {
-                    return@setOnEditorActionListener false
+                val key = event?.let {
+                    EnterKey(
+                        down = it.action == KeyEvent.ACTION_DOWN,
+                        repeatCount = it.repeatCount,
+                        isEnterKey = it.keyCode == KeyEvent.KEYCODE_ENTER || it.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER,
+                    )
+                }
+                when (LauncherLogic.enterEdge(imeAction, key)) {
+                    EnterEdge.PASS -> return@setOnEditorActionListener false
+                    EnterEdge.CONSUME -> return@setOnEditorActionListener true
+                    EnterEdge.ACT -> Unit
                 }
                 // A "~" command is one-shot, not a view, so it lives on Enter rather
                 // than on a live sigil — nothing happens while it is being typed.

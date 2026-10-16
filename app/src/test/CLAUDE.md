@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 511 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 518 tests):
 
 ```
 LauncherLogicTest          139  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -37,7 +37,7 @@ ConfigStoreTest             43  verso.json on real temp files: .bak rotation, .t
                                 the set-aside copy for Download
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
-LauncherActionsTest         19  Enter / tap decisions
+LauncherActionsTest         26  Enter / tap decisions, which Enter call acts
 HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
 BackupFilesTest             18  backup naming: timestamps, patterns, restore pick, sweep
