@@ -1698,6 +1698,19 @@ class MainActivity : Activity() {
         return ConfigStore.SetAside.Moved(listOfNotNull(copy) + aside.names.reversed())
     }
 
+    /**
+     * The toast after a set-aside ([setAsideUnreadableConfig] names first where the user can find
+     * the config). A toast holds two lines, and the copy's full path with its timestamp did not
+     * fit — so with a copy in Download, [withCopy] names only the folder: there may be several
+     * copies by now, and the newest is this one. Without a copy, [withoutCopy] names the
+     * set-aside primary, short enough to show.
+     */
+    private fun setAsideToast(names: List<String>, withCopy: Int, withoutCopy: Int): String {
+        val first = names.firstOrNull() ?: ConfigStore.CONFIG_FILE
+        return if (first.startsWith("${Environment.DIRECTORY_DOWNLOADS}/")) getString(withCopy)
+        else getString(withoutCopy, first)
+    }
+
     /** OK: [LauncherState.reset] sets the unreadable config aside and starts over. */
     private fun runReset() {
         val accepted = gate.start(Command.RESET) { t ->
@@ -1709,7 +1722,7 @@ class MainActivity : Activity() {
                     unreadableShown = false
                     when (outcome) {
                         is ResetOutcome.Done ->
-                            toast(getString(R.string.toast_reset_done, outcome.setAside.firstOrNull() ?: ConfigStore.CONFIG_FILE), Toast.LENGTH_LONG)
+                            toast(setAsideToast(outcome.setAside, R.string.toast_reset_done, R.string.toast_reset_done_private), Toast.LENGTH_LONG)
                         ResetOutcome.WasReadable -> toast(getString(R.string.toast_reset_readable_now), Toast.LENGTH_LONG)
                         ResetOutcome.NotUnreadable -> toast(getString(R.string.toast_reset_readable))
                         ResetOutcome.Failed -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
@@ -1904,7 +1917,7 @@ class MainActivity : Activity() {
                     commandDialog?.dismiss()
                     toast(
                         if (outcome.saved) {
-                            getString(R.string.toast_restore_replaced, outcome.setAside.firstOrNull() ?: ConfigStore.CONFIG_FILE)
+                            setAsideToast(outcome.setAside, R.string.toast_restore_replaced, R.string.toast_restore_replaced_private)
                         } else {
                             getString(R.string.toast_restore_unsaved)
                         },

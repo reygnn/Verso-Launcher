@@ -805,8 +805,9 @@ internal object LauncherLogic {
      * Null as well for anything that is no valid code point — above all a dead key ("^", "´"
      * on a German keyboard), whose unicodeChar carries KeyCharacterMap.COMBINING_ACCENT, the
      * sign bit: Character.toChars rejects that negative Int with an exception, which crashed
-     * the launcher on every press. Ignoring it is enough: in the prompt itself the TextView
-     * composes accents on its own. And null for 0 and for a control character.
+     * the launcher on every press. isValidCodePoint rejects every negative Int, so a dead key
+     * needs no check of its own — do not add one back. Ignoring it is enough: in the prompt
+     * itself the TextView composes accents on its own. And null for 0 and for a control character.
      */
     fun typedChar(unicodeChar: Int, chord: Boolean): String? {
         if (chord) return null
