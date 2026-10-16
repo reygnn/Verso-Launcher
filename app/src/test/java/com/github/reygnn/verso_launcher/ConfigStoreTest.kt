@@ -181,15 +181,20 @@ class ConfigStoreTest {
     fun `a primary that cannot be read is not replaced from the bak mirror`() {
         primary.writeText(json("newest/save"))
         backup.writeText(json("one/behind"))
-        assertTrue(primary.setReadable(false))
-        try {
-            assertEquals(null, store.load())
-            assertTrue(loggedAbout("not replaced from a fallback"))
-        } finally {
-            primary.setReadable(true)
-        }
+        // An I/O error on the primary alone, through the read seam: taking the read permission
+        // away would do nothing for root (CI often runs as root).
+        var primaryFails = true
+        val failing = ConfigStore(
+            dir = dir,
+            log = { msg, _ -> logs += msg },
+            syncDir = { dirSyncs++ },
+            readText = { f -> if (primaryFails && f == primary) throw java.io.IOException("EIO") else f.readText() },
+        )
+        assertEquals(null, failing.load())
+        assertTrue(loggedAbout("not replaced from a fallback"))
         assertEquals(listOf("newest/save"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals(listOf("newest/save"), store.load()!!.favorites.toList())
+        primaryFails = false
+        assertEquals(listOf("newest/save"), failing.load()!!.favorites.toList())
     }
 
     /** The heal: after recovering, the bad primary is rewritten so later loads stop

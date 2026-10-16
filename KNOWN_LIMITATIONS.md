@@ -113,6 +113,10 @@ files directory is private, though — out of reach without root on a release bu
 so the set-aside config is also copied to `Download/Verso/verso-unreadable-<date>_<time>.json`
 (best effort; every copy is kept — delete old ones yourself). If it was only unreadable for a moment, `~restore-saf`
 with that copy brings it back; if it is really damaged, the bytes are there to look at.
+One case where the copy is NOT the newest config: when reading `verso.json` itself fails
+with an I/O error, the copy is taken from `.bak`, one save behind, and the newest state
+lies only in the private `verso.json.unreadable` — try `~load` a little later first, which
+reads it as soon as the error has passed, before reaching for `~reset`.
 
 **After a reset, run `~restore` before anything else if you have a backup, and never
 `~backup` first:** the fresh config is nearly empty, and a backup of it replaces the

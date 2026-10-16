@@ -29,12 +29,17 @@ import java.io.FileOutputStream
  *             paths below (the .bak rotation and the temp->primary publish with its
  *             in-place fallback) never fire on a normal filesystem, so a real temp dir
  *             cannot reach them. Production is unchanged — it uses [File.renameTo].
+ *   [readText] reading one config file, defaulting to [File.readText]. A seam for the same
+ *             reason: a read that THROWS on a file that is there (an I/O error) cannot be
+ *             set up reliably on a real filesystem — taking the read permission away does
+ *             nothing for root, and CI often runs as root.
  */
 internal class ConfigStore(
     private val dir: File,
     private val log: (String, Exception?) -> Unit,
     private val syncDir: (File) -> Unit,
     private val rename: (File, File) -> Boolean = File::renameTo,
+    private val readText: (File) -> String = { it.readText() },
 ) {
 
     private val primary get() = File(dir, CONFIG_FILE)
@@ -179,7 +184,9 @@ internal class ConfigStore(
      * .bak and a leftover .tmp that can be read, holds more than whitespace (a primary torn to
      * 0 bytes says nothing, a .bak beside it may hold nearly everything) and is no larger than
      * [maxBytes] (a config is a few KB; anything far beyond is not worth a copy); null when none
-     * is. Never throws.
+     * is. Never throws. Decoded as UTF-8 for the copy: the bytes of a torn file that are no valid
+     * UTF-8 become U+FFFD, so the copy is the text, not byte for byte — enough to rescue a JSON
+     * config, and BackupStore writes text.
      */
     fun readForCopy(maxBytes: Int = MAX_SET_ASIDE_COPY): String? {
         for (file in listOf(primary, backup, temp)) {
@@ -231,7 +238,7 @@ internal class ConfigStore(
     private fun read(file: File): Read {
         if (!file.isFile) return Read.Absent
         val text = try {
-            file.readText()
+            readText(file)
         } catch (e: Exception) {
             log("config unreadable: ${file.path}", e)
             return Read.Failed
