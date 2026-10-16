@@ -82,7 +82,7 @@ class LauncherStateTest {
                     diskUnreadable = false
                     disk = VersoConfig()
                     fresh = true
-                    ConfigStore.SetAside.Moved(listOf("verso.json.broken"))
+                    ConfigStore.SetAside.Moved(listOf("verso.json.unreadable"))
                 }
             }
         },
@@ -729,7 +729,7 @@ class LauncherStateTest {
         startedUnreadable()
         reset()
         runAll()
-        assertEquals(listOf(ResetOutcome.Done(listOf("verso.json.broken"))), resets)
+        assertEquals(listOf(ResetOutcome.Done(listOf("verso.json.unreadable"))), resets)
         assertTrue(state.configLoaded)
         assertFalse(state.configUnreadable)
         // The first-load path of a fresh install: the default favorites, seeded and saved.

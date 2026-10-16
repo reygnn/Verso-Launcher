@@ -57,7 +57,7 @@ class SourceGuardTest {
         // files — so the copy is read and published first, while the files still lie in place.
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
         val body = activity.substringAfter("private fun setAsideUnreadableConfig()").substringBefore("\n    }\n")
-        val copy = body.indexOf("backupStore.write(BackupFiles.BROKEN_BASE")
+        val copy = body.indexOf("backupStore.write(BackupFiles.UNREADABLE_BASE")
         val rename = body.indexOf("store.setAsideUnreadable()")
         assertTrue("copy written: $copy, set aside: $rename", copy in 0 until rename)
         assertTrue(body.contains("store.readForCopy()"))

@@ -288,12 +288,12 @@ class ConfigStoreTest {
         val aside = store.setAsideUnreadable()
 
         assertEquals(
-            ConfigStore.SetAside.Moved(listOf("verso.json.tmp.broken", "verso.json.bak.broken", "verso.json.broken")),
+            ConfigStore.SetAside.Moved(listOf("verso.json.tmp.unreadable", "verso.json.bak.unreadable", "verso.json.unreadable")),
             aside,
         )
-        assertEquals("{ torn", File(dir, "verso.json.broken").readText())
-        assertEquals("also not json", File(dir, "verso.json.bak.broken").readText())
-        assertEquals("{ torn too", File(dir, "verso.json.tmp.broken").readText())
+        assertEquals("{ torn", File(dir, "verso.json.unreadable").readText())
+        assertEquals("also not json", File(dir, "verso.json.bak.unreadable").readText())
+        assertEquals("{ torn too", File(dir, "verso.json.tmp.unreadable").readText())
         assertFalse(primary.exists())
         assertFalse(backup.exists())
         assertFalse(temp.exists())
@@ -318,9 +318,9 @@ class ConfigStoreTest {
 
         val aside = store.setAsideUnreadable()
 
-        assertEquals(ConfigStore.SetAside.Moved(listOf("verso.json.broken-2")), aside)
-        assertEquals("first", File(dir, "verso.json.broken").readText())
-        assertEquals("second", File(dir, "verso.json.broken-2").readText())
+        assertEquals(ConfigStore.SetAside.Moved(listOf("verso.json.unreadable-2")), aside)
+        assertEquals("first", File(dir, "verso.json.unreadable").readText())
+        assertEquals("second", File(dir, "verso.json.unreadable-2").readText())
     }
 
     @Test
@@ -331,7 +331,7 @@ class ConfigStoreTest {
 
         assertEquals(listOf("keep/Me"), (aside as ConfigStore.SetAside.Readable).config.favorites.toList())
         assertEquals(json("keep/Me"), primary.readText())
-        assertFalse(File(dir, "verso.json.broken").exists())
+        assertFalse(File(dir, "verso.json.unreadable").exists())
     }
 
     @Test
@@ -342,7 +342,7 @@ class ConfigStoreTest {
         val aside = store.setAsideUnreadable()
 
         assertEquals(listOf("from/bak"), (aside as ConfigStore.SetAside.Readable).config.favorites.toList())
-        assertFalse(File(dir, "verso.json.broken").exists())
+        assertFalse(File(dir, "verso.json.unreadable").exists())
     }
 
     @Test
@@ -364,7 +364,7 @@ class ConfigStoreTest {
 
         assertEquals(ConfigStore.SetAside.Failed, aside)
         assertTrue(loggedAbout("could not set verso.json.bak aside"))
-        assertEquals("{ torn too", File(dir, "verso.json.tmp.broken").readText())  // moved before
+        assertEquals("{ torn too", File(dir, "verso.json.tmp.unreadable").readText())  // moved before
         assertEquals("also not json", backup.readText())
         assertEquals("{ torn", primary.readText())
         assertEquals("still unreadable", null, refusing.load())

@@ -76,18 +76,18 @@
     <string name="toast_reload_unreadable">config unreadable — nothing loaded, nothing changed</string>
     <string name="toast_reload_changed">not loaded — the config was changed meanwhile</string>
     <string name="toast_backup_unreadable">config unreadable — no backup written, the old one is kept</string>
-    <!-- %1$s: the names the unreadable files were renamed to (verso.json.broken, …). -->
+    <!-- %1$s: the names the unreadable files were renamed to (verso.json.unreadable, …). -->
     <string name="toast_restore_replaced">restored — copy of the old one in Download/Verso</string>
     <string name="toast_restore_replaced_private">restored — the old one is set aside as %1$s</string>
     <string name="toast_restore_unsaved">restored, but not saved — ~save tries again</string>
     <!-- "~reset": only while the config is unreadable; the files are renamed, never deleted. -->
     <string name="reset_title">Reset config</string>
-    <string name="reset_message">verso.json cannot be read. Reset sets the unreadable files aside — renamed to …broken, not deleted, with a copy in Download/Verso — and starts over like a fresh install: no names, no tags, nothing hidden, the default favorites.</string>
+    <string name="reset_message">verso.json cannot be read. Reset sets the unreadable files aside — renamed to …unreadable, not deleted, with a copy in Download/Verso — and starts over like a fresh install: no names, no tags, nothing hidden, the default favorites.</string>
     <string name="reset_backup_note">A backup exists: ~restore brings your config back instead. If you reset anyway, do not run ~backup before your config is back — it would replace that backup with the fresh one.</string>
     <string name="reset_backup_unknown">The backup folder could not be checked, so a backup may exist: if so, ~restore brings your config back instead. If you reset anyway, do not run ~backup before your config is back — it would replace that backup with the fresh one.</string>
     <string name="reset_confirm">Reset</string>
     <!-- %1$s: the names the unreadable files were renamed to. -->
-    <string name="toast_reset_done">reset — copy in Download/Verso (verso-broken-…)</string>
+    <string name="toast_reset_done">reset — copy in Download/Verso (verso-unreadable-…)</string>
     <string name="toast_reset_done_private">reset — set aside as %1$s</string>
     <string name="toast_reset_readable">config is readable — nothing to reset</string>
     <string name="toast_reset_readable_now">config readable again — loading it, nothing reset</string>

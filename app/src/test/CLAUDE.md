@@ -43,7 +43,7 @@ LauncherActionsTest         26  Enter / tap decisions, which Enter call acts
 HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
 BackupFilesTest             19  backup naming: timestamps, patterns, restore pick, sweep
-                                (never of a verso-broken copy)
+                                (never of a verso-unreadable copy)
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
@@ -67,7 +67,7 @@ CleanupTest                  9  what ~cleanup may offer: complete enumeration, k
 SourceGuardTest              9  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
                                 brace-less object templates, every command (incl. ~reset) through the gate,
-                                no custom names in the enumeration, the broken copy
+                                no custom names in the enumeration, the verso-unreadable copy
                                 published before the renames, the prompt written via setPrompt only,
                                 the restore-saf read cancelable
 ```

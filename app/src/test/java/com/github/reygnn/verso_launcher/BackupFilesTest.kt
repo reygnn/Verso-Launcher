@@ -63,7 +63,7 @@ class BackupFilesTest {
 
     @Test fun `every base is distinct and claims no other base's files`() {
         val bases = listOf(
-            BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE, BackupFiles.BROKEN_BASE,
+            BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE, BackupFiles.UNREADABLE_BASE,
         )
         assertEquals(bases.size, bases.toSet().size)
         for (a in bases) for (b in bases) if (a != b) {
@@ -84,10 +84,10 @@ class BackupFilesTest {
     }
 
     @Test fun `a set-aside copy is never taken for the backup, so restore and its sweep leave it alone`() {
-        val broken = "verso-broken-2026-10-13_120745.json"
-        assertTrue(BackupFiles.isPublished(BackupFiles.BROKEN_BASE, broken))
-        assertFalse(BackupFiles.isPublished(base, broken))
-        val own = listOf(BackupFiles.Entry(1, "verso-2026-10-12_090000.json"), BackupFiles.Entry(2, broken))
+        val copy = "verso-unreadable-2026-10-13_120745.json"
+        assertTrue(BackupFiles.isPublished(BackupFiles.UNREADABLE_BASE, copy))
+        assertFalse(BackupFiles.isPublished(base, copy))
+        val own = listOf(BackupFiles.Entry(1, "verso-2026-10-12_090000.json"), BackupFiles.Entry(2, copy))
         assertEquals(1L, BackupFiles.latestToRestore(base, own)!!.id)
         assertEquals(emptyList<BackupFiles.Entry>(), BackupFiles.replacedBy(base, keepId = 3, own = own).filter { it.id == 2L })
     }
@@ -96,11 +96,11 @@ class BackupFilesTest {
      *  never sweeps the first, nor a stranded temp of it. */
     @Test fun `a set-aside copy never replaces an earlier one`() {
         val own = listOf(
-            BackupFiles.Entry(1, "verso-broken-2026-10-13_120745.json"),
-            BackupFiles.Entry(2, "verso-broken.tmp.json"),
-            BackupFiles.Entry(3, "verso-broken-2026-10-16_210000.json"),
+            BackupFiles.Entry(1, "verso-unreadable-2026-10-13_120745.json"),
+            BackupFiles.Entry(2, "verso-unreadable.tmp.json"),
+            BackupFiles.Entry(3, "verso-unreadable-2026-10-16_210000.json"),
         )
-        assertEquals(emptyList<BackupFiles.Entry>(), BackupFiles.replacedBy(BackupFiles.BROKEN_BASE, keepId = 3, own = own))
+        assertEquals(emptyList<BackupFiles.Entry>(), BackupFiles.replacedBy(BackupFiles.UNREADABLE_BASE, keepId = 3, own = own))
     }
 
     @Test fun `unrelated look-alikes are not backups`() {

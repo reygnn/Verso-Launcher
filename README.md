@@ -147,8 +147,8 @@ keyboard, no prompt:
       are left to a file manager (Android lets Verso touch only its own)
     - `~reset` — only when the config file cannot be read at all (Verso then says so,
       and edits are off): after a confirmation, the unreadable files are set aside —
-      renamed to `verso.json.broken` and so on, never deleted, with a copy in
-      `Download/Verso/verso-broken-<date>_<time>.json` — and Verso starts over
+      renamed to `verso.json.unreadable` and so on, never deleted, with a copy in
+      `Download/Verso/verso-unreadable-<date>_<time>.json` — and Verso starts over
       like a fresh install, default favorites included. On a readable config it does
       nothing. If you have a backup, `~restore` is the better way out; and after a
       reset, don't run `~backup` before your config is back, or the fresh config

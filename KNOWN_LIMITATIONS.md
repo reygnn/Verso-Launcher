@@ -106,11 +106,11 @@ default that stands in for the unreadable config in memory (it is never saved).
 If the files stay unreadable (both corrupt), `~restore` or `~restore-saf` with any
 `verso*.json` is the way out — over an unreadable config without an undo point,
 since there is nothing readable to keep; the unreadable files are set aside instead
-(`verso.json.broken`, …). Without any backup, `~reset` starts over like a fresh
+(`verso.json.unreadable`, …). Without any backup, `~reset` starts over like a fresh
 install, setting the files aside the same way. Set aside means renamed, never
-deleted, and an earlier set-aside is never overwritten (`.broken-2`, …). The app's
+deleted, and an earlier set-aside is never overwritten (`.unreadable-2`, …). The app's
 files directory is private, though — out of reach without root on a release build —
-so the set-aside config is also copied to `Download/Verso/verso-broken-<date>_<time>.json`
+so the set-aside config is also copied to `Download/Verso/verso-unreadable-<date>_<time>.json`
 (best effort; every copy is kept — delete old ones yourself). If it was only unreadable for a moment, `~restore-saf`
 with that copy brings it back; if it is really damaged, the bytes are there to look at.
 

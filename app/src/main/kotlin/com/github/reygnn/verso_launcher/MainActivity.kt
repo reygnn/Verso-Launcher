@@ -1672,7 +1672,7 @@ class MainActivity : Activity() {
     /**
      * Set an unreadable config aside (ConfigStore.setAsideUnreadable: renamed, never deleted) —
      * for "~reset" and a restore over it, on the IO thread — with a copy in
-     * Download/[BackupFiles.DIR] as "verso-broken-<date>_<time>.json". The set-aside files stay
+     * Download/[BackupFiles.DIR] as "verso-unreadable-<date>_<time>.json". The set-aside files stay
      * in the app's private directory, out of the user's reach on a release build; the copy is
      * where they can get at the bytes, and where "~restore-saf" brings the config back if it was
      * only unreadable for a moment. Every copy is kept (BackupFiles.replacedBy).
@@ -1691,7 +1691,7 @@ class MainActivity : Activity() {
         // A config that reads after all is no case for a copy in a public folder.
         store.load()?.let { return ConfigStore.SetAside.Readable(it) }
         val copy = store.readForCopy()
-            ?.let { backupStore.write(BackupFiles.BROKEN_BASE, it) }
+            ?.let { backupStore.write(BackupFiles.UNREADABLE_BASE, it) }
             ?.let { "${Environment.DIRECTORY_DOWNLOADS}/${BackupFiles.DIR}/$it" }
         val aside = store.setAsideUnreadable()
         if (aside !is ConfigStore.SetAside.Moved) return aside

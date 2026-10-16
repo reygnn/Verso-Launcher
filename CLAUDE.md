@@ -138,17 +138,17 @@ main, written on the IO thread.
    the Activity says why (`editable()`). An unreadable config (`load()` null,
    `configUnreadable`) counts as not loaded and stays so: retried on every resume and by
    `~load`, ended by a successful read, a restore, or `~reset`. `~reset` acts ONLY on an
-   unreadable config (after a confirmation): it sets the files aside — renamed `*.broken`,
+   unreadable config (after a confirmation): it sets the files aside — renamed `*.unreadable`,
    NEVER deleted (`ConfigStore.setAsideUnreadable`, which re-checks first and moves the
    primary last, so a refused rename always leaves a published copy), with a copy in
-   `Download/Verso/verso-broken-…` — and starts over through the fresh-install first load. `~backup` before the load exports the
+   `Download/Verso/verso-unreadable-…` — and starts over through the fresh-install first load. `~backup` before the load exports the
    disk copy — and writes nothing if that is unreadable, keeping the old backup. Home is
    drawn and its cache written only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
    name. Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
-   `verso-pre-cleanup-…`). The copies of a set-aside unreadable config (`verso-broken-…`) are
+   `verso-pre-cleanup-…`). The copies of a set-aside unreadable config (`verso-unreadable-…`) are
    the exception: every one is kept, never swept — each may be the only copy the user can
    reach — and it is written BEFORE the files are renamed, while they still lie in place.
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient

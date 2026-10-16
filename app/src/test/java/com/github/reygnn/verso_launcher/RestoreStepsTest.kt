@@ -19,7 +19,7 @@ class RestoreStepsTest {
     private var diskLoads = 0
 
     /** What setting the unreadable config aside does (ConfigStore.setAsideUnreadable). */
-    private var aside: ConfigStore.SetAside = ConfigStore.SetAside.Moved(listOf("verso.json.broken"))
+    private var aside: ConfigStore.SetAside = ConfigStore.SetAside.Moved(listOf("verso.json.unreadable"))
 
     /** [current] is the config in memory; null: not loaded, so the disk ([disk]) is read. */
     private fun run(current: VersoConfig?, restored: VersoConfig) = RestoreSteps.run(
@@ -45,7 +45,7 @@ class RestoreStepsTest {
 
     @Test fun `an unreadable current config is set aside, then replaced without an undo point`() {
         val outcome = run(current = null, restored = cfg("new/New"))
-        assertEquals(RestoreSteps.Outcome.ReplacedUnreadable(listOf("verso.json.broken")), outcome)
+        assertEquals(RestoreSteps.Outcome.ReplacedUnreadable(listOf("verso.json.unreadable")), outcome)
         assertEquals("set aside first, never written over; no undo point", listOf("aside", "config:new/New"), calls)
     }
 
@@ -99,7 +99,7 @@ class RestoreStepsTest {
     @Test fun `a failed write over an unreadable config is reported as not saved`() {
         configWritten = false
         val outcome = run(current = null, restored = cfg("new/New"))
-        assertEquals(RestoreSteps.Outcome.ReplacedUnreadable(listOf("verso.json.broken"), saved = false), outcome)
+        assertEquals(RestoreSteps.Outcome.ReplacedUnreadable(listOf("verso.json.unreadable"), saved = false), outcome)
         assertEquals(listOf("aside", "config:new/New"), calls)
     }
 

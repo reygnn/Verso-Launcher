@@ -138,7 +138,7 @@ internal class ConfigStore(
 
     /**
      * Move an unreadable config out of the way — "~reset", and a restore over an unreadable
-     * config. Renamed, NEVER deleted: "<name>.broken" (or ".broken-2", -3 … beside an earlier
+     * config. Renamed, NEVER deleted: "<name>.unreadable" (or ".unreadable-2", -3 … beside an earlier
      * one), so the bytes stay for a manual rescue — the launcher can only ever tell that a file
      * cannot be read NOW, never that it is lost for good. A leftover .tmp, the .bak and the
      * primary all go — in that order, the primary last, so a refused rename (or a crash in
@@ -156,7 +156,7 @@ internal class ConfigStore(
             val moved = mutableListOf<String>()
             for (file in listOf(temp, backup, primary)) {
                 if (!file.isFile) continue
-                val target = freeBrokenName(file)
+                val target = freeUnreadableName(file)
                 if (!rename(file, target)) {
                     log("could not set ${file.name} aside", null)
                     return SetAside.Failed
@@ -196,11 +196,11 @@ internal class ConfigStore(
         return null
     }
 
-    /** "<name>.broken", or the first free "<name>.broken-2", -3 … — never over an earlier one. */
-    private fun freeBrokenName(file: File): File {
-        var target = File(dir, "${file.name}.broken")
+    /** "<name>.unreadable", or the first free "<name>.unreadable-2", -3 … — never over an earlier one. */
+    private fun freeUnreadableName(file: File): File {
+        var target = File(dir, "${file.name}.unreadable")
         var n = 1
-        while (target.exists()) target = File(dir, "${file.name}.broken-${++n}")
+        while (target.exists()) target = File(dir, "${file.name}.unreadable-${++n}")
         return target
     }
 
