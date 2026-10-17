@@ -101,7 +101,7 @@ keyboard, no prompt:
     memory only, so it starts empty on every cold start; **Enter** relaunches the
     most recent. `?text` narrows them like a search
   - `~[text]` — commands. Typing `~` lists the commands; typing more narrows the
-    list (`~r` leaves `~restart`, `~restore` and `~restore-saf`). Tap a row to run it, or press
+    list (`~r` leaves `~restart`, `~restore`, `~restore-saf` and `~reset`). Tap a row to run it, or press
     **Enter** once what you typed can only mean one command — `~b` is enough for
     `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
     up. Every change is saved the moment you make it, so there is no save or load

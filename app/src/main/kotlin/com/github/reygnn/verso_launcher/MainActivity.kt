@@ -1101,6 +1101,9 @@ class MainActivity : Activity() {
                 // starts a run of its own (onActivityResult).
                 Command.RESTORE_SAF -> pickRestoreFile()
                 Command.CLEANUP -> cleanup(t)
+                // Only for an unreadable config, and only after a confirmation: the dialog ends
+                // this run, its OK starts one of its own (runReset).
+                Command.RESET -> if (state.configUnreadable) confirmReset() else toast(getString(R.string.toast_reset_not_needed))
             }
         }
     }
@@ -1279,6 +1282,38 @@ class MainActivity : Activity() {
         }
     }
 
+    /** "~reset" of an unreadable config: what happens, nothing deleted — then [runReset]. */
+    private fun confirmReset() {
+        commandDialog?.dismiss()
+        commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(R.string.reset_title)
+            .setMessage(R.string.reset_message)
+            .setPositiveButton(R.string.reset_confirm) { _, _ -> runReset() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+            .apply { setOnDismissListener { d -> if (commandDialog === d) commandDialog = null } }
+        commandDialog?.show()
+    }
+
+    /**
+     * OK: on the IO thread, set the unreadable files aside (renamed, never deleted — see
+     * ConfigStore.setAsideUnreadable), then the first load runs again: with no published copy
+     * left it is a fresh install's, default favorites included. A run of its own.
+     */
+    private fun runReset() {
+        val accepted = gate.start { t ->
+            commandIo(t, work = { store.setAsideUnreadable() }) { aside ->
+                when (aside) {
+                    ConfigStore.SetAside.Moved -> toast(getString(R.string.toast_reset_ok), Toast.LENGTH_LONG)
+                    is ConfigStore.SetAside.Readable -> toast(getString(R.string.toast_reset_readable))
+                    ConfigStore.SetAside.Failed, null -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
+                }
+                state.refresh()
+            }
+        }
+        if (!accepted) toast(getString(R.string.toast_busy))
+    }
+
     /**
      * "~restore": read the newest backup back in. No picker — there is one current backup,
      * found by pattern whatever its timestamp, so there is nothing to choose.
@@ -1421,13 +1456,17 @@ class MainActivity : Activity() {
                 writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
                 writeConfig = { payload -> store.write(payload, rotateBackup = true) },
                 sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
+                setAside = { store.setAsideUnreadable() },
             )
         }) { outcome ->
             when (outcome) {
                 RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
                 RestoreSteps.Outcome.WriteFailed -> toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
+                RestoreSteps.Outcome.SetAsideFailed -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
+                // Set aside, but the restored config could not be written: the next load starts
+                // fresh, the old files lie set aside.
                 is RestoreSteps.Outcome.ReplacedUnreadable -> if (!outcome.saved) {
-                    toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
+                    toast(getString(R.string.toast_restore_unsaved_aside), Toast.LENGTH_LONG)
                 } else {
                     state.adopt(restored)
                     renameDialog?.dismiss()

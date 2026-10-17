@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 480 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 486 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -28,7 +28,7 @@ LauncherStateTest           62  the concurrency rules: refresh/rename/adopt
 CommandGateTest              9  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             33  verso.json on real temp files: .bak rotation, .tmp
+ConfigStoreTest             37  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
                                 heal-without-rotate, isFresh, unreadable is null — not empty
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
@@ -45,7 +45,7 @@ RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilte
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-RestoreStepsTest             6  the restore's IO order: undo point, config, then the old undo
+RestoreStepsTest             8  the restore's IO order: undo point, config, then the old undo
                                 point swept; no-op restore; a failed write; over an unreadable config
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double

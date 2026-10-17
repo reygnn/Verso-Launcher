@@ -126,6 +126,46 @@ internal class ConfigStore(
      */
     fun isFresh(): Boolean = !primary.exists() && !backup.exists()
 
+    /** What [setAsideUnreadable] did. */
+    sealed interface SetAside {
+        /** The config reads after all (or there is none): nothing moved; [config] is [load]'s. */
+        data class Readable(val config: VersoConfig) : SetAside
+        /** The unreadable files were renamed; no published copy is left, so the next [load] is a
+         *  fresh install's. */
+        data object Moved : SetAside
+        /** A rename was refused (logged): still unreadable, nothing lost. */
+        data object Failed : SetAside
+    }
+
+    /**
+     * Move an unreadable config out of the way — "~reset", and a restore over it. Renamed, NEVER
+     * deleted ("<name>.unreadable", or "-2", "-3" … beside an earlier one): the launcher can only
+     * tell that a file cannot be read NOW — a read error may pass — so the bytes stay. The .tmp,
+     * the .bak and the primary go in that order, the primary last: a refused rename always leaves
+     * a published copy, still unreadable, never a silent fresh start. Checks with [load] first:
+     * a config that reads after all is returned untouched. Never throws.
+     */
+    fun setAsideUnreadable(): SetAside {
+        load()?.let { return SetAside.Readable(it) }
+        return try {
+            for (file in listOf(temp, backup, primary)) {
+                if (!file.isFile) continue
+                var target = File(dir, "${file.name}.unreadable")
+                var n = 1
+                while (target.exists()) target = File(dir, "${file.name}.unreadable-${++n}")
+                if (!rename(file, target)) {
+                    log("could not set ${file.name} aside", null)
+                    return SetAside.Failed
+                }
+            }
+            syncDir(dir)
+            SetAside.Moved
+        } catch (e: Exception) {
+            log("setting the unreadable config aside failed", e)
+            SetAside.Failed
+        }
+    }
+
     /** What reading one config file gave — [load] tells a read error from a torn file. */
     private sealed interface Read {
         data object Absent : Read

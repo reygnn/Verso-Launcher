@@ -29,9 +29,17 @@
     <!-- One-shot "~" commands. %1$s in toast_backup_ok is the written file name; in
          toast_restore_ok the time (HH:mm) in the undo point's name. -->
     <string name="toast_busy">busy — wait for the running command</string>
-    <string name="toast_config_unreadable">config unreadable — editing off. ~restore brings a backup back</string>
-    <string name="toast_restore_unreadable">restored — the old config was unreadable, no undo point</string>
+    <string name="toast_config_unreadable">config unreadable — editing off. ~restore or ~reset</string>
+    <string name="toast_restore_unreadable">restored — the unreadable config lies as verso.json.unreadable</string>
     <string name="toast_restore_write_failed">restore not saved — nothing changed</string>
+    <string name="toast_restore_unsaved_aside">restore not saved — the unreadable config lies as verso.json.unreadable</string>
+    <string name="toast_reset_ok">reset — the old config lies as verso.json.unreadable</string>
+    <string name="toast_reset_readable">the config reads again — nothing reset</string>
+    <string name="toast_reset_failed">could not set the config aside — nothing changed</string>
+    <string name="toast_reset_not_needed">nothing to reset — the config is readable</string>
+    <string name="reset_title">Reset the config?</string>
+    <string name="reset_message">verso.json cannot be read. It is renamed to verso.json.unreadable — nothing is deleted — and Verso starts over with the default favorites.</string>
+    <string name="reset_confirm">Reset</string>
     <string name="toast_not_loaded">config not loaded yet — try again in a moment</string>
     <string name="toast_not_default_home">set Verso as default home app to turn work apps on</string>
     <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>

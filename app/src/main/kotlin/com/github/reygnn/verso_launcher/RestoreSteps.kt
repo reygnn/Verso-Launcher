@@ -18,14 +18,20 @@ internal object RestoreSteps {
         data object WriteFailed : Outcome
         /** Undo point [undoName] written, then the restored config persisted. */
         data class Done(val undoName: String) : Outcome
-        /** The config on disk was unreadable: no undo point, [restored] written over it — [saved]
-         *  false if that write failed (then nothing changed). */
+        /** The config on disk was unreadable: set aside (renamed, see
+         *  ConfigStore.setAsideUnreadable) in place of an undo point, then [restored] written —
+         *  [saved] false if that write failed (nothing adopted; the old files lie set aside). */
         data class ReplacedUnreadable(val saved: Boolean) : Outcome
+        /** The unreadable config could not be set aside: nothing was written. */
+        data object SetAsideFailed : Outcome
     }
 
     /**
-     * 0. [current] null — the config on disk is unreadable: there is nothing readable to keep as
-     *    undo point, and the restore is the way out of that state. Write [restored] over it.
+     * 0. [current] null — the config on disk is unreadable: no undo point can be made of it, and
+     *    the restore is a way out of that state. [setAside] renames its files instead (never
+     *    written over: a read error may pass, the file may hold the newest save); if they read
+     *    after all, that config is the undo point as usual; if they cannot be moved, nothing is
+     *    written.
      * 1. If [restored] is the [current] config, stop: an undo point now would replace the real
      *    one (the config from before the first restore) with a copy of the restored config.
      * 2. Write the undo point — [current] — through [writeUndo] (the backup's published name,
@@ -42,10 +48,15 @@ internal object RestoreSteps {
         writeUndo: (String) -> String?,
         writeConfig: (String) -> Boolean,
         sweepUndo: () -> Unit,
+        setAside: () -> ConfigStore.SetAside,
     ): Outcome {
-        if (current == null) return Outcome.ReplacedUnreadable(writeConfig(ConfigJson.serialize(restored)))
-        if (current.sameContent(restored)) return Outcome.Unchanged
-        val undo = writeUndo(ConfigJson.serialize(current)) ?: return Outcome.UndoFailed
+        val outgoing = current ?: when (val aside = setAside()) {
+            is ConfigStore.SetAside.Readable -> aside.config
+            ConfigStore.SetAside.Moved -> return Outcome.ReplacedUnreadable(writeConfig(ConfigJson.serialize(restored)))
+            ConfigStore.SetAside.Failed -> return Outcome.SetAsideFailed
+        }
+        if (outgoing.sameContent(restored)) return Outcome.Unchanged
+        val undo = writeUndo(ConfigJson.serialize(outgoing)) ?: return Outcome.UndoFailed
         if (!writeConfig(ConfigJson.serialize(restored))) return Outcome.WriteFailed
         sweepUndo()
         return Outcome.Done(undo)

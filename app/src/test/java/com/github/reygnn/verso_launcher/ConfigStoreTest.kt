@@ -266,6 +266,55 @@ class ConfigStoreTest {
         assertTrue(store.load()!!.favorites.isEmpty())
     }
 
+    // ---- setAsideUnreadable ("~reset", a restore over an unreadable config) -------
+
+    @Test
+    fun `set aside renames every copy, deletes nothing, and the next load is a fresh install`() {
+        primary.writeText("{ torn")
+        backup.writeText("also torn")
+        temp.writeText("torn too")
+
+        assertEquals(ConfigStore.SetAside.Moved, store.setAsideUnreadable())
+        assertEquals("{ torn", File(dir, "verso.json.unreadable").readText())
+        assertEquals("also torn", File(dir, "verso.json.bak.unreadable").readText())
+        assertEquals("torn too", File(dir, "verso.json.tmp.unreadable").readText())
+        assertTrue(store.isFresh())
+        assertTrue(store.load()!!.favorites.isEmpty())
+    }
+
+    @Test
+    fun `set aside never overwrites an earlier set-aside copy`() {
+        File(dir, "verso.json.unreadable").writeText("earlier")
+        primary.writeText("{ torn")
+
+        assertEquals(ConfigStore.SetAside.Moved, store.setAsideUnreadable())
+        assertEquals("earlier", File(dir, "verso.json.unreadable").readText())
+        assertEquals("{ torn", File(dir, "verso.json.unreadable-2").readText())
+    }
+
+    /** The primary goes last: a refused rename leaves a published copy — still unreadable,
+     *  never a silent fresh start. */
+    @Test
+    fun `a refused rename of the primary leaves it in place and reports failure`() {
+        primary.writeText("{ torn")
+        backup.writeText("also torn")
+        val refusing = storeWith { from, to -> if (from == primary) false else from.renameTo(to) }
+
+        assertEquals(ConfigStore.SetAside.Failed, refusing.setAsideUnreadable())
+        assertTrue(primary.isFile)
+        assertNull(store.load())
+        assertFalse(store.isFresh())
+    }
+
+    @Test
+    fun `a config that reads after all is not set aside`() {
+        primary.writeText(json("a/1"))
+
+        val aside = store.setAsideUnreadable()
+        assertEquals(listOf("a/1"), (aside as ConfigStore.SetAside.Readable).config.favorites.toList())
+        assertFalse(File(dir, "verso.json.unreadable").exists())
+    }
+
     // ---- write and rotation --------------------------------------------------
 
     @Test
