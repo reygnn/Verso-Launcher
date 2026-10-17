@@ -131,5 +131,7 @@ class CommandGateTest {
         var during: CommandGate.Idle? = null
         gate.start { during = gate.idle(); assertFalse("kept across a command start", permit.current) }
         assertNull(during)
+        assertFalse("nor valid again once the run ended", permit.current)
+        assertTrue("a fresh one is", gate.idle()!!.current)
     }
 }

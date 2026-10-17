@@ -346,7 +346,7 @@ class LauncherStateTest {
         assertEquals(listOf("Bravo", "Charlie", "Ärzte"), labels())
     }
 
-    @Test fun `forget removes every entry of the keys in one save`() {
+    @Test fun `a cleanup removes every entry of the keys in one save`() {
         disk = VersoConfig(
             hidden = linkedSetOf("gone/A"),
             favorites = linkedSetOf(key("Alpha"), "gone/A"),
@@ -354,7 +354,7 @@ class LauncherStateTest {
             tags = linkedMapOf("gone/A" to mutableListOf("x"), key("Alpha") to mutableListOf("y")),
         )
         started()
-        state.forget(setOf("gone/A"))
+        cleanup()
         runAll()
         assertEquals(setOf(key("Alpha")), state.config.favorites)
         assertTrue(state.config.hidden.isEmpty())
@@ -363,11 +363,12 @@ class LauncherStateTest {
         assertEquals(1, written.size)
     }
 
-    @Test fun `forget while the first load is in flight is ignored and the load still lands`() {
+    @Test fun `a cleanup asked before the first load is refused and the load still lands`() {
         disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), "gone/A"))
         state.refresh()
-        state.forget(setOf("gone/A"))
+        cleanup()
         runAll()
+        assertEquals(listOf("done:${CleanupOutcome.Refused}"), cleanupLog)
         assertTrue(state.configLoaded)
         assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
         assertTrue(written.isEmpty())
@@ -478,12 +479,6 @@ class LauncherStateTest {
         assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
     }
 
-    @Test fun `forget before the config is loaded changes nothing`() {
-        state.forget(setOf("gone/A"))
-        runAll()
-        assertTrue(written.isEmpty())
-    }
-
     @Test fun `a rename stores the name cleaned, whoever commits it`() {
         started()
         state.rename(idle, key("Alpha"), "Alpha", " Zu\u202Elu\u200B ", emptyList())
@@ -549,10 +544,12 @@ class LauncherStateTest {
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
     }
 
-    @Test fun `forget of a listed app's name shows its own label again`() {
+    @Test fun `a cleanup of a listed app's name shows its own label again`() {
         disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
+        recheckPlan = CleanupPlan.Offer(Orphans(setOf(key("Alpha")), 0, 0, 1, 0))
         started()
-        state.forget(setOf(key("Alpha")))
+        cleanup(setOf(key("Alpha")))
+        runAll()
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
     }
 

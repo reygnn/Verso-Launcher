@@ -176,7 +176,7 @@ internal class LauncherState(
     }
 
     /** Drop every entry (favorite, hidden, name, tags) for [keys] in one save. */
-    fun forget(keys: Set<String>) {
+    private fun forget(keys: Set<String>) {
         // Before the load: unsavable, and the epoch bump would make the first load drop the disk config.
         if (!configLoaded || keys.isEmpty()) return
         cfg.favorites.removeAll(keys)
