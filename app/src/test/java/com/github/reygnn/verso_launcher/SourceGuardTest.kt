@@ -75,8 +75,8 @@ class SourceGuardTest {
         }
         assertTrue(Regex("""fun runCleanup\([^)]*\)\s*\{\s*val accepted = gate\.start""").containsMatchIn(activity))
         // ~restart too: refused while a command runs, like any other.
-        assertTrue(activity.contains("Command.RESTART -> recreate()"))
-        assertEquals(1, Regex("""\brecreate\(\)""").findAll(activity).count())
+        // …and not while a picked ~restore-saf file is still being read (it has no run yet).
+        assertTrue(Regex("""Command\.RESTART -> if \(safReading\)[^\n]*recreate\(\)""").containsMatchIn(activity))
     }
 
     @Test fun `no edit while a command runs`() {
@@ -85,9 +85,16 @@ class SourceGuardTest {
         val body = activity.substringAfter("private fun editAllowed(): Boolean {", missingDelimiterValue = "")
             .substringBefore("\n    }\n")
         assertTrue("editAllowed must check the gate first", body.trimStart().startsWith("if (gate.busy)"))
-        // Both ways into an edit — a tap in an edit mode, the long-press rename — go through it.
-        assertTrue(activity.contains("isEditMode(mode) && action !is TapAction.None && !editAllowed()"))
-        assertTrue(activity.contains("if (editAllowed()) promptRename(row.entry)"))
+        // Every change of the config and every way into the rename dialog asks it first: the
+        // call must be preceded, within its handler, by editAllowed().
+        val calls = Regex("""state\.(toggleHidden|toggleFavorite|toggleTag|rename)\(|(?<!fun |\.)\b(moveFavorite|promptRename)\(""")
+        for (m in calls.findAll(activity)) {
+            // The call's own line up to it, and the two code lines (comments skipped) above it.
+            val lines = activity.substring(0, m.range.first).lines()
+            val above = lines.dropLast(1).filterNot { it.trimStart().startsWith("//") }.takeLast(2)
+            val near = (above + lines.last()).joinToString("\n")
+            assertTrue("${m.value} at ${m.range.first} without editAllowed() right before it", near.contains("editAllowed()"))
+        }
         // …and the rename dialog's OK again: a run may have started while it was up.
         val confirm = activity.substringAfter("RenameDialog.show(", missingDelimiterValue = "")
             .substringAfter("{ name, tags ->").substringBefore("state.rename(")

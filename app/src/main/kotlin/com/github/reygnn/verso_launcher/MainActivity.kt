@@ -339,15 +339,15 @@ class MainActivity : Activity() {
                 // to None). The per-mode dispatch is the pure LauncherLogic.tapAction (see
                 // LauncherActionsTest); the Activity keeps only the side effects.
                 val action = LauncherLogic.tapAction(mode, shown.getOrNull(position))
-                // An edit that could not be saved (the config is not loaded) is not made.
-                if (LauncherLogic.isEditMode(mode) && action !is TapAction.None && !editAllowed()) return@setOnItemClickListener
+                // Every change of the config asks editAllowed() first (not loaded, a command running);
+                // picking a row to move, drilling into a tag, launching are no edits.
                 when (action) {
                     is TapAction.Launch -> launch(action.entry)
-                    is TapAction.ToggleHidden -> {
+                    is TapAction.ToggleHidden -> if (editAllowed()) {
                         state.toggleHidden(action.entry.key)
                         afterToggle()
                     }
-                    is TapAction.ToggleFavorite -> {
+                    is TapAction.ToggleFavorite -> if (editAllowed()) {
                         state.toggleFavorite(action.entry.key)
                         afterToggle()
                     }
@@ -533,7 +533,7 @@ class MainActivity : Activity() {
         homePage = HomePage(
             activity = this,
             onLaunch = ::launch,
-            onEdit = ::promptRename,
+            onEdit = { if (editAllowed()) promptRename(it) },
             onOpenDrawer = { openDrawer() },
         )
         home = homePage.view
@@ -1092,7 +1092,7 @@ class MainActivity : Activity() {
             when (command) {
                 // A new instance reads the config afresh and lists the apps again; its first load
                 // queues behind any save still on the IO thread. The redraw is the feedback.
-                Command.RESTART -> recreate()
+                Command.RESTART -> if (safReading) toast(getString(R.string.toast_busy)) else recreate()
                 Command.BACKUP -> backup(t)
                 Command.RESTORE -> restoreConfig(t)
                 // Only the picker: it is another activity, so no run spans it. Its answer
@@ -1349,6 +1349,8 @@ class MainActivity : Activity() {
 
     /** Counts "~restore-saf" picks, so only the newest one's read is adopted. */
     private var restorePick = 0
+    // A picked file is being read: no run yet, but ~restart would drop its result.
+    private var safReading = false
 
     /** The "~restore-saf" picker's answer. Reading stays off the main thread; only the
      *  adoption comes back to it, exactly as in [restoreConfig]. */
@@ -1367,10 +1369,12 @@ class MainActivity : Activity() {
         // Newest pick wins: a read stuck at a hung provider may finish after a later pick — its
         // result must not be adopted over the newer one.
         val pick = ++restorePick
+        safReading = true
         Thread(guarded("restore read") {
             val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
             onUi {
                 if (pick != restorePick) return@onUi
+                safReading = false
                 // Unlike [restoreConfig] a null here is not "no backup yet" — the user
                 // pointed at a file and it could not be read or is no config. Either way
                 // nothing was changed.
@@ -1554,6 +1558,7 @@ class MainActivity : Activity() {
      */
     private fun toggleTagOn(key: String) {
         val tag = tagEditTag ?: return
+        if (!editAllowed()) return
         state.toggleTag(key, tag)
         adapter.notifyDataSetChanged()
     }
@@ -1575,7 +1580,7 @@ class MainActivity : Activity() {
         when (reorderPick) {
             null -> { reorderPick = key; adapter.notifyDataSetChanged() }
             key  -> { reorderPick = null; adapter.notifyDataSetChanged() }
-            else -> moveFavorite(reorderPick!!, key)
+            else -> if (editAllowed()) moveFavorite(reorderPick!!, key)
         }
     }
 
