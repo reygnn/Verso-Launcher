@@ -31,7 +31,7 @@
     <string name="toast_busy">busy — wait for the running command</string>
     <string name="toast_config_unreadable">config unreadable — editing off. ~restore or ~reset</string>
     <string name="toast_restore_unreadable">restored — the unreadable config lies as verso.json.unreadable</string>
-    <string name="toast_restore_write_failed">restore not saved — nothing changed</string>
+    <string name="toast_restore_write_failed">restore not saved — nothing restored</string>
     <string name="toast_restore_unsaved_aside">restore not saved — the unreadable config lies as verso.json.unreadable</string>
     <string name="toast_reset_ok">reset — the old config lies as verso.json.unreadable</string>
     <string name="toast_reset_readable">the config reads again — nothing reset</string>
@@ -86,6 +86,6 @@
     <string name="empty_no_tags">no tags yet — create one with ##name</string>
     <string name="empty_no_tag_match">no tag starts like that</string>
     <string name="empty_no_favorites">no favorites yet — add some with !</string>
-    <string name="empty_no_recents">no recent apps yet — the list resets on restart</string>
+    <string name="empty_no_recents">no recent apps yet — the list resets when the launcher restarts</string>
     <string name="empty_no_command">no such command — ~ lists them all</string>
 </resources>

@@ -3,7 +3,7 @@
 Deliberate design choices that can look like bugs. Listed here so the behaviour
 is documented before it lands in the issue tracker.
 
-## Recents (`?`) reset on restart
+## Recents (`?`) reset when the launcher's process restarts
 
 The `?` recents list is held **in memory only** — it is never written to
 `verso.json` (that file is the user's config: favorites, hidden apps, custom
@@ -19,7 +19,7 @@ This is intended: recents are a convenience for the current session, not durable
 state, and keeping them out of `verso.json` avoids write churn and keeps the
 config file to genuine user intent. To avoid the "where did my recents go?"
 surprise, an empty `?` says so in place of the list ("no recent apps yet — the list
-resets on restart") — see `LauncherLogic.emptyHint` and `empty_no_recents`.
+resets when the launcher restarts") — see `LauncherLogic.emptyHint` and `empty_no_recents`.
 
 If durable recents are ever wanted, persist `recentKeys` to a **separate** small
 file (not `verso.json`) and load it on start.

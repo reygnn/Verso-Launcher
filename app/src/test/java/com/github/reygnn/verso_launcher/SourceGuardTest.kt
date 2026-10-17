@@ -7,12 +7,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Crude source scans for two hard rules that live in Activity glue and the manifest, where no
- * JVM test reaches. Each guards an edit that would be easy to make and silently dangerous:
- *  - a restore through the lenient [ConfigJson.parse] accepts "{}" and wipes the config
- *    (hard rule 7: outside files go through parseForeign only);
- *  - `density` in configChanges stops a display-size change from recreating the activity, and
- *    every dp-derived pixel value goes stale (hard rule 13).
+ * Crude source scans for the hard rules that live in Activity glue and the manifest, where no
+ * JVM test reaches. Each guards an edit that would be easy to make and silently dangerous — a
+ * lenient parse of an outside file (rule 7), `density` in configChanges (rule 13), ~cleanup's
+ * IO guards (rule 14), backup/restore from an unloaded config (rule 5), every command inside
+ * the gate and no edit while one runs (rule 15), names out of the enumeration; see each test.
  */
 class SourceGuardTest {
 

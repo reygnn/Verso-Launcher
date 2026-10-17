@@ -71,7 +71,7 @@ internal object HomeStyle {
      * The colours for the wallpaper behind — Unity Kolibri's "smart contrast": on a wallpaper
      * that supports dark text (Android's WallpaperColors.HINT_SUPPORTS_DARK_TEXT) the text turns
      * black with a white rim, otherwise it stays white with a black rim; the rims come from
-     * [tonalOutlineColor], which flips by itself. The drawer's greys, the prompt's bar and the
+     * [tonalOutlineColor], which flips by itself. The drawer's dimmed hint and ×, the prompt's bar and the
      * system bars' icons follow the same switch. The drawer's rows are the favorites' colour:
      * both lie on the wallpaper with the same outline; only the hint and the × are dimmed.
      *

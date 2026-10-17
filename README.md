@@ -56,8 +56,9 @@ keyboard, no prompt:
 
 ## The command line
 
-- Lists launchable apps over your wallpaper — light gray (`#D4D4D4`) on a dark one,
-  dark gray (`#2B2B2B`) on a light one.
+- Lists launchable apps over your wallpaper in the favorites' colour — white on a dark one,
+  black on a light one, with the same outline. The command line sits on a translucent bar
+  of its own (dark under light text, light under dark), so it reads on any wallpaper.
 - Lists the launchable apps of every profile through `LauncherApps` — your own plus
   a work profile or cloned apps, which carry the system's badge ("Calculator
   (Work)") and start in their own profile. Installs, uninstalls and updates show up
@@ -106,7 +107,8 @@ keyboard, no prompt:
     `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
     up. Every change is saved the moment you make it, so there is no save or load
     command. Each command acts once and clears the prompt. One runs at a time: a second
-    one sent meanwhile is refused with a toast and stays on the line, to send again:
+    one sent meanwhile is refused with a toast and stays on the line, to send again, and
+    so is any edit until it is done:
     - `~restart` — read the config again and rebuild the list (after editing
       `verso.json` by hand, or when something looks stale)
     - `~backup` — export the config to `Download/Verso/`, named after the moment it
@@ -123,8 +125,9 @@ keyboard, no prompt:
       backup that doesn't parse changes nothing. To undo a restore, run
       `~restore-saf` and pick that `verso-pre-restore-…` file. If `verso.json` itself
       can't be read, Verso says so, edits nothing and saves nothing — it tries again
-      each time you come back to it, and a restore is the way out (then without an undo point: there is nothing
-      readable to keep)
+      each time you come back to it. A restore is one way out: the unreadable file is then
+      renamed to `verso.json.unreadable` (never deleted) instead of an undo point; `~reset`
+      is the other
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
@@ -144,6 +147,9 @@ keyboard, no prompt:
       unless every profile could be read. Don't run it while a new phone is still reinstalling
       your apps — those not back yet count as gone. Old files in `Download/Verso/`
       are left to a file manager (Android lets Verso touch only its own)
+    - `~reset` — only when `verso.json` can't be read and you have no backup to restore:
+      after a confirmation it renames the unreadable files to `*.unreadable` (nothing is
+      deleted) and starts over with the default favorites
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
   command line (the bottom-most, since results fill upward). On an empty line
   **Enter** only drops the keyboard (see above) — it never launches.
@@ -195,7 +201,7 @@ and unit-tested on the JVM or a thin view class:
 
 - `LauncherState.kt` — the data: config, app list and recents, plus the rules that keep
   them consistent when a background load overlaps a toggle, rename, reorder or restore
-  (three counters; see the class comment). Plain Kotlin taking its threads as functions —
+  (two counters; see the class comment). Plain Kotlin taking its threads as functions —
   the role a ViewModel would play, without the AndroidX dependency.
   `LauncherStateTest` replays every overlap deterministically with two manual queues.
 - `AppEntry.kt` — one app row (package/class as plain strings, so the state is testable).
@@ -214,6 +220,7 @@ and unit-tested on the JVM or a thin view class:
 - `VersoApp.kt` — the process: the one IO thread and what outlives an activity
   (recents, palette, badge labels).
 - `RenameDialog.kt` — the long-press dialog.
+- `CommandGate.kt` — the `~` commands one at a time (pure, JVM-tested).
 
 The only
 *shipped* dependencies are the Kotlin stdlib (added automatically by AGP's

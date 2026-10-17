@@ -24,7 +24,7 @@ A launcher reduced to text. Front page ("recto"): clock, date and battery
 swipe down for the recently used apps. Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
 `#`/`##` tags, `?` recents) and the `~` commands (`~restart`, `~backup`, `~restore`,
-`~restore-saf`, `~cleanup`). Every change is saved at once — there is no `~save`; `~restart`
+`~restore-saf`, `~cleanup`, `~reset`). Every change is saved at once — there is no `~save`; `~restart`
 recreates the activity, which reads the config afresh. Default
 favorites (phone, messenger, email, browser, camera) are seeded once, on a fresh install.
 
@@ -103,8 +103,8 @@ Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile bro
 → `MainActivity.appsMaybeChanged` (refresh now while in front, else mark dirty);
 `onResume` refreshes when dirty, when `LauncherState.needsRefresh`, or after 5 min →
 `LauncherState.refresh()` → IO thread (load config once,
-enumerate apps of every profile) → main-thread hand-off guarded by generation
-counters → `applyFilter` re-renders. An enumeration carries no config: it lists system
+enumerate apps of every profile) → main-thread hand-off guarded by the load generation
+(newest wins) and the config epoch → `applyFilter` re-renders. An enumeration carries no config: it lists system
 labels only, and the custom names are applied on the main thread from the live config
 (`LauncherLogic.named`, at the hand-off and after every change to the names). Every mutation → `LauncherState.mutated()` → serialized on
 main, written on the IO thread.
@@ -135,8 +135,10 @@ main, written on the IO thread.
 5. **No edit, no save before the config is loaded** — the empty default must never be
    written over the real file. `LauncherState` refuses both until then; the Activity says
    why (`editable()`). An unreadable config (`load()` null, `configUnreadable`) counts as
-   not loaded: retried on every resume, ended by a successful read or a
-   restore. `~backup` before the load exports the disk copy — and writes nothing if that is
+   not loaded: retried on every resume, ended by a successful read, a restore or `~reset`.
+   `~reset` acts ONLY on an unreadable config, after a confirmation: it renames the files
+   to `*.unreadable` — NEVER deletes them (`ConfigStore.setAsideUnreadable`, primary last, so
+   a refused rename leaves a published copy) — and starts over through the first load. `~backup` before the load exports the disk copy — and writes nothing if that is
    unreadable. Home is drawn and its cache written only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
@@ -149,8 +151,8 @@ main, written on the IO thread.
    would replace the real one) → write the undo point → write the restored config to
    `verso.json` in the same IO task (the restore must survive a lost hand-back; a failed
    write adopts nothing) → sweep the old undo point → `adopt`. No undo point, no restore —
-   except over an unreadable config: nothing readable is there to keep, so the restore is
-   written over it without one.
+   except over an unreadable config: its files are set aside (renamed, never written over —
+   a read error may pass) in place of the undo point; if that fails, nothing is written.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`
@@ -197,8 +199,8 @@ main, written on the IO thread.
     every step holds it and releases it on every path (`CommandGate.io` catches what its
     work throws; `LauncherState.cleanup` reports from a `finally`). No run
     spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
-    before a run starts, only its adoption is one; the cleanup dialog ends its run, its OK
-    starts a new one.
+    before a run starts, only its adoption is one (`~restart` is refused while it is read);
+    the cleanup and reset dialogs end their run, their OK starts a new one.
 
 ---
 

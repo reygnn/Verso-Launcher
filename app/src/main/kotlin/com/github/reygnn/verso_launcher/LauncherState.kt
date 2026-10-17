@@ -83,10 +83,9 @@ internal class LauncherState(
 
     /**
      * True while the launcher is not current: the config is not loaded yet, or the last load
-     * that reached its hand-off did not commit its app list (the enumeration failed, or a
-     * rename made its labels stale). The Activity refreshes on resume while this holds, even
-     * when no package change was reported — otherwise a dropped load is only retried once the
-     * stale timer runs out.
+     * that reached its hand-off did not commit its app list (the enumeration failed). The
+     * Activity refreshes on resume while this holds, even when no package change was reported —
+     * otherwise a failed load is only retried once the stale timer runs out.
      */
     val needsRefresh: Boolean
         get() = !configLoaded || !lastLoadCommitted
@@ -357,7 +356,8 @@ internal class LauncherState(
 
     /**
      * Adopt a restored config wholesale ("~restore"). The caller has already parsed it (a
-     * malformed backup never gets here) and written the outgoing config out as the undo point.
+     * malformed backup never gets here) and written the outgoing config out as the undo point
+     * (or, over an unreadable config, set its files aside — see RestoreSteps).
      * Bumps configEpoch, which a first load still in flight checks: it must not land over this.
      * Saves, then re-renders through a [refresh] — without re-reading the file just queued.
      */

@@ -53,7 +53,7 @@ package com.github.reygnn.verso_launcher
  *   io = { task -> ioQueue.addLast(task); true }
  *   main = { task -> mainQueue.addLast(task) }
  *
- *   state.refresh(reloadConfig = true)
+ *   state.refresh()
  *   runIo()             // the load ran …
  *   state.refresh()     // … a resume supersedes it before the hand-off
  *   runAll()

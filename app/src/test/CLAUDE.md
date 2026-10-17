@@ -30,7 +30,8 @@ CommandGateTest              9  one "~" command at a time: a run ends with its l
 LauncherRowsTest            37  rowsFor per mode
 ConfigStoreTest             37  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
-                                heal-without-rotate, isFresh, unreadable is null — not empty
+                                heal-without-rotate, isFresh, unreadable is null — not empty,
+                                set aside by renaming (never deleted, primary last)
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         26  Enter / tap decisions, which Enter call acts
@@ -57,7 +58,8 @@ SourceGuardTest              8  source scans: no lenient ConfigJson.parse in Mai
                                 no density in configChanges, ~cleanup's IO guards, no
                                 brace-less object templates, every command inside the gate,
                                 backup/restore take only a loaded config, no names in
-                                the enumeration
+                                the enumeration, no edit while a command runs, ~restart and
+                                ~reset guarded
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
@@ -85,8 +87,8 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
   interleaving deterministic.
 - **No Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic`
   / `LauncherState`. Behaviour that only exists in the Activity is checked on a device;
-  `SourceGuardTest` scans the source for the two edits there that would be silently
-  dangerous.
+  `SourceGuardTest` scans the source for the edits there that would be silently
+  dangerous (see its tests).
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the
   backup layer is tested on a device instead.

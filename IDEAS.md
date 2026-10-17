@@ -26,12 +26,20 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 
 ## Review of refactor/simple-gate (2026-10-17), below the merge threshold
 
-- A restore over a config whose primary hit a READ error (not a torn file) writes over it with
-  no copy; that file may hold the newest save. (main healed over it from .bak on every load.)
-  Telling "read error" from "torn" in load()'s result would let the restore refuse instead.
-- Before the first load, a tap on a tag row in the `##` overview says "not loaded".
 - An IO step stuck in a system service (no timeout) keeps the gate busy for that activity
   instance; on main the commands queued behind it silently.
+
+## Second review of refactor/simple-gate (2026-10-17), left open
+
+- On a fresh install, the seeding save can land after a restore's write when a package change
+  re-queues the first load in that window (the gate does not cover the seeding).
+- A recreation mid-`~cleanup` (after its undo point) or mid-restore drops the result silently
+  (as on main); the cleanup could persist its forget on the IO thread like the restore does.
+- A `~restore-saf` pick read while a command runs is dropped with "busy" (by design); it could
+  wait for the gate instead.
+- `~backup` during an unreadable episode only says "backup failed", not why.
+- `~restart` gives no toast and lands on home, not in the drawer it was typed in.
+- The rows' outline alpha is not pinned by a test of its own.
 
 ## Seen on the A17
 

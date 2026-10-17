@@ -97,12 +97,13 @@ import java.util.concurrent.RejectedExecutionException
  *   !!      reorder favorites: tap a row to pick it up (marked »), tap another
  *           row to drop it there; tap the picked row again to cancel. The home page
  *           lists the favorites in this order, top to bottom
- *   ?       recents: the last-launched apps (in memory only, empty after restart)
+ *   ?       recents: the last-launched apps (in memory only, empty after a cold start)
  *   ~[text] commands: lists the "~" commands still matching [text] (a bare "~"
  *           lists every one); tap a row to run it
  * The "~" commands. Tap one in that overview, or type enough of one to be
  * unambiguous ("~b" can only be "~backup") and press Enter. Each acts once and
- * clears the prompt:
+ * clears the prompt. One runs at a time: while it runs, a second is refused (it stays in the
+ * prompt), and so is every edit:
  *   ~restart   recreate the activity: the config is read again, the list rebuilt
  *   ~backup    export the config to Download/Verso/verso-<date>_<time>.json,
  *              replacing the previous one once the new one is safely published —
@@ -110,11 +111,16 @@ import java.util.concurrent.RejectedExecutionException
  *   ~restore   adopt the newest such backup again. No picker. The config being
  *              replaced is first written next to it as verso-pre-restore-<date>_<time>
  *              .json; if that fails the restore is aborted, so a restore never
- *              destroys the state it overwrote without a trace.
+ *              destroys the state it overwrote without a trace. Over an unreadable
+ *              verso.json its files are renamed (*.unreadable) instead.
  *   ~restore-saf
  *              same, but PICK the file via the system document picker. The escape
  *              hatch for a config carried over from another phone or surviving a
  *              reinstall (see [restoreConfig]).
+ *   ~cleanup   remove the entries of apps no longer installed, after a confirmation and an
+ *              undo point (verso-pre-cleanup-<date>_<time>.json)
+ *   ~reset     only for an unreadable verso.json, after a confirmation: rename it (and its
+ *              .bak/.tmp) to *.unreadable — nothing deleted — and start over
  * Long-press any row (home or drawer) to set a custom name and its tags.
  */
 class MainActivity : Activity() {
@@ -1433,6 +1439,8 @@ class MainActivity : Activity() {
      * [BackupFiles.PRE_RESTORE_BASE], and ONLY once that write succeeded is [restored] adopted. A restore
      * whose undo point could not be written is aborted: replacing the config with nothing to
      * go back to is exactly the "destroyed without a trace" the undo point exists to prevent.
+     * Over an unreadable config there is nothing to make one of: its files are set aside
+     * (renamed) instead, and if that fails nothing is written (RestoreSteps).
      * The outgoing config is taken from memory here on the main thread, or — if it was never
      * loaded in this process (the picker's result delivered to a fresh process after Android
      * killed the launcher) — read from disk on the IO thread, where an empty default would
