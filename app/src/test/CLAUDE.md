@@ -13,15 +13,18 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 454 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 471 tests):
 
 ```
 LauncherLogicTest          139  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
-LauncherStateTest           62  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           69  the concurrency rules: refresh/reload/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
-                                save-before-load, needsRefresh, recents
+                                save-before-load, needsRefresh, recents, reports that
+                                come even when a step throws (a "~" command waits for them)
+CommandGateTest              9  one "~" command at a time: a run ends with its last step,
+                                refusal, hand-over, exceptions
 LauncherRowsTest            37  rowsFor per mode
 ConfigStoreTest             30  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
@@ -47,9 +50,9 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
 CleanupTest                  9  what ~cleanup may offer: complete enumeration, kept apps, parseKey
-SourceGuardTest              4  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              5  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no density in configChanges, ~cleanup's IO guards, no
-                                brace-less object templates
+                                brace-less object templates, every command inside the gate
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`

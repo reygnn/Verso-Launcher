@@ -177,8 +177,8 @@ class MainActivity : Activity() {
     private var resumed = false
     // Between onStart and onStop: the launcher can be seen (see cleanup).
     private var started = false
-    // A "~load" waiting for its hand-off, to confirm it (see runCommand).
-    private var reloadToastPending = false
+    // The "~" commands, one at a time (see runCommand).
+    private val gate = CommandGate()
 
     // What outlives this instance: the one disk thread and the recents (see VersoApp).
     private val app get() = VersoApp.from(this)
@@ -223,14 +223,6 @@ class MainActivity : Activity() {
                     // Its counts were for the config just replaced.
                     commandDialog?.dismiss()
                 }
-                // The first hand-off after a "~load" is the one that read the file: every older
-                // load is superseded by it.
-                // Only when the file was adopted: a change made while it loaded keeps memory, the
-                // newer truth, and then nothing was reloaded to confirm.
-                if (reloadToastPending) {
-                    reloadToastPending = false
-                    if (configReplaced) toast(getString(R.string.toast_reloaded))
-                }
                 refilter()
             },
             isFreshInstall = { store.isFresh() },
@@ -264,10 +256,8 @@ class MainActivity : Activity() {
     private var renameDialog: AlertDialog? = null
     // The "~cleanup" confirmation, tracked for the same reason.
     private var commandDialog: AlertDialog? = null
-    // The ticket a running "~cleanup" check was started under (null: none running), and the
-    // current one, bumped whenever the page turns away (closeDrawer, HOME, onStop) — a result
-    // must still match it to be shown (see cleanup).
-    private var checkingTicket: Int? = null
+    // Bumped whenever the page turns away (closeDrawer, HOME, onStop): a "~cleanup" check's
+    // result must still match it to be shown (see cleanup).
     private var cleanupTicket = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -351,10 +341,7 @@ class MainActivity : Activity() {
                     }
                     is TapAction.ReorderPick -> reorderTap(action.entry.key)
                     is TapAction.ToggleTag -> toggleTagOn(action.entry.key)
-                    // Clear FIRST, exactly as the Enter path does: setText fires the
-                    // TextWatcher synchronously, so the mode is back to NORMAL before the
-                    // command runs and the re-render can't land on a stale overview.
-                    is TapAction.Run -> { prompt.setText(""); runCommand(action.command) }
+                    is TapAction.Run -> runCommand(action.command)
                     // A tag row drills into that tag's apps by rewriting the prompt — the
                     // TextWatcher then re-filters. The same row type serves both overviews;
                     // which sigil it drills into is decided by the mode it was rendered in.
@@ -479,9 +466,7 @@ class MainActivity : Activity() {
                         lastRow = shown.lastOrNull(),
                     )
                 ) {
-                    // Clear the prompt BEFORE running it ("" parses to no command), so a
-                    // second Enter can't fire the same command again.
-                    is EnterAction.Run -> { prompt.setText(""); runCommand(action.command) }
+                    is EnterAction.Run -> runCommand(action.command)
                     is EnterAction.LaunchApp -> launch(action.entry)
                     // Drill a tag ("#tag"/"##tag") or clear back to NORMAL ("").
                     // setPrompt drives the TextWatcher exactly as typing does, so
@@ -1079,34 +1064,47 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Run a one-shot "~" command. RELOAD stays silent — its effect is the list
-     * redrawing, which is its own feedback. The other three do their work off-screen
-     * (or in another app entirely), so each one reports back with a toast; a save you
-     * cannot see happen is a save you do not trust.
+     * Run a one-shot "~" command, one at a time ([CommandGate], hard rule 15). Each reports back
+     * with a toast on its real result — a save you cannot see happen is a save you do not trust.
      */
     private fun runCommand(command: Command) {
-        when (command) {
-            // Confirmed once the reload has landed (see onRefreshed): if nothing changed on
-            // disk, nothing visible changes either, and a silent command looks like a dead one.
-            Command.RELOAD -> {
-                reloadToastPending = true
-                state.refresh(reloadConfig = true)
+        // Refused while one runs — and the typed command stays in the prompt, to send again.
+        if (gate.busy) {
+            toast(getString(R.string.toast_busy))
+            return
+        }
+        // Cleared BEFORE running ("" parses to no command): setText fires the TextWatcher
+        // synchronously, so the mode is back to NORMAL before the command runs.
+        prompt.setText("")
+        gate.start { t ->
+            when (command) {
+                // Confirmed only when the file was adopted: a change made while it loaded keeps
+                // memory, the newer truth, and then nothing was reloaded to confirm.
+                Command.RELOAD -> {
+                    gate.hold(t)
+                    state.reload { replaced -> gate.finish(t) { if (replaced) toast(getString(R.string.toast_reloaded)) } }
+                }
+                // Before the first load there is nothing of the user's in memory to write — say
+                // so rather than report a failed write.
+                Command.SAVE -> if (!state.configLoaded) toast(getString(R.string.toast_not_loaded)) else {
+                    gate.hold(t)
+                    state.save { ok ->
+                        gate.finish(t) { toast(getString(if (ok) R.string.toast_saved else R.string.toast_save_failed)) }
+                    }
+                }
+                Command.BACKUP -> backup(t)
+                Command.RESTORE -> restoreConfig(t)
+                // Only the picker: it is another activity, so no run spans it. Its answer
+                // starts a run of its own (onActivityResult).
+                Command.RESTORE_SAF -> pickRestoreFile()
+                Command.CLEANUP -> cleanup(t)
             }
-            // Toast from the IO callback, on the real result — NOT straight after
-            // submitting. save only queues the write; announcing success before the
-            // write is even attempted is exactly the "save you cannot see happen" this
-            // command exists to rule out.
-            // Before the first load there is nothing of the user's in memory to write — say
-            // so rather than report a failed write.
-            Command.SAVE -> if (!state.configLoaded) toast(getString(R.string.toast_not_loaded)) else state.save { ok ->
-                toast(getString(if (ok) R.string.toast_saved else R.string.toast_save_failed))
-            }
-            Command.BACKUP -> backup()
-            Command.RESTORE -> restoreConfig()
-            Command.RESTORE_SAF -> pickRestoreFile()
-            Command.CLEANUP -> cleanup()
         }
     }
+
+    /** One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. */
+    private fun <T : Any> commandIo(t: CommandGate.Ticket, work: () -> T?, then: (T?) -> Unit) =
+        gate.io(t, ::submitIo, { block -> onUi(block) }, work, { e -> Log.w("Verso", "command step failed", e) }, then)
 
     /**
      * "~backup": export the config to Download/[BackupFiles.DIR] as a backup of [BackupFiles.BACKUP_BASE],
@@ -1124,17 +1122,15 @@ class MainActivity : Activity() {
      * cold start) memory still holds the empty default, and exporting THAT would replace the
      * real backup with nothing; the file on disk is the truth then, read on the IO thread.
      */
-    private fun backup() {
+    private fun backup(t: CommandGate.Ticket) {
         val payload = if (state.configLoaded) ConfigJson.serialize(state.config) else null
-        val accepted = submitIo {
-            val name = backupStore.write(BackupFiles.BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
-            onUi {
-                // Name the file actually written: its name carries the time it was taken.
-                if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
-                else toast(getString(R.string.toast_backup_failed))
-            }
+        commandIo(t, work = {
+            backupStore.write(BackupFiles.BACKUP_BASE, payload ?: ConfigJson.serialize(store.load()))
+        }) { name ->
+            // Name the file actually written: its name carries the time it was taken.
+            if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
+            else toast(getString(R.string.toast_backup_failed))
         }
-        if (!accepted) toast(getString(R.string.toast_backup_failed))
     }
 
     /**
@@ -1143,34 +1139,23 @@ class MainActivity : Activity() {
      * entries whose package is gone from the device altogether. Nothing is removed without the
      * dialog's OK, and then [LauncherState.cleanup] checks again and writes an undo point first.
      */
-    private fun cleanup() {
+    private fun cleanup(t: CommandGate.Ticket) {
         if (!state.configLoaded) {
             toast(getString(R.string.toast_not_loaded))
             return
         }
-        // A check already on its way to a dialog on this page: one is enough. One whose page
-        // turned away meanwhile will be dropped, so it does not block a new one.
-        if (checkingTicket == cleanupTicket) return
         val ticket = cleanupTicket
-        checkingTicket = ticket
         val snapshot = state.config.snapshot()
-        val accepted = submitIo {
-            val plan = safeCleanupCheck(snapshot)
-            onUi {
-                if (checkingTicket == ticket) checkingTicket = null
-                // Left meanwhile — the drawer closed, HOME, an app started, the screen off: no
-                // dialog popping up over a page that moved on, no toast over another app.
-                if (!started || ticket != cleanupTicket) return@onUi
-                when (plan) {
-                    CleanupPlan.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
-                    CleanupPlan.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
-                    is CleanupPlan.Offer -> confirmCleanup(plan.orphans)
-                }
+        commandIo(t, work = { safeCleanupCheck(snapshot) }) { plan ->
+            // Left meanwhile — the drawer closed, HOME, an app started, the screen off: no
+            // dialog popping up over a page that moved on, no toast over another app.
+            if (started && ticket == cleanupTicket) when (plan) {
+                null -> toast(getString(R.string.toast_cleanup_not_run))
+                CleanupPlan.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
+                CleanupPlan.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
+                // The dialog ends this run: no run waits on the user. Its OK starts a new one.
+                is CleanupPlan.Offer -> confirmCleanup(plan.orphans)
             }
-        }
-        if (!accepted) {
-            checkingTicket = null
-            toast(getString(R.string.toast_cleanup_not_run))
         }
     }
 
@@ -1262,27 +1247,32 @@ class MainActivity : Activity() {
         commandDialog?.show()
     }
 
-    /** OK: [LauncherState.cleanup] re-checks, writes the undo point, then removes. */
+    /** OK: [LauncherState.cleanup] re-checks, writes the undo point, then removes — a run of its own. */
     private fun runCleanup(confirmed: Set<String>) {
-        state.cleanup(
-            confirmed = confirmed,
-            recheck = ::safeCleanupCheck,
-            writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
-        ) { outcome ->
-            if (outcome is CleanupOutcome.Done) refilter()
-            // Gone meanwhile (an app in front, the screen off): the result stands, but no toast
-            // over another app.
-            if (!started) return@cleanup
-            when (outcome) {
-                CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_not_run))
-                CleanupOutcome.Superseded -> toast(getString(R.string.toast_cleanup_superseded))
-                CleanupOutcome.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
-                CleanupOutcome.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
-                CleanupOutcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed))
-                is CleanupOutcome.Done -> {
-                    toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
-                }
-            }
+        val accepted = gate.start { t ->
+            gate.hold(t)
+            state.cleanup(
+                confirmed = confirmed,
+                recheck = ::safeCleanupCheck,
+                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
+            ) { outcome -> gate.finish(t) { cleanupDone(outcome) } }
+        }
+        if (!accepted) toast(getString(R.string.toast_busy))
+    }
+
+    private fun cleanupDone(outcome: CleanupOutcome) {
+        if (outcome is CleanupOutcome.Done) refilter()
+        // Gone meanwhile (an app in front, the screen off): the result stands, but no toast
+        // over another app.
+        if (!started) return
+        when (outcome) {
+            CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_not_run))
+            CleanupOutcome.Superseded -> toast(getString(R.string.toast_cleanup_superseded))
+            CleanupOutcome.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
+            CleanupOutcome.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
+            CleanupOutcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed))
+            is CleanupOutcome.Done ->
+                toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
         }
     }
 
@@ -1293,27 +1283,27 @@ class MainActivity : Activity() {
      * The read runs on [ioExecutor]; only the adoption returns to the main thread, where
      * the config lives.
      */
-    private fun restoreConfig() {
-        submitIo {
+    private fun restoreConfig(t: CommandGate.Ticket) {
+        commandIo(t, work = {
             // The newest backup of ours, whatever MediaStore named it — or, if none was ever
             // published, an interrupted first one (see BackupFiles.latestToRestore).
             val latest = backupStore.lookupLatest(BackupFiles.BACKUP_BASE)
             val text = (latest as? BackupStore.Latest.Found)?.let { backupStore.readText(it.uri) }
             // Parsed here, off the main thread: a hostile document is parse work the UI must
             // not wait on (and the parse is where a torn temp gets rejected).
-            val restored = text?.let { ConfigJson.parseForeign(it) }
-            onUi {
-                // Nothing there at all is its own message: "~backup was never run" is a
-                // different problem from "the backup is broken", and both differ from "the
-                // folder could not be read" — saying which saves the user a wrong hunt.
-                when {
-                    latest is BackupStore.Latest.Failed ->
-                        toast(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
-                    latest is BackupStore.Latest.None ->
-                        toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
-                    restored == null -> toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                    else -> adoptRestored(restored)
-                }
+            latest to text?.let { ConfigJson.parseForeign(it) }
+        }) { read ->
+            val (latest, restored) = read ?: (null to null)
+            // Nothing there at all is its own message: "~backup was never run" is a different
+            // problem from "the backup is broken", and both differ from "the folder could not
+            // be read" — saying which saves the user a wrong hunt.
+            when {
+                latest is BackupStore.Latest.Failed ->
+                    toast(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
+                latest is BackupStore.Latest.None ->
+                    toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
+                restored == null -> toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                else -> adoptRestored(t, restored)
             }
         }
     }
@@ -1384,7 +1374,9 @@ class MainActivity : Activity() {
                 // pointed at a file and it could not be read or is no config. Either way
                 // nothing was changed.
                 if (restored == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                else adoptRestored(restored)
+                // The adoption is a run of its own; with another one running, the pick is
+                // dropped — "~restore-saf" again once that one is done.
+                else if (!gate.start { t -> adoptRestored(t, restored) }) toast(getString(R.string.toast_busy))
             }
         }, "verso-restore-read").start()
     }
@@ -1404,7 +1396,7 @@ class MainActivity : Activity() {
      * killed the launcher) — read from disk on the IO thread, where an empty default would
      * otherwise replace a real undo point with nothing.
      */
-    private fun adoptRestored(restored: VersoConfig) {
+    private fun adoptRestored(t: CommandGate.Ticket, restored: VersoConfig) {
         // What a restore actually adopted, so a "my favorites are gone" report can be
         // settled from the log instead of guessed at.
         Log.i(
@@ -1413,38 +1405,31 @@ class MainActivity : Activity() {
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
         val outgoing = if (state.configLoaded) state.config.snapshot() else null
-        val accepted = submitIo {
+        commandIo(t, work = {
             // The IO half in its load-bearing order (CLAUDE.md rule 7): stop if nothing would
             // change, write the undo point, persist the restored config — see RestoreSteps.
-            val outcome = RestoreSteps.run(
+            RestoreSteps.run(
                 current = outgoing ?: store.load(),
                 restored = restored,
                 writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload) },
                 writeConfig = { payload -> store.write(payload, rotateBackup = true) },
             )
-            val undo = when (outcome) {
-                RestoreSteps.Outcome.Unchanged -> {
-                    onUi { toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG) }
-                    return@submitIo
+        }) { outcome ->
+            when (outcome) {
+                RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
+                null, RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
+                is RestoreSteps.Outcome.Done -> {
+                    // Wholesale replace, save and re-render — with the epoch guard that keeps an
+                    // enumeration already in flight from handing the OLD config back over this one.
+                    state.adopt(restored)
+                    // A dialog opened against the pre-restore config would write its stale name
+                    // and tags over what the restore just brought in.
+                    renameDialog?.dismiss()
+                    commandDialog?.dismiss()
+                    toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
                 }
-                RestoreSteps.Outcome.UndoFailed -> {
-                    onUi { toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG) }
-                    return@submitIo
-                }
-                is RestoreSteps.Outcome.Done -> outcome.undoName
-            }
-            onUi {
-                // Wholesale replace, save and re-render — with the epoch guard that keeps an
-                // enumeration already in flight from handing the OLD config back over this one.
-                state.adopt(restored)
-                // A dialog opened against the pre-restore config would write its stale name
-                // and tags over what the restore just brought in.
-                renameDialog?.dismiss()
-                commandDialog?.dismiss()
-                toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(undo)), Toast.LENGTH_LONG)
             }
         }
-        if (!accepted) toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
     }
 
     /** Toasts are this launcher's only chrome — one helper so they stay uniform. */

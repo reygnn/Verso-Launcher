@@ -39,6 +39,19 @@ class LauncherStateTest {
     /** Every payload handed to writeConfig, in order. */
     private val written = mutableListOf<String>()
     private var writeSucceeds = true
+    /** A step that throws — a bug, every real one catches its own errors; the report must come anyway. */
+    private var loadThrows = false
+    private var writeThrows = false
+
+    /** Runs the next IO task, expecting it to throw (the IO thread's guard would log it). */
+    private fun runIoThrowing() {
+        try {
+            ioQueue.removeFirst().run()
+            throw AssertionError("expected the IO task to throw")
+        } catch (e: IllegalStateException) {
+            // expected
+        }
+    }
 
     private val refreshed = mutableListOf<Boolean>()
 
@@ -47,7 +60,7 @@ class LauncherStateTest {
         main = { task -> mainQueue.addLast(task) },
         // A copy, like a real read: the file and the live config must never be one object,
         // or a test could pass only because a mutation also "changed the disk".
-        loadConfig = { loadConfigCalls++; disk.snapshot() },
+        loadConfig = { loadConfigCalls++; if (loadThrows) throw IllegalStateException("load bug"); disk.snapshot() },
         enumerateApps = { cfg ->
             enumeratedWith += cfg
             if (enumerationFails) null
@@ -62,7 +75,7 @@ class LauncherStateTest {
                 "names=${c.names.entries.joinToString(",") { "${it.key}=${it.value}" }};" +
                 "tags=${c.tags.entries.joinToString(",") { "${it.key}=${it.value.joinToString("+")}" }}"
         },
-        writeConfig = { payload -> written += payload; writeSucceeds },
+        writeConfig = { payload -> if (writeThrows) throw IllegalStateException("write bug"); written += payload; writeSucceeds },
         onRefreshed = { replaced -> refreshed += replaced },
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
@@ -155,6 +168,64 @@ class LauncherStateTest {
         state.refresh()
         runAll()
         assertEquals(2, loadConfigCalls)
+    }
+
+    // ---- "~load" reports back: its run waits for that ---------------------------------
+
+    @Test fun `reload answers once its load has landed, true when the file was adopted`() {
+        started()
+        val answers = mutableListOf<Boolean>()
+        state.reload { answers += it }
+        runIo()
+        assertEquals("not before the hand-off", emptyList<Boolean>(), answers)
+        runMain()
+        assertEquals(listOf(true), answers)
+        assertEquals(2, loadConfigCalls)
+    }
+
+    @Test fun `a reload superseded by a resume refresh is answered once, by that refresh`() {
+        started()
+        val answers = mutableListOf<Boolean>()
+        state.reload { answers += it }
+        state.refresh()  // onResume before the reload's IO ran
+        runAll()
+        assertEquals(listOf(true), answers)
+    }
+
+    @Test fun `a reload answers false when an edit made during it kept memory`() {
+        started()
+        val answers = mutableListOf<Boolean>()
+        state.reload { answers += it }
+        runIo()
+        state.toggleFavorite(key("Bravo"))  // memory is the newer truth now
+        runAll()
+        assertEquals(listOf(false), answers)
+    }
+
+    @Test fun `a restore answers a pending reload with false`() {
+        started()
+        val answers = mutableListOf<Boolean>()
+        state.reload { answers += it }
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
+        assertEquals(listOf(false), answers)
+        runAll()
+        assertEquals("answered once", listOf(false), answers)
+    }
+
+    @Test fun `a load that throws still answers the reload, adopts nothing and stays pending`() {
+        started()
+        val answers = mutableListOf<Boolean>()
+        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
+        loadThrows = true
+        state.reload { answers += it }
+        runIoThrowing()
+        runMain()
+        assertEquals(listOf(false), answers)
+        assertTrue(state.config.hidden.isEmpty())
+        loadThrows = false
+        state.refresh()  // the next resume reads the file again
+        runAll()
+        assertEquals(setOf(key("Bravo")), state.config.hidden)
     }
 
     @Test fun `a restore cancels a pending reload instead of re-reading the file`() {
@@ -306,10 +377,15 @@ class LauncherStateTest {
     private val cleanupLog = mutableListOf<String>()
     private var undoName: String? = "verso-pre-cleanup-2026-10-13_120000.json"
     private var recheckPlan: CleanupPlan = CleanupPlan.Offer(Orphans(setOf("gone/A"), 1, 0, 0, 0))
+    private var recheckThrows = false
 
     private fun cleanup(confirmed: Set<String> = setOf("gone/A")) = state.cleanup(
         confirmed = confirmed,
-        recheck = { cfg -> cleanupLog += "recheck:${cfg.favorites}"; recheckPlan },
+        recheck = { cfg ->
+            cleanupLog += "recheck:${cfg.favorites}"
+            if (recheckThrows) throw IllegalStateException("recheck bug")
+            recheckPlan
+        },
         writeUndo = { payload -> cleanupLog += "undo:$payload|written=${written.size}"; undoName },
     ) { cleanupLog += "done:$it" }
 
@@ -389,6 +465,16 @@ class LauncherStateTest {
         ioOpen = false
         cleanup()
         assertEquals(listOf("done:${CleanupOutcome.Refused}"), cleanupLog)
+    }
+
+    @Test fun `a cleanup whose re-check throws still reports, and removes nothing`() {
+        startedWithOrphan()
+        recheckThrows = true
+        cleanup()
+        runIoThrowing()
+        runMain()
+        assertEquals("done:${CleanupOutcome.Refused}", cleanupLog.last())
+        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
     }
 
     @Test fun `forget before the config is loaded changes nothing`() {
@@ -525,6 +611,16 @@ class LauncherStateTest {
         assertNull("nothing before the write ran", result)
         runIo()
         assertNull("delivered via the main thread", result)
+        runMain()
+        assertEquals(false, result)
+    }
+
+    @Test fun `save reports false even when the write throws`() {
+        started()
+        writeThrows = true
+        var result: Boolean? = null
+        state.save { result = it }
+        runIoThrowing()
         runMain()
         assertEquals(false, result)
     }

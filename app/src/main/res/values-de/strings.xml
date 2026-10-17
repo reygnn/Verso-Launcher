@@ -28,6 +28,7 @@
     <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok ist der Dateiname, in
          toast_restore_ok die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
     <string name="toast_saved">Konfiguration gespeichert</string>
+    <string name="toast_busy">Beschäftigt — laufenden Befehl abwarten</string>
     <string name="toast_not_loaded">Konfiguration noch nicht geladen — gleich nochmal versuchen</string>
     <string name="toast_not_default_home">Verso als Standard-Startbildschirm festlegen, um Arbeits-Apps einzuschalten</string>
     <string name="toast_reloaded">Konfiguration neu geladen</string>

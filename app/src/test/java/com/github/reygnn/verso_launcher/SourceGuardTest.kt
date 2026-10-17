@@ -37,7 +37,20 @@ class SourceGuardTest {
         assertTrue(Regex("""complete = false""").findAll(activity).count() >= 4)
         // The undo point goes to its own base, never over the backup or the restore undo point.
         assertTrue(Regex("""backupStore\.write\(\s*BackupFiles\.PRE_CLEANUP_BASE""").containsMatchIn(activity))
-        assertTrue(activity.contains("Command.CLEANUP -> cleanup()"))
+        assertTrue(activity.contains("Command.CLEANUP -> cleanup(t)"))
+    }
+
+    @Test fun `every command runs inside the gate`() {
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        // Three ways in (hard rule 15): the typed commands, the ~restore-saf answer, a confirmed
+        // ~cleanup. The command bodies take the run's ticket, so none can be called outside one.
+        assertEquals(3, Regex("""gate\.start\s*\{""").findAll(activity).count())
+        for (body in listOf("backup", "restoreConfig", "cleanup", "adoptRestored")) {
+            val inRun = Regex("""(?<!fun |\.)\b$body\(t\b""").findAll(activity).count()
+            val all = Regex("""(?<!fun |\.)\b$body\(""").findAll(activity).count()
+            assertEquals("$body( called outside a run", all, inRun)
+        }
+        assertTrue(Regex("""fun runCleanup\([^)]*\)\s*\{\s*val accepted = gate\.start""").containsMatchIn(activity))
     }
 
     @Test fun `no string template reaches through an object without braces`() {
