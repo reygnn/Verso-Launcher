@@ -496,6 +496,8 @@ class MainActivity : Activity() {
         promptRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(palette.promptBar)
+            // Text and × off the bar's edges.
+            setPadding(8.dp(), 0, 8.dp(), 0)
             gravity = Gravity.CENTER_VERTICAL
             // 48dp: the minimum touch target — the bare EditText (no background, no padding)
             // and the × were only ~30dp tall.

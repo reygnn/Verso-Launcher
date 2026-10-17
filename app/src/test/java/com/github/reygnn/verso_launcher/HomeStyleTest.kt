@@ -105,7 +105,8 @@ class HomeStyleTest {
     }
 
     /** The prompt's bar is translucent, so it is checked over the worst ground for it — black
-     *  under the light bar, white under the dark one: text at least 4.5:1, the hint and × 3:1. */
+     *  under the light bar, white under the dark one: text and hint at least 4.5:1 (the hint is
+     *  text too, WCAG 1.4.3), so the × is covered with them. */
     @Test fun `the prompt bar keeps text and hint readable over any wallpaper`() {
         fun over(bar: Int, ground: Int): Int {
             val a = (bar ushr 24) / 255.0
@@ -120,7 +121,7 @@ class HomeStyleTest {
             val p = HomeStyle.palette(lightWallpaper = light)
             val bar = over(p.promptBar, worst)
             assertTrue("text on the ${if (light) "light" else "dark"} bar", contrast(p.listText, bar) >= 4.5)
-            assertTrue("hint on the ${if (light) "light" else "dark"} bar", contrast(p.listDim, bar) >= 3.0)
+            assertTrue("hint on the ${if (light) "light" else "dark"} bar", contrast(p.listDim, bar) >= 4.5)
         }
     }
 

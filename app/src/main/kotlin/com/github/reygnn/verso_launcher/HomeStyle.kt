@@ -82,10 +82,10 @@ internal object HomeStyle {
      */
     fun palette(lightWallpaper: Boolean): Palette =
         if (lightWallpaper) {
-            Palette(homeText = 0xFF000000.toInt(), listText = 0xFF000000.toInt(), listDim = 0xFF5C5C5C.toInt(),
+            Palette(homeText = 0xFF000000.toInt(), listText = 0xFF000000.toInt(), listDim = 0xFF575757.toInt(),
                 promptBar = 0xD0FFFFFF.toInt(), darkBarIcons = true)
         } else {
-            Palette(homeText = TEXT_COLOR, listText = TEXT_COLOR, listDim = 0xFF808080.toInt(),
+            Palette(homeText = TEXT_COLOR, listText = TEXT_COLOR, listDim = 0xFF999999.toInt(),
                 promptBar = 0xD0000000.toInt(), darkBarIcons = false)
         }
 
