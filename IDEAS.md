@@ -3,15 +3,13 @@
 Not a plan — things seen and deliberately not built (yet). One line each, with where it came
 from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 
-## From refactor/command-gate (kept there as reference, not merged)
-
-- Honest empty-list hints while the config is not loaded (`EmptyHint.NOT_LOADED`).
-
 ## Review round 4 (2026-10-17), left open on purpose
 
-- A4: a cleanup whose hand-back is dropped (activity recreated) has already swept the previous
-  cleanup undo point while removing nothing.
-- B1: a recreation while `~restore` runs drops its result toast (a process-wide "last outcome").
+- A4: a recreation mid-`~cleanup` (after its undo point) has already swept the previous cleanup
+  undo point while removing nothing; the cleanup could persist its forget on the IO thread like
+  the restore does.
+- B1: a recreation mid-restore drops the result silently, toast included (a process-wide "last
+  outcome").
 - B2: `~backup`/restore toasts can appear over another app after onStop.
 - B3: a stuck `~restore-saf` read thread keeps the destroyed activity in memory.
 - C1: the rename dialog's tag filter drops the IME's composing span (Samsung: "wwo").
@@ -30,10 +28,6 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 
 ## Second review of refactor/simple-gate (2026-10-17), left open
 
-- On a fresh install, the seeding save can land after a restore's write when a package change
-  re-queues the first load in that window (the gate does not cover the seeding).
-- A recreation mid-`~cleanup` (after its undo point) or mid-restore drops the result silently
-  (as on main); the cleanup could persist its forget on the IO thread like the restore does.
 - A `~restore-saf` pick read while a command runs is dropped with "busy" (by design); it could
   wait for the gate instead.
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in.
