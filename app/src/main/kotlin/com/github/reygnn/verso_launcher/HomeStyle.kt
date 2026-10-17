@@ -214,6 +214,8 @@ internal data class Palette(
     val darkBarIcons: Boolean,
 ) {
     val listOutline: Int get() = HomeStyle.tonalOutlineColor(listText)
+    /** The prompt's selection: the text colour, translucent, so the selected text stays legible. */
+    val selection: Int get() = (listText and 0xFFFFFF) or 0x66000000
 }
 
 /** [value] dp in pixels at the current display density — the one dp helper every view builder

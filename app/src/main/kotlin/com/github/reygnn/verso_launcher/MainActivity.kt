@@ -13,6 +13,7 @@ import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -196,6 +197,9 @@ class MainActivity : Activity() {
     private lateinit var clearButton: TextView
     // The command line and its ×, on their own bar (Palette.promptBar).
     private lateinit var promptRow: LinearLayout
+    // The prompt's cursor, recoloured in place by applyPalette: the Editor loads a cursor drawable
+    // only once, so setting a new one later is ignored.
+    private val cursorDrawable = GradientDrawable()
     private lateinit var emptyView: OutlinedTextView
     private lateinit var listView: ListView
     private lateinit var prompt: EditText
@@ -419,6 +423,7 @@ class MainActivity : Activity() {
             hint = getString(R.string.hint_search)
             setHintTextColor(palette.listDim)
             setTextColor(palette.listText)
+            textCursorDrawable = cursorDrawable.apply { setSize(2.dp(), 1) }
             typeface = Typeface.MONOSPACE
             textSize = 20f
             background = null
@@ -2048,6 +2053,14 @@ class MainActivity : Activity() {
         prompt.setHintTextColor(palette.listDim)
         clearButton.setTextColor(palette.listDim)
         promptRow.setBackgroundColor(palette.promptBar)
+        // Cursor, selection and its handles in the text's colour: the theme's teal accent all but
+        // vanishes on the light bar.
+        cursorDrawable.setColor(p.listText)
+        prompt.invalidate()
+        prompt.highlightColor = p.selection
+        prompt.textSelectHandle?.let { prompt.setTextSelectHandle(it.mutate().apply { setTint(p.listText) }) }
+        prompt.textSelectHandleLeft?.let { prompt.setTextSelectHandleLeft(it.mutate().apply { setTint(p.listText) }) }
+        prompt.textSelectHandleRight?.let { prompt.setTextSelectHandleRight(it.mutate().apply { setTint(p.listText) }) }
         emptyView.setTextColor(palette.listDim)
         emptyView.setOutline(outlinePx, palette.listOutline)
         val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or

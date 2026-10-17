@@ -124,6 +124,14 @@ class HomeStyleTest {
         }
     }
 
+    @Test fun `the selection is the text colour, translucent`() {
+        for (light in listOf(true, false)) {
+            val p = HomeStyle.palette(lightWallpaper = light)
+            assertEquals(p.listText and 0xFFFFFF, p.selection and 0xFFFFFF)
+            assertEquals(0x66, p.selection ushr 24)
+        }
+    }
+
     @Test fun `luminance spans 0 to 1`() {
         assertEquals(0.0, HomeStyle.luminance(0xFF000000.toInt()), 1e-9)
         assertEquals(1.0, HomeStyle.luminance(0xFFFFFFFF.toInt()), 1e-9)
