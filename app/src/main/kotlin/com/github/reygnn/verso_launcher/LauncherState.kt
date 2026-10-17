@@ -35,8 +35,9 @@ internal class LauncherState(
     initialRecents: List<String> = emptyList(),
     private val onRecentsChanged: (List<String>) -> Unit = {},
 ) {
-    var config: VersoConfig = VersoConfig()
-        private set
+    /** Read-only from outside: every change goes through this class (save, configEpoch). */
+    val config: ConfigView get() = cfg
+    private var cfg: VersoConfig = VersoConfig()
 
     /** [enumerated] under the live custom names, in drawer order. */
     var apps: List<AppEntry> = emptyList()
@@ -67,10 +68,10 @@ internal class LauncherState(
     @Volatile private var configEpoch = 0
     @Volatile private var saveSeq = 0
 
-    fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, config.favorites)
+    fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, cfg.favorites)
 
     /** Null until loaded — never the empty default (hard rule 5). */
-    fun loadedSnapshot(): VersoConfig? = if (configLoaded) config.snapshot() else null
+    fun loadedSnapshot(): VersoConfig? = if (configLoaded) cfg.snapshot() else null
 
     /** Re-enumerate the apps (and, until loaded, read the config first) off the main thread. */
     fun refresh() {
@@ -96,11 +97,11 @@ internal class LauncherState(
                 var replaced = false
                 // A restore adopted before this landed is the newer truth.
                 if (diskConfig != null && configEpoch == epoch) {
-                    config = diskConfig
+                    cfg = diskConfig
                     configLoaded = true
                     replaced = true
-                    if (seeds.isNotEmpty() && config.favorites.isEmpty()) {
-                        config.favorites.addAll(seeds)
+                    if (seeds.isNotEmpty() && cfg.favorites.isEmpty()) {
+                        cfg.favorites.addAll(seeds)
                         mutated()
                     }
                 }
@@ -121,7 +122,7 @@ internal class LauncherState(
     fun save() {
         // Last line of hard rule 5: the empty default must never overwrite verso.json.
         if (!configLoaded) return
-        val payload = serialize(config)
+        val payload = serialize(cfg)
         val seq = ++saveSeq
         val accepted = io(Runnable {
             // A newer save queued behind this one carries this state too.
@@ -135,9 +136,9 @@ internal class LauncherState(
         }
     }
 
-    fun toggleHidden(key: String) = toggleIn(config.hidden, key)
+    fun toggleHidden(key: String) = toggleIn(cfg.hidden, key)
 
-    fun toggleFavorite(key: String) = toggleIn(config.favorites, key)
+    fun toggleFavorite(key: String) = toggleIn(cfg.favorites, key)
 
     private fun toggleIn(set: MutableSet<String>, key: String) {
         if (!configLoaded) return
@@ -148,18 +149,18 @@ internal class LauncherState(
     /** An app left with no tags loses its key: the file drops empty lists, memory must match. */
     fun toggleTag(key: String, tag: String) {
         if (!configLoaded) return
-        val next = LauncherLogic.toggleTag(config.tags[key], tag)
-        if (next.isEmpty()) config.tags.remove(key) else config.tags[key] = next.toMutableList()
+        val next = LauncherLogic.toggleTag(cfg.tags[key], tag)
+        if (next.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = next.toMutableList()
         mutated()
     }
 
     /** False, nothing saved, when the move is impossible or a no-op. */
     fun moveFavorite(pickedKey: String, targetKey: String): Boolean {
         if (!configLoaded) return false
-        val newOrder = LauncherLogic.reorder(config.favorites.toList(), pickedKey, targetKey)
+        val newOrder = LauncherLogic.reorder(cfg.favorites.toList(), pickedKey, targetKey)
             ?: return false
-        config.favorites.clear()
-        config.favorites.addAll(newOrder)  // LinkedHashSet: insertion order is the rank
+        cfg.favorites.clear()
+        cfg.favorites.addAll(newOrder)  // LinkedHashSet: insertion order is the rank
         mutated()
         return true
     }
@@ -168,8 +169,8 @@ internal class LauncherState(
     fun rename(key: String, systemLabel: String, name: String, tags: List<String>) {
         if (!configLoaded) return
         val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), systemLabel)
-        if (override == null) config.names.remove(key) else config.names[key] = override
-        if (tags.isEmpty()) config.tags.remove(key) else config.tags[key] = tags.toMutableList()
+        if (override == null) cfg.names.remove(key) else cfg.names[key] = override
+        if (tags.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = tags.toMutableList()
         mutated()
         relabel()
     }
@@ -178,10 +179,10 @@ internal class LauncherState(
     fun forget(keys: Set<String>) {
         // Before the load: unsavable, and the epoch bump would make the first load drop the disk config.
         if (!configLoaded || keys.isEmpty()) return
-        config.favorites.removeAll(keys)
-        config.hidden.removeAll(keys)
-        config.names.keys.removeAll(keys)
-        config.tags.keys.removeAll(keys)
+        cfg.favorites.removeAll(keys)
+        cfg.hidden.removeAll(keys)
+        cfg.names.keys.removeAll(keys)
+        cfg.tags.keys.removeAll(keys)
         mutated()
         relabel()
     }
@@ -198,9 +199,9 @@ internal class LauncherState(
             return
         }
         // Identity, not content: a restore swaps the object, an edit mutates it in place.
-        val base = config
-        val snapshot = config.snapshot()
-        val payload = serialize(config)
+        val base = cfg
+        val snapshot = cfg.snapshot()
+        val payload = serialize(cfg)
         val accepted = io(Runnable {
             // Reported from finally: the "~" command run ends only with it (hard rule 15).
             var outcome: CleanupOutcome = CleanupOutcome.Refused
@@ -219,7 +220,7 @@ internal class LauncherState(
                 main(Runnable {
                     when {
                         result !is CleanupOutcome.Done -> onDone(result)
-                        config !== base -> onDone(CleanupOutcome.Superseded)
+                        cfg !== base -> onDone(CleanupOutcome.Superseded)
                         else -> {
                             forget(result.keys)
                             onDone(result)
@@ -238,7 +239,7 @@ internal class LauncherState(
 
     /** The epoch bump keeps a first load still in flight from landing over the restore. */
     fun adopt(restored: VersoConfig) {
-        config = restored
+        cfg = restored
         configLoaded = true
         ++configEpoch  // no save: the restore has written verso.json already
         relabel()
@@ -246,7 +247,7 @@ internal class LauncherState(
     }
 
     private fun relabel() {
-        apps = LauncherLogic.named(enumerated, config.names)
+        apps = LauncherLogic.named(enumerated, cfg.names)
     }
 
     private fun mutated() {
