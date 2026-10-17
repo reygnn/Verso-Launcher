@@ -247,6 +247,7 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.parseCommand("~"))
         assertNull(LauncherLogic.parseCommand("~load"))
         assertNull(LauncherLogic.parseCommand("~save"))
+        assertEquals(Command.RESTART, LauncherLogic.parseCommand("~restart"))
         assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~backup"))
         assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.parseCommand("~restore-saf"))
@@ -305,7 +306,7 @@ class LauncherLogicTest {
     @Test fun `typing narrows the overview`() {
         assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~b").map { it.first })
         assertEquals(
-            listOf("~restore", "~restore-saf"),
+            listOf("~restart", "~restore", "~restore-saf"),
             LauncherLogic.commandsMatching("~r").map { it.first },
         )
         assertEquals(listOf("~restore-saf"), LauncherLogic.commandsMatching("~restore-").map { it.first })
@@ -314,6 +315,7 @@ class LauncherLogicTest {
 
     @Test fun `an unambiguous abbreviation resolves`() {
         assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
+        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
     }
@@ -335,6 +337,7 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.resolveCommand("~r"))
         assertNull(LauncherLogic.resolveCommand("~re"))
         assertNull(LauncherLogic.resolveCommand("~restor"))
+        assertNull(LauncherLogic.resolveCommand("~rest"))  // ~restart or ~restore
     }
 
     /** The list and the test must not drift: a command added to COMMANDS without a line

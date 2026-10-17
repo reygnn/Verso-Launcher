@@ -74,6 +74,9 @@ class SourceGuardTest {
             assertEquals("$body( called outside a run", all, inRun)
         }
         assertTrue(Regex("""fun runCleanup\([^)]*\)\s*\{\s*val accepted = gate\.start""").containsMatchIn(activity))
+        // ~restart too: refused while a command runs, like any other.
+        assertTrue(activity.contains("Command.RESTART -> recreate()"))
+        assertEquals(1, Regex("""\brecreate\(\)""").findAll(activity).count())
     }
 
     @Test fun `no edit while a command runs`() {

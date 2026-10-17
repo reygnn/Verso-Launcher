@@ -23,8 +23,9 @@ A launcher reduced to text. Front page ("recto"): clock, date and battery
 (each a double-tap target), the favorites as large text, swipe up for the drawer,
 swipe down for the recently used apps. Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
-`#`/`##` tags, `?` recents) and the `~` commands (`~backup`, `~restore`, `~restore-saf`,
-`~cleanup`). Every change is saved at once — there is no `~save` or `~load`. Default
+`#`/`##` tags, `?` recents) and the `~` commands (`~restart`, `~backup`, `~restore`,
+`~restore-saf`, `~cleanup`). Every change is saved at once — there is no `~save`; `~restart`
+recreates the activity, which reads the config afresh. Default
 favorites (phone, messenger, email, browser, camera) are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look

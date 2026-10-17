@@ -29,7 +29,7 @@ internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAV
 /** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
  *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
  *  same reason [Mode] is — the Activity and the tests both name it. */
-internal enum class Command { BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
+internal enum class Command { RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
 
 /**
  * What a config keeps for apps that are no longer installed ([LauncherLogic.orphans]): their
@@ -148,13 +148,15 @@ internal object LauncherLogic {
      * the abbreviation resolver and the exact parser can never drift apart — adding a
      * command here is the whole change.
      *
-     * Ordered harmless-first: ~backup only writes a copy out to Downloads; then the ones that CHANGE the live config —
+     * Ordered harmless-first: ~restart only reads the config again, ~backup only writes a copy
+     * out to Downloads; then the ones that CHANGE the live config —
      * ~restore, ~restore-saf and ~cleanup. The overview is bottom-anchored, so these sit
      * nearest the prompt: each is guarded instead — an undo point first, and a picker
      * (~restore-saf) or a confirmation dialog (~cleanup) — and none runs on a mistyped
      * prefix, since an ambiguous one resolves to nothing.
      */
     val COMMANDS: List<Pair<String, Command>> = listOf(
+        "~restart" to Command.RESTART,
         "~backup" to Command.BACKUP,
         "~restore" to Command.RESTORE,
         "~restore-saf" to Command.RESTORE_SAF,

@@ -102,6 +102,7 @@ import java.util.concurrent.RejectedExecutionException
  * The "~" commands. Tap one in that overview, or type enough of one to be
  * unambiguous ("~b" can only be "~backup") and press Enter. Each acts once and
  * clears the prompt:
+ *   ~restart   recreate the activity: the config is read again, the list rebuilt
  *   ~backup    export the config to Download/Verso/verso-<date>_<time>.json,
  *              replacing the previous one once the new one is safely published —
  *              always just the one current backup
@@ -1084,6 +1085,9 @@ class MainActivity : Activity() {
         prompt.setText("")
         gate.start { t ->
             when (command) {
+                // A new instance reads the config afresh and lists the apps again; its first load
+                // queues behind any save still on the IO thread. The redraw is the feedback.
+                Command.RESTART -> recreate()
                 Command.BACKUP -> backup(t)
                 Command.RESTORE -> restoreConfig(t)
                 // Only the picker: it is another activity, so no run spans it. Its answer

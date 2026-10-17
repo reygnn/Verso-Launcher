@@ -101,12 +101,14 @@ keyboard, no prompt:
     memory only, so it starts empty on every cold start; **Enter** relaunches the
     most recent. `?text` narrows them like a search
   - `~[text]` — commands. Typing `~` lists the commands; typing more narrows the
-    list (`~r` leaves `~restore` and `~restore-saf`). Tap a row to run it, or press
+    list (`~r` leaves `~restart`, `~restore` and `~restore-saf`). Tap a row to run it, or press
     **Enter** once what you typed can only mean one command — `~b` is enough for
     `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
     up. Every change is saved the moment you make it, so there is no save or load
     command. Each command acts once and clears the prompt. One runs at a time: a second
     one sent meanwhile is refused with a toast and stays on the line, to send again:
+    - `~restart` — read the config again and rebuild the list (after editing
+      `verso.json` by hand, or when something looks stale)
     - `~backup` — export the config to `Download/Verso/`, named after the moment it
       was taken (`verso-2026-10-13_120745.json`). It replaces the previous one, but
       only after the new one is safely written: a failed or interrupted backup never
