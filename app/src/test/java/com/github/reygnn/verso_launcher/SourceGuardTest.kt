@@ -85,6 +85,10 @@ class SourceGuardTest {
         // Both ways into an edit — a tap in an edit mode, the long-press rename — go through it.
         assertTrue(activity.contains("isEditMode(mode) && action !is TapAction.None && !editAllowed()"))
         assertTrue(activity.contains("if (editAllowed()) promptRename(row.entry)"))
+        // …and the rename dialog's OK again: a run may have started while it was up.
+        val confirm = activity.substringAfter("RenameDialog.show(", missingDelimiterValue = "")
+            .substringAfter("{ name, tags ->").substringBefore("state.rename(")
+        assertTrue("the rename OK must check editAllowed before state.rename", confirm.contains("if (!editAllowed()) return@show"))
     }
 
     @Test fun `no string template reaches through an object without braces`() {

@@ -1622,8 +1622,11 @@ class MainActivity : Activity() {
             fgColor = DIALOG_TEXT,
             onAppInfo = { openAppInfo(entry) },
         ) { name, tags ->
-            // Name override, tags, save, in-memory relabel + re-sort — and the counters that
-            // keep an in-flight load from undoing it: LauncherState.rename.
+            // A run may have started while the dialog was up (a ~restore-saf read ending): an
+            // edit now would save behind it. The name is dropped; the toast says why.
+            if (!editAllowed()) return@show
+            // Name override, tags, save, in-memory relabel + re-sort: LauncherState.rename. A load
+            // in flight cannot undo it — it carries no names, they are applied at its hand-off.
             state.rename(key, entry.systemLabel, name, tags)
             refilter()
         }
