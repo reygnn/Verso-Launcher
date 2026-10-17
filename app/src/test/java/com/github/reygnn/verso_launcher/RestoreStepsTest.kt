@@ -19,11 +19,21 @@ class RestoreStepsTest {
         restored = restored,
         writeUndo = { payload -> calls += "undo:" + ConfigJson.parse(payload)!!.favorites.joinToString(); undoName },
         writeConfig = { payload -> calls += "config:" + ConfigJson.parse(payload)!!.favorites.joinToString(); writeOk },
+        sweepUndo = { calls += "sweep" },
     )
 
     @Test fun `the undo point is written first, then the restored config`() {
         val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))
         assertEquals(RestoreSteps.Outcome.Done("verso-pre-restore-2026-10-13_120000.json"), outcome)
+        assertEquals(listOf("undo:old/Old", "config:new/New", "sweep"), calls)
+    }
+
+    /** The old undo point may be the very file being restored: it goes only once the restore is
+     *  saved. A failed write is reported, and nothing is swept. */
+    @Test fun `a failed config write is reported and keeps the previous undo point`() {
+        writeOk = false
+        val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))
+        assertEquals(RestoreSteps.Outcome.WriteFailed, outcome)
         assertEquals(listOf("undo:old/Old", "config:new/New"), calls)
     }
 

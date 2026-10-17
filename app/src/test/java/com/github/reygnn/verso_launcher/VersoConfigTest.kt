@@ -145,6 +145,8 @@ class VersoConfigTest {
         )
         assertTrue(a.sameContent(reordered))
         assertFalse(a.sameContent(VersoConfig(favorites = linkedSetOf("b/B", "a/A"), hidden = a.hidden, names = a.names, tags = a.tags)))
+        // Only the hidden set differs: a restore of it is a real change, not "nothing to do".
+        assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = linkedSetOf("x/X"), names = a.names, tags = a.tags)))
         assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = linkedMapOf("a/A" to "Alpha"), tags = a.tags)))
         assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = a.names, tags = linkedMapOf("a/A" to mutableListOf("home")))))
     }

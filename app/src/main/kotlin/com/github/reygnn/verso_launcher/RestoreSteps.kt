@@ -13,6 +13,9 @@ internal object RestoreSteps {
         data object Unchanged : Outcome
         /** The undo point could not be written: nothing else was written either. */
         data object UndoFailed : Outcome
+        /** The undo point was written, but the restored config could not be: nothing was adopted,
+         *  the config on disk is the one from before. */
+        data object WriteFailed : Outcome
         /** Undo point [undoName] written, then the restored config persisted. */
         data class Done(val undoName: String) : Outcome
         /** The config on disk was unreadable: no undo point, [restored] written over it — [saved]
@@ -27,20 +30,24 @@ internal object RestoreSteps {
      *    one (the config from before the first restore) with a copy of the restored config.
      * 2. Write the undo point — [current] — through [writeUndo] (the backup's published name,
      *    or null). No undo point, no restore.
-     * 3. Persist [restored] through [writeConfig] right away, in the same IO task: writing the
-     *    undo point has just replaced the previous one (possibly the very file being restored),
-     *    so from here the restore must survive even if the main-thread hand-off never runs.
+     * 3. Persist [restored] through [writeConfig] right away, in the same IO task, so the restore
+     *    survives even if the main-thread hand-off never runs. Its result counts: WriteFailed.
+     * 4. Only then [sweepUndo] the previous undo point — possibly the very file being restored
+     *    ("~restore-saf" of a verso-pre-restore file): it must not be gone before the restore is
+     *    saved. A crash before this step leaves one extra undo row, which the next one sweeps.
      */
     fun run(
         current: VersoConfig?,
         restored: VersoConfig,
         writeUndo: (String) -> String?,
         writeConfig: (String) -> Boolean,
+        sweepUndo: () -> Unit,
     ): Outcome {
         if (current == null) return Outcome.ReplacedUnreadable(writeConfig(ConfigJson.serialize(restored)))
         if (current.sameContent(restored)) return Outcome.Unchanged
         val undo = writeUndo(ConfigJson.serialize(current)) ?: return Outcome.UndoFailed
-        writeConfig(ConfigJson.serialize(restored))
+        if (!writeConfig(ConfigJson.serialize(restored))) return Outcome.WriteFailed
+        sweepUndo()
         return Outcome.Done(undo)
     }
 }

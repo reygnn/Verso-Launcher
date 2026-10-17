@@ -1424,12 +1424,14 @@ class MainActivity : Activity() {
             RestoreSteps.run(
                 current = outgoing ?: store.load(),
                 restored = restored,
-                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload) },
+                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
                 writeConfig = { payload -> store.write(payload, rotateBackup = true) },
+                sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
             )
         }) { outcome ->
             when (outcome) {
                 RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
+                RestoreSteps.Outcome.WriteFailed -> toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
                 is RestoreSteps.Outcome.ReplacedUnreadable -> if (!outcome.saved) {
                     toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
                 } else {

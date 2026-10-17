@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 483 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 484 tests):
 
 ```
 LauncherLogicTest          139  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -44,8 +44,8 @@ RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilte
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-RestoreStepsTest             5  the restore's IO order: undo point, then config; no-op restore;
-                                over an unreadable config
+RestoreStepsTest             6  the restore's IO order: undo point, config, then the old undo
+                                point swept; no-op restore; a failed write; over an unreadable config
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
@@ -64,7 +64,8 @@ with a device attached, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
 ```
 BackupStoreInstrumentedTest  BackupStore against the REAL MediaStore: publish, replace,
                              names taken by rows we don't own, failed/crashed publish,
-                             a crash between publish and sweep, a vanished temp
+                             a crash between publish and sweep, a vanished temp, a write
+                             whose sweep waits (a restore's undo point)
 ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limit)
 ```
 

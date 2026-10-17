@@ -66,8 +66,11 @@ internal class BackupStore(
      * A failure in 1 or 2 deletes only the temp — the old backup is untouched. A crash in 1 or 2
      * leaves the temp, which the next backup sweeps (step 3) and a restore reads if no backup
      * was ever published.
+     *
+     * [sweep] false leaves step 3 to a later [sweep] call — for a restore's undo point, whose
+     * predecessor may be the very file being restored: it must stay until the restore is saved.
      */
-    fun write(base: String, payload: String): String? {
+    fun write(base: String, payload: String, sweep: Boolean = true): String? {
         var tmp: Uri? = null
         val wanted = BackupFiles.publishedName(base, now())
         return try {
@@ -105,19 +108,30 @@ internal class BackupStore(
             tmp = null  // published: from here on the catch must never delete it
             val id = ContentUris.parseId(published)
             val own = listOwn().orEmpty()
-            for (old in BackupFiles.replacedBy(base, id, own)) {
-                try {
-                    resolver.delete(uriOf(old.id), null, null)
-                } catch (e: Exception) {
-                    log("backup: could not remove the replaced ${old.name}", e)
-                }
-            }
+            if (sweep) remove(BackupFiles.replacedBy(base, id, own))
             own.firstOrNull { it.id == id }?.name ?: wanted
         } catch (e: Exception) {
             log("backup of $base to Downloads failed", e)
             // Only the unpublished temp — every older backup is still in place.
             tmp?.let { runCatching { resolver.delete(it, null, null) } }
             null
+        }
+    }
+
+    /** Step 3 of [write] after the fact: remove what the newest backup of [base] replaces. Never throws. */
+    fun sweep(base: String) {
+        val own = listOwn() ?: return
+        val newest = BackupFiles.latestToRestore(base, own) ?: return
+        remove(BackupFiles.replacedBy(base, newest.id, own))
+    }
+
+    private fun remove(rows: List<BackupFiles.Entry>) {
+        for (old in rows) {
+            try {
+                resolver.delete(uriOf(old.id), null, null)
+            } catch (e: Exception) {
+                log("backup: could not remove the replaced ${old.name}", e)
+            }
         }
     }
 

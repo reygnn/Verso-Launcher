@@ -111,6 +111,19 @@ class BackupStoreInstrumentedTest {
 
     // ---- the device bug: names taken by rows we don't own ------------------------------
 
+    /** A restore's undo point is written without the sweep: the previous one — possibly the
+     *  file being restored — stays until the restore is saved and [BackupStore.sweep] runs. */
+    @Test fun anUnsweptWriteKeepsThePreviousRowUntilSweep() {
+        val s = store()
+        val first = s.write("verso-pre-restore", PAYLOAD_A)
+        val second = s.write("verso-pre-restore", PAYLOAD_B, sweep = false)
+
+        assertEquals(listOf(first!!, second!!).sorted(), ownNames().sorted())
+        assertEquals(PAYLOAD_B, readLatest("verso-pre-restore"))
+        s.sweep("verso-pre-restore")
+        assertEquals(listOf(second), ownNames())
+    }
+
     @Test fun aForeignRowUnderTheOldFixedNameDoesNotInterfere() {
         shell("touch $dirPath/verso.json")  // the orphan an older install leaves behind
 
