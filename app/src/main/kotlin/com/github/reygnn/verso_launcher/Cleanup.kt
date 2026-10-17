@@ -57,14 +57,26 @@ internal object Cleanup {
      * answered empty is kept; and an app still on the device in some form — disabled, its icon
      * alias switched off, on unmounted storage, in a profile that exists but was not listed —
      * is never offered: [stillThere] asks the system for one. Runs on the IO thread.
+     *
+     * [ownSerial] is the serial of the launcher's own profile. A key carrying it ("pkg/cls#0")
+     * matches no app — the launcher's own apps are keyed without a serial (AppEntry.keyOf) — yet
+     * the system would answer "still there" for it, so it could never be cleaned up. It turns
+     * up in a config restored from another device or Android user (whose work profile had that
+     * serial), or edited by hand: gone, like a key no app can have.
      */
-    fun plan(config: VersoConfig, found: Enumeration?, stillThere: (KeyParts) -> Boolean): CleanupPlan {
+    fun plan(
+        config: VersoConfig,
+        found: Enumeration?,
+        ownSerial: Long? = null,
+        stillThere: (KeyParts) -> Boolean,
+    ): CleanupPlan {
         if (found == null || !found.complete) return CleanupPlan.Incomplete
         val installed = found.apps.mapTo(HashSet()) { it.key }
         val kept = { key: String ->
             val parts = AppEntry.parseKey(key)
             when {
                 parts == null -> false
+                parts.profile != null && parts.profile == ownSerial -> false
                 parts.profile != null && parts.profile in found.emptyProfiles -> true
                 else -> stillThere(parts)
             }

@@ -5,7 +5,6 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 
 ## From refactor/command-gate (kept there as reference, not merged)
 
-- `~cleanup`: a key carrying the launcher's own profile serial counts as gone (be2b277).
 - Honest empty-list hints while the config is not loaded (`EmptyHint.NOT_LOADED`).
 
 ## Review round 4 (2026-10-17), left open on purpose

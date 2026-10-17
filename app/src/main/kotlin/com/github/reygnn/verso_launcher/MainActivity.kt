@@ -1171,13 +1171,16 @@ class MainActivity : Activity() {
     /** The IO half of a cleanup check: enumerate afresh, then ask [Cleanup.plan]. */
     private fun cleanupCheck(cfg: VersoConfig): CleanupPlan {
         val found = enumerate()
-        val listed = try {
-            launcherApps.profiles.mapTo(HashSet()) { userManager.getSerialNumberForUser(it) }
+        val listed: Set<Long>
+        val ownSerial: Long?
+        try {
+            listed = launcherApps.profiles.mapTo(HashSet()) { userManager.getSerialNumberForUser(it) }
+            ownSerial = userManager.getSerialNumberForUser(Process.myUserHandle()).takeIf { it >= 0 }
         } catch (e: RuntimeException) {
             Log.w("Verso", "cleanup: profiles unreadable", e)
             return CleanupPlan.Incomplete
         }
-        return Cleanup.plan(cfg, found) { parts -> stillThere(parts, listed) }
+        return Cleanup.plan(cfg, found, ownSerial) { parts -> stillThere(parts, listed) }
     }
 
     /**

@@ -70,4 +70,15 @@ class CleanupTest {
         val plan = Cleanup.plan(config, Enumeration(listOf(here), complete = true)) { true }
         assertEquals(CleanupPlan.NothingToDo, plan)
     }
+
+    /** A key with the launcher's own profile serial matches no app (own apps carry no serial),
+     *  though the system would call it "still there": it came with a config from another device
+     *  or user. Gone — while the same app under its own key, and other profiles, stay. */
+    @Test fun `a key with the launcher's own profile serial is gone`() {
+        val ownKey = "here/here.Main#0"
+        val workKey = "work/work.Main#10"
+        val cfg = VersoConfig(favorites = linkedSetOf(here.key, ownKey, workKey))
+        val plan = Cleanup.plan(cfg, Enumeration(listOf(here), complete = true), ownSerial = 0L) { true }
+        assertEquals(setOf(ownKey), (plan as CleanupPlan.Offer).orphans.keys)
+    }
 }
