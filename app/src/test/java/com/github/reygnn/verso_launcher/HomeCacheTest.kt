@@ -5,8 +5,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
-class
- HomeCacheTest {
+class HomeCacheTest {
 
     @get:Rule val tmp = TemporaryFolder()
 

@@ -297,8 +297,7 @@ class BackupStoreInstrumentedTest {
         )!!.use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }.sorted()
     }
 
-    private
- fun shell(command: String) {
+    private fun shell(command: String) {
         instrumentation.uiAutomation.executeShellCommand(command).use { pfd ->
             java.io.FileInputStream(pfd.fileDescriptor).use { it.readBytes() }
         }
