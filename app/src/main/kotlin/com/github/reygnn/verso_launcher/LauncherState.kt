@@ -240,7 +240,7 @@ internal class LauncherState(
     fun adopt(restored: VersoConfig) {
         config = restored
         configLoaded = true
-        mutated()
+        ++configEpoch  // no save: the restore has written verso.json already
         relabel()
         refresh()
     }

@@ -154,7 +154,7 @@ main, written on the IO thread.
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to
    `verso.json` in the same IO task (the restore must survive a lost hand-back; a failed
-   write adopts nothing) → sweep the old undo point → `adopt`. No
+   write adopts nothing) → sweep the old undo point → `adopt` (memory only, no second write). No
    undo point, no restore.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
