@@ -760,6 +760,13 @@ class LauncherLogicTest {
         assertEquals("ab", LauncherLogic.starPrefix("*ab"))
     }
 
+    /** A space after a leading star is not part of the prefix: "* gm" means "*gm" — no label
+     *  starts with a space. (Before a trailing star it is: see "a *" below.) */
+    @Test fun `starPrefix drops spaces after a leading star`() {
+        assertEquals("gm", LauncherLogic.starPrefix("* gm"))
+        assertEquals("", LauncherLogic.starPrefix("* "))
+    }
+
     /** A bare "*" is the EMPTY prefix, i.e. the whole drawer (see the drawerStartingWith
      *  identity test above). "" is not null: the difference is drawer-vs-search. */
     @Test fun `starPrefix maps a bare star to the empty prefix`() {

@@ -347,7 +347,9 @@ internal object LauncherLogic {
      */
     fun starPrefix(trimmed: String): String? =
         if (trimmed.startsWith("*") || trimmed.endsWith("*")) {
-            trimmed.removePrefix("*").removeSuffix("*")
+            // "* gm" is "*gm": no label starts with a space. A space before a trailing star does
+            // count ("a *" is the word "a").
+            trimmed.removePrefix("*").trimStart().removeSuffix("*")
         } else {
             null
         }

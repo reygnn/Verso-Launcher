@@ -13,10 +13,10 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 453 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 454 tests):
 
 ```
-LauncherLogicTest          138  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          139  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 tags, reorder, recents, default favorites
 LauncherStateTest           62  the concurrency rules: refresh/reload/rename/adopt
