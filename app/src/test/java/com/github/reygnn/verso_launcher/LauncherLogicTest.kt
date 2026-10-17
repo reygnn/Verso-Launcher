@@ -243,10 +243,10 @@ class LauncherLogicTest {
 
     // ---- parseCommand -------------------------------------------------------
 
-    @Test fun `every command and the bare tilde alias parse`() {
-        assertEquals(Command.RELOAD, LauncherLogic.parseCommand("~"))
-        assertEquals(Command.RELOAD, LauncherLogic.parseCommand("~load"))
-        assertEquals(Command.SAVE, LauncherLogic.parseCommand("~save"))
+    @Test fun `every command parses, a bare tilde and the dropped ones do not`() {
+        assertNull(LauncherLogic.parseCommand("~"))
+        assertNull(LauncherLogic.parseCommand("~load"))
+        assertNull(LauncherLogic.parseCommand("~save"))
         assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~backup"))
         assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.parseCommand("~restore-saf"))
@@ -279,11 +279,11 @@ class LauncherLogicTest {
     /** The exact-match rule: "~" must not swallow a search that merely starts with it,
      *  which is what keeps the sigil from ever needing an escape. */
     @Test fun `a prefix or a partial is not a command`() {
-        assertNull(LauncherLogic.parseCommand("~saved"))
-        assertNull(LauncherLogic.parseCommand("~ save"))
-        assertNull(LauncherLogic.parseCommand("~sav"))
+        assertNull(LauncherLogic.parseCommand("~backups"))
+        assertNull(LauncherLogic.parseCommand("~ backup"))
+        assertNull(LauncherLogic.parseCommand("~backu"))
         assertNull(LauncherLogic.parseCommand("~backup now"))
-        assertNull(LauncherLogic.parseCommand("save"))
+        assertNull(LauncherLogic.parseCommand("backup"))
         assertNull(LauncherLogic.parseCommand(""))
     }
 
@@ -313,8 +313,7 @@ class LauncherLogicTest {
     }
 
     @Test fun `an unambiguous abbreviation resolves`() {
-        assertEquals(Command.RELOAD, LauncherLogic.resolveCommand("~l"))
-        assertEquals(Command.SAVE, LauncherLogic.resolveCommand("~s"))
+        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
     }
@@ -327,10 +326,9 @@ class LauncherLogicTest {
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-saf"))
     }
 
-    /** A bare "~" prefixes EVERY command, so only the exact-match alias keeps Enter on
-     *  it doing what it always did — reload, not "ambiguous, do nothing". */
-    @Test fun `a bare tilde still resolves to reload`() {
-        assertEquals(Command.RELOAD, LauncherLogic.resolveCommand("~"))
+    /** A bare "~" prefixes every command: ambiguous, so Enter on it runs nothing. */
+    @Test fun `a bare tilde resolves to nothing`() {
+        assertNull(LauncherLogic.resolveCommand("~"))
     }
 
     @Test fun `an ambiguous abbreviation resolves to nothing`() {
@@ -361,7 +359,7 @@ class LauncherLogicTest {
         assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~B").map { it.first })
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~B"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~RESTORE-"))
-        assertEquals(Command.RELOAD, LauncherLogic.resolveCommand("~LOAD"))
+        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~CLEANUP"))
     }
 
     /**

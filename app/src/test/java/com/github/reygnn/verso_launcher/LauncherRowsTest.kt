@@ -158,7 +158,7 @@ class LauncherRowsTest {
         val rows = rowsFor(Mode.COMMAND, "~")
         assertTrue(rows.all { it is CommandRow })
         assertEquals(LauncherLogic.COMMANDS.map { it.first }, rows.filterIsInstance<CommandRow>().map { it.name })
-        assertEquals("~load", (rows.first() as CommandRow).name)
+        assertEquals("~backup", (rows.first() as CommandRow).name)
     }
 
     @Test fun `tilde prefix narrows the command overview`() {

@@ -13,7 +13,7 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 - A4: a cleanup whose hand-back is dropped (activity recreated) has already swept the previous
   cleanup undo point while removing nothing.
 - B1: a recreation while `~restore` runs drops its result toast (a process-wide "last outcome").
-- B2: `~backup`/`~save`/`~load`/restore toasts can appear over another app after onStop.
+- B2: `~backup`/restore toasts can appear over another app after onStop.
 - B3: a stuck `~restore-saf` read thread keeps the destroyed activity in memory.
 - C1: the rename dialog's tag filter drops the IME's composing span (Samsung: "wwo").
 - C2: the first `!`/`-` restarts the keyboard (GO↔DONE); likely the "symbol page" jump.
@@ -29,7 +29,6 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 - A restore over a config whose primary hit a READ error (not a torn file) writes over it with
   no copy; that file may hold the newest save. (main healed over it from .bak on every load.)
   Telling "read error" from "torn" in load()'s result would let the restore refuse instead.
-- With an unreadable config, `~load` can show the unreadable toast twice.
 - Before the first load, a tap on a tag row in the `##` overview says "not loaded".
 - An IO step stuck in a system service (no timeout) keeps the gate busy for that activity
   instance; on main the commands queued behind it silently.

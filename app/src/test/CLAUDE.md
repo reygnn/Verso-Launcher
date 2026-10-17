@@ -13,17 +13,17 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 496 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 478 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           80  the concurrency rules: refresh/reload/rename/adopt
+LauncherStateTest           62  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents, reports that
-                                come even when a step throws (a "~" command waits for them),
+                                come even when a step throws (a "~cleanup" waits for it),
                                 an unreadable config (not loaded, no edit, retried)
 CommandGateTest              9  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions

@@ -30,7 +30,7 @@ internal sealed interface CleanupOutcome {
     data object Incomplete : CleanupOutcome
     /** Nothing that was offered is still an orphan (the app came back meanwhile). */
     data object NothingToDo : CleanupOutcome
-    /** The config was replaced (a restore, "~load") while the check ran: nothing removed —
+    /** The config was replaced (a restore) while the check ran: nothing removed —
      *  the counts confirmed and the undo point were for the config before it. */
     data object Superseded : CleanupOutcome
     /** The undo point could not be written: nothing removed (hard rule 14). */

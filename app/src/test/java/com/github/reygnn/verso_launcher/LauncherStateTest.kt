@@ -42,9 +42,6 @@ class LauncherStateTest {
     /** Every payload handed to writeConfig, in order. */
     private val written = mutableListOf<String>()
     private var writeSucceeds = true
-    /** A step that throws — a bug, every real one catches its own errors; the report must come anyway. */
-    private var loadThrows = false
-    private var writeThrows = false
 
     /** Runs the next IO task, expecting it to throw (the IO thread's guard would log it). */
     private fun runIoThrowing() {
@@ -63,7 +60,7 @@ class LauncherStateTest {
         main = { task -> mainQueue.addLast(task) },
         // A copy, like a real read: the file and the live config must never be one object,
         // or a test could pass only because a mutation also "changed the disk".
-        loadConfig = { loadConfigCalls++; if (loadThrows) throw IllegalStateException("load bug"); if (diskUnreadable) null else disk.snapshot() },
+        loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk.snapshot() },
         enumerateApps = {
             enumerations++
             if (enumerationFails) null else installed.reversed()
@@ -74,7 +71,7 @@ class LauncherStateTest {
                 "names=${c.names.entries.joinToString(",") { "${it.key}=${it.value}" }};" +
                 "tags=${c.tags.entries.joinToString(",") { "${it.key}=${it.value.joinToString("+")}" }}"
         },
-        writeConfig = { payload -> if (writeThrows) throw IllegalStateException("write bug"); written += payload; writeSucceeds },
+        writeConfig = { payload -> written += payload; writeSucceeds },
         onRefreshed = { replaced -> refreshed += replaced },
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
@@ -142,110 +139,6 @@ class LauncherStateTest {
         assertEquals("the system label stays on the entry", "Alpha", state.apps.last().systemLabel)
     }
 
-    @Test fun `reload forces a fresh read of the file`() {
-        started()
-        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
-        state.refresh(reloadConfig = true)
-        runAll()
-        assertEquals(2, loadConfigCalls)
-        assertEquals(setOf(key("Bravo")), state.config.hidden)
-    }
-
-    @Test fun `a reload superseded by a resume refresh still reads the file`() {
-        started()
-        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
-        state.refresh(reloadConfig = true)
-        state.refresh()  // onResume before the reload's IO ran: supersedes it
-        runAll()
-        assertEquals(2, loadConfigCalls)
-        assertEquals(setOf(key("Bravo")), state.config.hidden)
-    }
-
-    @Test fun `a reload superseded at its hand-off still reads the file`() {
-        started()
-        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
-        state.refresh(reloadConfig = true)
-        runIo()            // the reload read the file…
-        state.refresh()    // …but a resume superseded it before the hand-off
-        runAll()
-        assertEquals(setOf(key("Bravo")), state.config.hidden)
-    }
-
-    @Test fun `a completed reload is not repeated by later refreshes`() {
-        started()
-        state.refresh(reloadConfig = true)
-        runAll()
-        state.refresh()
-        runAll()
-        assertEquals(2, loadConfigCalls)
-    }
-
-    // ---- "~load" reports back: its run waits for that ---------------------------------
-
-    @Test fun `reload answers once its load has landed, true when the file was adopted`() {
-        started()
-        val answers = mutableListOf<Boolean>()
-        state.reload { answers += it }
-        runIo()
-        assertEquals("not before the hand-off", emptyList<Boolean>(), answers)
-        runMain()
-        assertEquals(listOf(true), answers)
-        assertEquals(2, loadConfigCalls)
-    }
-
-    @Test fun `a reload superseded by a resume refresh is answered once, by that refresh`() {
-        started()
-        val answers = mutableListOf<Boolean>()
-        state.reload { answers += it }
-        state.refresh()  // onResume before the reload's IO ran
-        runAll()
-        assertEquals(listOf(true), answers)
-    }
-
-    @Test fun `a reload answers false when an edit made during it kept memory`() {
-        started()
-        val answers = mutableListOf<Boolean>()
-        state.reload { answers += it }
-        runIo()
-        state.toggleFavorite(key("Bravo"))  // memory is the newer truth now
-        runAll()
-        assertEquals(listOf(false), answers)
-    }
-
-    @Test fun `a reload refused by the IO thread is answered at once`() {
-        started()
-        ioOpen = false
-        val answers = mutableListOf<Boolean>()
-        state.reload { answers += it }
-        assertEquals(listOf(false), answers)
-    }
-
-    @Test fun `a restore answers a pending reload with false`() {
-        started()
-        val answers = mutableListOf<Boolean>()
-        state.reload { answers += it }
-        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
-        assertEquals(listOf(false), answers)
-        runAll()
-        assertEquals("answered once", listOf(false), answers)
-    }
-
-    @Test fun `a load that throws still answers the reload, adopts nothing and stays pending`() {
-        started()
-        val answers = mutableListOf<Boolean>()
-        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))
-        loadThrows = true
-        state.reload { answers += it }
-        runIoThrowing()
-        runMain()
-        assertEquals(listOf(false), answers)
-        assertTrue(state.config.hidden.isEmpty())
-        loadThrows = false
-        state.refresh()  // the next resume reads the file again
-        runAll()
-        assertEquals(setOf(key("Bravo")), state.config.hidden)
-    }
-
     // ---- an unreadable config: not loaded, no edit, no save ----------------------------
 
     @Test fun `an unreadable config is not loaded, but the apps are listed`() {
@@ -268,12 +161,10 @@ class LauncherStateTest {
         state.toggleTag(key("Alpha"), "work")
         state.rename(key("Alpha"), "Alpha", "Mine", emptyList())
         assertFalse(state.moveFavorite(key("Alpha"), key("Bravo")))
-        var saved: Boolean? = null
-        state.save { saved = it }
+        state.save()
         runAll()
         assertEquals(VersoConfig().snapshot().favorites, state.config.favorites)
         assertTrue(state.config.hidden.isEmpty() && state.config.tags.isEmpty() && state.config.names.isEmpty())
-        assertEquals(false, saved)
         assertTrue(written.isEmpty())
     }
 
@@ -301,19 +192,6 @@ class LauncherStateTest {
         assertEquals(1, written.size)
     }
 
-    @Test fun `a loaded config stays loaded when a reload finds the file unreadable`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
-        started()
-        diskUnreadable = true
-        val answers = mutableListOf<Boolean>()
-        state.reload { answers += it }
-        runAll()
-        assertEquals(listOf(false), answers)
-        assertTrue(state.configLoaded)
-        assertFalse(state.configUnreadable)
-        assertEquals(setOf(key("Alpha")), state.config.favorites)
-    }
-
     @Test fun `loadedSnapshot is a copy of the loaded config`() {
         disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
         assertNull("not before the first load", state.loadedSnapshot())
@@ -321,15 +199,6 @@ class LauncherStateTest {
         val snap = state.loadedSnapshot()!!
         state.toggleFavorite(key("Bravo"))
         assertEquals(setOf(key("Alpha")), snap.favorites)
-    }
-
-    @Test fun `a restore cancels a pending reload instead of re-reading the file`() {
-        started()
-        state.refresh(reloadConfig = true)
-        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
-        runAll()
-        assertEquals(1, loadConfigCalls)
-        assertEquals(setOf(key("Bravo")), state.config.favorites)
     }
 
     @Test fun `configLoaded is false until the disk copy or a restore is adopted`() {
@@ -380,18 +249,6 @@ class LauncherStateTest {
     }
 
     // ---- toggles vs. an in-flight load -----------------------------------------------
-
-    @Test fun `a toggle during a reload keeps the live config, not the older disk copy`() {
-        started()
-        disk = VersoConfig()                  // the file does not have the favorite yet
-        state.refresh(reloadConfig = true)
-        runIo()                               // disk read + enumeration done
-        state.toggleFavorite(key("Alpha"))    // user taps before the hand-off
-        runAll()
-
-        assertEquals(setOf(key("Alpha")), state.config.favorites)
-        assertEquals(listOf(false), refreshed)  // not replaced
-    }
 
     @Test fun `a toggle during a load does not throw the new app list away`() {
         started()
@@ -700,57 +557,15 @@ class LauncherStateTest {
         assertEquals(listOf("fav=${key("Alpha")},${key("Bravo")},${key("Charlie")};hid=;names=;tags="), written)
     }
 
-    @Test fun `an explicit save is written even when a newer save follows`() {
-        started()
-        var result: Boolean? = null
-        state.save { result = it }
-        state.toggleFavorite(key("Alpha"))
-        runAll()
-        assertEquals(true, result)
-        assertEquals(2, written.size)
-    }
-
-    @Test fun `save reports the real write result on the main thread`() {
-        started()
-        writeSucceeds = false
-        var result: Boolean? = null
-        state.save { result = it }
-        assertNull("nothing before the write ran", result)
-        runIo()
-        assertNull("delivered via the main thread", result)
-        runMain()
-        assertEquals(false, result)
-    }
-
-    @Test fun `save reports false even when the write throws`() {
-        started()
-        writeThrows = true
-        var result: Boolean? = null
-        state.save { result = it }
-        runIoThrowing()
-        runMain()
-        assertEquals(false, result)
-    }
-
-    @Test fun `save before the first load writes nothing and reports failure`() {
+    @Test fun `save before the first load writes nothing`() {
         // The empty default in memory must never be written over the real file: it would
         // rotate the real config into .bak and publish an empty primary.
         disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
         state.refresh()  // the load is queued, not yet run
-        var result: Boolean? = null
-        state.save { result = it }
-        assertEquals(false, result)
+        state.save()
         runAll()
         assertEquals(emptyList<String>(), written)
         assertEquals(setOf(key("Alpha")), state.config.favorites)
-    }
-
-    @Test fun `save refused by a shut-down IO thread reports failure at once`() {
-        started()
-        ioOpen = false
-        var result: Boolean? = null
-        state.save { result = it }
-        assertEquals(false, result)
     }
 
     @Test fun `a refused save does not make the save queued ahead of it skip its write`() {
@@ -834,16 +649,6 @@ class LauncherStateTest {
         assertEquals(listOf("fav=${key("Bravo")};hid=;names=;tags="), written)
         assertEquals(1, loadConfigCalls)
         assertEquals(listOf(false), refreshed)
-    }
-
-    @Test fun `a reload in flight cannot clobber a restore`() {
-        started()
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
-        state.refresh(reloadConfig = true)
-        runIo()                                     // read the OLD file
-        state.adopt(VersoConfig(favorites = linkedSetOf(key("Charlie"))))
-        runAll()
-        assertEquals(setOf(key("Charlie")), state.config.favorites)
     }
 
     @Test fun `a restore before the cold start finished is not overwritten by it`() {

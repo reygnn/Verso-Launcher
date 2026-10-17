@@ -102,9 +102,6 @@ import java.util.concurrent.RejectedExecutionException
  * The "~" commands. Tap one in that overview, or type enough of one to be
  * unambiguous ("~b" can only be "~backup") and press Enter. Each acts once and
  * clears the prompt:
- *   ~ / ~load  reload verso.json from disk (the config is cached otherwise)
- *   ~save      flush the in-memory config to disk (saves are automatic; this is
- *              the explicit "write it now" for peace of mind)
  *   ~backup    export the config to Download/Verso/verso-<date>_<time>.json,
  *              replacing the previous one once the new one is safely published —
  *              always just the one current backup
@@ -1086,25 +1083,6 @@ class MainActivity : Activity() {
         prompt.setText("")
         gate.start { t ->
             when (command) {
-                // Confirmed only when the file was adopted: a change made while it loaded keeps
-                // memory, the newer truth, and then nothing was reloaded to confirm.
-                Command.RELOAD -> {
-                    gate.hold(t)
-                    state.reload { replaced ->
-                        gate.finish(t) {
-                            if (replaced) toast(getString(R.string.toast_reloaded))
-                            else if (state.configUnreadable) toast(getString(R.string.toast_config_unreadable), Toast.LENGTH_LONG)
-                        }
-                    }
-                }
-                // Before the first load there is nothing of the user's in memory to write — say
-                // so rather than report a failed write.
-                Command.SAVE -> if (editable()) {
-                    gate.hold(t)
-                    state.save { ok ->
-                        gate.finish(t) { toast(getString(if (ok) R.string.toast_saved else R.string.toast_save_failed)) }
-                    }
-                }
                 Command.BACKUP -> backup(t)
                 Command.RESTORE -> restoreConfig(t)
                 // Only the picker: it is another activity, so no run spans it. Its answer

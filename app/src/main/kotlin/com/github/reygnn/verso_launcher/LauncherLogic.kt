@@ -29,7 +29,7 @@ internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAV
 /** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
  *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
  *  same reason [Mode] is — the Activity and the tests both name it. */
-internal enum class Command { RELOAD, SAVE, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
+internal enum class Command { BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
 
 /**
  * What a config keeps for apps that are no longer installed ([LauncherLogic.orphans]): their
@@ -148,16 +148,13 @@ internal object LauncherLogic {
      * the abbreviation resolver and the exact parser can never drift apart — adding a
      * command here is the whole change.
      *
-     * Ordered harmless-first: ~load and ~save only touch our own verso.json, ~backup
-     * only writes a copy out to Downloads; then the ones that CHANGE the live config —
+     * Ordered harmless-first: ~backup only writes a copy out to Downloads; then the ones that CHANGE the live config —
      * ~restore, ~restore-saf and ~cleanup. The overview is bottom-anchored, so these sit
      * nearest the prompt: each is guarded instead — an undo point first, and a picker
      * (~restore-saf) or a confirmation dialog (~cleanup) — and none runs on a mistyped
      * prefix, since an ambiguous one resolves to nothing.
      */
     val COMMANDS: List<Pair<String, Command>> = listOf(
-        "~load" to Command.RELOAD,
-        "~save" to Command.SAVE,
         "~backup" to Command.BACKUP,
         "~restore" to Command.RESTORE,
         "~restore-saf" to Command.RESTORE_SAF,
@@ -184,20 +181,14 @@ internal object LauncherLogic {
         )
     }
 
-    /**
-     * The command spelled EXACTLY by [trimmed] (case-folded), or null.
-     *
-     * Bare "~" stays an alias for "~load": it is the spelling that shipped first and
-     * lives in muscle memory, and it keeps Enter on a bare "~" doing what it always
-     * did even though "~" now also opens the overview.
-     */
+    /** The command spelled EXACTLY by [trimmed] (case-folded), or null. A bare "~" is none:
+     *  it opens the overview. */
     fun parseCommand(trimmed: String): Command? {
         // Only what IS a command line: the fold drops invisible marks, so a combining dot in
         // front ("\u0307~restore") would otherwise fold to a command the prompt's mode — read
         // from the raw text — never showed.
         if (!trimmed.startsWith("~")) return null
         val q = foldLabel(trimmed)
-        if (q == "~") return Command.RELOAD
         return COMMANDS.firstOrNull { it.first == q }?.second
     }
 

@@ -23,9 +23,9 @@ A launcher reduced to text. Front page ("recto"): clock, date and battery
 (each a double-tap target), the favorites as large text, swipe up for the drawer,
 swipe down for the recently used apps. Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
-`#`/`##` tags, `?` recents) and the `~` commands (`~load`, `~save`, `~backup`,
-`~restore`, `~restore-saf`, `~cleanup`). Default favorites (phone, messenger, email, browser,
-camera) are seeded once, on a fresh install.
+`#`/`##` tags, `?` recents) and the `~` commands (`~backup`, `~restore`, `~restore-saf`,
+`~cleanup`). Every change is saved at once — there is no `~save` or `~load`. Default
+favorites (phone, messenger, email, browser, camera) are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look
 is constants in `HomeStyle.kt`), left/right swipe actions, any runtime permission.
@@ -134,7 +134,7 @@ main, written on the IO thread.
 5. **No edit, no save before the config is loaded** — the empty default must never be
    written over the real file. `LauncherState` refuses both until then; the Activity says
    why (`editable()`). An unreadable config (`load()` null, `configUnreadable`) counts as
-   not loaded: retried on every resume and by `~load`, ended by a successful read or a
+   not loaded: retried on every resume, ended by a successful read or a
    restore. `~backup` before the load exports the disk copy — and writes nothing if that is
    unreadable. Home is drawn and its cache written only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
@@ -194,7 +194,7 @@ main, written on the IO thread.
     behind a restore's IO step would write the old config back over it. Nothing else is
     held back — no layer, no cancel; launching, typing and page turns go on. A run ends with its last step, never by a "done" call:
     every step holds it and releases it on every path (`CommandGate.io` catches what its
-    work throws; `LauncherState`'s save/reload/cleanup report from a `finally`). No run
+    work throws; `LauncherState.cleanup` reports from a `finally`). No run
     spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
     before a run starts, only its adoption is one; the cleanup dialog ends its run, its OK
     starts a new one.

@@ -44,12 +44,11 @@ class LauncherActionsTest {
         )
     }
 
-    /** ...and it beats the empty-prompt branch too — the bare "~" alias resolves to
-     *  RELOAD, so Enter on it reloads rather than just dropping the keyboard. */
+    /** ...and it beats the empty-prompt branch too: a resolved command runs. */
     @Test fun `a resolved command beats the empty-prompt branch`() {
         assertEquals(
-            EnterAction.Run(Command.RELOAD),
-            LauncherLogic.enterAction<OrderedFake>(Mode.COMMAND, Command.RELOAD, promptBlank = true, lastRow = null),
+            EnterAction.Run(Command.BACKUP),
+            LauncherLogic.enterAction<OrderedFake>(Mode.COMMAND, Command.BACKUP, promptBlank = true, lastRow = null),
         )
     }
 

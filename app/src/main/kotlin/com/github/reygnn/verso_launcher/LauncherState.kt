@@ -21,7 +21,7 @@ package com.github.reygnn.verso_launcher
  * THE TWO COUNTERS keep two concerns from stepping on each other:
  *   loadGeneration  — bumped by [refresh] only. "Newest enumeration wins": an older in-flight
  *                     load bails (before its work if still queued, at the hand-off otherwise).
- *   configEpoch     — bumped by ANY config mutation. Guards a disk reload's wholesale config
+ *   configEpoch     — bumped by ANY config mutation. Guards the first load's wholesale config
  *                     replace: if the config changed since the read, memory holds the newer
  *                     truth and must not be clobbered by the older file.
  *
@@ -101,7 +101,7 @@ internal class LauncherState(
     /**
      * True once [config] holds the real config (read from disk, or adopted from a restore).
      * The config is read from disk once, then [config] IS the cache: the app is its only
-     * writer, so re-reading it on every resume would be wasted I/O. "~load" forces a read.
+     * writer, so re-reading it on every resume would be wasted I/O.
      */
     var configLoaded = false
         private set
@@ -109,22 +109,11 @@ internal class LauncherState(
     /**
      * True while the config is not loaded because the file is there but cannot be read
      * (loadConfig null). Not loaded means no edit and no save — the empty default must never be
-     * written over the real file. Every resume and "~load" try again ([needsRefresh]); a
-     * successful read or a restore ends it.
+     * written over the real file. Every resume tries again ([needsRefresh]); a successful read
+     * or a restore ends it.
      */
     var configUnreadable = false
         private set
-
-    /**
-     * A "~load" asked for that has not been carried out yet. A refresh is superseded by any
-     * newer one, and a plain resume-refresh does not read the file — so without this a
-     * "~load" followed by a quick pause/resume (a dialog, a translucent activity) was
-     * silently dropped. Cleared only when a load that read the file reaches its hand-off.
-     */
-    private var reloadPending = false
-
-    // The "~load"s waiting for that hand-off ([reload]).
-    private val reloadWaiters = mutableListOf<(Boolean) -> Unit>()
 
     @Volatile private var loadGeneration = 0
     @Volatile private var configEpoch = 0
@@ -139,140 +128,88 @@ internal class LauncherState(
     fun loadedSnapshot(): VersoConfig? = if (configLoaded) config.snapshot() else null
 
     /**
-     * Re-enumerate the apps (and, on the first call or with [reloadConfig], re-read the config)
-     * off the main thread. The Activity calls it on a resume when apps may have changed or
-     * [needsRefresh] holds, on a reported package or profile change while in front, and for
-     * "~load" and a restore. The most recently REQUESTED refresh wins; see the class comment for what a concurrent toggle or
-     * rename does to an in-flight one.
+     * Re-enumerate the apps (and, until the config is loaded, read it first) off the main
+     * thread. The Activity calls it on a resume when apps may have changed or [needsRefresh]
+     * holds, on a reported package or profile change while in front, and after a restore. The
+     * most recently REQUESTED refresh wins; nothing else drops one (see the class comment).
      */
-    fun refresh(reloadConfig: Boolean = false) {
+    fun refresh() {
         val generation = ++loadGeneration
         // Captured at REQUEST time: if it advances before the hand-off, an in-memory change
         // already applied the newer truth, and the disk copy read here must not replace it.
         val epoch = configEpoch
-        if (reloadConfig) reloadPending = true
-        val loadConfigNow = reloadPending || !configLoaded
-        val accepted = io(Runnable {
+        val loadConfigNow = !configLoaded
+        io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
-            var useCfg: VersoConfig? = null
-            var loaded: List<AppEntry>? = null
-            var seeds = emptyList<String>()
-            // The hand-off comes even if a step throws (a bug — each catches its own errors):
-            // a "~load" waits for it. Then nothing is adopted or committed.
-            try {
-                // Checked before the read: only a config that is not on disk at all gets seeded.
-                val fresh = loadConfigNow && isFreshInstall()
-                if (loadConfigNow) useCfg = loadConfig()
-                loaded = enumerateApps()
-                // Seeding needs the enumeration (a default app must be launchable to be a
-                // favorite), so a failed one seeds nothing; the next cold start tries again,
-                // since nothing was saved.
-                if (fresh && loaded != null) {
-                    seeds = LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
+            // Checked before the read: only a config that is not on disk at all gets seeded.
+            val fresh = loadConfigNow && isFreshInstall()
+            val diskConfig = if (loadConfigNow) loadConfig() else null
+            val loaded = enumerateApps()
+            // Seeding needs the enumeration (a default app must be launchable to be a
+            // favorite), so a failed one seeds nothing; the next cold start tries again,
+            // since nothing was saved.
+            val seeds = if (fresh && loaded != null) {
+                LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
+            } else emptyList()
+            main(Runnable {
+                if (generation != loadGeneration) return@Runnable  // superseded meanwhile
+                var replaced = false
+                // Unreadable: not loaded, and stays so until a read succeeds.
+                if (loadConfigNow && diskConfig == null && !configLoaded) configUnreadable = true
+                // Adopt the disk copy only if nothing changed the config since the read — a
+                // restore adopted before the first load landed is the newer truth.
+                if (diskConfig != null && configEpoch == epoch) {
+                    config = diskConfig
+                    configLoaded = true
+                    configUnreadable = false
+                    replaced = true
+                    // First start: give the home page something to show. Saving here writes
+                    // verso.json, so later starts are no longer fresh and never re-seed — a
+                    // user who removes every favorite keeps an empty home page.
+                    if (seeds.isNotEmpty() && config.favorites.isEmpty()) {
+                        config.favorites.addAll(seeds)
+                        mutated()
+                    }
                 }
-            } finally {
-                val cfg = useCfg
-                val found = loaded
-                val picked = seeds
-                main(Runnable {
-                    if (generation != loadGeneration) return@Runnable  // superseded meanwhile
-                    // The file was read: the reload is done — adopted below, or deliberately not,
-                    // because memory changed since the read and is the newer truth.
-                    if (loadConfigNow && cfg != null) reloadPending = false
-                    var replaced = false
-                    // Unreadable: not loaded, and stays so until a read succeeds. A config already
-                    // loaded stays loaded — memory is the newer truth, the next save heals the file.
-                    if (loadConfigNow && cfg == null && !configLoaded) configUnreadable = true
-                    // Adopt the disk copy only if nothing changed the config since the read; on a
-                    // cold start nothing can have, so this always adopts there.
-                    if (loadConfigNow && cfg != null && configEpoch == epoch) {
-                        config = cfg
-                        configLoaded = true
-                        configUnreadable = false
-                        replaced = true
-                        // First start: give the home page something to show. Saving here writes
-                        // verso.json, so later starts are no longer fresh and never re-seed — a
-                        // user who removes every favorite keeps an empty home page.
-                        if (picked.isNotEmpty() && config.favorites.isEmpty()) {
-                            config.favorites.addAll(picked)
-                            mutated()
-                        }
-                    }
-                    // Commit the enumeration — always: it carries no config. null means the
-                    // enumeration itself failed (e.g. a system_server restart): keep the last
-                    // known-good list rather than blanking the launcher.
-                    lastLoadCommitted = found != null
-                    if (found != null) {
-                        enumerated = found
-                        appsLoaded = true
-                    }
-                    // Shown under the names as they are NOW — a rename, a restore since the
-                    // request included.
-                    relabel()
-                    onRefreshed(replaced)
-                    if (loadConfigNow) endReloads(replaced)
-                })
-            }
+                // Commit the enumeration — always: it carries no config. null means the
+                // enumeration itself failed (e.g. a system_server restart): keep the last
+                // known-good list rather than blanking the launcher.
+                lastLoadCommitted = loaded != null
+                if (loaded != null) {
+                    enumerated = loaded
+                    appsLoaded = true
+                }
+                // Shown under the names as they are NOW — a rename, a restore since the
+                // request included.
+                relabel()
+                onRefreshed(replaced)
+            })
         })
-        // Refused (never expected, see VersoApp.io): a waiting "~load" still gets its answer.
-        if (!accepted && loadConfigNow) endReloads(false)
-    }
-
-    /**
-     * "~load": read the config file again and re-enumerate. [onDone] (main thread) comes once
-     * the load that read the file reaches its hand-off — true when its config was adopted, false
-     * when memory had changed meanwhile (the newer truth) or a restore came first. A newer refresh
-     * that supersedes this one reads the file too, so the answer always comes.
-     */
-    fun reload(onDone: (replaced: Boolean) -> Unit) {
-        reloadWaiters += onDone
-        refresh(reloadConfig = true)
-    }
-
-    private fun endReloads(replaced: Boolean) {
-        val waiters = reloadWaiters.toList()
-        reloadWaiters.clear()
-        waiters.forEach { it(replaced) }
     }
 
     /**
      * Persist the config: serialized here on the main thread (an immutable snapshot of a
-     * consistent config), written on the IO thread so a tap never waits on disk. [onDone] —
-     * used by "~save", which has to report something true — gets the real result, back on the
-     * main thread; if the IO thread refused the task it gets false at once.
+     * consistent config), written on the IO thread so a tap never waits on disk.
      */
-    fun save(onDone: ((Boolean) -> Unit)? = null) {
+    fun save() {
         // Before the first load lands, [config] is the empty default, not the user's config.
         // Writing it would rotate the real file into .bak and publish an empty primary — one
         // more save, or a process death before the hand-off, and every favorite is gone. Every
-        // mutation path already runs after the load (or an adopt), so this only ever stops an
-        // early "~save"; it reports failure, which is the truth.
-        if (!configLoaded) {
-            onDone?.invoke(false)
-            return
-        }
+        // mutation path already checks it; this is the last line.
+        if (!configLoaded) return
         val payload = serialize(config)
         val seq = ++saveSeq
         val accepted = io(Runnable {
             // Latest wins: when a newer save is already queued behind this one (ticking 30
             // apps in "-" mode queues 30), its payload carries this state too — skip the
-            // durable write (a parse, a rename, 2-3 fsyncs) and let that one do it. An
-            // explicit "~save" (onDone) is never skipped: it reports a real write.
-            if (onDone == null && seq != saveSeq) return@Runnable
-            var ok = false
-            // Reported even if the write throws (it never should): a "~save" waits for it.
-            try {
-                ok = writeConfig(payload)
-            } finally {
-                val written = ok
-                onDone?.let { cb -> main(Runnable { cb(written) }) }
-            }
+            // durable write (a parse, a rename, 2-3 fsyncs) and let that one do it.
+            if (seq != saveSeq) return@Runnable
+            writeConfig(payload)
         })
         if (!accepted) {
             // Refused (the executor is gone): take the number back, or a save still queued
             // ahead would see itself superseded by one that never runs, and skip its write.
             saveSeq--
-            onDone?.invoke(false)
         }
     }
 
@@ -320,7 +257,7 @@ internal class LauncherState(
      * [tags] arrive already canonical. The new label is applied to [apps] in memory — no
      * re-enumeration — and the list re-sorted, since a rename can move an app alphabetically.
      *
-     * Bumps configEpoch so an in-flight "~load" keeps this name over the disk copy. An in-flight
+     * Bumps configEpoch (see the class comment). An in-flight
      * enumeration is unaffected: it carries no names, they are applied at its hand-off.
      * Installs/uninstalls since the last load are picked up by the next [refresh], not here.
      *
@@ -377,7 +314,7 @@ internal class LauncherState(
             onDone(CleanupOutcome.Refused)
             return
         }
-        // The config object itself: a wholesale replace (adopt, a reload) swaps it, while an
+        // The config object itself: a wholesale replace (a restore) swaps it, while an
         // edit mutates it in place — so this tells "replaced meanwhile" from "edited meanwhile".
         val base = config
         val snapshot = config.snapshot()
@@ -421,18 +358,13 @@ internal class LauncherState(
     /**
      * Adopt a restored config wholesale ("~restore"). The caller has already parsed it (a
      * malformed backup never gets here) and written the outgoing config out as the undo point.
-     * Bumps configEpoch for the same reason a reload checks it: an enumeration already in
-     * flight captured the OLD config and must not hand it back over this one. Saves, then
-     * re-renders through a [refresh] — without re-reading the file just queued for writing.
+     * Bumps configEpoch, which a first load still in flight checks: it must not land over this.
+     * Saves, then re-renders through a [refresh] — without re-reading the file just queued.
      */
     fun adopt(restored: VersoConfig) {
         config = restored
         configLoaded = true
         configUnreadable = false
-        // A restore supersedes a "~load" still pending: the file it would read is about to be
-        // the restored config anyway, and the refresh below must not re-read it.
-        reloadPending = false
-        endReloads(false)
         mutated()
         relabel()
         refresh()

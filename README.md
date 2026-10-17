@@ -104,11 +104,9 @@ keyboard, no prompt:
     list (`~r` leaves `~restore` and `~restore-saf`). Tap a row to run it, or press
     **Enter** once what you typed can only mean one command — `~b` is enough for
     `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
-    up. Each command acts once and clears the prompt. One runs at a time: a second
+    up. Every change is saved the moment you make it, so there is no save or load
+    command. Each command acts once and clears the prompt. One runs at a time: a second
     one sent meanwhile is refused with a toast and stays on the line, to send again:
-    - `~` / `~load` — reload the config from disk (a toast confirms it)
-    - `~save` — write the in-memory config out now (saves are automatic anyway;
-      this is the explicit one)
     - `~backup` — export the config to `Download/Verso/`, named after the moment it
       was taken (`verso-2026-10-13_120745.json`). It replaces the previous one, but
       only after the new one is safely written: a failed or interrupted backup never
@@ -122,8 +120,8 @@ keyboard, no prompt:
       aborted, so a restore never destroys what it overwrote without a trace. A
       backup that doesn't parse changes nothing. To undo a restore, run
       `~restore-saf` and pick that `verso-pre-restore-…` file. If `verso.json` itself
-      can't be read, Verso says so, edits nothing and saves nothing — `~load` tries
-      again, and a restore is the way out (then without an undo point: there is nothing
+      can't be read, Verso says so, edits nothing and saves nothing — it tries again
+      each time you come back to it, and a restore is the way out (then without an undo point: there is nothing
       readable to keep)
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
