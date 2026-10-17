@@ -110,6 +110,7 @@ internal class Apps(
                 badgedLabels.getOrPut(VersoApp.BadgeKey(serial, raw, locale)) { pm.getUserBadgedLabel(raw, user).toString() }
             },
             ownPackage = ownPackage,
+            log = { msg, e -> Log.w("Verso", msg, e) },
         )
     }
 
@@ -172,13 +173,14 @@ internal fun <P> enumerate(
     activities: (P) -> List<() -> RawApp>,
     badge: (raw: String, serial: Long, profile: P) -> String,
     ownPackage: String,
+    log: (String, Exception) -> Unit,
 ): Enumeration? {
     var complete = true
     val emptyProfiles = HashSet<Long>()
     val all = try {
         profiles()
     } catch (e: RuntimeException) {
-        Log.w("Verso", "app enumeration failed: profiles", e)
+        log("app enumeration failed: profiles", e)
         return null
     }
     val entries = mutableListOf<AppEntry>()
@@ -194,10 +196,10 @@ internal fun <P> enumerate(
             activities(user)
         } catch (e: RuntimeException) {
             if (isPersonal) {
-                Log.w("Verso", "app enumeration failed", e)
+                log("app enumeration failed", e)
                 return null
             }
-            Log.w("Verso", "skipping profile $serial", e)
+            log("skipping profile $serial", e)
             complete = false
             continue
         }
@@ -222,7 +224,7 @@ internal fun <P> enumerate(
                     status = AppStatus.of(profilePaused = isPaused, archived = app.archived),
                 )
             } catch (e: RuntimeException) {
-                Log.w("Verso", "skipping app", e)
+                log("skipping app", e)
                 complete = false
             }
         }

@@ -30,6 +30,7 @@ class EnumerationTest {
         activities = { lists.getValue(it)() },
         badge = { raw, _, _ -> "$raw (Work)" },
         ownPackage = "com.verso",
+        log = { _, _ -> },
     )
 
     @Test fun `every profile read is complete, sorted, the work copy badged`() {
@@ -101,7 +102,7 @@ class EnumerationTest {
     }
 
     @Test fun `a label of nothing but invisible marks falls back to the package`() {
-        lists["me"] = { listOf(app("com.a", "​‮")) }
+        lists["me"] = { listOf(app("com.a", "\u200B\u202E")) }
         assertEquals("com.a", run()!!.apps.first().label)
     }
 }
