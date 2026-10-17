@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 466 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 471 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -44,6 +44,9 @@ SwipeFrameTest              12  Robolectric: real MotionEvents through the frame
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 AppDrawerTest                5  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on
+MainActivityFlowsTest        5  Robolectric, the real Activity: a second command and an edit
+                                refused while one runs (prompt kept), no edit before the
+                                first load, a late HOME leaving a fresh swipe alone
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
@@ -88,10 +91,11 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 - **No coroutines, so no `MainDispatcherRule` / `runTest` / Turbine.** Threading is
   modelled as two manual FIFO queues (`LauncherStateTest`), which makes every
   interleaving deterministic.
-- **No Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic`
-  / `LauncherState`. Behaviour that only exists in the Activity is checked on a device;
-  `SourceGuardTest` scans the source for the edits there that would be silently
-  dangerous (see its tests).
+- **Few Activity tests, on purpose.** `MainActivity` is glue; its decisions live in
+  `LauncherLogic` / `LauncherState`. `MainActivityFlowsTest` covers only flows that need
+  no LauncherApps or MediaStore fake (Robolectric models both too thinly to test anything
+  but the fake). The rest is checked on a device; `SourceGuardTest` scans the source for
+  the edits there that would be silently dangerous (see its tests).
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the
   backup layer is tested on a device instead.
