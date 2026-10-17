@@ -154,6 +154,8 @@ class MainActivity : Activity() {
             enumerateApps = { apps.loadApps() },
             serialize = ConfigJson::serialize,
             writeConfig = { payload -> store.write(payload) },
+            // Every failed save, said each time; a save that works is silent.
+            onSaveFailed = { toast(getString(R.string.toast_save_failed)) },
             onRefreshed = { configReplaced, listChanged ->
                 // The rename dialog read the OLD config when it opened and writes back on
                 // OK; left up over a wholesale replace it would persist stale fields into

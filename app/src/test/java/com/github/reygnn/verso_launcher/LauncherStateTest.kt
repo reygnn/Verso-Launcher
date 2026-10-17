@@ -56,6 +56,7 @@ class LauncherStateTest {
     }
 
     private val refreshed = mutableListOf<Boolean>()
+    private var saveFailures = 0
     /** VersoApp.startedOver: process-wide, outlives a LauncherState. */
     private val startedOverFlag = java.util.concurrent.atomic.AtomicBoolean()
     private val listChanges = mutableListOf<Boolean>()
@@ -82,6 +83,7 @@ class LauncherStateTest {
                 "tags=${c.tags.entries.joinToString(",") { "${it.key}=${it.value.joinToString("+")}" }}"
         },
         writeConfig = { payload -> written += payload; writeSucceeds },
+        onSaveFailed = { saveFailures++ },
         onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed },
         isFreshInstall = { fresh },
         startedOverFlag = startedOverFlag,
@@ -628,6 +630,29 @@ class LauncherStateTest {
         runAll()
         assertEquals(emptyList<String>(), written)
         assertEquals(setOf(key("Alpha")), state.config.favorites)
+    }
+
+    @Test fun `every failed save is reported, a working one is not`() {
+        started()
+        state.toggleFavorite(key("Alpha"))
+        runAll()
+        assertEquals(0, saveFailures)
+        writeSucceeds = false
+        state.toggleFavorite(key("Bravo"))
+        runAll()
+        state.toggleFavorite(key("Charlie"))
+        runAll()
+        assertEquals("each one", 2, saveFailures)
+    }
+
+    @Test fun `a save skipped for a newer one is no failure`() {
+        started()
+        val before = written.size
+        state.toggleFavorite(key("Alpha"))
+        state.toggleFavorite(key("Bravo"))   // the first write is skipped: latest wins
+        runAll()
+        assertEquals(before + 1, written.size)
+        assertEquals(0, saveFailures)
     }
 
     @Test fun `a refused save does not make the save queued ahead of it skip its write`() {

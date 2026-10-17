@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  *                      last-known-good list is then kept.
  * @param serialize     config -> file text (main thread, so it reads a consistent config).
  * @param writeConfig   persist that text durably (IO thread); true on success.
+ * @param onSaveFailed  main thread, after every save whose write failed (or was refused): the
+ *                      change lives in memory only, and the user must know.
  * @param onRefreshed   main thread, after a [refresh] hand-off was applied. [configReplaced] is
  *                      true when the config was swapped wholesale for the disk copy — anything
  *                      that captured the old one (an open rename dialog) must go. [listChanged]
@@ -66,6 +68,7 @@ internal class LauncherState(
     private val enumerateApps: () -> List<AppEntry>?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
+    private val onSaveFailed: () -> Unit = {},
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
     private val isFreshInstall: () -> Boolean = { false },
     private val startedOverFlag: AtomicBoolean = AtomicBoolean(),
@@ -213,12 +216,13 @@ internal class LauncherState(
             // apps in "-" mode queues 30), its payload carries this state too — skip the
             // durable write (a parse, a rename, 2-3 fsyncs) and let that one do it.
             if (seq != saveSeq) return@Runnable
-            writeConfig(payload)
+            if (!writeConfig(payload)) main(Runnable { onSaveFailed() })
         })
         if (!accepted) {
             // Refused (the executor is gone): take the number back, or a save still queued
             // ahead would see itself superseded by one that never runs, and skip its write.
             saveSeq--
+            onSaveFailed()
         }
     }
 

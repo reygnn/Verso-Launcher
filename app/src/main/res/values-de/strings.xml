@@ -29,6 +29,7 @@
          toast_restore_ok die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
     <string name="toast_busy">Beschäftigt — laufenden Befehl abwarten</string>
     <string name="toast_config_reset">Konfiguration unlesbar — neu begonnen. ~restore holt Backup</string>
+    <string name="toast_save_failed">Nicht gespeichert</string>
     <string name="toast_restore_write_failed">Nicht gespeichert — nichts wiederhergestellt</string>
     <string name="toast_not_loaded">Konfiguration noch nicht geladen — gleich nochmal versuchen</string>
     <string name="toast_not_default_home">Für Arbeits-Apps Verso als Standard-Startseite festlegen</string>
