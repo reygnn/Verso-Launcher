@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 482 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 483 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -40,8 +40,8 @@ LauncherActionsTest         26  Enter / tap decisions, which Enter call acts
 HomeStyleTest               24  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette, the prompt bar's contrast
 BackupFilesTest             17  backup naming: timestamps, patterns, restore pick, sweep
-SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
-                                Kolibri's flick thresholds, top band, who claims what
+SwipeGestureTest            20  the page drag (direction, offset, release, home fade) and
+                                Kolibri's flick thresholds, top band, who claims what, a late HOME
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget

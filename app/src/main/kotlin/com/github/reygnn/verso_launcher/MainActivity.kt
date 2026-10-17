@@ -177,8 +177,9 @@ class MainActivity : Activity() {
     private var appsDirty = true
     private var lastRefresh = 0L
     private var resumed = false
-    // Between onStart and onStop: the launcher can be seen (see cleanup).
+    // Between onStart and onStop: the launcher can be seen (see cleanup); since when.
     private var started = false
+    private var startedAt = 0L
     // The "~" commands, one at a time (see runCommand).
     private val gate = CommandGate()
 
@@ -693,6 +694,7 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         started = true
+        startedAt = SystemClock.uptimeMillis()
         homePage.startBattery()
     }
 
@@ -1060,6 +1062,8 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)  // keep getIntent() in sync with the latest launch intent
+        // A late HOME (One UI) must not undo a swipe the user started after coming back.
+        if (SwipeGesture.keepPageOnHome(SystemClock.uptimeMillis() - startedAt, root.isDragging, drawerOpen)) return
         // HOME is a "back to a clean home screen" gesture, so a rename dialog left open has
         // no business surviving it: confirming it afterwards would apply a rename the user
         // has visually left behind.

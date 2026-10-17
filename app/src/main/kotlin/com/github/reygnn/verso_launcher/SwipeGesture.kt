@@ -28,6 +28,19 @@ internal enum class DragEnd { COMMIT, CANCEL }
  */
 internal object SwipeGesture {
 
+    /** How long after the launcher came back a HOME intent may still arrive late (One UI). */
+    const val LATE_HOME_MS = 1500L
+
+    /**
+     * Whether a HOME intent should leave the page as it is. One UI can deliver HOME after the
+     * launcher is already in front again, while the user is already pulling the drawer up — or
+     * has just opened it: closing it then swallowed that swipe ("the first swipe after coming
+     * back does nothing"). Within [LATE_HOME_MS] of coming back ([sinceStartMs]), a drag or an
+     * open drawer is the user's newer intent.
+     */
+    fun keepPageOnHome(sinceStartMs: Long, dragging: Boolean, drawerOpen: Boolean): Boolean =
+        sinceStartMs in 0 until LATE_HOME_MS && (dragging || drawerOpen)
+
     /** Minimum travel, as a multiple of the system touch slop. */
     const val SLOP_MULTIPLIER = 4
 

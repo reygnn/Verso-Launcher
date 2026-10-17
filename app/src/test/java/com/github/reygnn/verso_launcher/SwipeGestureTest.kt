@@ -19,6 +19,16 @@ class SwipeGestureTest {
 
     // ---- decisive ------------------------------------------------------------
 
+    /** A HOME that One UI delivers late, just after the launcher came back, must not undo a
+     *  swipe the user already started (or just finished); later, HOME closes the drawer. */
+    @Test fun `a late HOME keeps a fresh drag or a just-opened drawer`() {
+        assertTrue(SwipeGesture.keepPageOnHome(sinceStartMs = 300, dragging = true, drawerOpen = false))
+        assertTrue(SwipeGesture.keepPageOnHome(sinceStartMs = 900, dragging = false, drawerOpen = true))
+        assertFalse(SwipeGesture.keepPageOnHome(sinceStartMs = 300, dragging = false, drawerOpen = false))
+        assertFalse(SwipeGesture.keepPageOnHome(sinceStartMs = SwipeGesture.LATE_HOME_MS, dragging = false, drawerOpen = true))
+        assertFalse(SwipeGesture.keepPageOnHome(sinceStartMs = 60_000, dragging = true, drawerOpen = false))
+    }
+
     @Test fun `a fast upward flick is UP, a fast downward one DOWN`() {
         // 200 px in 100 ms = 2 px/ms, well past 1.2.
         assertEquals(SwipeDir.UP, SwipeGesture.decisive(0f, -200f, 100, minDistance))
