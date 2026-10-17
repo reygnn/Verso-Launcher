@@ -8,11 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 
-/**
- * JVM tests for [BackupFiles] — which of the app's own Download/Verso rows a backup is, which
- * one a restore reads, which ones a new backup replaces. The MediaStore side (that it really
- * renames a clash to "verso (1).json") is pinned on a device by BackupStoreInstrumentedTest.
- */
+/** That MediaStore really renames a clash to "verso (1).json" only a device shows (BackupStoreInstrumentedTest). */
 class BackupFilesTest {
 
     private val base = "verso"
@@ -94,7 +90,8 @@ class BackupFilesTest {
     @Test fun `temps include the numbered dodge and the pre-fix name`() {
         assertTrue(BackupFiles.isTemp(base, BackupFiles.tempName(base)))
         assertTrue(BackupFiles.isTemp(base, "verso.tmp (1).json"))
-        // What MediaStore made of the old code's "verso.json.tmp".
+        // MediaStore's rename of a "verso.json.tmp".
+
         assertTrue(BackupFiles.isTemp(base, "verso.json.tmp.json"))
         assertTrue(BackupFiles.isTemp(pre, "verso-pre-restore.json.tmp.json"))
     }

@@ -6,13 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/**
- * Crude source scans for the hard rules that live in Activity glue and the manifest, where no
- * JVM test reaches. Each guards an edit that would be easy to make and silently dangerous — a
- * lenient parse of an outside file (rule 7), `density` in configChanges (rule 13), ~cleanup's
- * IO guards (rule 14), backup/restore from an unloaded config (rule 5), every command inside
- * the gate and no edit while one runs (rule 15), names out of the enumeration; see each test.
- */
+/** Crude source scans for the hard rules that live in Activity glue and the manifest, where no JVM test reaches. */
 class SourceGuardTest {
 
     // Unit tests run with the module directory as the working directory.
@@ -22,6 +16,7 @@ class SourceGuardTest {
         return file.readText()
     }
 
+    // Rule 7.
     @Test fun `MainActivity reads outside files with parseForeign, never the lenient parse`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
         assertFalse(Regex("""ConfigJson\s*\.\s*parse\s*\(""").containsMatchIn(activity))
@@ -32,18 +27,15 @@ class SourceGuardTest {
     @Test fun `cleanup's IO steps keep their guards`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
         val apps = source("src/main/kotlin/com/github/reygnn/verso_launcher/Apps.kt")
-        // Every way enumerate() can miss an app marks it incomplete: the serial lookup, a
-        // failing profile, a failing app, a silently empty profile (hard rule 14).
+        // Rule 14: the serial lookup, a failing profile, a failing app, a silently empty profile.
         assertTrue(Regex("""complete = false""").findAll(apps).count() >= 4)
-        // The undo point goes to its own base, never over the backup or the restore undo point.
         assertTrue(Regex("""backupStore\.write\(\s*BackupFiles\.PRE_CLEANUP_BASE""").containsMatchIn(activity))
         assertTrue(activity.contains("Command.CLEANUP -> cleanup(t)"))
     }
 
     @Test fun `backup and a restore's undo point take the config only once it is loaded`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        // Before the load (or while unreadable) memory holds the empty default: exporting it
-        // would replace the real backup or undo point with nothing (hard rules 5, 7).
+        // Rules 5 and 7: before the load, memory holds the empty default.
         for (name in listOf("backup", "adoptRestored")) {
             val body = activity.substringAfter("private fun $name(", missingDelimiterValue = "")
                 .substringBefore("\n    }\n")
@@ -54,22 +46,19 @@ class SourceGuardTest {
     }
 
     @Test fun `the enumeration carries no custom names`() {
-        // Names are applied on the main thread from the live config (LauncherLogic.named). An
-        // enumeration that baked them in again would go stale with every rename in flight.
+        // Names baked into an enumeration go stale with every rename in flight.
         val apps = source("src/main/kotlin/com/github/reygnn/verso_launcher/Apps.kt")
         val body = apps.substringAfter("fun enumerate(): Enumeration?", missingDelimiterValue = "")
             .substringBefore("\n    }\n")
         assertTrue("enumerate() not found, or it takes a config again", body.isNotEmpty())
         assertFalse(Regex("""names\s*(\[|\.get\b|\.getValue\b)|\bnamed\(""").containsMatchIn(body))
-        // Another app's own label is cleaned like a custom name (no bidi overrides, no
-        // invisible marks to pass for a different app).
+        // No bidi overrides or invisible marks to pass for a different app.
         assertTrue(body.contains("LauncherLogic.cleanName(info.label.toString())"))
     }
 
     @Test fun `every command runs inside the gate`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        // Three ways in (hard rule 15): the typed commands, the ~restore-saf answer, a confirmed
-        // ~cleanup. The command bodies take the run's ticket, so none can be called outside one.
+        // Rule 15: the typed commands, the ~restore-saf answer, a confirmed ~cleanup.
         assertEquals(3, Regex("""gate\.start\s*\{""").findAll(activity).count())
         for (body in listOf("backup", "restoreConfig", "cleanup", "adoptRestored")) {
             val inRun = Regex("""(?<!fun |\.)\b$body\(t\b""").findAll(activity).count()
@@ -77,40 +66,32 @@ class SourceGuardTest {
             assertEquals("$body( called outside a run", all, inRun)
         }
         assertTrue(Regex("""fun runCleanup\([^)]*\)\s*\{\s*val accepted = gate\.start""").containsMatchIn(activity))
-        // Every command but ~restart needs the loaded config (never the empty default).
         assertTrue(activity.contains("if (command != Command.RESTART && !editable()) return"))
-        // ~restart too: refused while a command runs, like any other.
-        // …and not while a picked ~restore-saf file is still being read (it has no run yet).
+        // Not while a picked ~restore-saf file is still being read (it has no run yet).
         assertTrue(Regex("""Command\.RESTART -> if \(safReading\)[^\n]*recreate\(\)""").containsMatchIn(activity))
     }
 
     @Test fun `no edit while a command runs`() {
-        // A save queued behind a restore's IO step would write the old config back over it.
+        // Rule 15: a save queued behind a restore's IO step would write the old config back over it.
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
         val body = activity.substringAfter("private fun editAllowed(): Boolean {", missingDelimiterValue = "")
             .substringBefore("\n    }\n")
         assertTrue("editAllowed must check the gate first", body.trimStart().startsWith("if (gate.busy)"))
-        // Every change of the config and every way into the rename dialog asks it first: the
-        // call must be preceded, within its handler, by editAllowed().
         val calls = Regex("""state\.(toggleHidden|toggleFavorite|toggleTag|rename)\(|(?<!fun |\.)\b(moveFavorite|promptRename)\(""")
         for (m in calls.findAll(activity)) {
-            // The call's own line up to it, and the two code lines (comments skipped) above it.
             val lines = activity.substring(0, m.range.first).lines()
             val above = lines.dropLast(1).filterNot { it.trimStart().startsWith("//") }.takeLast(2)
             val near = (above + lines.last()).joinToString("\n")
             assertTrue("${m.value} at ${m.range.first} without editAllowed() right before it", near.contains("editAllowed()"))
         }
-        // …and the rename dialog's OK again: a run may have started while it was up.
+        // A run may have started while the rename dialog was up.
         val confirm = activity.substringAfter("RenameDialog.show(", missingDelimiterValue = "")
             .substringAfter("{ name, tags ->").substringBefore("state.rename(")
         assertTrue("the rename OK must check editAllowed before state.rename", confirm.contains("if (!editAllowed()) return@show"))
     }
 
     @Test fun `no string template reaches through an object without braces`() {
-        // "$BackupFiles.DIR" is "BackupFiles@1a2b.DIR" — it compiles and silently breaks
-        // (it once sent ~restore-saf's picker to a folder that does not exist). A CamelCase
-        // name followed by a dot inside a template is that mistake; "$FILE.tmp" or "$base.tmp"
-        // (a value, then a literal suffix) is not.
+        // "$BackupFiles.DIR" compiles to "BackupFiles@1a2b.DIR"; "$FILE.tmp" (a value, then a suffix) is fine.
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
         val offenders = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().mapIndexedNotNull { i, line ->
@@ -120,7 +101,9 @@ class SourceGuardTest {
         assertEquals(emptyList<String>(), offenders)
     }
 
+    // Rule 13.
     @Test fun `density stays out of configChanges`() {
+
         val manifest = source("src/main/AndroidManifest.xml")
         val changes = Regex("""android:configChanges="([^"]*)"""").findAll(manifest).map { it.groupValues[1] }.toList()
         assertTrue("no configChanges found", changes.isNotEmpty())

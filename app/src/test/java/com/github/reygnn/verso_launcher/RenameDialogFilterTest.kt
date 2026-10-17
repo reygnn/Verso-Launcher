@@ -18,21 +18,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * Robolectric tests for [RenameDialog], whose behaviour lives in real framework widgets: an
- * [EditText] with an [InputFilter], and an [AlertDialog] button wired to a commit lambda.
- * (SwipeFrameTest and HomePageAccessibilityTest are the other Robolectric suites; the rest
- * of the app is pure and covered by plain JUnit4.)
- *
- * It pins two things that were previously untested:
- *  1. The tags field folds to lowercase AS TYPED (the "show exactly what will be saved"
- *     nicety), via the same ROOT fold [LauncherLogic.foldLabel] uses everywhere — including
- *     the case a fold CHANGES LENGTH ("İ" -> "i̇"), which is the fragile edge for a filter.
- *  2. The dialog's contract: strings in, a trimmed name and canonical [LauncherLogic.parseTags]
- *     tags out through [onCommit] when OK is pressed.
- *
- * No androidx.test / ActivityScenario: a bare [Activity] from [Robolectric.buildActivity]
- * gives the window token the dialog needs, and the field is reached by walking the shown
- * dialog's view tree — keeping the whole androidx.test dependency (and its force-pin) out.
+ * Robolectric: the behaviour lives in real widgets (an [EditText] with an [InputFilter], [AlertDialog]
+ * buttons). A bare Activity from [Robolectric.buildActivity] gives the window token — no androidx.test.
  */
 @RunWith(RobolectricTestRunner::class)
 class RenameDialogFilterTest {
@@ -44,7 +31,6 @@ class RenameDialogFilterTest {
 
     private val fgColor = 0xFFD4D4D4.toInt()
 
-    /** Build and show the dialog, capturing whatever [onCommit] hands back. */
     private class Harness(val dialog: AlertDialog) {
         var committed: Pair<String, List<String>>? = null
     }
@@ -69,17 +55,13 @@ class RenameDialogFilterTest {
     }
 
 
-    /** The tags field is the only [MultiAutoCompleteTextView] in the dialog. */
     private fun Harness.tagsField(): MultiAutoCompleteTextView =
         dialog.window!!.decorView.collect<MultiAutoCompleteTextView>().single()
 
-    /** The name field is the [EditText] that is NOT the tags [MultiAutoCompleteTextView]. */
     private fun Harness.nameField(): EditText =
         dialog.window!!.decorView.collect<EditText>().single { it !is MultiAutoCompleteTextView }
 
-    /** Click a dialog button and drain the main looper: AlertDialog dispatches the button
-     *  through a Handler message, and Robolectric's main looper is paused, so [onCommit]
-     *  runs only once the queued message is processed. */
+    /** AlertDialog posts the click through a Handler and the main looper is paused: drain it. */
     private fun Harness.click(which: Int) {
         dialog.getButton(which).performClick()
         shadowOf(Looper.getMainLooper()).idle()
@@ -90,8 +72,7 @@ class RenameDialogFilterTest {
     // ---- the tag InputFilter -------------------------------------------------
 
     @Test fun `the tags field carries exactly one filter - the fold, replacing defaults`() {
-        // RenameDialog SETS filters to a single-element array, so anything else here means a
-        // framework default slipped back in (isSingleLine etc.) and the fold is not alone.
+        // RenameDialog sets exactly one filter; more means a framework default (isSingleLine) slipped back in.
         assertEquals(1, show().tagsField().filters.size)
     }
 
@@ -106,34 +87,23 @@ class RenameDialogFilterTest {
     @Test fun `the filter folds with ROOT even under a Turkish default locale`() {
         java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr"))
         val filter = show().tagsField().filters.single()
-        // Under tr, "I".lowercase() would give the dotless "ı"; the field must fold to a
-        // plain "i" so what it shows matches what the ROOT-folded store/search will hold.
+        // Under tr, "I".lowercase() is the dotless "ı"; the field must show the ROOT fold.
         assertEquals("i", filter.filter("I", 0, 1, null, 0, 0).toString())
     }
 
-    /**
-     * The fragile edge: the fold is NOT length-preserving. Its NFC step composes a decomposed
-     * "e" + combining acute (U+0065 U+0301) into "é" (U+00E9), one code unit for two. The
-     * filter must return that shorter replacement, and — the actual worry behind testing this
-     * through a real widget — the EditText must accept it via an ordinary edit without
-     * throwing.
-     */
+    /** NFC makes the fold shorter than its source ("e" + U+0301 -> "é"); the widget must not throw. */
     @Test fun `a length-changing fold is returned and the real widget accepts it`() {
         val harness = show()
         val field = harness.tagsField()
 
-        // The filter returns the 1-unit replacement for the 2-unit source.
         assertEquals("\u00e9", field.filters.single().filter("e\u0301", 0, 2, null, 0, 0).toString())
 
-        // And typing it through the live Editable (which runs the filter on replace) folds it
-        // in place with no IndexOutOfBounds from the length change.
         field.setText("")
         field.text.append("e\u0301")
         assertEquals("\u00e9", field.text.toString())
     }
 
-    /** The capital dotted İ folds to a plain "i" — the same tag a typed "i" gives, not the
-     *  "i" + combining dot that ROOT lowercasing alone produces. */
+    /** Not the "i" + combining dot that ROOT lowercasing alone produces. */
     @Test fun `the capital dotted I folds to a plain i in the tag field`() {
         val harness = show()
         val field = harness.tagsField()
@@ -150,8 +120,8 @@ class RenameDialogFilterTest {
         harness.clickOk()
 
         val (name, tags) = harness.committed!!
-        assertEquals("My Gmail", name)                 // trimmed
-        assertEquals(listOf("work", "chat"), tags)     // folded, '#' stripped, "work" de-duped
+        assertEquals("My Gmail", name)
+        assertEquals(listOf("work", "chat"), tags)
     }
 
     @Test fun `OK on empty fields hands back an empty name and no tags`() {

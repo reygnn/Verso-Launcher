@@ -10,11 +10,8 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
-/**
- * JVM unit tests for [ConfigStore] — one verso.json, written via verso.json.new + sync +
- * rename, read once. Real files in a real temp directory; only the directory fsync is
- * stubbed (android.system.Os), and the rename and read seams fail on demand.
- */
+/** Real files; only the directory fsync is stubbed, and the rename and read seams fail on demand. */
+
 class ConfigStoreTest {
 
     @get:Rule val tmp = TemporaryFolder()

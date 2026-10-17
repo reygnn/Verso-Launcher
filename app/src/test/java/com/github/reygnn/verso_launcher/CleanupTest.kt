@@ -3,8 +3,6 @@ package com.github.reygnn.verso_launcher
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** [Cleanup.plan]: what "~cleanup" may offer — only after a complete enumeration, and never an
- *  app still on the device in some form (hard rule 14). */
 class CleanupTest {
 
     private val here = AppEntry.of("Here", "here", "here.Main", "Here")
@@ -71,9 +69,9 @@ class CleanupTest {
         assertEquals(CleanupPlan.NothingToDo, plan)
     }
 
-    /** A key with the launcher's own profile serial matches no app (own apps carry no serial),
-     *  though the system would call it "still there": it came with a config from another device
-     *  or user. Gone — while the same app under its own key, and other profiles, stay. */
+    /** Own apps carry no serial, so such a key (from another device's config) matches no app,
+     *  though the system would call it "still there". */
+
     @Test fun `a key with the launcher's own profile serial is gone`() {
         val ownKey = "here/here.Main#0"
         val workKey = "work/work.Main#10"

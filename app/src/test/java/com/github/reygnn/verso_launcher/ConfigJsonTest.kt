@@ -6,11 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * JVM round-trip tests for the verso.json (de)serialization. These run on the
- * plain JVM because the REAL org.json is on the test classpath (see the json
- * testImplementation) — the app's android.jar org.json is only a throwing stub.
- */
+/** Plain JVM: the REAL org.json is on the test classpath — android.jar's is a throwing stub. */
 class ConfigJsonTest {
 
     private fun config(
@@ -34,7 +30,7 @@ class ConfigJsonTest {
         )
         val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
         assertEquals(original.hidden, parsed.hidden)
-        assertEquals(original.favorites.toList(), parsed.favorites.toList())  // order = rank
+        assertEquals(original.favorites.toList(), parsed.favorites.toList())
         assertEquals(original.names, parsed.names)
         assertEquals(original.tags, parsed.tags)
     }
@@ -54,23 +50,19 @@ class ConfigJsonTest {
     }
 
     @Test fun `an empty tag list is not materialized on parse`() {
-        // serialize never writes [], but a hand-edited file might; parse must drop it
-        // so the in-memory shape stays "key present only when it has tags".
+        // serialize never writes [], but a hand-edited file might.
         val parsed = ConfigJson.parse("""{"tags":{"com.a/.A":[]}}""")!!
         assertTrue(parsed.tags.isEmpty())
     }
 
     @Test fun `round-trips tags with unicode and special characters`() {
-        // Tags are stored ROOT-folded, so use already-lowercase values here to keep
-        // round-trip identity; the point is that unicode/punctuation survive org.json.
+        // Already lowercase: tags are stored ROOT-folded.
         val original = config(tags = mapOf("com.a/.A" to listOf("café", "c/c++", "a b")))
         val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
         assertEquals(original.tags, parsed.tags)
     }
 
     @Test fun `parse folds tag case so a hand-edited tag still matches the filter`() {
-        // A hand-edited file with an unfolded "Work" must load as the canonical "work",
-        // or the ROOT-folded "#work" filter would silently miss it.
         val parsed = ConfigJson.parse("""{"tags":{"com.a/.A":["Work","GAMES"]}}""")!!
         assertEquals(listOf("work", "games"), parsed.tags["com.a/.A"])
     }
@@ -84,7 +76,7 @@ class ConfigJsonTest {
     @Test fun `malformed input returns null`() {
         assertNull(ConfigJson.parse("not json"))
         assertNull(ConfigJson.parse(""))
-        assertNull(ConfigJson.parse("[1,2,3]"))   // a JSON array, not the expected object
+        assertNull(ConfigJson.parse("[1,2,3]"))
     }
 
     @Test fun `missing keys yield empty sections, not null`() {
@@ -102,10 +94,7 @@ class ConfigJsonTest {
     }
 
     @Test fun `non-string list elements and map values are dropped, not coerced`() {
-        // Android's org.json getString() would COERCE a number/boolean (123 -> "123") into a
-        // bogus component key or name, and would throw on a structural value (rejecting the
-        // whole file). opt(...) as? String drops any non-string uniformly, keeping the valid
-        // entries — lenient (per the class KDoc) and independent of the org.json impl.
+        // Android's getString() would coerce 123 to "123" and throw on an object; opt() as? String drops both.
         val parsed = ConfigJson.parse(
             """{"hidden":[123,"com.a/A"],"favorites":[true,"com.f/F"],"names":{"com.b/B":456,"com.c/C":"Real"}}""",
         )!!
@@ -115,8 +104,6 @@ class ConfigJsonTest {
     }
 
     @Test fun `round-trips names with quotes, backslashes and unicode`() {
-        // A custom name must survive serialization intact — otherwise a stray quote
-        // or backslash in a rename could corrupt the whole verso.json.
         val tricky = mapOf(
             "com.a/.A" to "Wörk \"Gmail\"",
             "com.b/.B" to "back\\slash",
@@ -127,23 +114,17 @@ class ConfigJsonTest {
     }
 
     @Test fun `control characters in a stored name are dropped on load`() {
-        // A one-line row cannot show a tab or a newline; cleanName removes them (and the
-        // invisible look-alike characters) from every name read from a file.
         val parsed = ConfigJson.parse(ConfigJson.serialize(config(names = mapOf("com.b/.B" to "tab\tand\nnewline"))))!!
         assertEquals("tabandnewline", parsed.names["com.b/.B"])
     }
 
     @Test fun `truncated JSON returns null - the torn-write recovery trigger`() {
-        // A torn verso.json must parse to null, never to a config: ConfigStore.load() then
-        // reports it unreadable and the first load sets it aside. Pin that these parse to null.
-        assertNull(ConfigJson.parse("{\"favorites\":[\"x\""))  // unterminated
-        assertNull(ConfigJson.parse("{"))                      // bare opening brace
-        assertNull(ConfigJson.parse("   "))                    // whitespace only
+        assertNull(ConfigJson.parse("{\"favorites\":[\"x\""))
+        assertNull(ConfigJson.parse("{"))
+        assertNull(ConfigJson.parse("   "))
     }
 
     @Test fun `duplicate favorites in the file are de-duplicated, first position wins`() {
-        // A hand-edited or corrupted file could repeat a key; the favorites Set must
-        // collapse it to one entry without disturbing the surrounding rank order.
         val parsed = ConfigJson.parse("""{"favorites":["x","y","x"]}""")!!
         assertEquals(listOf("x", "y"), parsed.favorites.toList())
     }
@@ -173,10 +154,7 @@ class ConfigJsonTest {
 
     // ---- hostile nesting ----------------------------------------------------
 
-    /** Android's org.json has no depth limit and throws StackOverflowError (an Error, not an
-     *  Exception) here — verified on a device; the desktop org.json on this classpath refuses
-     *  with a JSONException instead. Either way the contract is the same: null, no throw. The
-     *  Android path itself is pinned by ConfigJsonInstrumentedTest. */
+    /** Android's org.json overflows the stack here (an Error); this JVM one throws. Either way: null. */
     @Test fun `an absurdly nested document is refused, not thrown`() {
         val deep = "{\"favorites\":" + "[".repeat(200_000) + "]".repeat(200_000) + "}"
         assertNull(ConfigJson.parse(deep))
@@ -185,8 +163,7 @@ class ConfigJsonTest {
 
     // ---- parseForeign -------------------------------------------------------
 
-    /** The regression this exists for: a restore fed unrelated JSON used to "succeed"
-     *  and adopt an empty config, silently wiping favorites/hidden/names/tags. */
+    /** Adopting it would replace the whole config with an empty one. */
     @Test
     fun `foreign JSON without a single known section is rejected`() {
         assertNull(ConfigJson.parseForeign("{}"))
@@ -197,16 +174,11 @@ class ConfigJsonTest {
         assertNull(ConfigJson.parseForeign(""))
     }
 
-    /** A section of the WRONG type doesn't count as one either — "hidden" as a string
-     *  is some other app's file that happens to share the word. */
     @Test
     fun `known keys of the wrong type do not qualify`() {
         assertNull(ConfigJson.parseForeign("""{"hidden":true,"names":"nope"}"""))
     }
 
-    /** Nor a section whose CONTAINER shape is swapped — the array sections as an object and the
-     *  object sections as an array. optJSONArray/optJSONObject each return null for the wrong
-     *  shape, so none of the four qualifies and the document is rejected, not adopted empty. */
     @Test
     fun `known keys of the wrong container shape do not qualify`() {
         assertNull(ConfigJson.parseForeign("""{"favorites":{},"hidden":{},"names":[],"tags":[]}"""))
@@ -219,8 +191,7 @@ class ConfigJsonTest {
         assertEquals(listOf("pkg/Act"), onlyFavorites!!.favorites.toList())
     }
 
-    /** An all-empty but well-formed config is a legitimate thing to restore — the user
-     *  clearing everything and keeping that as a backup must still work. */
+    /** Clearing everything and backing that up must still restore. */
     @Test
     fun `a well-formed but empty config is accepted`() {
         val empty = ConfigJson.parseForeign("""{"hidden":[],"favorites":[],"names":{},"tags":{}}""")
@@ -228,8 +199,6 @@ class ConfigJsonTest {
         assertTrue(empty!!.favorites.isEmpty())
     }
 
-    /** parseForeign must agree with parse on a real file — same round-trip, just pickier
-     *  about what it lets in. */
     @Test
     fun `a real serialized config round-trips through parseForeign`() {
         val cfg = VersoConfig(
@@ -248,9 +217,6 @@ class ConfigJsonTest {
 
     // ---- tag canonicalisation on load ---------------------------------------
 
-    /** A config written before the rule existed — or hand-edited, or restored from
-     *  another device — is migrated on load rather than kept in a shape the app can no
-     *  longer reach. */
     @Test
     fun `loading canonicalises tags out of a foreign or older file`() {
         val cfg = ConfigJson.parse("""{"tags":{"pkg/A":["#work","Chat","foo,bar","  spaced  "]}}""")
@@ -258,8 +224,7 @@ class ConfigJsonTest {
         assertEquals(listOf("work", "chat", "foobar", "spaced"), cfg!!.tags["pkg/A"])
     }
 
-    /** Duplicates must collapse: toggleTag's minus removes only the first occurrence, so
-     *  a doubled tag could never be fully un-ticked in the "##" editor. */
+    /** toggleTag removes only the first occurrence, so a doubled tag could never be un-ticked. */
     @Test
     fun `loading collapses tags that canonicalise to the same thing`() {
         val cfg = ConfigJson.parse("""{"tags":{"pkg/A":["Work","work","#work"]}}""")
@@ -267,8 +232,7 @@ class ConfigJsonTest {
         assertEquals(listOf("work"), cfg!!.tags["pkg/A"])
     }
 
-    /** An app whose tags all canonicalise to nothing loses its KEY, not merely its
-     *  values — an empty list would disagree with what serialize writes next. */
+    /** An empty list would disagree with what serialize writes next. */
     @Test
     fun `an app whose tags all vanish loses its key`() {
         val cfg = ConfigJson.parse("""{"tags":{"pkg/A":["###",",",""],"pkg/B":["work"]}}""")

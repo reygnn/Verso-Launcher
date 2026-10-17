@@ -7,16 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * JVM unit tests for [VersoConfig.snapshot]. Plain JUnit4, no Robolectric: the class
- * holds no framework types, only collections.
- *
- * These exist for ONE invariant, and it is a load-bearing one. snapshot() hands a copy to
- * the background loader while the main thread keeps mutating the live config. If any
- * container were shared rather than copied, a background read could race a main-thread
- * write on a collection that is not thread-safe — a ConcurrentModificationException, or a
- * half-mutated read, in a HOME app that must not crash. The tag map is the subtle case:
- * copying the outer map alone still leaves the inner MutableLists aliased, which is
- * exactly the "simplification" a future reader is most likely to reach for.
+ * snapshot() hands a copy to the IO thread while main keeps mutating the live config, so no
+ * container may be shared. The trap is the tag map: copying the outer map leaves the inner lists aliased.
  */
 class VersoConfigTest {
 
@@ -32,8 +24,7 @@ class VersoConfigTest {
 
     // ---- the deep-copy invariant ---------------------------------------------
 
-    /** The one a shallow LinkedHashMap(tags) copy would break: outer map copied, inner
-     *  lists still shared with the live config. */
+    /** What a shallow LinkedHashMap(tags) copy would break. */
     @Test
     fun `mutating a tag list on the original does not reach the snapshot`() {
         val cfg = populated()
@@ -46,8 +37,6 @@ class VersoConfigTest {
         assertEquals(listOf("media"), snap.tags["f/2"])
     }
 
-    /** ...and the other direction, since the loader holds the snapshot while the main
-     *  thread holds the original. */
     @Test
     fun `mutating a tag list on the snapshot does not reach the original`() {
         val cfg = populated()
@@ -58,8 +47,7 @@ class VersoConfigTest {
         assertEquals(listOf("work", "chat"), cfg.tags["f/1"])
     }
 
-    /** Every inner list must be a distinct object, not just equal — identity is what
-     *  decides whether two threads can collide on it. */
+    /** Identity, not equality, decides whether two threads can collide on a list. */
     @Test
     fun `each tag list is a distinct object`() {
         val cfg = populated()
@@ -99,8 +87,7 @@ class VersoConfigTest {
 
     // ---- what the copy must preserve -----------------------------------------
 
-    /** Favorites order IS the rank the rows are laid out by, so a snapshot that copied
-     *  the members but lost the order would reorder the user's home screen. */
+    /** Favorites order is the home-screen rank. */
     @Test
     fun `favorites keep their order across a snapshot`() {
         val cfg = VersoConfig(favorites = linkedSetOf("z/1", "a/1", "m/1"))
@@ -145,7 +132,6 @@ class VersoConfigTest {
         )
         assertTrue(a.sameContent(reordered))
         assertFalse(a.sameContent(VersoConfig(favorites = linkedSetOf("b/B", "a/A"), hidden = a.hidden, names = a.names, tags = a.tags)))
-        // Only the hidden set differs: a restore of it is a real change, not "nothing to do".
         assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = linkedSetOf("x/X"), names = a.names, tags = a.tags)))
         assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = linkedMapOf("a/A" to "Alpha"), tags = a.tags)))
         assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = a.names, tags = linkedMapOf("a/A" to mutableListOf("home")))))

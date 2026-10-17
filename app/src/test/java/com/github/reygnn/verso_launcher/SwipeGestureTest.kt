@@ -6,12 +6,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * JVM unit tests for [SwipeGesture] — the pure half of the home <-> drawer swipe, ported from
- * Kolibri's SwipeGestureAnalyzer. The touch plumbing in [SwipeFrame] only feeds deltas in and
- * acts on these answers, so this is where "flick vs. slow drag", "which way" and "whose
- * gesture" are pinned.
- */
 class SwipeGestureTest {
 
     /** 4 × a 10 px touch slop. */
@@ -132,7 +126,8 @@ class SwipeGestureTest {
     }
 
     @Test fun `a flick back cancels even past the threshold`() {
-        // "Pull far, then flick back" aborts — distance alone must not commit it (Unity's fix).
+        // "Pull far, then flick back" aborts: distance alone must not commit it.
+
         assertEquals(DragEnd.CANCEL, SwipeGesture.dragEnd(offset = 700f, height = height, velocity = -300f, flingVelocity = fling))
         assertEquals(DragEnd.COMMIT, SwipeGesture.dragEnd(offset = 700f, height = height, velocity = -299f, flingVelocity = fling))
     }

@@ -8,9 +8,7 @@ package com.github.reygnn.verso_launcher
  * The family template assumes Compose + coroutines + MockK. Verso has none of
  * those (no dependencies in the APK, see the project CLAUDE.md), so this file
  * keeps the template's discipline and replaces its coroutine/MockK sections
- * with what this project actually does. If coroutines or MockK ever arrive,
- * take the corresponding sections from
- * ~/AndroidStudio_Projects/_skeleton/.../TESTING_CONVENTIONS.kt verbatim.
+ * with what this project actually does.
  * ============================================================================
  */
 
@@ -20,29 +18,27 @@ package com.github.reygnn.verso_launcher
  * ============================================================================
  *
  * Production classes take their Android-bound collaborators as FUNCTIONS, so
- * a test passes a lambda — no mocking framework, no mocked-out machinery:
+ * a test passes a lambda — no mocking framework (no MockK, no Mockito), only
+ * fakes and manual queues:
  *
- *   LauncherState(io, main, loadConfig, enumerateApps, serialize, writeConfig,
- *                 onRefreshed, isFreshInstall, defaultFavoriteCandidates,
- *                 initialRecents, onRecentsChanged)
- *   ConfigStore(dir, log, syncDir, rename)        // rename: force a refusal
- *   BackupStore(resolver, subDir, log, beforePublish, now)
+ *   LauncherState(io, main, loadConfig, setAsideUnreadable, enumerateApps,
+ *                 serialize, writeConfig, onSaveFailed, onRefreshed, …)
+ *   ConfigStore(dir, log, syncDir, rename, readText)  // rename/readText: force a failure
+ *   BackupStore(resolver, subDir, log, beforePublish, now, owner)
  *
  * The `log` parameter is the error channel of classes that never throw: a
  * test collects the messages and asserts on them.
  *
  * Pure decisions live in `object`s (LauncherLogic, SwipeGesture, BackupFiles,
- * HomeStyle, BatteryInfo) and are tested with plain values. Rows are faked
- * with the shared `OrderedFake(key, labelLower)` (OrderedFake.kt).
- *
- * MockK only if a real need appears — never Mockito. Mock variables are then
- * named after what they represent, without a `mock` prefix.
+ * Cleanup, RestoreSteps, TapGuard, HomeStyle, BatteryInfo) and are tested with
+ * plain values. Rows are faked with the shared `OrderedFake(key, labelLower)`
+ * (OrderedFake.kt).
  * ============================================================================
  */
 
 /**
  * ============================================================================
- * THREADING — TWO MANUAL QUEUES, NOT DISPATCHERS
+ * THREADING — MANUAL QUEUES, NOT DISPATCHERS
  * ============================================================================
  *
  * No coroutines here, so no MainDispatcherRule / runTest. LauncherState gets
@@ -60,7 +56,13 @@ package com.github.reygnn.verso_launcher
  *
  * A test decides exactly when the background half runs and when its result
  * is handed back, and can put a tap in between. Every race worth fixing gets
- * its interleaving written out like this.
+ * its interleaving written out like this. CommandGateTest does the same with
+ * one queue.
+ *
+ * Where the real Activity runs (MainActivityFlowsTest), the process's IO
+ * executor is real: drain it with `app.io.submit {}.get(…)` plus
+ * `shadowOf(Looper.getMainLooper()).idle()`, or hold it with a latch to keep a
+ * command running.
  * ============================================================================
  */
 
@@ -101,14 +103,16 @@ package com.github.reygnn.verso_launcher
  * ============================================================================
  *
  * Only when a test genuinely needs the Android runtime — a real widget's
- * InputFilter, View accessibility plumbing. Annotate the class with
- * `@RunWith(RobolectricTestRunner::class)`; the SDK is pinned to 36 once for
- * all classes in `src/test/resources/robolectric.properties` (no per-class
- * `@Config(sdk = …)`). The manifest's VersoApp is fine as the Application: it
- * only holds an idle executor and in-memory caches (recents, palette, badge labels).
+ * InputFilter, View accessibility plumbing, MotionEvents, the real Activity.
+ * Annotate the class with `@RunWith(RobolectricTestRunner::class)`; the SDK is
+ * pinned to 36 once for all classes in `src/test/resources/robolectric.properties`
+ * (no per-class `@Config(sdk = …)`; `@Config(qualifiers = …)` for a locale is
+ * fine). The manifest's VersoApp is fine as the Application: it only holds an
+ * idle executor and in-memory caches (recents, palette, badge labels).
  *
  * Drive a plain `Activity` with `Robolectric.buildActivity(Activity::class.java)
  * .setup()` — no androidx.test / ActivityScenario on the unit-test classpath.
+ * Widgets built in code are reached with `view.collect<T>()` (ViewTrees.kt).
  * Started intents are read back with `shadowOf(activity).nextStartedActivity`.
  * ============================================================================
  */
@@ -143,18 +147,22 @@ package com.github.reygnn.verso_launcher
  * BEHAVIOURAL DISCIPLINE
  * ============================================================================
  *
- * 1. No Mockito anywhere; MockK only if mocks become necessary.
+ * 1. No mocking framework; fakes, lambdas and manual queues.
  * 2. Read the implementation alongside the test. The two are designed to be
  *    read together; subtle asymmetries are invisible to a test author who
  *    only reads one side.
  * 3. Honest KDoc beats fake tests. If something is genuinely not testable on
- *    the JVM, document why in the production code and test it on a device —
- *    a pseudo-test that asserts on mocked-out machinery proves nothing.
+ *    the JVM, say why and test it on a device — a pseudo-test that asserts on
+ *    faked-out machinery proves nothing. Rules that live in Activity glue or
+ *    the manifest get a source scan in SourceGuardTest.
  * 4. Mutation check every fix: revert it, watch the new test fail, restore.
  * 5. Pin boundaries from both sides (the neighbouring values just below and
  *    just above), and never let a fixture re-implement the production logic
  *    it is supposed to check.
  * 6. When a fix breaks an existing test, first ask whether the test encoded
  *    the bug.
+ * 7. Comments are sparse: the backtick name says what is tested. Comment only
+ *    why a fixture or boundary was chosen, a bug the name does not make
+ *    clear, or a harness trap.
  * ============================================================================
  */

@@ -5,8 +5,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
-/** [HomeCache] — the cold-start copy of the home page's favorites. */
-class HomeCacheTest {
+class
+ HomeCacheTest {
 
     @get:Rule val tmp = TemporaryFolder()
 

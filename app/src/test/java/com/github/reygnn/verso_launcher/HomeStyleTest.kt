@@ -7,11 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.roundToInt
 
-/**
- * JVM tests for the Kolibri-ported home page numbers in [HomeStyle], [BatteryInfo] and
- * [DoubleTapGate]. The expected values are Kolibri's defaults, so a drift from Kolibri's
- * look shows up here rather than on a device.
- */
+/** The expected values are Kolibri's defaults, so a drift from Kolibri's look shows up here. */
 class HomeStyleTest {
 
     // ---- favorites size -------------------------------------------------------
@@ -87,9 +83,9 @@ class HomeStyleTest {
     @Test fun `a dark wallpaper keeps light text with dark rims and light bar icons`() {
         val p = HomeStyle.palette(lightWallpaper = false)
         assertEquals(HomeStyle.TEXT_COLOR, p.homeText)
-        assertEquals(HomeStyle.argb(153, 0, 0, 0), HomeStyle.tonalOutlineColor(p.homeText))  // white text: black rim
-        assertEquals(0x000000, p.listOutline and 0xFFFFFF)          // white rows: dark rim
-        assertEquals(0x000000, p.promptBar and 0xFFFFFF)            // dark bar under light text
+        assertEquals(HomeStyle.argb(153, 0, 0, 0), HomeStyle.tonalOutlineColor(p.homeText))
+        assertEquals(0x000000, p.listOutline and 0xFFFFFF)
+        assertEquals(0x000000, p.promptBar and 0xFFFFFF)
         assertEquals("drawer rows in the favorites' colour", p.homeText, p.listText)
         assertEquals(false, p.darkBarIcons)
     }
@@ -97,16 +93,15 @@ class HomeStyleTest {
     @Test fun `a light wallpaper flips to dark text with light rims and dark bar icons`() {
         val p = HomeStyle.palette(lightWallpaper = true)
         assertEquals(0xFF000000.toInt(), p.homeText)
-        assertEquals(HomeStyle.argb(204, 255, 255, 255), HomeStyle.tonalOutlineColor(p.homeText))  // Unity's black text: 80 % white rim
-        assertEquals(0xFFFFFF, p.listOutline and 0xFFFFFF)               // black rows: light rim
-        assertEquals(0xFFFFFF, p.promptBar and 0xFFFFFF)                 // light bar under dark text
+        assertEquals(HomeStyle.argb(204, 255, 255, 255), HomeStyle.tonalOutlineColor(p.homeText))
+        assertEquals(0xFFFFFF, p.listOutline and 0xFFFFFF)
+        assertEquals(0xFFFFFF, p.promptBar and 0xFFFFFF)
         assertEquals("drawer rows in the favorites' colour", p.homeText, p.listText)
         assertEquals(true, p.darkBarIcons)
     }
 
-    /** The prompt's bar is translucent, so it is checked over the worst ground for it — black
-     *  under the light bar, white under the dark one: text and hint at least 4.5:1 (the hint is
-     *  text too, WCAG 1.4.3), so the × is covered with them. */
+    /** The bar is translucent: checked over the worst ground for it, at WCAG's 4.5:1 for the hint too. */
+
     @Test fun `the prompt bar keeps text and hint readable over any wallpaper`() {
         fun over(bar: Int, ground: Int): Int {
             val a = (bar ushr 24) / 255.0

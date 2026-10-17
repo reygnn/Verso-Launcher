@@ -19,16 +19,11 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * [BackupStore] against the REAL MediaStore — the part of the backup no JVM test can fake,
- * and the part that broke: on a device MediaStore publishes a backup whose name is taken by a
- * row we do not own as "verso (1).json", and rewrites "verso.json.tmp" to
- * "verso.json.tmp.json". The old fixed-name lookup then answered "no backup" right after a
- * successful one, and its temp recovery could never find its temp. Backups are now named by
- * time; the clock is faked so the names are predictable.
+ * Only a device shows that MediaStore publishes a name taken by a row we do not own as
+ * "verso (1).json", and rewrites "verso.json.tmp" to "verso.json.tmp.json".
  *
- * Each test works in its own Download/VersoTest-<uuid>/ folder, removed afterwards. A row we
- * do NOT own (the orphan an uninstall leaves) is made by the shell, whose files land in
- * MediaStore under the shell's ownership — exactly like a file copied in over adb.
+ * A row we do NOT own (the orphan an uninstall leaves) is made by the shell, whose files land in
+ * MediaStore under the shell's ownership, exactly like a file copied in over adb.
  */
 @RunWith(AndroidJUnit4::class)
 class BackupStoreInstrumentedTest {
@@ -39,7 +34,7 @@ class BackupStoreInstrumentedTest {
     private val dirPath = "/sdcard/${Environment.DIRECTORY_DOWNLOADS}/$subDir"
     private val logs = mutableListOf<String>()
 
-    /** The test clock: every backup one second after the previous one, unless frozen. */
+    /** Every backup one second after the previous one, unless frozen. */
     private var clock = LocalDateTime.of(2026, 10, 13, 12, 0, 0)
     private var clockFrozen = false
 
@@ -77,7 +72,6 @@ class BackupStoreInstrumentedTest {
 
         assertEquals("verso-2026-10-13_120001.json", name)
         assertEquals(PAYLOAD_B, readLatest("verso"))
-        // One current backup — never a pile, and no temp left behind.
         assertEquals(listOf(name), ownNames())
     }
 
@@ -112,10 +106,9 @@ class BackupStoreInstrumentedTest {
         assertEquals(listOf(backup, undo).sortedBy { it }, ownNames())
     }
 
-    // ---- the device bug: names taken by rows we don't own ------------------------------
+    // ---- names taken by rows we don't own ----------------------------------------------
 
-    /** A restore's undo point is written without the sweep: the previous one — possibly the
-     *  file being restored — stays until the restore is saved and [BackupStore.sweep] runs. */
+    /** A restore's undo point: the previous one may be the very file being restored. */
     @Test fun anUnsweptWriteKeepsThePreviousRowUntilSweep() {
         val s = store()
         val first = s.write("verso-pre-restore", PAYLOAD_A)
@@ -133,7 +126,7 @@ class BackupStoreInstrumentedTest {
         val name = store().write("verso", PAYLOAD_A)
 
         assertEquals("verso-2026-10-13_120000.json", name)
-        assertEquals(PAYLOAD_A, readLatest("verso"))  // the old code said "no backup" here
+        assertEquals(PAYLOAD_A, readLatest("verso"))
     }
 
     @Test fun aForeignRowUnderTheVeryStampIsDodgedAndTheBackupIsStillFound() {
@@ -146,7 +139,7 @@ class BackupStoreInstrumentedTest {
     }
 
     @Test fun anOwnBackupFromBeforeTheTimestampsIsRestoredThenReplaced() {
-        // What the fixed-name version left on a device: an own "verso (2).json".
+        // An own "verso (2).json", as backups were named before the timestamps.
         val legacy = BackupStore(resolver, subDir, { msg, _ -> logs += msg }, now = { clock }, owner = instrumentation.targetContext.packageName)
         legacyWrite(legacy, "verso (2).json", PAYLOAD_A)
         assertEquals(PAYLOAD_A, readLatest("verso"))
@@ -174,7 +167,6 @@ class BackupStoreInstrumentedTest {
 
         crashBeforePublish(PAYLOAD_B)
 
-        // The old backup is still what a restore reads; the stranded temp kept its name.
         assertEquals(PAYLOAD_A, readLatest("verso"))
         assertEquals(listOf(old, "verso.tmp.json").sortedBy { it }, ownNames())
 
@@ -184,7 +176,6 @@ class BackupStoreInstrumentedTest {
     }
 
     @Test fun aCrashAfterPublishBeforeTheSweepLeavesTwoAndTheNewerWins() {
-        // What a crash between the publish and the sweep leaves: two published own backups.
         store().write("verso", PAYLOAD_A)
         ownPublished("verso-2026-10-13_120500.json", PAYLOAD_B)
 
@@ -198,9 +189,7 @@ class BackupStoreInstrumentedTest {
     @Test fun aPublishWhoseTempVanishedFailsAndKeepsTheOldBackup() {
         val old = store().write("verso", PAYLOAD_A)
 
-        // The temp row vanishes before its publish. On a device MediaStore does not answer the
-        // publishing update with "0 rows" but throws ("has no access"); either way it must be a
-        // failed backup — the updated != 1 check covers the other answer.
+        // On a device MediaStore does not answer the publishing update with "0 rows" but throws.
         val name = store(beforePublish = { deleteOwnTemps() }).write("verso", PAYLOAD_B)
 
         assertNull(name)
@@ -222,8 +211,7 @@ class BackupStoreInstrumentedTest {
 
     // ---- helpers -----------------------------------------------------------------------
 
-    /** A crash between the complete temp and its publish: an Error is not caught by
-     *  BackupStore (it catches Exception), so the write is abandoned exactly there. */
+    /** BackupStore catches Exception, not Error, so the write is abandoned exactly there. */
     private fun crashBeforePublish(payload: String) {
         try {
             store(beforePublish = { throw SimulatedCrash() }).write("verso", payload)
@@ -234,7 +222,6 @@ class BackupStoreInstrumentedTest {
 
     private class SimulatedCrash : Error()
 
-    /** A published row of ours named exactly [name], written the way MediaStore publishes. */
     private fun ownPublished(name: String, payload: String) {
         val uri = resolver.insert(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI,
@@ -254,7 +241,6 @@ class BackupStoreInstrumentedTest {
         )
     }
 
-    /** Delete every pending temp row of ours — the row a publish is about to update. */
     private fun deleteOwnTemps() {
         val query = Bundle().apply {
             putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "${MediaStore.MediaColumns.RELATIVE_PATH}=?")
@@ -275,8 +261,7 @@ class BackupStoreInstrumentedTest {
         }
     }
 
-    /** Write [payload] as an own row named exactly [name], as the fixed-name version did:
-     *  a normal backup, then renamed in place. */
+    /** A normal backup, then renamed in place to exactly [name]. */
     private fun legacyWrite(store: BackupStore, name: String, payload: String) {
         store.write("verso", payload)
         val uri = (store.lookupLatest("verso") as BackupStore.Latest.Found).uri
@@ -312,8 +297,8 @@ class BackupStoreInstrumentedTest {
         )!!.use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }.sorted()
     }
 
-    /** Run [command] as the shell user and wait for it to finish. */
-    private fun shell(command: String) {
+    private
+ fun shell(command: String) {
         instrumentation.uiAutomation.executeShellCommand(command).use { pfd ->
             java.io.FileInputStream(pfd.fileDescriptor).use { it.readBytes() }
         }

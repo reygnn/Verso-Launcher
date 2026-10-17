@@ -9,12 +9,9 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 
-/**
- * [SwipeFrame]'s touch plumbing, driven with real MotionEvents: the parts [SwipeGestureTest]
- * cannot see — the per-move delta's direction, the release velocity's sign, the per-gesture
- * limit, a second finger, abortDrag, and the drag-before-flick order. A flipped sign here would
- * make every flick forward cancel and every flick back commit while all pure tests stay green.
- */
+/** A flipped sign here would make every flick forward cancel and every flick back commit, while
+ *  all of [SwipeGestureTest] stays green. */
+
 @RunWith(RobolectricTestRunner::class)
 class SwipeFrameTest {
 

@@ -6,16 +6,7 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 
-/**
- * JVM unit tests for [BackupStore]'s restore-read bound.
- *
- * Only [BackupStore.readCapped] is exercised — the pure, load-bearing part of `readText`
- * (the guard against an OOM on a huge or streaming restore file). `readText`'s own body is
- * just `resolver.openInputStream(uri)?.use { readCapped(it) }`: trivial Android glue that
- * would need Robolectric to reach but carries no logic worth testing. Extracting the cap
- * into a function of an [InputStream] keeps the meaningful behaviour testable on the plain
- * JVM — a [ByteArrayInputStream] drives it, no Android runtime and no Robolectric.
- */
+/** Only [BackupStore.readCapped], the OOM guard of a restore read; the rest is MediaStore glue. */
 class BackupStoreTest {
 
     @Test fun `reads content under the cap`() {
@@ -39,9 +30,8 @@ class BackupStoreTest {
     }
 
     @Test fun `a chunked over-cap stream is still refused`() {
-        // A provider that hands out bytes a few at a time (as a real ContentProvider can)
-        // must still be bounded: readNBytes keeps pulling up to cap + 1, so 9 bytes over an
-        // 8-byte cap is caught even when delivered in 3-byte chunks.
+        // A real ContentProvider can hand out bytes a few at a time.
+
         val chunky = object : InputStream() {
             private var remaining = 9
             override fun read(): Int = if (remaining-- > 0) 'x'.code else -1

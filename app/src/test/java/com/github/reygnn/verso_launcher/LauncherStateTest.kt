@@ -8,12 +8,8 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * JVM tests for [LauncherState]: the data layer and its concurrency rules.
- *
- * The IO thread and the main thread are two manual FIFO queues, so a test decides exactly
- * when the background part of a load runs and when its result is handed back — and can put a
- * tap in between. Plain JUnit, no coroutines, no Android: LauncherState takes its threads as
- * functions precisely so these interleavings are deterministic.
+ * The IO thread and the main thread are two manual FIFO queues, so a test decides exactly when
+ * the background part of a load runs and when its result is handed back, and can put a tap in between.
  */
 class LauncherStateTest {
 
@@ -25,27 +21,21 @@ class LauncherStateTest {
     private val mainQueue = ArrayDeque<Runnable>()
     private var ioOpen = true
 
-    /** What loadConfig() returns — "the file on disk". NOT updated by writeConfig (which only
-     *  records payloads in [written]): a test that saves and then reloads must set it itself,
-     *  or it reads a file a real device would no longer have. */
+    /** "The file on disk". NOT updated by writeConfig: a test that saves and then reloads must set it itself. */
     private var disk = VersoConfig()
-    /** The file is there but cannot be read (ConfigStore.load null). */
     private var diskUnreadable = false
     private var setAsideWorks = true
     private var setAsideCalls = 0
     private var loadConfigCalls = 0
 
-    /** The installed apps under their system labels — what an enumeration reports, as is: no
-     *  custom names, and NOT sorted (reversed below), so the tests see LauncherState apply both. */
+    /** Reported without custom names and NOT sorted (reversed below), so the tests see LauncherState apply both. */
     private var installed = listOf(app("Alpha"), app("Bravo"), app("Charlie"))
     private var enumerationFails = false
     private var enumerations = 0
 
-    /** Every payload handed to writeConfig, in order. */
     private val written = mutableListOf<String>()
     private var writeSucceeds = true
 
-    /** Runs the next IO task, expecting it to throw (the IO thread's guard would log it). */
     private fun runIoThrowing() {
         try {
             ioQueue.removeFirst().run()
@@ -57,15 +47,14 @@ class LauncherStateTest {
 
     private val refreshed = mutableListOf<Boolean>()
     private var saveFailures = 0
-    /** VersoApp.startedOver: process-wide, outlives a LauncherState. */
+    /** Process-wide like VersoApp's: it outlives a LauncherState. */
     private val startedOverFlag = java.util.concurrent.atomic.AtomicBoolean()
     private val listChanges = mutableListOf<Boolean>()
 
     private val state = LauncherState(
         io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
         main = { task -> mainQueue.addLast(task) },
-        // A copy, like a real read: the file and the live config must never be one object,
-        // or a test could pass only because a mutation also "changed the disk".
+        // A copy: otherwise a test could pass only because a mutation also "changed the disk".
         loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk.snapshot() },
         setAsideUnreadable = {
             setAsideCalls++
@@ -76,7 +65,6 @@ class LauncherStateTest {
             enumerations++
             if (enumerationFails) null else installed.reversed()
         },
-        // A readable stand-in for ConfigJson (org.json is not needed to test the rules).
         serialize = { c ->
             "fav=${c.favorites.joinToString(",")};hid=${c.hidden.joinToString(",")};" +
                 "names=${c.names.entries.joinToString(",") { "${it.key}=${it.value}" }};" +
@@ -90,9 +78,7 @@ class LauncherStateTest {
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
     )
 
-    /** What isFreshInstall() answers — "no verso.json on disk yet". */
     private var fresh = false
-    /** The default-favorite slots the Activity would resolve. */
     private var candidates = listOf(listOf(key("Charlie")), listOf("gone/Gone", key("Alpha")))
     private var candidatesCalls = 0
 
@@ -107,7 +93,6 @@ class LauncherStateTest {
 
     private fun labels() = state.apps.map { it.label }
 
-    /** Cold start finished: config read from [disk], apps enumerated, queues drained. */
     private fun started() {
         state.refresh()
         runAll()
@@ -139,8 +124,7 @@ class LauncherStateTest {
         assertEquals(listOf(false), refreshed)
     }
 
-    /** A refresh that brings the same list asks for no re-render (it would void a tap in
-     *  flight); a new app, a changed status or a new config do. */
+    /** A needless re-render would void a tap in flight. */
     @Test fun `a hand-off says whether the list changed`() {
         started()
         listChanges.clear()
@@ -205,8 +189,7 @@ class LauncherStateTest {
         assertTrue(state.configLoaded)
     }
 
-    /** The load that set the config aside is superseded before its hand-off (a package change,
-     *  a resume): the next load finds no verso.json, a fresh install — and must still say so. */
+    /** Superseded before its hand-off, the next load finds no verso.json: a plain fresh install. */
     @Test fun `a start-over whose hand-off was lost is still said`() {
         diskUnreadable = true
         state.refresh()
@@ -225,8 +208,6 @@ class LauncherStateTest {
         assertFalse(state.takeStartedOver())
     }
 
-    /** The activity is recreated while its first load runs: that hand-off is dropped, the new
-     *  instance's state (sharing the process-wide flag) finds a fresh install — and says it. */
     @Test fun `a start-over is said by the next instance when the first was recreated`() {
         diskUnreadable = true
         state.refresh()
@@ -327,7 +308,6 @@ class LauncherStateTest {
     // ---- rename vs. an in-flight load -------------------------------------------------
 
     @Test fun `a rename during a load keeps its name, and the load's new apps still land`() {
-        // A list carries no names: it lands, and the names are applied at its hand-off.
         started()
         installed = installed + app("Delta")
         state.refresh()
@@ -356,8 +336,7 @@ class LauncherStateTest {
     }
 
     @Test fun `a rename re-sorts by the device language, not a fixed alphabet`() {
-        // Swedish files Ä after Z — a test with German alone could not tell that apart from a
-        // locale-blind sort.
+        // Swedish files Ä after Z; German alone could not tell a locale-blind sort apart.
         java.util.Locale.setDefault(java.util.Locale.of("sv", "SE"))
         started()
         state.rename(key("Alpha"), "Alpha", "Ärzte", emptyList())
@@ -417,7 +396,7 @@ class LauncherStateTest {
         startedWithOrphan()
         cleanup()
         runIo()
-        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)  // nothing removed yet
+        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
         runAll()
         assertTrue(cleanupLog[1].startsWith("undo:fav=${key("Alpha")},gone/A;"))
         assertTrue(cleanupLog[1].endsWith("|written=0"))
@@ -622,8 +601,7 @@ class LauncherStateTest {
     }
 
     @Test fun `save before the first load writes nothing`() {
-        // The empty default in memory must never be written over the real file: every
-        // favorite would be gone.
+        // The empty default in memory must never be written over the real file.
         disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
         state.refresh()  // the load is queued, not yet run
         state.save()
@@ -761,8 +739,7 @@ class LauncherStateTest {
     }
 
     @Test fun `a fresh install whose recovered config has favorites is not seeded`() {
-        // The other half of hard rule 10: seeds go only into a config with no favorites, even
-        // when the install counts as fresh.
+        // Hard rule 10: only into a config with no favorites, even when the install counts as fresh.
         fresh = true
         disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
         state.refresh()
@@ -781,7 +758,7 @@ class LauncherStateTest {
 
     @Test fun `a warm refresh does not seed`() {
         started()
-        fresh = true  // e.g. the file vanished behind our back — memory is the truth now
+        fresh = true  // the file vanished behind our back: memory is the truth now
         state.refresh()
         runAll()
         assertTrue(state.config.favorites.isEmpty())
@@ -813,7 +790,8 @@ class LauncherStateTest {
         val work = AppEntry.of("Gmail (Work)", "com.google.android.gm", "com.google.android.gm.Main", "Gmail (Work)", profile = 10)
         assertEquals("com.google.android.gm/com.google.android.gm.Main", personal.key)
         assertEquals("com.google.android.gm/com.google.android.gm.Main#10", work.key)
-        assertEquals(work.key, work.withLabel("Mail").key)  // a rename keeps the profile
+        assertEquals(work.key, work.withLabel("Mail").key)
+
         assertEquals(10L, work.withLabel("Mail").profile)
     }
 

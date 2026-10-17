@@ -14,11 +14,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/**
- * The home page in a language that writes its own digits (Arabic, Egypt: ٠١٢…). Robolectric
- * runs every other test in en-US, so without this nothing ever checks that the clock, the date
- * and the battery come out in the device's numerals rather than hard-wired ASCII ones.
- */
+/** Arabic (Egypt) writes its own digits; every other Robolectric test runs in en-US. */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "ar-rEG")
 class HomePageLocaleTest {

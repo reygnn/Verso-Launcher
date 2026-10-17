@@ -7,11 +7,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * [ConfigJson] on Android's OWN org.json. The JVM tests run against the desktop org.json,
- * which refuses deep nesting with a JSONException; Android's parses recursively without a
- * limit and overflows the stack instead — a StackOverflowError, which is not an Exception.
- * Only a device can show that ConfigJson really contains it.
+ * The desktop org.json of the JVM tests refuses deep nesting with a JSONException; Android's
+ * overflows the stack instead, a StackOverflowError, which is not an Exception.
  */
+
 @RunWith(AndroidJUnit4::class)
 class ConfigJsonInstrumentedTest {
 

@@ -14,12 +14,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
-/**
- * The home page's double-tap targets (clock, date, battery) under a screen reader. A plain
- * click must still need a second one within the double-tap window, but TalkBack's activation
- * — a single accessibility click — must run the action directly, or it is unreachable.
- * Robolectric, because it is real View accessibility plumbing.
- */
+/** TalkBack's activation is a single accessibility click, so it must bypass the double-tap gate. */
 @RunWith(RobolectricTestRunner::class)
 class HomePageAccessibilityTest {
 
@@ -27,13 +22,10 @@ class HomePageAccessibilityTest {
     private var drawerOpened = 0
     private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { drawerOpened++ })
 
-    /** The clock: the first TextClock on the page (the date is the second). */
     private val clock: View get() = page.view.collect<TextClock>().first()
 
-    /** The date: the second TextClock. */
     private val date: View get() = page.view.collect<TextClock>()[1]
 
-    /** The battery: the text view showing the (still unknown) percentage. */
     private val battery: View get() =
         page.view.collect<android.widget.TextView>().first { it.text.toString() == BatteryInfo.UNKNOWN_LABEL }
 
@@ -84,7 +76,7 @@ class HomePageAccessibilityTest {
         assertEquals(HomeStyle.UNAVAILABLE_ALPHA, favorite("Gmail (Work)").alpha, 0f)
         assertEquals(activity.getString(R.string.a11y_app_paused, "Gmail (Work)"), favorite("Gmail (Work)").contentDescription)
 
-        // Same key and label, only the status changed — the page must not skip the rebuild.
+        // Same key and label: the page must not skip the rebuild.
         page.render(favs = listOf(paused.copy(status = AppStatus.READY)), loaded = true)
         assertEquals(1f, favorite("Gmail (Work)").alpha, 0f)
         assertNull(favorite("Gmail (Work)").contentDescription)
@@ -95,7 +87,8 @@ class HomePageAccessibilityTest {
         page.render(favs = listOf(gmail), loaded = true)
         assertEquals(HomeStyle.TEXT_COLOR, (favorite("Gmail") as android.widget.TextView).currentTextColor)
 
-        page.applyTextColor(0xFF000000.toInt())  // a light wallpaper
+        page.applyTextColor(0xFF000000.toInt())
+
         assertEquals(0xFF000000.toInt(), (favorite("Gmail") as android.widget.TextView).currentTextColor)
     }
 

@@ -5,19 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * JVM unit tests for [LauncherLogic.rowsFor] and [LauncherLogic.rowPrefix] — the two pure
- * decision surfaces lifted out of MainActivity. These were the app's largest UNTESTED
- * branches: the primitives ([LauncherLogic.search], .tagged, .drawer, …) were covered in
- * [LauncherLogicTest], but their COMPOSITION per mode — which primitive runs for which
- * sigil, the substring arithmetic, the bare-"#"/"##"/"~" special cases — was not, because
- * it sat inside the Activity's applyFilter.
- *
- * The fake is called [OrderedFake], NOT `Row`: [LauncherLogicTest] already has a private nested
- * `Row` Ordered fake, and rowsFor now returns the top-level [Row] type, so reusing the
- * name here would shadow it. Same trick as everywhere else — a trivial [Ordered], never a
- * ComponentName.
- */
 class LauncherRowsTest {
 
 
@@ -42,14 +29,10 @@ class LauncherRowsTest {
 
     // ---- NORMAL --------------------------------------------------------------
 
-    // Verso: the favorites moved to the home page, so the drawer's empty prompt is the
-    // plain alphabetical drawer — hidden non-favorites out, favorites kept even if hidden,
-    // and NOT regrouped favorites-last the way "*" does.
+    // The empty prompt is the plain alphabetical drawer — no favorites regrouping (that is "*").
 
     @Test fun `empty prompt shows the drawer in its incoming order, not favorites-first`() {
-        // B is hidden and not a favorite -> gone. A and C keep the order the app list arrives
-        // in (already alphabetical: LauncherLogic.sortedForDrawer sorts it, with tests of its
-        // own), although the favorites' rank is C before A — rowsFor never regroups here.
+        // C outranks A as a favorite, yet the incoming (already sorted) order stays.
         assertEquals(listOf("com.a/A", "com.c/C"), appKeys(rowsFor(Mode.NORMAL, "")))
     }
 
@@ -73,20 +56,16 @@ class LauncherRowsTest {
     }
 
     @Test fun `star shows the drawer keeping favorites and dropping hidden non-favorites`() {
-        // B is hidden and not a favorite -> gone. Favorites sink to the bottom in rank order.
+        // B is hidden and not a favorite; favorites sink to the bottom in rank order.
         assertEquals(listOf("com.c/C", "com.a/A"), appKeys(rowsFor(Mode.NORMAL, "*")))
     }
 
     @Test fun `a prefix before the star narrows the drawer to labels starting with it`() {
-        // "a*" is the drawer kept to labels starting with "a": only Alpha. Charlie stays out.
         assertEquals(listOf("com.a/A"), appKeys(rowsFor(Mode.NORMAL, "a*")))
         assertEquals(listOf("com.c/C"), appKeys(rowsFor(Mode.NORMAL, "c*")))
     }
 
-    /** The star reads the same on the OTHER side, which is what makes the feature work for a
-     *  user who types the star and then the prefix — the caret sits after the star then, so
-     *  the prompt grows "*a", never "a*". Pinned here, not only on starPrefix, because the
-     *  equivalence is the user-visible promise. */
+    /** Once the star is typed the caret sits after it, so the prompt grows "*a", not "a*". */
     @Test fun `a prefix AFTER the star narrows the drawer the same way`() {
         assertEquals(listOf("com.a/A"), appKeys(rowsFor(Mode.NORMAL, "*a")))
         assertEquals(listOf("com.c/C"), appKeys(rowsFor(Mode.NORMAL, "*c")))
@@ -97,18 +76,16 @@ class LauncherRowsTest {
     }
 
     @Test fun `the star prefix matches the START only, never a substring`() {
-        // "lph" is inside "Alpha" but not its start, so unlike a plain search it matches nothing.
+        // "lph" is inside "Alpha" but not its start.
         assertTrue(appKeys(rowsFor(Mode.NORMAL, "lph*")).isEmpty())
     }
 
     @Test fun `the star prefix excludes a hidden non-favorite even when its name matches`() {
-        // Bravo is hidden and not a favorite, so the drawer never carries it — "b*" is empty,
-        // in deliberate contrast to the plain "brav" search below which reaches hidden apps.
+        // In contrast to the plain "brav" search, which reaches hidden apps.
         assertTrue(appKeys(rowsFor(Mode.NORMAL, "b*")).isEmpty())
     }
 
     @Test fun `the star prefix keeps a hidden FAVORITE, mirroring the bare drawer`() {
-        // Favoriting overrides hiding for the drawer, so a hidden favorite survives "b*".
         val favsWithHiddenB = linkedSetOf("com.b/B")
         val rows = LauncherLogic.rowsFor(
             Mode.NORMAL, "b*", apps, hidden, favsWithHiddenB, tags, recents, null,
@@ -117,8 +94,7 @@ class LauncherRowsTest {
     }
 
     @Test fun `a star prefix matching several apps orders favorites last`() {
-        // The shared fixture never gives >1 match for a prefix, so build one that does:
-        // three "ap" apps (one a favorite) plus a non-matching banana that must drop out.
+        // The shared fixture never matches >1 app for a prefix; the banana must drop out.
         val local = listOf(
             orderedFake("com.apple/A", "Apple"),
             orderedFake("com.applet/A", "Applet"),
@@ -129,14 +105,10 @@ class LauncherRowsTest {
             Mode.NORMAL, "ap*", local, emptySet(), linkedSetOf("com.applet/A"),
             emptyMap(), emptyList(), null,
         )
-        // Non-favorites in incoming order, the favorite sinks last (nearest the prompt).
         assertEquals(listOf("com.apple/A", "com.apricot/A", "com.applet/A"), appKeys(rows))
     }
 
-    /** Both stars are stripped, so "**" is the empty prefix — the whole drawer, exactly as a
-     *  bare "*". (It used to match nothing: with a trailing-only star, "**" asked for labels
-     *  starting with a literal "*". Reading both ends makes the drawer the sane answer for a
-     *  prompt that is nothing but wildcard.) */
+    /** Both stars are stripped, so "**" is the empty prefix. */
     @Test fun `a double star is the whole drawer, like a bare star`() {
         assertEquals(appKeys(rowsFor(Mode.NORMAL, "*")), appKeys(rowsFor(Mode.NORMAL, "**")))
     }
@@ -168,8 +140,6 @@ class LauncherRowsTest {
     }
 
     @Test fun `a non-matching tilde prefix yields an empty command overview`() {
-        // commandsMatching("~zzz") being empty is pinned in LauncherLogicTest; this pins the
-        // rowsFor COMMAND branch over it — a bare .map, so an empty in stays an empty out.
         assertTrue(rowsFor(Mode.COMMAND, "~zzz").isEmpty())
     }
 
@@ -190,10 +160,7 @@ class LauncherRowsTest {
     }
 
     @Test fun `tag filter surfaces a hidden app - tagging overrides hiding`() {
-        // B is hidden (shared fixture) AND tagged here. TAG_FILTER runs over allApps, not
-        // the drawer, so a tag is an explicit choice that overrides hiding — the same
-        // contract as favoriting. The fixture's hidden app carries no tag, so this branch
-        // was never exercised.
+        // The shared fixture's hidden app carries no tag, so tag it here.
         val tagsWithHiddenApp = mapOf("com.b/B" to listOf("work"))
         val rows = LauncherLogic.rowsFor(
             Mode.TAG_FILTER, "#work", apps, hidden, favorites, tagsWithHiddenApp, recents, null,
@@ -201,28 +168,16 @@ class LauncherRowsTest {
         assertEquals(listOf("com.b/B"), appKeys(rows))
     }
 
-    /**
-     * The reachability the canonicalTag design exists for, pinned end-to-end. canonicalTag
-     * KEEPS a leading "!"/"-"/"~"/"?" on a tag (only "#" is stripped, because "#"+name would
-     * flip the "##" sigil). Keeping them is only safe because DRILLING a tag prepends "#",
-     * landing the sigil at position 1 where parseMode ignores it — so "#!work" is still a tag
-     * filter, not FAV_EDIT. Nothing pinned that whole chain: a parseMode-ordering change, or
-     * dropping the sigil from canonicalTag, would pass every other test yet make these tags
-     * unreachable from the very "#" overview that offers them. (The tapAction/enterAction half
-     * that BUILDS "#!work" from the tag row is pinned in LauncherActionsTest.)
-     */
+    /** canonicalTag keeps a leading sigil only because the drill's "#" puts it at position 1, where parseMode ignores it. */
     @Test fun `a sigil-named tag is listed, stays a tag filter when drilled, and finds its app`() {
         for (name in listOf("!work", "-work", "~work", "?work", "!!work")) {
             val sigilTags = mapOf("com.a/A" to listOf(name))
-            // 1. the bare "#" overview lists it (it is a tag borne by an installed app)...
             val overview = LauncherLogic.rowsFor(
                 Mode.TAG_FILTER, "#", apps, hidden, favorites, sigilTags, recents, null,
             )
             assertEquals("\"$name\" missing from the # overview", listOf(name), tagNames(overview))
-            // 2. ...drilling it prepends "#", which MUST stay a tag filter, not the sigil's mode.
             val drilled = "#$name"
             assertEquals("\"$drilled\" is no longer a tag filter", Mode.TAG_FILTER, LauncherLogic.parseMode(drilled))
-            // 3. ...and that filter actually returns the app carrying the tag.
             val filtered = LauncherLogic.rowsFor(
                 Mode.TAG_FILTER, drilled, apps, hidden, favorites, sigilTags, recents, null,
             )
@@ -244,11 +199,6 @@ class LauncherRowsTest {
     }
 
     // ---- tagEditTagFor -------------------------------------------------------
-    //
-    // The overview-vs-chosen-tag decision, pulled out of applyFilter so the raw-prompt ->
-    // tag derivation is one tested mapping. It feeds rowsFor's tagEditTag parameter (above),
-    // so a regression here — a substring(1) slip, a lost fold, a phantom empty tag — would
-    // silently flip the bare-"##" overview into an all-apps edit list for tag "".
 
     @Test fun `tagEditTagFor is null outside TAG_EDIT`() {
         for (m in Mode.entries.filter { it != Mode.TAG_EDIT }) {
@@ -263,17 +213,13 @@ class LauncherRowsTest {
     }
 
     @Test fun `tagEditTagFor keeps the overview up for a tail that canonicalises to nothing`() {
-        // A user CAN type each of these; none names a tag, so the overview stays up (null)
-        // rather than the app selecting a phantom empty tag. "###"/"##," canonicalise away
-        // exactly as canonicalTag pins.
+        // A phantom "" tag would turn the overview into an all-apps edit list for tag "".
         assertNull(LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##"))
         assertNull(LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "###"))
         assertNull(LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##,"))
     }
 
     @Test fun `tagEditTagFor keeps a sigil-named tag (the bulk-edit mirror of drilling it)`() {
-        // "##!work" edits the tag "!work" in bulk — the mirror of drilling "#!work" to filter
-        // it (see the reachability test below). canonicalTag keeps the leading "!".
         assertEquals("!work", LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##!work"))
     }
 
@@ -300,9 +246,6 @@ class LauncherRowsTest {
     }
 
     @Test fun `a bare edit-mode sigil lists every app (empty needle)`() {
-        // "!" / "-" with nothing after the sigil is search(all, "") — the whole app list, so
-        // anything can be toggled. Only the narrowed case was exercised above; this pins that
-        // the empty-needle path reaches rowsFor unbroken (hidden apps included).
         assertEquals(apps.map { it.key }, appKeys(rowsFor(Mode.FAV_EDIT, "!")))
         assertEquals(apps.map { it.key }, appKeys(rowsFor(Mode.HIDDEN_EDIT, "-")))
     }

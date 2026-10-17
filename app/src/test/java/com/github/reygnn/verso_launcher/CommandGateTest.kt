@@ -7,10 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
-/**
- * JVM tests for [CommandGate]: one "~" command at a time, ended by its last outstanding step.
- * IO tasks and their hand-backs are one manual FIFO queue, so a test decides when each runs.
- */
+/** IO tasks and their hand-backs are one manual FIFO queue, so a test decides when each runs. */
+
 class CommandGateTest {
 
     private val gate = CommandGate()

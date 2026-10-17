@@ -10,11 +10,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 
-/**
- * The back page's rendering on a real widget tree: what the list shows for a prompt, the
- * empty-list hint per mode, a palette switch, and a tap handed to the Activity. The data is a
- * real [LauncherState] whose IO and main "threads" run inline; no LauncherApps involved.
- */
+/** A real [LauncherState] whose IO and main "threads" run inline. */
 @RunWith(RobolectricTestRunner::class)
 class AppDrawerTest {
 
@@ -44,13 +40,13 @@ class AppDrawerTest {
         onFiltered = {},
     )
 
-    /** The rows' texts, as the adapter binds them. */
     private fun rows(): List<String> {
         val adapter = drawer.listView.adapter
         return (0 until adapter.count).map { (adapter.getView(it, null, drawer.listView) as TextView).text.toString() }
     }
 
-    /** The empty-list hint: the outlined text view in the page's own tree (rows live in the adapter). */
+    /** The only outlined text view in the page's own tree: the rows live in the adapter. */
+
     private val emptyHint: TextView get() = drawer.view.collect<OutlinedTextView>().single()
 
     @Test fun `the plain drawer lists every app A to Z, a search narrows it`() {

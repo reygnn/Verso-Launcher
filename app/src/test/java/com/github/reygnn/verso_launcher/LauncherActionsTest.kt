@@ -3,17 +3,7 @@ package com.github.reygnn.verso_launcher
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * JVM unit tests for [LauncherLogic.enterAction] and [LauncherLogic.tapAction] — the two
- * decision surfaces lifted out of MainActivity's setOnEditorActionListener and
- * setOnItemClickListener. These were the app's last untested branching logic: the row
- * SELECTION (rowsFor) was covered by [LauncherRowsTest], but the "given the shown rows and
- * the mode, what does Enter / a tap DO?" mapping sat inlined behind the two listeners,
- * where a plain JVM test could not reach it.
- *
- * The fake is a trivial [Ordered], never a ComponentName — same trick as everywhere else.
- * Only [AppRow.entry] identity matters to these functions, so the fake carries a bare key.
- */
+/** The fake is a bare-key [Ordered]: only [AppRow.entry] identity matters here. */
 class LauncherActionsTest {
 
 
@@ -23,8 +13,7 @@ class LauncherActionsTest {
 
     // ---- enterAction ---------------------------------------------------------
 
-    /** A CommandRow only ever renders in COMMAND mode; should one still be the nearest row
-     *  in a read mode (a stale list), Enter must neither launch nor run anything. */
+    /** Only a stale list can leave a command row nearest the prompt in a read mode. */
     @Test fun `a command row is no Enter target outside COMMAND mode`() {
         for (mode in listOf(Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER)) {
             assertEquals(
@@ -34,9 +23,7 @@ class LauncherActionsTest {
         }
     }
 
-    /** A resolved command wins over EVERYTHING, including a COMMAND-mode overview still being
-     *  typed ("~b" both resolves to BACKUP and is COMMAND mode). Load-bearing: the command
-     *  branch is first, so an exact/unambiguous command fires rather than no-ops. */
+    /** "~b" both resolves to BACKUP and is COMMAND mode: the command branch must come first. */
     @Test fun `a resolved command runs, even in COMMAND mode`() {
         assertEquals(
             EnterAction.Run(Command.BACKUP),
@@ -44,7 +31,6 @@ class LauncherActionsTest {
         )
     }
 
-    /** ...and it beats the empty-prompt branch too: a resolved command runs. */
     @Test fun `a resolved command beats the empty-prompt branch`() {
         assertEquals(
             EnterAction.Run(Command.BACKUP),
@@ -52,8 +38,7 @@ class LauncherActionsTest {
         )
     }
 
-    /** An ambiguous "~r" (no resolved command, still COMMAND mode) does nothing — clearing
-     *  would throw away the typing and the overview already shows what's in the running. */
+    /** Clearing would throw away the typing; the overview already shows the candidates. */
     @Test fun `COMMAND mode with no resolved command is a no-op`() {
         assertEquals(
             EnterAction.None,
@@ -68,8 +53,6 @@ class LauncherActionsTest {
         )
     }
 
-    /** With the checkbox list up (an app row nearest), or an empty list, TAG_EDIT Enter is a
-     *  plain "done" — it must NEVER launch, so it clears instead. */
     @Test fun `TAG_EDIT with an app row or nothing is a done gesture`() {
         assertEquals(
             EnterAction.SetPrompt(""),
@@ -81,9 +64,7 @@ class LauncherActionsTest {
         )
     }
 
-    /** The "leeres Enter": in Verso the empty prompt already IS the full A-to-Z drawer, so
-     *  Enter only drops the keyboard. This MUST beat the launch branch, or Enter on an empty
-     *  line would launch whichever app happens to sit last in the alphabet. */
+    /** Must beat the launch branch, or an empty Enter would launch the last app in the alphabet. */
     @Test fun `an empty prompt only dismisses the keyboard, it never launches`() {
         assertEquals(
             EnterAction.DismissKeyboard,
@@ -105,7 +86,6 @@ class LauncherActionsTest {
         }
     }
 
-    /** The bare-"#" overview shows tag rows; Enter drills the nearest one into its filter. */
     @Test fun `TAG_FILTER with a tag row drills into the single-hash filter`() {
         assertEquals(
             EnterAction.SetPrompt("#work"),
@@ -120,7 +100,6 @@ class LauncherActionsTest {
         )
     }
 
-    /** A non-empty edit-mode prompt (nothing above catches it) is a "done" gesture: clear. */
     @Test fun `a non-empty edit mode prompt clears back to normal`() {
         for (mode in listOf(Mode.HIDDEN_EDIT, Mode.FAV_EDIT, Mode.FAV_REORDER)) {
             assertEquals(
@@ -136,32 +115,27 @@ class LauncherActionsTest {
     private fun enterKey(down: Boolean, repeatCount: Int = 0, isEnterKey: Boolean = true) =
         EnterKey(down = down, repeatCount = repeatCount, isEnterKey = isEnterKey)
 
-    /** A soft keyboard's Enter: the GO action once, with no event. It acts. */
     @Test fun `a soft Enter acts`() {
         assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = null))
     }
 
-    /** No event and no GO/DONE (another IME action): not an Enter, left to the TextView. */
     @Test fun `another IME action without an event passes`() {
         assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = null))
     }
 
-    /** A key Enter as One UI delivers it (seen on the A17): GO on the down AND on the up. The
-     *  down acts, the up is consumed — it used to act again, launching an app twice. Consumed,
-     *  not passed: passed back, the TextView's own handling of the up drops the keyboard. */
+    /** One UI (A17) sends GO on the down AND the up: acting on both launches twice; passing the
+     *  up lets the TextView drop the keyboard. */
     @Test fun `a key Enter with the GO action acts on its down and consumes its up`() {
         assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = true)))
         assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = false)))
     }
 
-    /** The same key Enter without the GO action (IME_NULL): the down still acts, the up is
-     *  still consumed. */
     @Test fun `a key Enter without an IME action acts on its down and consumes its up`() {
         assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = true)))
         assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = false)))
     }
 
-    /** A held Enter repeats its down: only the first acts, or an app launches over and over. */
+    /** Otherwise a held Enter launches the app over and over. */
     @Test fun `a held Enter acts once, its repeats are consumed`() {
         for (imeAction in listOf(true, false)) {
             assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction, enterKey(down = true, repeatCount = 1)))
@@ -169,15 +143,12 @@ class LauncherActionsTest {
         }
     }
 
-    /** Defensive: GO with a key other than Enter is still one Enter — down acts, up consumed.
-     *  No real input takes this path (TextView hands the listener ENTER and NUMPAD_ENTER only);
-     *  it pins that such an event is never passed on half-handled. */
+    /** No real input takes this path (TextView sends only ENTER/NUMPAD_ENTER); never pass it half-handled. */
     @Test fun `defensive - GO on another key acts on its down and consumes its up`() {
         assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = true, isEnterKey = false)))
         assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = false, isEnterKey = false)))
     }
 
-    /** Neither Enter nor GO/DONE: not ours, down or up. */
     @Test fun `any other key passes`() {
         assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = true, isEnterKey = false)))
         assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = false, isEnterKey = false)))
@@ -191,7 +162,6 @@ class LauncherActionsTest {
 
     @Test fun `tapping a tag row drills into the right sigil for its mode`() {
         assertEquals(TapAction.SetPrompt("##work"), LauncherLogic.tapAction(Mode.TAG_EDIT, tag))
-        // Every non-TAG_EDIT mode that can render a tag row drills into the single-hash filter.
         assertEquals(TapAction.SetPrompt("#work"), LauncherLogic.tapAction(Mode.TAG_FILTER, tag))
     }
 
@@ -217,26 +187,17 @@ class LauncherActionsTest {
         assertEquals(TapAction.ToggleTag(entry), LauncherLogic.tapAction(Mode.TAG_EDIT, app("com.a/A")))
     }
 
-    /** An app row can't be rendered in COMMAND mode (that overview holds only command rows),
-     *  but the mapping stays total: it resolves to None rather than throwing. */
+    /** Never rendered (that overview holds only command rows), but the mapping stays total. */
     @Test fun `an app row in COMMAND mode resolves to nothing`() {
         assertEquals(TapAction.None, LauncherLogic.tapAction(Mode.COMMAND, app("com.a/A")))
     }
 
     // ---- sigil-named tags drill to a tag filter, not that sigil's mode --------
 
-    /**
-     * A tag may legitimately start with "!"/"-"/"~"/"?" — canonicalTag keeps them; only "#" is
-     * stripped. Drilling such a tag prepends "#", landing the sigil at position 1 where
-     * parseMode ignores it, so the drill stays a TAG_FILTER. This pins the prompt the two
-     * actions hand back for those names AND that it round-trips through parseMode — the
-     * reachability canonicalTag keeps the characters for. (rowsFor's half — that the resulting
-     * "#!work" actually lists the app — is pinned in LauncherRowsTest.)
-     */
+    /** canonicalTag keeps "!"/"-"/"~"/"?"; after the drill's "#" the sigil sits at position 1, where parseMode ignores it. */
     @Test fun `drilling a sigil-named tag builds a prompt that is still a tag filter`() {
         for (name in listOf("!work", "-work", "~work", "?work", "!!fun")) {
             assertEquals(TapAction.SetPrompt("#$name"), LauncherLogic.tapAction(Mode.TAG_FILTER, TagRow(name)))
-            // The Enter path (that tag row is nearest the prompt) drills identically.
             assertEquals(
                 EnterAction.SetPrompt("#$name"),
                 LauncherLogic.enterAction(Mode.TAG_FILTER, command = null, promptBlank = false, lastRow = TagRow(name)),
@@ -245,8 +206,6 @@ class LauncherActionsTest {
         }
     }
 
-    /** The bulk-edit mirror: "##!work" edits the tag "!work", and its doubled hash keeps it in
-     *  TAG_EDIT — a "#"-stripped tag can never collide with the "##" sigil the other way. */
     @Test fun `bulk-editing a sigil-named tag builds a double-hash prompt that stays TAG_EDIT`() {
         assertEquals(TapAction.SetPrompt("##!work"), LauncherLogic.tapAction(Mode.TAG_EDIT, TagRow("!work")))
         assertEquals(Mode.TAG_EDIT, LauncherLogic.parseMode("##!work"))

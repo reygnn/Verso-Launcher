@@ -3,10 +3,7 @@ package com.github.reygnn.verso_launcher
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * [RestoreSteps] — the IO half of a restore in its load-bearing order (CLAUDE.md rule 7). Each
- * write is recorded, so the ORDER and the absence of writes are what the tests pin.
- */
+/** Each write is recorded: the ORDER and the absence of writes are what the tests pin. */
 class RestoreStepsTest {
 
     private val calls = mutableListOf<String>()
@@ -28,8 +25,7 @@ class RestoreStepsTest {
         assertEquals(listOf("undo:old/Old", "config:new/New", "sweep"), calls)
     }
 
-    /** The old undo point may be the very file being restored: it goes only once the restore is
-     *  saved. A failed write is reported, and nothing is swept. */
+    /** The old undo point may be the very file being restored, so nothing is swept. */
     @Test fun `a failed config write is reported and keeps the previous undo point`() {
         writeOk = false
         val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))
@@ -47,7 +43,8 @@ class RestoreStepsTest {
         undoName = null
         val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))
         assertEquals(RestoreSteps.Outcome.UndoFailed, outcome)
-        assertEquals(listOf("undo:old/Old"), calls)  // the config was not touched
+        assertEquals(listOf("undo:old/Old"), calls)
+
     }
 
 }
