@@ -32,7 +32,7 @@ package com.github.reygnn.verso_launcher
  *
  * @param io            submit a task to the IO thread; false if it was refused (shutting down).
  * @param main          run a task on the main thread (posted — never inline from IO).
- * @param loadConfig    read verso.json (IO thread).
+ * @param loadConfig    read verso.json (IO thread); null when it is there but unreadable.
  * @param enumerateApps list the launchable apps for a config snapshot (IO thread); null if the
  *                      enumeration itself failed — the last-known-good list is then kept.
  * @param serialize     config -> file text (main thread, so it reads a consistent config).
@@ -53,7 +53,7 @@ package com.github.reygnn.verso_launcher
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
-    private val loadConfig: () -> VersoConfig,
+    private val loadConfig: () -> VersoConfig?,
     private val enumerateApps: (VersoConfig) -> List<AppEntry>?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
@@ -102,6 +102,15 @@ internal class LauncherState(
         private set
 
     /**
+     * True while the config is not loaded because the file is there but cannot be read
+     * (loadConfig null). Not loaded means no edit and no save — the empty default must never be
+     * written over the real file. Every resume and "~load" try again ([needsRefresh]); a
+     * successful read or a restore ends it.
+     */
+    var configUnreadable = false
+        private set
+
+    /**
      * A "~load" asked for that has not been carried out yet. A refresh is superseded by any
      * newer one, and a plain resume-refresh does not read the file — so without this a
      * "~load" followed by a quick pause/resume (a dialog, a translucent activity) was
@@ -121,6 +130,10 @@ internal class LauncherState(
     /** The launchable favorites in their stored order — what the home page shows. */
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, config.favorites)
 
+    /** A copy of the config once it is loaded, else null — never the empty default memory holds
+     *  before that ("~backup" and a restore's undo point then read the file instead). */
+    fun loadedSnapshot(): VersoConfig? = if (configLoaded) config.snapshot() else null
+
     /**
      * Re-enumerate the apps (and, on the first call or with [reloadConfig], re-read the config)
      * off the main thread. The Activity calls it on a resume when apps may have changed or
@@ -137,8 +150,8 @@ internal class LauncherState(
         if (reloadConfig) reloadPending = true
         val loadConfigNow = reloadPending || !configLoaded
         // Snapshot on the main thread — the loader must never read the live config, which a
-        // rename/toggle may be mutating. Skipped when the load reads the disk copy anyway.
-        val cached = if (loadConfigNow) VersoConfig() else config.snapshot()
+        // rename/toggle may be mutating. Also what is enumerated with when the file is unreadable.
+        val cached = config.snapshot()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             var useCfg: VersoConfig? = null
@@ -150,7 +163,7 @@ internal class LauncherState(
                 // Checked before the read: only a config that is not on disk at all gets seeded.
                 val fresh = loadConfigNow && isFreshInstall()
                 useCfg = if (loadConfigNow) loadConfig() else cached
-                loaded = enumerateApps(useCfg)
+                loaded = enumerateApps(useCfg ?: cached)
                 // Seeding needs the enumeration (a default app must be launchable to be a
                 // favorite), so a failed one seeds nothing; the next cold start tries again,
                 // since nothing was saved.
@@ -167,11 +180,15 @@ internal class LauncherState(
                     // because memory changed since the read and is the newer truth.
                     if (loadConfigNow && cfg != null) reloadPending = false
                     var replaced = false
+                    // Unreadable: not loaded, and stays so until a read succeeds. A config already
+                    // loaded stays loaded — memory is the newer truth, the next save heals the file.
+                    if (loadConfigNow && cfg == null && !configLoaded) configUnreadable = true
                     // Adopt the disk copy only if nothing changed the config since the read; on a
                     // cold start nothing can have, so this always adopts there.
                     if (loadConfigNow && cfg != null && configEpoch == epoch) {
                         config = cfg
                         configLoaded = true
+                        configUnreadable = false
                         replaced = true
                         // First start: give the home page something to show. Saving here writes
                         // verso.json, so later starts are no longer fresh and never re-seed — a
@@ -261,6 +278,7 @@ internal class LauncherState(
     fun toggleFavorite(key: String) = toggleIn(config.favorites, key)
 
     private fun toggleIn(set: MutableSet<String>, key: String) {
+        if (!configLoaded) return  // could not be saved — see configUnreadable
         if (!set.remove(key)) set.add(key)
         mutated()
     }
@@ -271,6 +289,7 @@ internal class LauncherState(
      * with the file it was just written to.
      */
     fun toggleTag(key: String, tag: String) {
+        if (!configLoaded) return
         val next = LauncherLogic.toggleTag(config.tags[key], tag)
         if (next.isEmpty()) config.tags.remove(key) else config.tags[key] = next.toMutableList()
         mutated()
@@ -281,6 +300,7 @@ internal class LauncherState(
      * when the move is impossible or a no-op (either key gone, or the same row).
      */
     fun moveFavorite(pickedKey: String, targetKey: String): Boolean {
+        if (!configLoaded) return false
         val newOrder = LauncherLogic.reorder(config.favorites.toList(), pickedKey, targetKey)
             ?: return false
         config.favorites.clear()
@@ -404,6 +424,7 @@ internal class LauncherState(
     fun adopt(restored: VersoConfig) {
         config = restored
         configLoaded = true
+        configUnreadable = false
         // A restore supersedes a "~load" still pending: the file it would read is about to be
         // the restored config anyway, and the refresh below must not re-read it.
         reloadPending = false

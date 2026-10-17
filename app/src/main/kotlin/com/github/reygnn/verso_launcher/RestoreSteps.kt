@@ -15,9 +15,14 @@ internal object RestoreSteps {
         data object UndoFailed : Outcome
         /** Undo point [undoName] written, then the restored config persisted. */
         data class Done(val undoName: String) : Outcome
+        /** The config on disk was unreadable: no undo point, [restored] written over it — [saved]
+         *  false if that write failed (then nothing changed). */
+        data class ReplacedUnreadable(val saved: Boolean) : Outcome
     }
 
     /**
+     * 0. [current] null — the config on disk is unreadable: there is nothing readable to keep as
+     *    undo point, and the restore is the way out of that state. Write [restored] over it.
      * 1. If [restored] is the [current] config, stop: an undo point now would replace the real
      *    one (the config from before the first restore) with a copy of the restored config.
      * 2. Write the undo point — [current] — through [writeUndo] (the backup's published name,
@@ -27,11 +32,12 @@ internal object RestoreSteps {
      *    so from here the restore must survive even if the main-thread hand-off never runs.
      */
     fun run(
-        current: VersoConfig,
+        current: VersoConfig?,
         restored: VersoConfig,
         writeUndo: (String) -> String?,
         writeConfig: (String) -> Boolean,
     ): Outcome {
+        if (current == null) return Outcome.ReplacedUnreadable(writeConfig(ConfigJson.serialize(restored)))
         if (current.sameContent(restored)) return Outcome.Unchanged
         val undo = writeUndo(ConfigJson.serialize(current)) ?: return Outcome.UndoFailed
         writeConfig(ConfigJson.serialize(restored))

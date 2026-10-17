@@ -29,12 +29,16 @@ import java.io.FileOutputStream
  *             paths below (the .bak rotation and the temp->primary publish with its
  *             in-place fallback) never fire on a normal filesystem, so a real temp dir
  *             cannot reach them. Production is unchanged — it uses [File.renameTo].
+ *   [readText] reading one config file, defaulting to [File.readText]. A seam for the same
+ *             reason: a read that THROWS on a file that is there (an I/O error) cannot be
+ *             set up reliably on a real filesystem — root ignores a missing read permission.
  */
 internal class ConfigStore(
     private val dir: File,
     private val log: (String, Exception?) -> Unit,
     private val syncDir: (File) -> Unit,
     private val rename: (File, File) -> Boolean = File::renameTo,
+    private val readText: (File) -> String = { it.readText() },
 ) {
 
     private val primary get() = File(dir, CONFIG_FILE)
@@ -43,27 +47,38 @@ internal class ConfigStore(
 
     /**
      * Read the config, preferring the primary verso.json and falling back to an unpublished
-     * .tmp, then to the .bak mirror written by [write], if the primary is missing or unreadable. A missing file
-     * (fresh install) yields an empty config silently; a present but unparseable primary
-     * is logged and .bak is tried before giving up to empty. A HOME app must never throw
-     * on resume, so every error path degrades to a working (if ruleless) launcher rather
-     * than crashing — and a single torn read of the primary no longer discards the user's
-     * favorites/hidden/names/tags.
+     * .tmp, then to the .bak mirror written by [write], if the primary is missing or does not
+     * parse. Never throws.
+     *
+     * Null — "unreadable", never an empty config — when a published copy (primary or .bak)
+     * exists but none parses: an empty config there would be saved over the real file with the
+     * next edit. Null as well when the primary or the .tmp is there but READING it fails (an
+     * I/O error): it may hold the newest save, so nothing is healed over it from an older copy;
+     * the next load tries again. Only with no published copy at all is the empty config real
+     * (a fresh install).
      */
-    fun load(): VersoConfig {
-        parse(primary)?.let { return it }
+    fun load(): VersoConfig? {
+        when (val first = read(primary)) {
+            is Read.Parsed -> return first.config
+            Read.Failed -> return null
+            Read.Absent, Read.Corrupt -> Unit
+        }
         // The temp before the .bak: a temp survives only when the most recent write did not
         // complete its publish (every completed write renames it away), so a temp that parses
         // is the NEWEST config — e.g. after a crash between the .bak rotation and the publish,
         // where the primary is gone and .bak is one save behind. A temp torn mid-write does not
         // parse and falls through to .bak. Healed without rotating, like the .bak case below:
         // .bak still holds the previous good copy.
-        parse(temp)?.let { recovered ->
-            log("primary config unreadable — recovered the newer, unpublished .tmp", null)
-            publishTemp(recovered)
-            return recovered
+        when (val tmp = read(temp)) {
+            is Read.Parsed -> {
+                log("primary config unreadable — recovered the newer, unpublished .tmp", null)
+                publishTemp(tmp.config)
+                return tmp.config
+            }
+            Read.Failed -> return null
+            Read.Absent, Read.Corrupt -> Unit
         }
-        parse(backup)?.let { recovered ->
+        (read(backup) as? Read.Parsed)?.config?.let { recovered ->
             log("primary config unreadable — recovered from .bak", null)
             // Heal the primary now instead of waiting for the next toggle: rewrite the
             // recovered config over the bad primary so later resumes stop hitting this
@@ -72,6 +87,11 @@ internal class ConfigStore(
             // very backup we just read from.
             write(ConfigJson.serialize(recovered), rotateBackup = false)
             return recovered
+        }
+        // isFile, not exists(): a directory where a file should be holds no config either.
+        if (primary.isFile || backup.isFile) {
+            log("no copy of the config parses — not loaded", null)
+            return null
         }
         return VersoConfig()
     }
@@ -106,23 +126,29 @@ internal class ConfigStore(
      */
     fun isFresh(): Boolean = !primary.exists() && !backup.exists()
 
-    /**
-     * Parse one config file. Returns null when the file is absent (a normal state, not
-     * logged) or unparseable (logged, so real corruption is visible) — the caller decides
-     * what to fall back to. Never throws.
-     */
-    private fun parse(file: File): VersoConfig? {
-        if (!file.isFile) return null
+    /** What reading one config file gave — [load] tells a read error from a torn file. */
+    private sealed interface Read {
+        data object Absent : Read
+        /** The file is there, but reading it threw (logged): its content is unknown. */
+        data object Failed : Read
+        /** Read, but no config (logged). */
+        data object Corrupt : Read
+        data class Parsed(val config: VersoConfig) : Read
+    }
+
+    /** Read and parse one config file. Never throws. */
+    private fun read(file: File): Read {
+        if (!file.isFile) return Read.Absent
         val text = try {
-            file.readText()
+            readText(file)
         } catch (e: Exception) {
             log("config unreadable: ${file.path}", e)
-            return null
+            return Read.Failed
         }
         // ConfigJson owns the JSON parsing (and is unit-tested); it returns null, never
         // throws, on malformed input — log here where the file path is known.
-        return ConfigJson.parse(text)
-            ?: run { log("config unparseable: ${file.path}", null); null }
+        return ConfigJson.parse(text)?.let { Read.Parsed(it) }
+            ?: run { log("config unparseable: ${file.path}", null); Read.Corrupt }
     }
 
     /**
@@ -175,7 +201,7 @@ internal class ConfigStore(
             //     again. One read+parse of a tiny file per save is a cheap insurance.
             if (rotateBackup && dst.exists()) {
                 when {
-                    parse(dst) == null ->
+                    read(dst) !is Read.Parsed ->
                         log("config primary invalid — keeping .bak, skipping rotate", null)
                     !rename(dst, bak) ->
                         log("config .bak rotate failed (non-fatal)", null)

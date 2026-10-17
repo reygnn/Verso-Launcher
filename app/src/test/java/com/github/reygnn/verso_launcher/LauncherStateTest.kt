@@ -29,6 +29,8 @@ class LauncherStateTest {
      *  records payloads in [written]): a test that saves and then reloads must set it itself,
      *  or it reads a file a real device would no longer have. */
     private var disk = VersoConfig()
+    /** The file is there but cannot be read (ConfigStore.load null). */
+    private var diskUnreadable = false
     private var loadConfigCalls = 0
 
     /** The installed apps (system labels); enumerate applies custom names from the snapshot. */
@@ -60,7 +62,7 @@ class LauncherStateTest {
         main = { task -> mainQueue.addLast(task) },
         // A copy, like a real read: the file and the live config must never be one object,
         // or a test could pass only because a mutation also "changed the disk".
-        loadConfig = { loadConfigCalls++; if (loadThrows) throw IllegalStateException("load bug"); disk.snapshot() },
+        loadConfig = { loadConfigCalls++; if (loadThrows) throw IllegalStateException("load bug"); if (diskUnreadable) null else disk.snapshot() },
         enumerateApps = { cfg ->
             enumeratedWith += cfg
             if (enumerationFails) null
@@ -226,6 +228,83 @@ class LauncherStateTest {
         state.refresh()  // the next resume reads the file again
         runAll()
         assertEquals(setOf(key("Bravo")), state.config.hidden)
+    }
+
+    // ---- an unreadable config: not loaded, no edit, no save ----------------------------
+
+    @Test fun `an unreadable config is not loaded, but the apps are listed`() {
+        diskUnreadable = true
+        state.refresh()
+        runAll()
+        assertFalse(state.configLoaded)
+        assertTrue(state.configUnreadable)
+        assertTrue(state.appsLoaded)
+        assertTrue(state.needsRefresh)
+        assertNull(state.loadedSnapshot())
+    }
+
+    @Test fun `while unreadable no edit is made and nothing is saved`() {
+        diskUnreadable = true
+        state.refresh()
+        runAll()
+        state.toggleFavorite(key("Alpha"))
+        state.toggleHidden(key("Bravo"))
+        state.toggleTag(key("Alpha"), "work")
+        state.rename(key("Alpha"), "Alpha", "Mine", emptyList())
+        assertFalse(state.moveFavorite(key("Alpha"), key("Bravo")))
+        var saved: Boolean? = null
+        state.save { saved = it }
+        runAll()
+        assertEquals(VersoConfig().snapshot().favorites, state.config.favorites)
+        assertTrue(state.config.hidden.isEmpty() && state.config.tags.isEmpty() && state.config.names.isEmpty())
+        assertEquals(false, saved)
+        assertTrue(written.isEmpty())
+    }
+
+    @Test fun `the next refresh tries again and a successful read ends the episode`() {
+        diskUnreadable = true
+        state.refresh()
+        runAll()
+        diskUnreadable = false
+        disk = VersoConfig(favorites = linkedSetOf(key("Charlie")))
+        state.refresh()  // a resume: needsRefresh
+        runAll()
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        assertEquals(setOf(key("Charlie")), state.config.favorites)
+    }
+
+    @Test fun `a restore ends an unreadable episode`() {
+        diskUnreadable = true
+        state.refresh()
+        runAll()
+        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
+        runAll()
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        assertEquals(1, written.size)
+    }
+
+    @Test fun `a loaded config stays loaded when a reload finds the file unreadable`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        started()
+        diskUnreadable = true
+        val answers = mutableListOf<Boolean>()
+        state.reload { answers += it }
+        runAll()
+        assertEquals(listOf(false), answers)
+        assertTrue(state.configLoaded)
+        assertFalse(state.configUnreadable)
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+    }
+
+    @Test fun `loadedSnapshot is a copy of the loaded config`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        assertNull("not before the first load", state.loadedSnapshot())
+        started()
+        val snap = state.loadedSnapshot()!!
+        state.toggleFavorite(key("Bravo"))
+        assertEquals(setOf(key("Alpha")), snap.favorites)
     }
 
     @Test fun `a restore cancels a pending reload instead of re-reading the file`() {

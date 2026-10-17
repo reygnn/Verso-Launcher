@@ -29,6 +29,9 @@
          toast_restore_ok die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
     <string name="toast_saved">Konfiguration gespeichert</string>
     <string name="toast_busy">Beschäftigt — laufenden Befehl abwarten</string>
+    <string name="toast_config_unreadable">Konfiguration unlesbar — Bearbeiten aus. ~load oder ~restore</string>
+    <string name="toast_restore_unreadable">Wiederhergestellt — alte Konfiguration war unlesbar, kein Rücksprung</string>
+    <string name="toast_restore_write_failed">Wiederherstellung nicht gespeichert — nichts geändert</string>
     <string name="toast_not_loaded">Konfiguration noch nicht geladen — gleich nochmal versuchen</string>
     <string name="toast_not_default_home">Verso als Standard-Startbildschirm festlegen, um Arbeits-Apps einzuschalten</string>
     <string name="toast_reloaded">Konfiguration neu geladen</string>

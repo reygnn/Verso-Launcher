@@ -40,6 +40,19 @@ class SourceGuardTest {
         assertTrue(activity.contains("Command.CLEANUP -> cleanup(t)"))
     }
 
+    @Test fun `backup and a restore's undo point take the config only once it is loaded`() {
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        // Before the load (or while unreadable) memory holds the empty default: exporting it
+        // would replace the real backup or undo point with nothing (hard rules 5, 7).
+        for (name in listOf("backup", "adoptRestored")) {
+            val body = activity.substringAfter("private fun $name(", missingDelimiterValue = "")
+                .substringBefore("\n    }\n")
+            assertTrue("$name not found", body.isNotEmpty())
+            assertTrue("$name must use loadedSnapshot", body.contains("state.loadedSnapshot()"))
+            assertFalse("$name reads state.config directly", Regex("""state\.config\b(?!Loaded|Unreadable)""").containsMatchIn(body))
+        }
+    }
+
     @Test fun `every command runs inside the gate`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
         // Three ways in (hard rule 15): the typed commands, the ~restore-saf answer, a confirmed
