@@ -86,6 +86,7 @@ com.github.reygnn.verso_launcher/
   TapGuard            stale-click protection for list rows
   RenameDialog        long-press dialog: custom name + tags
   LauncherState       config + app list + recents, and the concurrency rules (pure)
+  CommandGate         the "~" commands one at a time: a run ends with its last step (pure)
   LauncherLogic       all pure decisions: modes, commands, search/fold, sort, rows,
                       Enter/tap actions, tags, default favorites
   AppEntry, VersoConfig   the data
@@ -102,7 +103,9 @@ Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile bro
 `onResume` refreshes when dirty, when `LauncherState.needsRefresh`, or after 5 min →
 `LauncherState.refresh()` → IO thread (load config once,
 enumerate apps of every profile) → main-thread hand-off guarded by generation
-counters → `applyFilter` re-renders. Every mutation → `LauncherState.mutated()` → serialized on
+counters → `applyFilter` re-renders. An enumeration carries no config: it lists system
+labels only, and the custom names are applied on the main thread from the live config
+(`LauncherLogic.named`, at the hand-off and after every change to the names). Every mutation → `LauncherState.mutated()` → serialized on
 main, written on the IO thread.
 
 ---
@@ -123,20 +126,30 @@ main, written on the IO thread.
    `VersoApp.io`.
 4. **`verso.json` write sequence is load-bearing** (`ConfigStore.write`): temp +
    fsync → rotate the primary to `.bak` only if it still parses → publish → fsync dir.
-   A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`.
-5. **`LauncherState.save` refuses before the config is loaded** — the empty default
-   must never be written over the real file. `~backup` before the load exports the
-   disk copy.
+   A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`,
+   and returns **null — never an empty config — when a published copy (primary or `.bak`)
+   exists but none parses**, or when the primary or `.tmp` is there but cannot be READ (an
+   I/O error: it may hold the newest save — no fallback, no heal, the next load tries again).
+   Only with no published copy at all is the empty config real.
+5. **No edit, no save before the config is loaded** — the empty default must never be
+   written over the real file. `LauncherState` refuses both until then; the Activity says
+   why (`editable()`). An unreadable config (`load()` null, `configUnreadable`) counts as
+   not loaded: retried on every resume and by `~load`, ended by a successful read or a
+   restore. `~backup` before the load exports the disk copy — and writes nothing if that is
+   unreadable. Home is drawn and its cache written only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
    name. Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
-   `verso-pre-cleanup-…`).
+   `verso-pre-cleanup-…`). A restore's undo point is written without the sweep; the old
+   one goes only once the restored config is saved (it may be the very file restored).
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to
-   `verso.json` in the same IO task (the restore must survive a lost hand-back) → `adopt`.
-   No undo point, no restore.
+   `verso.json` in the same IO task (the restore must survive a lost hand-back; a failed
+   write adopts nothing) → sweep the old undo point → `adopt`. No undo point, no restore —
+   except over an unreadable config: nothing readable is there to keep, so the restore is
+   written over it without one.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`
@@ -176,6 +189,15 @@ main, written on the IO thread.
     (`verso-pre-cleanup-…`), and — unless the config was replaced meanwhile — the removal
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
+15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused
+    with a toast and stays in the prompt. Nothing else is held back — no layer, no cancel;
+    an edit made during a run is safe through `LauncherState`'s own guards (`configEpoch`,
+    the cleanup's `Superseded`). A run ends with its last step, never by a "done" call:
+    every step holds it and releases it on every path (`CommandGate.io` catches what its
+    work throws; `LauncherState`'s save/reload/cleanup report from a `finally`). No run
+    spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
+    before a run starts, only its adoption is one; the cleanup dialog ends its run, its OK
+    starts a new one.
 
 ---
 
