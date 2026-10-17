@@ -1,12 +1,11 @@
 package com.github.reygnn.verso_launcher
 
 /**
- * The "~" commands, one at a time (hard rule 15): while one runs, [start] refuses a second.
- * Nothing else is held back — taps, edits and page turns go on as before. An edit that lands
- * during a run is safe through LauncherState's own guards (configEpoch, the cleanup's
- * Superseded). One gap stays: a save queued during a restore's IO step lands after the restored
- * file and writes the old config back — adopt() saves the restored one again right after, so
- * only a process death in that moment loses the restore on disk (the restore can be repeated).
+ * The "~" commands, one at a time (hard rule 15): while one runs, [start] refuses a second, and
+ * the Activity refuses edits ([busy], MainActivity.editAllowed): a save queued behind a restore's
+ * IO step would land after the restored file and write the old config back, and a recreation
+ * before the hand-back would leave it there. Nothing else is held back — launching, typing and
+ * page turns go on.
  *
  * A command is a chain of steps — main-thread code and IO tasks. A step HOLDS the run when it
  * starts and RELEASES it when it is over ([finish], or [io]); the last release ends the run.

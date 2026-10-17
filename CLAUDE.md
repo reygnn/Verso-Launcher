@@ -190,9 +190,9 @@ main, written on the IO thread.
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
 15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused
-    with a toast and stays in the prompt. Nothing else is held back — no layer, no cancel;
-    an edit made during a run is safe through `LauncherState`'s own guards (`configEpoch`,
-    the cleanup's `Superseded`). A run ends with its last step, never by a "done" call:
+    with a toast and stays in the prompt, and so is an edit (`editAllowed`) — a save queued
+    behind a restore's IO step would write the old config back over it. Nothing else is
+    held back — no layer, no cancel; launching, typing and page turns go on. A run ends with its last step, never by a "done" call:
     every step holds it and releases it on every path (`CommandGate.io` catches what its
     work throws; `LauncherState`'s save/reload/cleanup report from a `finally`). No run
     spans another activity or a dialog waiting on the user: the `~restore-saf` file is read

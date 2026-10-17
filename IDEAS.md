@@ -10,8 +10,6 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 
 ## Review round 4 (2026-10-17), left open on purpose
 
-- A3: a save queued during a restore's IO step lands after it; only a process death before
-  adopt()'s own save loses the restore on disk (see CommandGate's KDoc).
 - A4: a cleanup whose hand-back is dropped (activity recreated) has already swept the previous
   cleanup undo point while removing nothing.
 - B1: a recreation while `~restore` runs drops its result toast (a process-wide "last outcome").
@@ -25,6 +23,16 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 - D5: no source guard for hard rules 1–3 (no `implementation` deps, `guarded(` around IO,
   one executor).
 - D6: home's "ready" (config loaded) has no test of its own.
+
+## Review of refactor/simple-gate (2026-10-17), below the merge threshold
+
+- A restore over a config whose primary hit a READ error (not a torn file) writes over it with
+  no copy; that file may hold the newest save. (main healed over it from .bak on every load.)
+  Telling "read error" from "torn" in load()'s result would let the restore refuse instead.
+- With an unreadable config, `~load` can show the unreadable toast twice.
+- Before the first load, a tap on a tag row in the `##` overview says "not loaded".
+- An IO step stuck in a system service (no timeout) keeps the gate busy for that activity
+  instance; on main the commands queued behind it silently.
 
 ## Seen on the A17
 

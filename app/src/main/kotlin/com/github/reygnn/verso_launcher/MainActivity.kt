@@ -336,7 +336,7 @@ class MainActivity : Activity() {
                 // LauncherActionsTest); the Activity keeps only the side effects.
                 val action = LauncherLogic.tapAction(mode, shown.getOrNull(position))
                 // An edit that could not be saved (the config is not loaded) is not made.
-                if (LauncherLogic.isEditMode(mode) && action !is TapAction.None && !editable()) return@setOnItemClickListener
+                if (LauncherLogic.isEditMode(mode) && action !is TapAction.None && !editAllowed()) return@setOnItemClickListener
                 when (action) {
                     is TapAction.Launch -> launch(action.entry)
                     is TapAction.ToggleHidden -> {
@@ -372,7 +372,7 @@ class MainActivity : Activity() {
                 // consuming the marker there would leave the click that follows it
                 // unguarded.
                 if (!longPressStillValid()) return@setOnItemLongClickListener false
-                if (editable()) promptRename(row.entry)
+                if (editAllowed()) promptRename(row.entry)
                 true
             }
         }
@@ -1463,6 +1463,19 @@ class MainActivity : Activity() {
         if (state.configLoaded) return true
         toast(getString(if (state.configUnreadable) R.string.toast_config_unreadable else R.string.toast_not_loaded))
         return false
+    }
+
+    /**
+     * Whether the user may edit now: not while a "~" command runs — a save queued behind a
+     * restore's IO step would write the old config back over it (and a recreation before the
+     * hand-back would leave it there) — and only once the config is loaded ([editable]).
+     */
+    private fun editAllowed(): Boolean {
+        if (gate.busy) {
+            toast(getString(R.string.toast_busy))
+            return false
+        }
+        return editable()
     }
 
     /** Toasts are this launcher's only chrome — one helper so they stay uniform. */

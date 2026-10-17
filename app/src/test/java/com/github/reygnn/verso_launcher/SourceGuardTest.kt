@@ -76,6 +76,17 @@ class SourceGuardTest {
         assertTrue(Regex("""fun runCleanup\([^)]*\)\s*\{\s*val accepted = gate\.start""").containsMatchIn(activity))
     }
 
+    @Test fun `no edit while a command runs`() {
+        // A save queued behind a restore's IO step would write the old config back over it.
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val body = activity.substringAfter("private fun editAllowed(): Boolean {", missingDelimiterValue = "")
+            .substringBefore("\n    }\n")
+        assertTrue("editAllowed must check the gate first", body.trimStart().startsWith("if (gate.busy)"))
+        // Both ways into an edit — a tap in an edit mode, the long-press rename — go through it.
+        assertTrue(activity.contains("isEditMode(mode) && action !is TapAction.None && !editAllowed()"))
+        assertTrue(activity.contains("if (editAllowed()) promptRename(row.entry)"))
+    }
+
     @Test fun `no string template reaches through an object without braces`() {
         // "$BackupFiles.DIR" is "BackupFiles@1a2b.DIR" — it compiles and silently breaks
         // (it once sent ~restore-saf's picker to a folder that does not exist). A CamelCase
