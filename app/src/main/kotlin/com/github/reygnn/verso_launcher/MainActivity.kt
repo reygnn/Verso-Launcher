@@ -1132,8 +1132,8 @@ class MainActivity : Activity() {
     }
 
     /** A tap on a drawer row (AppDrawer has checked it still aims at the list it was meant for):
-     *  the side effects of [LauncherLogic.tapAction]'s decision. */
-    private fun onDrawerTap(action: TapAction<AppEntry>) {
+     *  the side effects of [LauncherLogic.tapAction]'s decision. Internal for MainActivityFlowsTest. */
+    internal fun onDrawerTap(action: TapAction<AppEntry>) {
         when (action) {
             is TapAction.Launch -> launch(action.entry)
             is TapAction.ToggleHidden -> if (editAllowed()) {

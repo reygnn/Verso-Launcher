@@ -61,11 +61,7 @@ class MainActivityFlowsTest {
     }
 
     /** A tap in an edit mode, as AppDrawer hands it on (no LauncherApps, so no rows to tap). */
-    private fun tap(action: TapAction<AppEntry>) {
-        MainActivity::class.java.getDeclaredMethod("onDrawerTap", TapAction::class.java)
-            .apply { isAccessible = true }
-            .invoke(activity, action)
-    }
+    private fun tap(action: TapAction<AppEntry>) = activity.onDrawerTap(action)
 
     private val someApp = AppEntry.of("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
     /** The favorites verso.json holds — none while nothing was saved (a fresh install with no
