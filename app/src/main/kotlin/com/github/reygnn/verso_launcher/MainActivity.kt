@@ -193,6 +193,8 @@ class MainActivity : Activity() {
     // The window root, which also runs the page drag (see SwipeFrame).
     private lateinit var root: SwipeFrame
     private lateinit var clearButton: TextView
+    // The command line and its ×, on their own bar (Palette.promptBar).
+    private lateinit var promptRow: LinearLayout
     private lateinit var emptyView: OutlinedTextView
     private lateinit var listView: ListView
     private lateinit var prompt: EditText
@@ -398,7 +400,6 @@ class MainActivity : Activity() {
             typeface = Typeface.MONOSPACE
             textSize = 24f
             setTextColor(palette.listDim)
-            legibleOnWallpaper()
             gravity = Gravity.CENTER
             minWidth = 48.dp()  // a comfortable tap target next to the narrow glyph
             contentDescription = getString(R.string.clear_prompt)
@@ -417,7 +418,6 @@ class MainActivity : Activity() {
             hint = getString(R.string.hint_search)
             setHintTextColor(palette.listDim)
             setTextColor(palette.listText)
-            legibleOnWallpaper()
             typeface = Typeface.MONOSPACE
             textSize = 20f
             background = null
@@ -487,8 +487,9 @@ class MainActivity : Activity() {
         }
         // The prompt takes the row's width (weight 1); the clear button rides at its end,
         // as tall as the row so its glyph lines up with the command line.
-        val promptRow = LinearLayout(this).apply {
+        promptRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(palette.promptBar)
             gravity = Gravity.CENTER_VERTICAL
             // 48dp: the minimum touch target — the bare EditText (no background, no padding)
             // and the × were only ~30dp tall.
@@ -2041,9 +2042,8 @@ class MainActivity : Activity() {
         homePage.applyTextColor(p.homeText)
         prompt.setTextColor(palette.listText)
         prompt.setHintTextColor(palette.listDim)
-        prompt.legibleOnWallpaper()
         clearButton.setTextColor(palette.listDim)
-        clearButton.legibleOnWallpaper()
+        promptRow.setBackgroundColor(palette.promptBar)
         emptyView.setTextColor(palette.listDim)
         emptyView.setOutline(outlinePx, palette.listOutline)
         val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
@@ -2051,14 +2051,6 @@ class MainActivity : Activity() {
         window.insetsController?.setSystemBarsAppearance(if (p.darkBarIcons) lightBars else 0, lightBars)
         adapter.notifyDataSetChanged()
     }
-
-    /**
-     * The prompt, its hint and the × sit on the wallpaper too, but an EditText cannot take the
-     * stroked outline (the second pass would draw the cursor and selection twice) — a tight
-     * dark shadow gives them the same footing on a bright wallpaper.
-     */
-    private fun TextView.legibleOnWallpaper() =
-        setShadowLayer(3.dp().toFloat(), 0f, 0f, palette.shadow)
 
     private fun notFound(entry: AppEntry) =
         toast(getString(R.string.toast_not_found, entry.label))

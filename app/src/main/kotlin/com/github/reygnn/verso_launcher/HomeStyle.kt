@@ -71,16 +71,21 @@ internal object HomeStyle {
      * The colours for the wallpaper behind — Unity Kolibri's "smart contrast": on a wallpaper
      * that supports dark text (Android's WallpaperColors.HINT_SUPPORTS_DARK_TEXT) the text turns
      * black with a white rim, otherwise it stays white with a black rim; the rims come from
-     * [tonalOutlineColor], which flips by itself. The drawer's greys, the prompt's shadow and the
+     * [tonalOutlineColor], which flips by itself. The drawer's greys, the prompt's bar and the
      * system bars' icons follow the same switch.
+     *
+     * The prompt sits on a bar of its own ([Palette.promptBar]: translucent white behind dark text,
+     * black behind light text) instead of an outline — an EditText cannot take the stroked second
+     * pass (cursor and selection would be drawn twice) — and the bar is local: the palette is
+     * picked for the whole wallpaper, whose bottom may still be light under light text.
      */
     fun palette(lightWallpaper: Boolean): Palette =
         if (lightWallpaper) {
             Palette(homeText = 0xFF000000.toInt(), listText = 0xFF2B2B2B.toInt(), listDim = 0xFF5C5C5C.toInt(),
-                shadow = 0xB3FFFFFF.toInt(), darkBarIcons = true)
+                promptBar = 0xD0FFFFFF.toInt(), darkBarIcons = true)
         } else {
             Palette(homeText = TEXT_COLOR, listText = 0xFFD4D4D4.toInt(), listDim = 0xFF808080.toInt(),
-                shadow = 0xB3000000.toInt(), darkBarIcons = false)
+                promptBar = 0xD0000000.toInt(), darkBarIcons = false)
         }
 
     /** Alpha of a row whose app cannot start right away (paused or archived, see AppStatus):
@@ -198,13 +203,13 @@ internal class DoubleTapGate(private val windowMs: Long = HomeStyle.DOUBLE_TAP_M
 
 /**
  * The colour set for one wallpaper brightness (see [HomeStyle.palette]): home text, the drawer's
- * text and dimmed hint, the shadow under the prompt, and whether the system bars need dark icons.
+ * text and dimmed hint, the bar behind the prompt, and whether the system bars need dark icons.
  */
 internal data class Palette(
     val homeText: Int,
     val listText: Int,
     val listDim: Int,
-    val shadow: Int,
+    val promptBar: Int,
     val darkBarIcons: Boolean,
 ) {
     val listOutline: Int get() = HomeStyle.tonalOutlineColor(listText)
