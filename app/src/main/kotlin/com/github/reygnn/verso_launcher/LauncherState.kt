@@ -152,7 +152,7 @@ internal class LauncherState(
         val epoch = configEpoch
         if (reloadConfig) reloadPending = true
         val loadConfigNow = reloadPending || !configLoaded
-        io(Runnable {
+        val accepted = io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             var useCfg: VersoConfig? = null
             var loaded: List<AppEntry>? = null
@@ -214,6 +214,8 @@ internal class LauncherState(
                 })
             }
         })
+        // Refused (never expected, see VersoApp.io): a waiting "~load" still gets its answer.
+        if (!accepted && loadConfigNow) endReloads(false)
     }
 
     /**

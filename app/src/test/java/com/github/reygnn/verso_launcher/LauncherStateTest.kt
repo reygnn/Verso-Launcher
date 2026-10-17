@@ -212,6 +212,14 @@ class LauncherStateTest {
         assertEquals(listOf(false), answers)
     }
 
+    @Test fun `a reload refused by the IO thread is answered at once`() {
+        started()
+        ioOpen = false
+        val answers = mutableListOf<Boolean>()
+        state.reload { answers += it }
+        assertEquals(listOf(false), answers)
+    }
+
     @Test fun `a restore answers a pending reload with false`() {
         started()
         val answers = mutableListOf<Boolean>()
