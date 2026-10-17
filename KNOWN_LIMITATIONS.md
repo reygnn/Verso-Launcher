@@ -24,6 +24,16 @@ resets when the launcher restarts") — see `LauncherLogic.emptyHint` and `empty
 If durable recents are ever wanted, persist `recentKeys` to a **separate** small
 file (not `verso.json`) and load it on start.
 
+## An unreadable config starts over
+
+If `verso.json` and its `.bak` cannot be read when Verso starts — torn by a crash, or a read
+error the system reports — Verso renames them to `*.unreadable` and starts over with the
+default favorites; a toast says so. A torn file and a passing read error look the same to
+the launcher, so it does not wait. Your config comes back only from your own `~backup`
+(`~restore`, or `~restore-saf` on another phone); without one it is gone, except for the
+renamed bytes, which only a manual rescue (adb) can reach. Only the latest renamed copy is
+kept, and a successful restore removes it.
+
 ## Private space is not reachable
 
 Apps are listed through `LauncherApps` across every profile the launcher is shown:

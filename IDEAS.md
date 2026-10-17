@@ -37,7 +37,6 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
   (as on main); the cleanup could persist its forget on the IO thread like the restore does.
 - A `~restore-saf` pick read while a command runs is dropped with "busy" (by design); it could
   wait for the gate instead.
-- `~backup` during an unreadable episode only says "backup failed", not why.
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in.
 - The rows' outline alpha is not pinned by a test of its own.
 

@@ -47,38 +47,28 @@ internal class ConfigStore(
 
     /**
      * Read the config, preferring the primary verso.json and falling back to an unpublished
-     * .tmp, then to the .bak mirror written by [write], if the primary is missing or does not
-     * parse. Never throws.
+     * .tmp, then to the .bak mirror written by [write], if the primary is missing, torn or cannot
+     * be read (a torn file and a read error are treated alike). Never throws.
      *
      * Null — "unreadable", never an empty config — when a published copy (primary or .bak)
      * exists but none parses: an empty config there would be saved over the real file with the
-     * next edit. Null as well when the primary or the .tmp is there but READING it fails (an
-     * I/O error): it may hold the newest save, so nothing is healed over it from an older copy;
-     * the next load tries again. Only with no published copy at all is the empty config real
-     * (a fresh install).
+     * next edit. The first load then sets the files aside and starts over (LauncherState). Only
+     * with no published copy at all is the empty config real (a fresh install).
      */
     fun load(): VersoConfig? {
-        when (val first = read(primary)) {
-            is Read.Parsed -> return first.config
-            Read.Failed -> return null
-            Read.Absent, Read.Corrupt -> Unit
-        }
+        parse(primary)?.let { return it }
         // The temp before the .bak: a temp survives only when the most recent write did not
         // complete its publish (every completed write renames it away), so a temp that parses
         // is the NEWEST config — e.g. after a crash between the .bak rotation and the publish,
         // where the primary is gone and .bak is one save behind. A temp torn mid-write does not
         // parse and falls through to .bak. Healed without rotating, like the .bak case below:
         // .bak still holds the previous good copy.
-        when (val tmp = read(temp)) {
-            is Read.Parsed -> {
-                log("primary config unreadable — recovered the newer, unpublished .tmp", null)
-                publishTemp(tmp.config)
-                return tmp.config
-            }
-            Read.Failed -> return null
-            Read.Absent, Read.Corrupt -> Unit
+        parse(temp)?.let { recovered ->
+            log("primary config unreadable — recovered the newer, unpublished .tmp", null)
+            publishTemp(recovered)
+            return recovered
         }
-        (read(backup) as? Read.Parsed)?.config?.let { recovered ->
+        parse(backup)?.let { recovered ->
             log("primary config unreadable — recovered from .bak", null)
             // Heal the primary now instead of waiting for the next toggle: rewrite the
             // recovered config over the bad primary so later resumes stop hitting this
@@ -126,28 +116,15 @@ internal class ConfigStore(
      */
     fun isFresh(): Boolean = !primary.exists() && !backup.exists()
 
-    /** What [setAsideUnreadable] did. */
-    sealed interface SetAside {
-        /** The config reads after all (or there is none): nothing moved; [config] is [load]'s. */
-        data class Readable(val config: VersoConfig) : SetAside
-        /** The unreadable files were renamed; no published copy is left, so the next [load] is a
-         *  fresh install's. */
-        data object Moved : SetAside
-        /** A rename was refused (logged): still unreadable, nothing lost. */
-        data object Failed : SetAside
-    }
-
     /**
-     * Move an unreadable config out of the way — "~reset", and a restore over it. Renamed to
-     * "<name>.unreadable", not deleted: the launcher can only tell that a file cannot be read NOW —
-     * a read error may pass — so the bytes stay. Only this newest generation is kept: it replaces
-     * the files an earlier one left, and a restore that was saved drops it ([dropSetAside]). The .tmp,
-     * the .bak and the primary go in that order, the primary last: a refused rename always leaves
-     * a published copy, still unreadable, never a silent fresh start. Checks with [load] first:
-     * a config that reads after all is returned untouched. Never throws.
+     * Move an unreadable config out of the way, so the first load can start over (LauncherState).
+     * Renamed to "<name>.unreadable", not deleted: the bytes stay for a manual rescue. Only this
+     * newest generation is kept — it replaces what an earlier one left — and a restore that was
+     * saved drops it ([dropSetAside]). The .tmp, the .bak and the primary go in that order, the
+     * primary last: a refused rename leaves a published copy, still unreadable, never a silent
+     * fresh start. True when nothing published is left in place. Never throws.
      */
-    fun setAsideUnreadable(): SetAside {
-        load()?.let { return SetAside.Readable(it) }
+    fun setAsideUnreadable(): Boolean {
         return try {
             val moved = mutableSetOf<String>()
             for (file in listOf(temp, backup, primary)) {
@@ -155,16 +132,16 @@ internal class ConfigStore(
                 val target = File(dir, "${file.name}.unreadable")
                 if (!rename(file, target)) {
                     log("could not set ${file.name} aside", null)
-                    return SetAside.Failed
+                    return false
                 }
                 moved += target.name
             }
             dropSetAside(keep = moved)
             syncDir(dir)
-            SetAside.Moved
+            true
         } catch (e: Exception) {
             log("setting the unreadable config aside failed", e)
-            SetAside.Failed
+            false
         }
     }
 
@@ -175,29 +152,22 @@ internal class ConfigStore(
             ?.forEach { if (!it.delete()) log("could not drop ${it.name}", null) }
     }
 
-    /** What reading one config file gave — [load] tells a read error from a torn file. */
-    private sealed interface Read {
-        data object Absent : Read
-        /** The file is there, but reading it threw (logged): its content is unknown. */
-        data object Failed : Read
-        /** Read, but no config (logged). */
-        data object Corrupt : Read
-        data class Parsed(val config: VersoConfig) : Read
-    }
-
-    /** Read and parse one config file. Never throws. */
-    private fun read(file: File): Read {
-        if (!file.isFile) return Read.Absent
+    /**
+     * Parse one config file. Returns null when the file is absent (a normal state, not logged),
+     * cannot be read or is unparseable (both logged, so real corruption is visible). Never throws.
+     */
+    private fun parse(file: File): VersoConfig? {
+        if (!file.isFile) return null
         val text = try {
             readText(file)
         } catch (e: Exception) {
             log("config unreadable: ${file.path}", e)
-            return Read.Failed
+            return null
         }
         // ConfigJson owns the JSON parsing (and is unit-tested); it returns null, never
         // throws, on malformed input — log here where the file path is known.
-        return ConfigJson.parse(text)?.let { Read.Parsed(it) }
-            ?: run { log("config unparseable: ${file.path}", null); Read.Corrupt }
+        return ConfigJson.parse(text)
+            ?: run { log("config unparseable: ${file.path}", null); null }
     }
 
     /**
@@ -250,7 +220,7 @@ internal class ConfigStore(
             //     again. One read+parse of a tiny file per save is a cheap insurance.
             if (rotateBackup && dst.exists()) {
                 when {
-                    read(dst) !is Read.Parsed ->
+                    parse(dst) == null ->
                         log("config primary invalid — keeping .bak, skipping rotate", null)
                     !rename(dst, bak) ->
                         log("config .bak rotate failed (non-fatal)", null)

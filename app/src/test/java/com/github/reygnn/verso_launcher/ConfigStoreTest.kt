@@ -233,30 +233,15 @@ class ConfigStoreTest {
         assertTrue(store.load()!!.favorites.isEmpty())
     }
 
-    /** A primary that cannot be READ (an I/O error) may hold the newest save: null at once —
-     *  no fallback to the older .bak, no heal over it; the next load tries again. */
+    /** A primary that cannot be READ (an I/O error) is treated like a torn one: the .bak
+     *  steps in. */
     @Test
-    fun `a primary that cannot be read is null and is not healed from bak mirror`() {
+    fun `a primary that cannot be read falls back to bak mirror like a torn one`() {
         primary.writeText(json("newest"))
         backup.writeText(json("one/behind"))
         val failing = storeReading { if (it == primary) throw java.io.IOException("EIO") else it.readText() }
 
-        assertNull(failing.load())
-        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals(listOf("newest"), store.load()!!.favorites.toList())  // readable again
-    }
-
-    /** The same for the .tmp, which is the NEWEST config when it survives: a read error there
-     *  must not fall through to .bak, whose heal rewrites the .tmp. */
-    @Test
-    fun `a tmp that cannot be read is null and is not overwritten from bak mirror`() {
-        temp.writeText(json("newest"))
-        backup.writeText(json("one/behind"))
-        val failing = storeReading { if (it == temp) throw java.io.IOException("EIO") else it.readText() }
-
-        assertNull(failing.load())
-        assertEquals(listOf("newest"), ConfigJson.parse(temp.readText())!!.favorites.toList())
-        assertFalse(primary.exists())
+        assertEquals(listOf("one/behind"), failing.load()!!.favorites.toList())
     }
 
     @Test
@@ -274,7 +259,7 @@ class ConfigStoreTest {
         backup.writeText("also torn")
         temp.writeText("torn too")
 
-        assertEquals(ConfigStore.SetAside.Moved, store.setAsideUnreadable())
+        assertTrue(store.setAsideUnreadable())
         assertEquals("{ torn", File(dir, "verso.json.unreadable").readText())
         assertEquals("also torn", File(dir, "verso.json.bak.unreadable").readText())
         assertEquals("torn too", File(dir, "verso.json.tmp.unreadable").readText())
@@ -291,7 +276,7 @@ class ConfigStoreTest {
         File(dir, "verso.json.unreadable-2").writeText("from an older version")
         primary.writeText("{ torn")
 
-        assertEquals(ConfigStore.SetAside.Moved, store.setAsideUnreadable())
+        assertTrue(store.setAsideUnreadable())
         assertEquals("{ torn", File(dir, "verso.json.unreadable").readText())
         assertEquals(listOf("verso.json.unreadable"), dir.list()!!.filter { "unreadable" in it })
     }
@@ -314,19 +299,10 @@ class ConfigStoreTest {
         backup.writeText("also torn")
         val refusing = storeWith { from, to -> if (from == primary) false else from.renameTo(to) }
 
-        assertEquals(ConfigStore.SetAside.Failed, refusing.setAsideUnreadable())
+        assertFalse(refusing.setAsideUnreadable())
         assertTrue(primary.isFile)
         assertNull(store.load())
         assertFalse(store.isFresh())
-    }
-
-    @Test
-    fun `a config that reads after all is not set aside`() {
-        primary.writeText(json("a/1"))
-
-        val aside = store.setAsideUnreadable()
-        assertEquals(listOf("a/1"), (aside as ConfigStore.SetAside.Readable).config.favorites.toList())
-        assertFalse(File(dir, "verso.json.unreadable").exists())
     }
 
     // ---- write and rotation --------------------------------------------------

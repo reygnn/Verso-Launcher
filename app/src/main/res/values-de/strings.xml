@@ -28,17 +28,8 @@
     <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok ist der Dateiname, in
          toast_restore_ok die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
     <string name="toast_busy">Beschäftigt — laufenden Befehl abwarten</string>
-    <string name="toast_config_unreadable">Konfiguration unlesbar — Bearbeiten aus. ~restore oder ~reset</string>
-    <string name="toast_restore_unreadable">Wiederhergestellt — die unlesbare liegt als verso.json.unreadable</string>
+    <string name="toast_config_reset">Konfiguration unlesbar — neu begonnen. ~restore holt ein Backup</string>
     <string name="toast_restore_write_failed">Nicht gespeichert — nichts wiederhergestellt</string>
-    <string name="toast_restore_unsaved_aside">Nicht gespeichert — die unlesbare liegt als verso.json.unreadable</string>
-    <string name="toast_reset_ok">Zurückgesetzt — die alte liegt als verso.json.unreadable</string>
-    <string name="toast_reset_readable">Konfiguration wieder lesbar — nichts zurückgesetzt</string>
-    <string name="toast_reset_failed">Ließ sich nicht beiseitelegen — nichts geändert</string>
-    <string name="toast_reset_not_needed">Nichts zurückzusetzen — die Konfiguration ist lesbar</string>
-    <string name="reset_title">Konfiguration zurücksetzen?</string>
-    <string name="reset_message">verso.json ist unlesbar. Sie wird in verso.json.unreadable umbenannt — nichts wird gelöscht — und Verso beginnt neu mit den Standard-Favoriten.</string>
-    <string name="reset_confirm">Zurücksetzen</string>
     <string name="toast_not_loaded">Konfiguration noch nicht geladen — gleich nochmal versuchen</string>
     <string name="toast_not_default_home">Verso als Standard-Startbildschirm festlegen, um Arbeits-Apps einzuschalten</string>
     <string name="toast_backup_ok">Backup: Download/Verso/%1$s</string>

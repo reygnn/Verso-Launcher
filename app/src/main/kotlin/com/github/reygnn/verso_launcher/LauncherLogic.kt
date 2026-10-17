@@ -29,7 +29,7 @@ internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAV
 /** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
  *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
  *  same reason [Mode] is — the Activity and the tests both name it. */
-internal enum class Command { RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP, RESET }
+internal enum class Command { RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
 
 /**
  * What a config keeps for apps that are no longer installed ([LauncherLogic.orphans]): their
@@ -161,7 +161,6 @@ internal object LauncherLogic {
         "~restore" to Command.RESTORE,
         "~restore-saf" to Command.RESTORE_SAF,
         "~cleanup" to Command.CLEANUP,
-        "~reset" to Command.RESET,
     )
 
     /**

@@ -102,7 +102,7 @@ keyboard, no prompt:
     memory only, so it starts empty on every cold start; **Enter** relaunches the
     most recent. `?text` narrows them like a search
   - `~[text]` — commands. Typing `~` lists the commands; typing more narrows the
-    list (`~r` leaves `~restart`, `~restore`, `~restore-saf` and `~reset`). Tap a row to run it, or press
+    list (`~r` leaves `~restart`, `~restore` and `~restore-saf`). Tap a row to run it, or press
     **Enter** once what you typed can only mean one command — `~b` is enough for
     `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
     up. Every change is saved the moment you make it, so there is no save or load
@@ -124,10 +124,10 @@ keyboard, no prompt:
       aborted, so a restore never destroys what it overwrote without a trace. A
       backup that doesn't parse changes nothing. To undo a restore, run
       `~restore-saf` and pick that `verso-pre-restore-…` file. If `verso.json` itself
-      can't be read, Verso says so, edits nothing and saves nothing — it tries again
-      each time you come back to it. A restore is one way out: the unreadable file is then
-      renamed to `verso.json.unreadable` (never deleted) instead of an undo point; `~reset`
-      is the other
+      can't be read when Verso starts, it is renamed to `verso.json.unreadable` and Verso
+      starts over with the default favorites (a toast says so); `~restore` brings your
+      config back from the last `~backup`. Only the latest such copy is kept, and a
+      restore that succeeds clears it
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
@@ -147,10 +147,6 @@ keyboard, no prompt:
       unless every profile could be read. Don't run it while a new phone is still reinstalling
       your apps — those not back yet count as gone. Old files in `Download/Verso/`
       are left to a file manager (Android lets Verso touch only its own)
-    - `~reset` — only when `verso.json` can't be read and you have no backup to restore:
-      after a confirmation it renames the unreadable files to `*.unreadable` and starts
-      over with the default favorites. Only the latest such copy is kept, and a restore
-      that succeeds clears it
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
   command line (the bottom-most, since results fill upward). On an empty line
   **Enter** only drops the keyboard (see above) — it never launches.

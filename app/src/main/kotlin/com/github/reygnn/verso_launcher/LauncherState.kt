@@ -33,6 +33,8 @@ package com.github.reygnn.verso_launcher
  * @param io            submit a task to the IO thread; false if it was refused (shutting down).
  * @param main          run a task on the main thread (posted — never inline from IO).
  * @param loadConfig    read verso.json (IO thread); null when it is there but unreadable.
+ * @param setAsideUnreadable move an unreadable config out of the way (IO thread, first load
+ *                      only); true when it is gone, so the load can start over as a fresh install.
  * @param enumerateApps list the launchable apps under their system labels, no custom name
  *                      applied (IO thread); null if the enumeration itself failed — the
  *                      last-known-good list is then kept.
@@ -55,6 +57,7 @@ internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
     private val loadConfig: () -> VersoConfig?,
+    private val setAsideUnreadable: () -> Boolean = { false },
     private val enumerateApps: () -> List<AppEntry>?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
@@ -105,14 +108,11 @@ internal class LauncherState(
     var configLoaded = false
         private set
 
-    /**
-     * True while the config is not loaded because the file is there but cannot be read
-     * (loadConfig null). Not loaded means no edit and no save — the empty default must never be
-     * written over the real file. Every resume tries again ([needsRefresh]); a successful read
-     * or a restore ends it.
-     */
-    var configUnreadable = false
-        private set
+    // The first load found the config unreadable, set it aside and started over: said once.
+    private var startedOver = false
+
+    /** True once after the first load set an unreadable config aside and started over. */
+    fun takeStartedOver(): Boolean = startedOver.also { startedOver = false }
 
     @Volatile private var loadGeneration = 0
     @Volatile private var configEpoch = 0
@@ -141,8 +141,14 @@ internal class LauncherState(
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             // Checked before the read: only a config that is not on disk at all gets seeded.
-            val fresh = loadConfigNow && isFreshInstall()
-            val diskConfig = if (loadConfigNow) loadConfig() else null
+            val freshBefore = loadConfigNow && isFreshInstall()
+            val read = if (loadConfigNow) loadConfig() else null
+            // Unreadable: set aside (renamed, not deleted) and start over as a fresh install —
+            // default favorites, and a restore brings the user's back. If it cannot be moved,
+            // the config stays not loaded and the next resume tries again.
+            val setAside = loadConfigNow && read == null && setAsideUnreadable()
+            val diskConfig = read ?: if (setAside) VersoConfig() else null
+            val fresh = freshBefore || setAside
             val loaded = enumerateApps()
             // Seeding needs the enumeration (a default app must be launchable to be a
             // favorite), so a failed one seeds nothing; the next cold start tries again,
@@ -153,14 +159,12 @@ internal class LauncherState(
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile
                 var replaced = false
-                // Unreadable: not loaded, and stays so until a read succeeds.
-                if (loadConfigNow && diskConfig == null && !configLoaded) configUnreadable = true
                 // Adopt the disk copy only if nothing changed the config since the read — a
                 // restore adopted before the first load landed is the newer truth.
                 if (diskConfig != null && configEpoch == epoch) {
                     config = diskConfig
                     configLoaded = true
-                    configUnreadable = false
+                    startedOver = setAside
                     replaced = true
                     // First start: give the home page something to show. Saving here writes
                     // verso.json, so later starts are no longer fresh and never re-seed — a
@@ -219,7 +223,7 @@ internal class LauncherState(
     fun toggleFavorite(key: String) = toggleIn(config.favorites, key)
 
     private fun toggleIn(set: MutableSet<String>, key: String) {
-        if (!configLoaded) return  // could not be saved — see configUnreadable
+        if (!configLoaded) return  // could not be saved before the first load
         if (!set.remove(key)) set.add(key)
         mutated()
     }
@@ -356,15 +360,13 @@ internal class LauncherState(
 
     /**
      * Adopt a restored config wholesale ("~restore"). The caller has already parsed it (a
-     * malformed backup never gets here) and written the outgoing config out as the undo point
-     * (or, over an unreadable config, set its files aside — see RestoreSteps).
+     * malformed backup never gets here) and written the outgoing config out as the undo point.
      * Bumps configEpoch, which a first load still in flight checks: it must not land over this.
      * Saves, then re-renders through a [refresh] — without re-reading the file just queued.
      */
     fun adopt(restored: VersoConfig) {
         config = restored
         configLoaded = true
-        configUnreadable = false
         mutated()
         relabel()
         refresh()

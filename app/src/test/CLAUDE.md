@@ -13,22 +13,23 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 487 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 480 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           62  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           61  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents, reports that
                                 come even when a step throws (a "~cleanup" waits for it),
-                                an unreadable config (not loaded, no edit, retried)
+                                an unreadable config (set aside, a fresh start, said once;
+                                if it cannot be moved: not loaded, no edit, retried)
 CommandGateTest              9  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             38  verso.json on real temp files: .bak rotation, .tmp
+ConfigStoreTest             36  verso.json on real temp files: .bak rotation, .tmp
                                 recovery (published by rename, never rewritten),
                                 heal-without-rotate, isFresh, unreadable is null — not empty,
                                 set aside by renaming (primary last, newest generation only),
@@ -47,8 +48,8 @@ RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilte
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-RestoreStepsTest             8  the restore's IO order: undo point, config, then the old undo
-                                point swept; no-op restore; a failed write; over an unreadable config
+RestoreStepsTest             4  the restore's IO order: undo point, config, then the old undo
+                                point swept; no-op restore; a failed write
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
@@ -60,7 +61,7 @@ SourceGuardTest              8  source scans: no lenient ConfigJson.parse in Mai
                                 brace-less object templates, every command inside the gate,
                                 backup/restore take only a loaded config, no names in
                                 the enumeration, no edit while a command runs, ~restart and
-                                ~reset guarded
+                                no command before the load
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`

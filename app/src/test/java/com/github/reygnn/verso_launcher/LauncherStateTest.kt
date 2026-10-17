@@ -31,6 +31,8 @@ class LauncherStateTest {
     private var disk = VersoConfig()
     /** The file is there but cannot be read (ConfigStore.load null). */
     private var diskUnreadable = false
+    private var setAsideWorks = true
+    private var setAsideCalls = 0
     private var loadConfigCalls = 0
 
     /** The installed apps under their system labels — what an enumeration reports, as is: no
@@ -61,6 +63,11 @@ class LauncherStateTest {
         // A copy, like a real read: the file and the live config must never be one object,
         // or a test could pass only because a mutation also "changed the disk".
         loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk.snapshot() },
+        setAsideUnreadable = {
+            setAsideCalls++
+            if (setAsideWorks) { diskUnreadable = false; disk = VersoConfig() }
+            setAsideWorks
+        },
         enumerateApps = {
             enumerations++
             if (enumerationFails) null else installed.reversed()
@@ -139,23 +146,29 @@ class LauncherStateTest {
         assertEquals("the system label stays on the entry", "Alpha", state.apps.last().systemLabel)
     }
 
-    // ---- an unreadable config: not loaded, no edit, no save ----------------------------
+    // ---- an unreadable config: set aside on the first load, then a fresh start -----------
 
-    @Test fun `an unreadable config is not loaded, but the apps are listed`() {
+    @Test fun `an unreadable config is set aside and the first load starts over with the defaults`() {
         diskUnreadable = true
+        state.refresh()
+        runAll()
+        assertEquals(1, setAsideCalls)
+        assertTrue(state.configLoaded)
+        assertEquals(setOf(key("Charlie"), key("Alpha")), state.config.favorites)
+        assertEquals(1, written.size)
+        assertTrue("said once", state.takeStartedOver())
+        assertFalse(state.takeStartedOver())
+    }
+
+    @Test fun `if it cannot be set aside it stays not loaded, no edit, no save, and is retried`() {
+        diskUnreadable = true
+        setAsideWorks = false
         state.refresh()
         runAll()
         assertFalse(state.configLoaded)
-        assertTrue(state.configUnreadable)
         assertTrue(state.appsLoaded)
         assertTrue(state.needsRefresh)
         assertNull(state.loadedSnapshot())
-    }
-
-    @Test fun `while unreadable no edit is made and nothing is saved`() {
-        diskUnreadable = true
-        state.refresh()
-        runAll()
         state.toggleFavorite(key("Alpha"))
         state.toggleHidden(key("Bravo"))
         state.toggleTag(key("Alpha"), "work")
@@ -163,33 +176,19 @@ class LauncherStateTest {
         assertFalse(state.moveFavorite(key("Alpha"), key("Bravo")))
         state.save()
         runAll()
-        assertEquals(VersoConfig().snapshot().favorites, state.config.favorites)
-        assertTrue(state.config.hidden.isEmpty() && state.config.tags.isEmpty() && state.config.names.isEmpty())
         assertTrue(written.isEmpty())
-    }
-
-    @Test fun `the next refresh tries again and a successful read ends the episode`() {
-        diskUnreadable = true
-        state.refresh()
-        runAll()
-        diskUnreadable = false
-        disk = VersoConfig(favorites = linkedSetOf(key("Charlie")))
+        assertFalse(state.takeStartedOver())
+        setAsideWorks = true
         state.refresh()  // a resume: needsRefresh
         runAll()
         assertTrue(state.configLoaded)
-        assertFalse(state.configUnreadable)
-        assertEquals(setOf(key("Charlie")), state.config.favorites)
     }
 
-    @Test fun `a restore ends an unreadable episode`() {
-        diskUnreadable = true
-        state.refresh()
-        runAll()
-        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
-        runAll()
-        assertTrue(state.configLoaded)
-        assertFalse(state.configUnreadable)
-        assertEquals(1, written.size)
+    @Test fun `a readable config is never set aside`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        started()
+        assertEquals(0, setAsideCalls)
+        assertFalse(state.takeStartedOver())
     }
 
     @Test fun `loadedSnapshot is a copy of the loaded config`() {

@@ -64,19 +64,17 @@ class SourceGuardTest {
 
     @Test fun `every command runs inside the gate`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        // Four ways in (hard rule 15): the typed commands, the ~restore-saf answer, a confirmed
-        // ~cleanup, a confirmed ~reset. The command bodies take the run's ticket, so none can be
-        // called outside one.
-        assertEquals(4, Regex("""gate\.start\s*\{""").findAll(activity).count())
+        // Three ways in (hard rule 15): the typed commands, the ~restore-saf answer, a confirmed
+        // ~cleanup. The command bodies take the run's ticket, so none can be called outside one.
+        assertEquals(3, Regex("""gate\.start\s*\{""").findAll(activity).count())
         for (body in listOf("backup", "restoreConfig", "cleanup", "adoptRestored")) {
             val inRun = Regex("""(?<!fun |\.)\b$body\(t\b""").findAll(activity).count()
             val all = Regex("""(?<!fun |\.)\b$body\(""").findAll(activity).count()
             assertEquals("$body( called outside a run", all, inRun)
         }
         assertTrue(Regex("""fun runCleanup\([^)]*\)\s*\{\s*val accepted = gate\.start""").containsMatchIn(activity))
-        assertTrue(Regex("""fun runReset\(\)\s*\{\s*val accepted = gate\.start""").containsMatchIn(activity))
-        // ~reset only for an unreadable config, and only through its confirmation.
-        assertTrue(activity.contains("Command.RESET -> if (state.configUnreadable) confirmReset()"))
+        // Every command but ~restart needs the loaded config (never the empty default).
+        assertTrue(activity.contains("if (command != Command.RESTART && !editable()) return"))
         // ~restart too: refused while a command runs, like any other.
         // …and not while a picked ~restore-saf file is still being read (it has no run yet).
         assertTrue(Regex("""Command\.RESTART -> if \(safReading\)[^\n]*recreate\(\)""").containsMatchIn(activity))

@@ -24,7 +24,7 @@ A launcher reduced to text. Front page ("recto"): clock, date and battery
 swipe down for the recently used apps. Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
 `#`/`##` tags, `?` recents) and the `~` commands (`~restart`, `~backup`, `~restore`,
-`~restore-saf`, `~cleanup`, `~reset`). Every change is saved at once — there is no `~save`; `~restart`
+`~restore-saf`, `~cleanup`). Every change is saved at once — there is no `~save`; `~restart`
 recreates the activity, which reads the config afresh. Default
 favorites (phone, messenger, email, browser, camera) are seeded once, on a fresh install.
 
@@ -129,18 +129,18 @@ main, written on the IO thread.
    fsync → rotate the primary to `.bak` only if it still parses → publish → fsync dir.
    A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`,
    and returns **null — never an empty config — when a published copy (primary or `.bak`)
-   exists but none parses**, or when the primary or `.tmp` is there but cannot be READ (an
-   I/O error: it may hold the newest save — no fallback, no heal, the next load tries again).
-   Only with no published copy at all is the empty config real.
-5. **No edit, no save before the config is loaded** — the empty default must never be
-   written over the real file. `LauncherState` refuses both until then; the Activity says
-   why (`editable()`). An unreadable config (`load()` null, `configUnreadable`) counts as
-   not loaded: retried on every resume, ended by a successful read, a restore or `~reset`.
-   `~reset` acts ONLY on an unreadable config, after a confirmation: it renames the files
-   to `*.unreadable` (`ConfigStore.setAsideUnreadable`, primary last, so a refused rename
-   leaves a published copy) and starts over through the first load. Only the newest set-aside
-   generation is kept; a restore that was saved drops it (`dropSetAside`). `~backup` before the load exports the disk copy — and writes nothing if that is
-   unreadable. Home is drawn and its cache written only from a loaded config.
+   exists but none parses** (a read error counts as torn). Only with no published copy at all
+   is the empty config real. On null the FIRST LOAD (and only it — never `load()` itself, or a
+   `~backup` before it could replace the real backup with nothing) sets the files aside —
+   renamed to `*.unreadable`, primary last, only the newest generation kept, dropped once a
+   restore is saved (`ConfigStore.setAsideUnreadable`, `dropSetAside`) — and starts over as a
+   fresh install, with one toast; the user's config comes back with `~restore`.
+5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
+   empty default must never be written over the real file or a backup. `LauncherState`
+   refuses edits and saves until then; the Activity says why (`editable()`). Backups and undo
+   points come from memory only (`loadedSnapshot`). If the files cannot even be set aside, the
+   config stays not loaded and every resume tries again. Home is drawn and its cache written
+   only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
@@ -151,9 +151,8 @@ main, written on the IO thread.
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to
    `verso.json` in the same IO task (the restore must survive a lost hand-back; a failed
-   write adopts nothing) → sweep the old undo point → `adopt`. No undo point, no restore —
-   except over an unreadable config: its files are set aside (renamed, never written over —
-   a read error may pass) in place of the undo point; if that fails, nothing is written.
+   write adopts nothing) → drop the set-aside files → sweep the old undo point → `adopt`. No
+   undo point, no restore.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`
@@ -201,7 +200,7 @@ main, written on the IO thread.
     work throws; `LauncherState.cleanup` reports from a `finally`). No run
     spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
     before a run starts, only its adoption is one (`~restart` is refused while it is read);
-    the cleanup and reset dialogs end their run, their OK starts a new one.
+    the cleanup dialog ends its run, its OK starts a new one.
 
 ---
 

@@ -248,7 +248,7 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.parseCommand("~load"))
         assertNull(LauncherLogic.parseCommand("~save"))
         assertEquals(Command.RESTART, LauncherLogic.parseCommand("~restart"))
-        assertEquals(Command.RESET, LauncherLogic.parseCommand("~reset"))
+        assertNull(LauncherLogic.parseCommand("~reset"))
         assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~backup"))
         assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.parseCommand("~restore-saf"))
@@ -307,7 +307,7 @@ class LauncherLogicTest {
     @Test fun `typing narrows the overview`() {
         assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~b").map { it.first })
         assertEquals(
-            listOf("~restart", "~restore", "~restore-saf", "~reset"),
+            listOf("~restart", "~restore", "~restore-saf"),
             LauncherLogic.commandsMatching("~r").map { it.first },
         )
         assertEquals(listOf("~restore-saf"), LauncherLogic.commandsMatching("~restore-").map { it.first })
@@ -317,7 +317,6 @@ class LauncherLogicTest {
     @Test fun `an unambiguous abbreviation resolves`() {
         assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
-        assertEquals(Command.RESET, LauncherLogic.resolveCommand("~rese"))
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
     }

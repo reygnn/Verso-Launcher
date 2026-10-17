@@ -111,16 +111,13 @@ import java.util.concurrent.RejectedExecutionException
  *   ~restore   adopt the newest such backup again. No picker. The config being
  *              replaced is first written next to it as verso-pre-restore-<date>_<time>
  *              .json; if that fails the restore is aborted, so a restore never
- *              destroys the state it overwrote without a trace. Over an unreadable
- *              verso.json its files are renamed (*.unreadable) instead.
+ *              destroys the state it overwrote without a trace.
  *   ~restore-saf
  *              same, but PICK the file via the system document picker. The escape
  *              hatch for a config carried over from another phone or surviving a
  *              reinstall (see [restoreConfig]).
  *   ~cleanup   remove the entries of apps no longer installed, after a confirmation and an
  *              undo point (verso-pre-cleanup-<date>_<time>.json)
- *   ~reset     only for an unreadable verso.json, after a confirmation: rename it (and its
- *              .bak/.tmp) to *.unreadable — nothing deleted — and start over
  * Long-press any row (home or drawer) to set a custom name and its tags.
  */
 class MainActivity : Activity() {
@@ -184,8 +181,6 @@ class MainActivity : Activity() {
     private var started = false
     // The "~" commands, one at a time (see runCommand).
     private val gate = CommandGate()
-    // The unreadable-config toast was shown for the current episode (see onRefreshed).
-    private var unreadableSaid = false
 
     // What outlives this instance: the one disk thread and the recents (see VersoApp).
     private val app get() = VersoApp.from(this)
@@ -223,6 +218,7 @@ class MainActivity : Activity() {
             io = ::submitIo,
             main = { task -> onUi { task.run() } },
             loadConfig = { store.load() },
+            setAsideUnreadable = { store.setAsideUnreadable() },
             enumerateApps = ::loadApps,
             serialize = ConfigJson::serialize,
             writeConfig = { payload -> store.write(payload, rotateBackup = true) },
@@ -235,9 +231,8 @@ class MainActivity : Activity() {
                     // Its counts were for the config just replaced.
                     commandDialog?.dismiss()
                 }
-                // An unreadable config is said once per episode, not on every resume.
-                if (state.configUnreadable && !unreadableSaid) toast(getString(R.string.toast_config_unreadable), Toast.LENGTH_LONG)
-                unreadableSaid = state.configUnreadable
+                // The first load found the config unreadable, set it aside and started over.
+                if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
                 refilter()
             },
             isFreshInstall = { store.isFresh() },
@@ -1093,6 +1088,9 @@ class MainActivity : Activity() {
             toast(getString(R.string.toast_busy))
             return
         }
+        // Every command but ~restart works on the config in memory: not before the first load
+        // (a cold start's first moment).
+        if (command != Command.RESTART && !editable()) return
         // Cleared BEFORE running ("" parses to no command): setText fires the TextWatcher
         // synchronously, so the mode is back to NORMAL before the command runs.
         prompt.setText("")
@@ -1107,9 +1105,6 @@ class MainActivity : Activity() {
                 // starts a run of its own (onActivityResult).
                 Command.RESTORE_SAF -> pickRestoreFile()
                 Command.CLEANUP -> cleanup(t)
-                // Only for an unreadable config, and only after a confirmation: the dialog ends
-                // this run, its OK starts one of its own (runReset).
-                Command.RESET -> if (state.configUnreadable) confirmReset() else toast(getString(R.string.toast_reset_not_needed))
             }
         }
     }
@@ -1129,19 +1124,13 @@ class MainActivity : Activity() {
      * saves and lives in filesDir, so it dies with the app. This one is an ordinary file in
      * shared storage that can be copied off the device.
      *
-     * The config in memory once it is loaded — serialized here on the main thread, where it is
-     * only ever mutated, so the read is race-free. Before the first load lands (a fast "~b" on a
-     * cold start) memory still holds the empty default, and exporting THAT would replace the
-     * real backup with nothing; the file on disk is the truth then, read on the IO thread.
+     * The config in memory, serialized here on the main thread, where it is only ever mutated,
+     * so the read is race-free. Never before the first load (runCommand): memory then holds the
+     * empty default, and exporting THAT would replace the real backup with nothing.
      */
     private fun backup(t: CommandGate.Ticket) {
-        val payload = state.loadedSnapshot()?.let { ConfigJson.serialize(it) }
-        commandIo(t, work = {
-            // Neither in memory nor readable on disk: nothing is written — the old backup, the
-            // only copy off the device, stays rather than being replaced by an empty config.
-            (payload ?: store.load()?.let { ConfigJson.serialize(it) })
-                ?.let { backupStore.write(BackupFiles.BACKUP_BASE, it) }
-        }) { name ->
+        val payload = ConfigJson.serialize(state.loadedSnapshot() ?: return)
+        commandIo(t, work = { backupStore.write(BackupFiles.BACKUP_BASE, payload) }) { name ->
             // Name the file actually written: its name carries the time it was taken.
             if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
             else toast(getString(R.string.toast_backup_failed))
@@ -1155,7 +1144,6 @@ class MainActivity : Activity() {
      * dialog's OK, and then [LauncherState.cleanup] checks again and writes an undo point first.
      */
     private fun cleanup(t: CommandGate.Ticket) {
-        if (!editable()) return
         val ticket = cleanupTicket
         val snapshot = state.config.snapshot()
         commandIo(t, work = { safeCleanupCheck(snapshot) }) { plan ->
@@ -1288,38 +1276,6 @@ class MainActivity : Activity() {
         }
     }
 
-    /** "~reset" of an unreadable config: what happens, nothing deleted — then [runReset]. */
-    private fun confirmReset() {
-        commandDialog?.dismiss()
-        commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(R.string.reset_title)
-            .setMessage(R.string.reset_message)
-            .setPositiveButton(R.string.reset_confirm) { _, _ -> runReset() }
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-            .apply { setOnDismissListener { d -> if (commandDialog === d) commandDialog = null } }
-        commandDialog?.show()
-    }
-
-    /**
-     * OK: on the IO thread, set the unreadable files aside (renamed, never deleted — see
-     * ConfigStore.setAsideUnreadable), then the first load runs again: with no published copy
-     * left it is a fresh install's, default favorites included. A run of its own.
-     */
-    private fun runReset() {
-        val accepted = gate.start { t ->
-            commandIo(t, work = { store.setAsideUnreadable() }) { aside ->
-                when (aside) {
-                    ConfigStore.SetAside.Moved -> toast(getString(R.string.toast_reset_ok), Toast.LENGTH_LONG)
-                    is ConfigStore.SetAside.Readable -> toast(getString(R.string.toast_reset_readable))
-                    ConfigStore.SetAside.Failed, null -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
-                }
-                state.refresh()
-            }
-        }
-        if (!accepted) toast(getString(R.string.toast_busy))
-    }
-
     /**
      * "~restore": read the newest backup back in. No picker — there is one current backup,
      * found by pattern whatever its timestamp, so there is nothing to choose.
@@ -1439,12 +1395,9 @@ class MainActivity : Activity() {
      * [BackupFiles.PRE_RESTORE_BASE], and ONLY once that write succeeded is [restored] adopted. A restore
      * whose undo point could not be written is aborted: replacing the config with nothing to
      * go back to is exactly the "destroyed without a trace" the undo point exists to prevent.
-     * Over an unreadable config there is nothing to make one of: its files are set aside
-     * (renamed) instead, and if that fails nothing is written (RestoreSteps).
-     * The outgoing config is taken from memory here on the main thread, or — if it was never
-     * loaded in this process (the picker's result delivered to a fresh process after Android
-     * killed the launcher) — read from disk on the IO thread, where an empty default would
-     * otherwise replace a real undo point with nothing.
+     * The outgoing config is taken from memory, never before the first load: the empty default
+     * would replace a real undo point with nothing (the picker's answer can reach a fresh process
+     * whose first load has not landed yet — then the user is told to try again).
      */
     private fun adoptRestored(t: CommandGate.Ticket, restored: VersoConfig) {
         // What a restore actually adopted, so a "my favorites are gone" report can be
@@ -1454,34 +1407,25 @@ class MainActivity : Activity() {
             "restore: ${restored.favorites.size} favorites, ${restored.hidden.size} hidden, " +
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
-        val outgoing = state.loadedSnapshot()
+        val outgoing = state.loadedSnapshot() ?: run {
+            toast(getString(R.string.toast_not_loaded))
+            return
+        }
         commandIo(t, work = {
             // The IO half in its load-bearing order (CLAUDE.md rule 7): stop if nothing would
             // change, write the undo point, persist the restored config — see RestoreSteps.
             RestoreSteps.run(
-                current = outgoing ?: store.load(),
+                current = outgoing,
                 restored = restored,
                 writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
                 writeConfig = { payload -> store.write(payload, rotateBackup = true) },
                 sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
-                setAside = { store.setAsideUnreadable() },
                 dropSetAside = { store.dropSetAside() },
             )
         }) { outcome ->
             when (outcome) {
                 RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
                 RestoreSteps.Outcome.WriteFailed -> toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
-                RestoreSteps.Outcome.SetAsideFailed -> toast(getString(R.string.toast_reset_failed), Toast.LENGTH_LONG)
-                // Set aside, but the restored config could not be written: the next load starts
-                // fresh, the old files lie set aside.
-                is RestoreSteps.Outcome.ReplacedUnreadable -> if (!outcome.saved) {
-                    toast(getString(R.string.toast_restore_unsaved_aside), Toast.LENGTH_LONG)
-                } else {
-                    state.adopt(restored)
-                    renameDialog?.dismiss()
-                    commandDialog?.dismiss()
-                    toast(getString(R.string.toast_restore_unreadable), Toast.LENGTH_LONG)
-                }
                 null, RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
                 is RestoreSteps.Outcome.Done -> {
                     // Wholesale replace, save and re-render — with the epoch guard that keeps an
@@ -1503,7 +1447,7 @@ class MainActivity : Activity() {
      */
     private fun editable(): Boolean {
         if (state.configLoaded) return true
-        toast(getString(if (state.configUnreadable) R.string.toast_config_unreadable else R.string.toast_not_loaded))
+        toast(getString(R.string.toast_not_loaded))
         return false
     }
 
@@ -1999,8 +1943,8 @@ class MainActivity : Activity() {
      *  it shows changed, so it is fine to call from every applyFilter. */
     private fun renderHome() {
         val favs = state.favorites()
-        // Only with the config loaded: an unreadable one has no favorites in memory — home keeps
-        // what it shows (the cached favorites), and the cache is not emptied.
+        // Only with the config loaded: before that memory has no favorites — home keeps what it
+        // shows (the cached favorites), and the cache is not emptied.
         val ready = state.appsLoaded && state.configLoaded
         homePage.render(favs, ready)
         // Keep the cold-start cache in step with what home really shows — written only when
