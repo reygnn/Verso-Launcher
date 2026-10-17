@@ -137,8 +137,9 @@ main, written on the IO thread.
    why (`editable()`). An unreadable config (`load()` null, `configUnreadable`) counts as
    not loaded: retried on every resume, ended by a successful read, a restore or `~reset`.
    `~reset` acts ONLY on an unreadable config, after a confirmation: it renames the files
-   to `*.unreadable` — NEVER deletes them (`ConfigStore.setAsideUnreadable`, primary last, so
-   a refused rename leaves a published copy) — and starts over through the first load. `~backup` before the load exports the disk copy — and writes nothing if that is
+   to `*.unreadable` (`ConfigStore.setAsideUnreadable`, primary last, so a refused rename
+   leaves a published copy) and starts over through the first load. Only the newest set-aside
+   generation is kept; a restore that was saved drops it (`dropSetAside`). `~backup` before the load exports the disk copy — and writes nothing if that is
    unreadable. Home is drawn and its cache written only from a loaded config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is

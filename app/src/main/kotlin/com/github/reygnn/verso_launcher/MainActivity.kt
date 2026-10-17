@@ -1465,6 +1465,7 @@ class MainActivity : Activity() {
                 writeConfig = { payload -> store.write(payload, rotateBackup = true) },
                 sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
                 setAside = { store.setAsideUnreadable() },
+                dropSetAside = { store.dropSetAside() },
             )
         }) { outcome ->
             when (outcome) {

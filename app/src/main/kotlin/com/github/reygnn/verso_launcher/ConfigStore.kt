@@ -138,9 +138,10 @@ internal class ConfigStore(
     }
 
     /**
-     * Move an unreadable config out of the way — "~reset", and a restore over it. Renamed, NEVER
-     * deleted ("<name>.unreadable", or "-2", "-3" … beside an earlier one): the launcher can only
-     * tell that a file cannot be read NOW — a read error may pass — so the bytes stay. The .tmp,
+     * Move an unreadable config out of the way — "~reset", and a restore over it. Renamed to
+     * "<name>.unreadable", not deleted: the launcher can only tell that a file cannot be read NOW —
+     * a read error may pass — so the bytes stay. Only this newest generation is kept: it replaces
+     * the files an earlier one left, and a restore that was saved drops it ([dropSetAside]). The .tmp,
      * the .bak and the primary go in that order, the primary last: a refused rename always leaves
      * a published copy, still unreadable, never a silent fresh start. Checks with [load] first:
      * a config that reads after all is returned untouched. Never throws.
@@ -148,22 +149,30 @@ internal class ConfigStore(
     fun setAsideUnreadable(): SetAside {
         load()?.let { return SetAside.Readable(it) }
         return try {
+            val moved = mutableSetOf<String>()
             for (file in listOf(temp, backup, primary)) {
                 if (!file.isFile) continue
-                var target = File(dir, "${file.name}.unreadable")
-                var n = 1
-                while (target.exists()) target = File(dir, "${file.name}.unreadable-${++n}")
+                val target = File(dir, "${file.name}.unreadable")
                 if (!rename(file, target)) {
                     log("could not set ${file.name} aside", null)
                     return SetAside.Failed
                 }
+                moved += target.name
             }
+            dropSetAside(keep = moved)
             syncDir(dir)
             SetAside.Moved
         } catch (e: Exception) {
             log("setting the unreadable config aside failed", e)
             SetAside.Failed
         }
+    }
+
+    /** Delete the set-aside files — all, after a restore was saved; or all but [keep], the
+     *  generation just set aside. Never throws. */
+    fun dropSetAside(keep: Set<String> = emptySet()) {
+        dir.listFiles { f -> f.name.startsWith(CONFIG_FILE) && ".unreadable" in f.name && f.name !in keep }
+            ?.forEach { if (!it.delete()) log("could not drop ${it.name}", null) }
     }
 
     /** What reading one config file gave — [load] tells a read error from a torn file. */

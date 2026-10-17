@@ -282,14 +282,28 @@ class ConfigStoreTest {
         assertTrue(store.load()!!.favorites.isEmpty())
     }
 
+    /** Only the newest generation is kept: it replaces the earlier one, and what the earlier
+     *  one left beside it (here a .bak this one does not have) goes. */
     @Test
-    fun `set aside never overwrites an earlier set-aside copy`() {
+    fun `set aside keeps only the newest generation`() {
         File(dir, "verso.json.unreadable").writeText("earlier")
+        File(dir, "verso.json.bak.unreadable").writeText("earlier bak")
+        File(dir, "verso.json.unreadable-2").writeText("from an older version")
         primary.writeText("{ torn")
 
         assertEquals(ConfigStore.SetAside.Moved, store.setAsideUnreadable())
-        assertEquals("earlier", File(dir, "verso.json.unreadable").readText())
-        assertEquals("{ torn", File(dir, "verso.json.unreadable-2").readText())
+        assertEquals("{ torn", File(dir, "verso.json.unreadable").readText())
+        assertEquals(listOf("verso.json.unreadable"), dir.list()!!.filter { "unreadable" in it })
+    }
+
+    @Test
+    fun `dropping the set-aside files leaves the config alone`() {
+        File(dir, "verso.json.unreadable").writeText("old")
+        File(dir, "verso.json.bak.unreadable").writeText("old bak")
+        primary.writeText(json("a/1"))
+
+        store.dropSetAside()
+        assertEquals(listOf("verso.json"), dir.list()!!.sorted())
     }
 
     /** The primary goes last: a refused rename leaves a published copy — still unreadable,

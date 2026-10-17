@@ -148,8 +148,9 @@ keyboard, no prompt:
       your apps — those not back yet count as gone. Old files in `Download/Verso/`
       are left to a file manager (Android lets Verso touch only its own)
     - `~reset` — only when `verso.json` can't be read and you have no backup to restore:
-      after a confirmation it renames the unreadable files to `*.unreadable` (nothing is
-      deleted) and starts over with the default favorites
+      after a confirmation it renames the unreadable files to `*.unreadable` and starts
+      over with the default favorites. Only the latest such copy is kept, and a restore
+      that succeeds clears it
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
   command line (the bottom-most, since results fill upward). On an empty line
   **Enter** only drops the keyboard (see above) — it never launches.

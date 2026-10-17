@@ -38,7 +38,8 @@ internal object RestoreSteps {
      *    or null). No undo point, no restore.
      * 3. Persist [restored] through [writeConfig] right away, in the same IO task, so the restore
      *    survives even if the main-thread hand-off never runs. Its result counts: WriteFailed.
-     * 4. Only then [sweepUndo] the previous undo point — possibly the very file being restored
+     * 4. Once [restored] is saved, [dropSetAside]: set-aside files of an unreadable config are
+     *    not needed any more. Then [sweepUndo] the previous undo point — possibly the very file being restored
      *    ("~restore-saf" of a verso-pre-restore file): it must not be gone before the restore is
      *    saved. A crash before this step leaves one extra undo row, which the next one sweeps.
      */
@@ -49,15 +50,21 @@ internal object RestoreSteps {
         writeConfig: (String) -> Boolean,
         sweepUndo: () -> Unit,
         setAside: () -> ConfigStore.SetAside,
+        dropSetAside: () -> Unit,
     ): Outcome {
         val outgoing = current ?: when (val aside = setAside()) {
             is ConfigStore.SetAside.Readable -> aside.config
-            ConfigStore.SetAside.Moved -> return Outcome.ReplacedUnreadable(writeConfig(ConfigJson.serialize(restored)))
+            ConfigStore.SetAside.Moved -> {
+                val saved = writeConfig(ConfigJson.serialize(restored))
+                if (saved) dropSetAside()
+                return Outcome.ReplacedUnreadable(saved)
+            }
             ConfigStore.SetAside.Failed -> return Outcome.SetAsideFailed
         }
         if (outgoing.sameContent(restored)) return Outcome.Unchanged
         val undo = writeUndo(ConfigJson.serialize(outgoing)) ?: return Outcome.UndoFailed
         if (!writeConfig(ConfigJson.serialize(restored))) return Outcome.WriteFailed
+        dropSetAside()
         sweepUndo()
         return Outcome.Done(undo)
     }

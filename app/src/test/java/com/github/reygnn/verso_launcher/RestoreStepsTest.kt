@@ -23,12 +23,13 @@ class RestoreStepsTest {
         writeConfig = { payload -> calls += "config:" + ConfigJson.parse(payload)!!.favorites.joinToString(); writeOk },
         sweepUndo = { calls += "sweep" },
         setAside = { calls += "aside"; aside },
+        dropSetAside = { calls += "drop" },
     )
 
     @Test fun `the undo point is written first, then the restored config`() {
         val outcome = run(current = cfg("old/Old"), restored = cfg("new/New"))
         assertEquals(RestoreSteps.Outcome.Done("verso-pre-restore-2026-10-13_120000.json"), outcome)
-        assertEquals(listOf("undo:old/Old", "config:new/New", "sweep"), calls)
+        assertEquals(listOf("undo:old/Old", "config:new/New", "drop", "sweep"), calls)
     }
 
     /** The old undo point may be the very file being restored: it goes only once the restore is
@@ -55,7 +56,7 @@ class RestoreStepsTest {
 
     @Test fun `over an unreadable config it is set aside, not written over, then the restore is written`() {
         assertEquals(RestoreSteps.Outcome.ReplacedUnreadable(saved = true), run(current = null, restored = cfg("new/New")))
-        assertEquals(listOf("aside", "config:new/New"), calls)
+        assertEquals(listOf("aside", "config:new/New", "drop"), calls)
     }
 
     @Test fun `if the unreadable config cannot be set aside, nothing is written`() {
@@ -67,7 +68,7 @@ class RestoreStepsTest {
     @Test fun `if it reads after all, it is the undo point as usual`() {
         aside = ConfigStore.SetAside.Readable(cfg("old/Old"))
         assertEquals(RestoreSteps.Outcome.Done("verso-pre-restore-2026-10-13_120000.json"), run(current = null, restored = cfg("new/New")))
-        assertEquals(listOf("aside", "undo:old/Old", "config:new/New", "sweep"), calls)
+        assertEquals(listOf("aside", "undo:old/Old", "config:new/New", "drop", "sweep"), calls)
     }
 
     @Test fun `over an unreadable config a failed write is reported`() {
