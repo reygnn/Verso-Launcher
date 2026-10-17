@@ -58,11 +58,6 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
     /** The finger lifted (or the gesture was cancelled): finish the turn or fall back. */
     var onDragEnd: (SwipeDir, DragEnd) -> Unit = { _, _ -> }
 
-    /** Asked on every DOWN: should this gesture be kept from the children entirely (taps
-     *  and long-presses swallowed)? Used while a page turn is still animating. A swallowed
-     *  gesture is still watched, so it can turn the page like any other swipe. */
-    var swallowTaps: () -> Boolean = { false }
-
     private val config = ViewConfiguration.get(context)
     private val slop = config.scaledTouchSlop.toFloat()
     private val minDistance = slop * SwipeGesture.SLOP_MULTIPLIER
@@ -75,7 +70,6 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
     // False once the gesture can no longer be a swipe of ours (a second finger came down).
     private var watching = false
     private var triggered = false
-    private var swallowing = false
     private var dragDir: SwipeDir? = null
     private var dragOffset = 0f
     // This gesture's limit: dragMax, or more when the drag grabbed a page that was further
@@ -93,7 +87,6 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                 watching = true
                 triggered = false
                 dragDir = null
-                swallowing = swallowTaps()
                 (velocity ?: VelocityTracker.obtain().also { velocity = it }).apply {
                     clear()
                     addMovement(ev)
@@ -124,7 +117,7 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                     if (drag != null && canDrag(drag)) {
                         triggered = true
                         dragDir = drag
-                        if (!swallowing) cancelChildren(ev)
+                        cancelChildren(ev)
                         // Start where the page is, not where the finger went down: the slop
                         // already travelled is not added, so the page does not jump — not even
                         // when it is caught beyond the usual limit (then that is this limit).
@@ -137,7 +130,7 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                     val flick = SwipeGesture.decisive(dx, dy, ev.eventTime - downTime, minDistance)
                     if (flick != null && claims(flick, downY)) {
                         triggered = true
-                        if (!swallowing) cancelChildren(ev)
+                        cancelChildren(ev)
                         onSwipe(flick)
                         return true
                     }
@@ -160,7 +153,7 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
             }
             MotionEvent.ACTION_CANCEL -> endDrag(DragEnd.CANCEL)
         }
-        if (triggered || swallowing) return true
+        if (triggered) return true
         val consumed = super.dispatchTouchEvent(ev)
         // Claim the DOWN even when no child took it (blank wallpaper, the empty space below a
         // short favorites list): otherwise the rest of the gesture would never be dispatched

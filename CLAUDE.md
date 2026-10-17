@@ -174,8 +174,7 @@ main, written on the IO thread.
     remains for the recents swipe and as the open fallback. All of it lives in
     `SwipeFrame.dispatchTouchEvent`, never `onInterceptTouchEvent` (a scrolling list
     disables intercept mid-gesture); the decisions are pure in `SwipeGesture`. Details that
-    are easy to break: taps are swallowed while a page turn runs (`swallowTaps`, ~200 ms);
-    a second finger cancels a drag; a drag can grab a page still moving and continues from
+    are easy to break: a second finger cancels a drag; a drag can grab a page still moving and continues from
     there; an open dialog (rename, `~cleanup`) blocks both drag and flick; a page turned some other way
     (HOME, Back, screen off) aborts a running drag without a release decision (`abortDrag`).
 12. **Status bar hidden on the home page only**, shown in the drawer. The home page

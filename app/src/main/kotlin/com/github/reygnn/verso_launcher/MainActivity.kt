@@ -182,8 +182,6 @@ class MainActivity : Activity() {
     // THE source of truth for which page is up. The views' visibility trails it by the
     // length of the page-turn animation, so nothing may read visibility instead.
     private var drawerOpen = false
-    // Uptime until which a page turn is still animating (see SwipeFrame.swallowTaps).
-    private var pageTurnUntil = 0L
 
     // The long-press rename dialog, tracked only so it can be dismissed if the
     // activity is torn down while it is open — an undismissed dialog leaks its
@@ -248,10 +246,6 @@ class MainActivity : Activity() {
                 val topExclusion = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
                 SwipeGesture.claims(drawerOpen, dir, downY, topExclusion)
             }
-            // While a page turn is still running, the outgoing page is VISIBLE (just fading)
-            // and on top for hit-testing: a quick tap would land on a row the user can no
-            // longer really see. Swallow taps for that moment; swipes are still tracked.
-            swallowTaps = { SystemClock.uptimeMillis() < pageTurnUntil }
             // Kolibri's home flicks: up = the app drawer, down = the recently used apps (here:
             // the drawer opened on the "?" recents view). Up is normally a drag (below); the
             // flick opens the drawer when the favorites could still scroll and no drag started.
@@ -414,7 +408,6 @@ class MainActivity : Activity() {
         drawer.requestApplyInsets()
         if (initialPrompt.isNotEmpty()) appDrawer.setPrompt(initialPrompt)
         else if (appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
-        pageTurnUntil = SystemClock.uptimeMillis() + PAGE_TURN_MS
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
         drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS).withLayer()
             .setInterpolator(AccelerateDecelerateInterpolator()).start()
@@ -463,7 +456,6 @@ class MainActivity : Activity() {
         }
         // Kolibri's way back: the drawer slides down off the screen (slide_out_down) while home
         // fades in (fade_in).
-        pageTurnUntil = SystemClock.uptimeMillis() + PAGE_TURN_MS
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
         home.animate().alpha(1f).setDuration(HOME_FADE_MS).withLayer()
             .setInterpolator(AccelerateInterpolator()).start()
@@ -477,7 +469,6 @@ class MainActivity : Activity() {
     private fun showHomeNow() {
         home.animate().cancel()
         drawer.animate().cancel()
-        pageTurnUntil = 0L
         home.setLayerType(View.LAYER_TYPE_NONE, null)
         home.visibility = View.VISIBLE
         home.alpha = 1f
@@ -550,7 +541,6 @@ class MainActivity : Activity() {
      * drag that fell back, nor closed by a closing one.
      */
     private fun settle(open: Boolean) {
-        pageTurnUntil = SystemClock.uptimeMillis() + DRAG_SETTLE_MS
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // the drag's layer; withLayer takes over
         drawer.animate().translationY(if (open) 0f else pageHeight()).setDuration(DRAG_SETTLE_MS).withLayer()
             .setInterpolator(DecelerateInterpolator()).withEndAction {
@@ -1493,8 +1483,6 @@ class MainActivity : Activity() {
         const val BACK_PREVIEW_FRACTION = 0.25f
         /** How far home fades in by the end of a back preview. */
         const val BACK_PREVIEW_HOME_ALPHA = 0.5f
-        /** How long a page turn runs, i.e. how long taps are swallowed (see swallowTaps). */
-        const val PAGE_TURN_MS = HOME_FADE_MS
         /** What a swipe down on home opens the drawer on: the recently used apps. */
         const val RECENTS_PROMPT = "?"
     }
