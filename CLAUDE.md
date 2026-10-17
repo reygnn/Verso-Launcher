@@ -75,11 +75,13 @@ Single `:app` module, one package:
 com.github.reygnn.verso_launcher/
   VersoApp            process-wide: the IO executor, the recents, palette and
                       badge-label caches
-  MainActivity        the window: both pages, commands, backup/restore orchestration,
-                      launching
+  MainActivity        the window: the page turn, commands, backup/restore orchestration,
+                      edits, dialogs, launching
   Apps                the apps on the device (IO side): enumeration of every profile,
                       ~cleanup's "still there?", default favorites
   HomePage            the front page (clock/date/battery, favorites, a11y actions)
+  AppDrawer           the back page: list, empty-list hint, command line and its bar;
+                      what the list shows (mode, rows) and the stale-tap guard
   HomeStyle           pure look constants + outline colour, palette, BatteryInfo,
                       DoubleTapGate
   OutlinedViews       the outlined text/icon views home and drawer draw with

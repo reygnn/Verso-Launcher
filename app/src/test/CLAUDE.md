@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 461 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 466 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -42,6 +42,8 @@ SwipeGestureTest            20  the page drag (direction, offset, release, home 
                                 Kolibri's flick thresholds, top band, who claims what, a late HOME
 SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
+AppDrawerTest                5  Robolectric: the back page — rows per prompt, edit-mode markers,
+                                the empty-list hint per mode, a palette switch, a tap handed on
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
