@@ -34,6 +34,10 @@ class VersoApp : Application() {
     /** The "?" list, newest first. In memory only, so it lasts until the process dies. */
     internal var recentKeys: List<String> = emptyList()
 
+    /** Set on [io] when a first load set an unreadable config aside; taken by the first
+     *  hand-off that lands — of whichever activity instance — so the toast is never lost. */
+    internal val startedOver = java.util.concurrent.atomic.AtomicBoolean()
+
     /** The key of [badgedLabels]: the badge depends on all three. */
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 

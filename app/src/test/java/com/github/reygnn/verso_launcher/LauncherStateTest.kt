@@ -56,6 +56,8 @@ class LauncherStateTest {
     }
 
     private val refreshed = mutableListOf<Boolean>()
+    /** VersoApp.startedOver: process-wide, outlives a LauncherState. */
+    private val startedOverFlag = java.util.concurrent.atomic.AtomicBoolean()
     private val listChanges = mutableListOf<Boolean>()
 
     private val state = LauncherState(
@@ -66,7 +68,7 @@ class LauncherStateTest {
         loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk.snapshot() },
         setAsideUnreadable = {
             setAsideCalls++
-            if (setAsideWorks) { diskUnreadable = false; disk = VersoConfig(); setAsideOnDisk = true; fresh = true }
+            if (setAsideWorks) { diskUnreadable = false; disk = VersoConfig(); fresh = true }
             setAsideWorks
         },
         enumerateApps = {
@@ -82,14 +84,12 @@ class LauncherStateTest {
         writeConfig = { payload -> written += payload; writeSucceeds },
         onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed },
         isFreshInstall = { fresh },
-        hasSetAside = { setAsideOnDisk },
+        startedOverFlag = startedOverFlag,
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
     )
 
     /** What isFreshInstall() answers — "no verso.json on disk yet". */
     private var fresh = false
-    /** What hasSetAside() answers — "verso.json.unreadable lies there". */
-    private var setAsideOnDisk = false
     /** The default-favorite slots the Activity would resolve. */
     private var candidates = listOf(listOf(key("Charlie")), listOf("gone/Gone", key("Alpha")))
     private var candidatesCalls = 0
@@ -221,6 +221,30 @@ class LauncherStateTest {
         fresh = true
         started()
         assertFalse(state.takeStartedOver())
+    }
+
+    /** The activity is recreated while its first load runs: that hand-off is dropped, the new
+     *  instance's state (sharing the process-wide flag) finds a fresh install — and says it. */
+    @Test fun `a start-over is said by the next instance when the first was recreated`() {
+        diskUnreadable = true
+        state.refresh()
+        runIo()
+        mainQueue.clear()       // onUi drops the hand-off for the destroyed instance
+        assertFalse("not loaded: not yet", state.takeStartedOver())
+        val next = LauncherState(
+            io = { task -> ioQueue.addLast(task); true },
+            main = { task -> mainQueue.addLast(task) },
+            loadConfig = { disk.snapshot() },
+            enumerateApps = { installed },
+            serialize = { "" },
+            writeConfig = { true },
+            onRefreshed = { _, _ -> },
+            startedOverFlag = startedOverFlag,
+        )
+        next.refresh()
+        runAll()
+        assertTrue(next.takeStartedOver())
+        assertFalse("said once", next.takeStartedOver())
     }
 
     @Test fun `a readable config is never set aside`() {

@@ -13,25 +13,26 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 472 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 475 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           64  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           65  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, needsRefresh, recents, reports that
                                 come even when a step throws (a "~cleanup" waits for it),
-                                an unreadable config (set aside, a fresh start, said once;
+                                an unreadable config (set aside, a fresh start, said once — also after a
+                                dropped hand-off or a recreation;
                                 if it cannot be moved: not loaded, no edit, retried)
 CommandGateTest              9  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions
 LauncherRowsTest            37  rowsFor per mode
-ConfigStoreTest             15  verso.json on real temp files: .new + rename, no leftovers,
+ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
-                                (one copy), files of earlier versions removed
+                                (exported to Downloads, else renamed: one copy), files of earlier versions removed
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         26  Enter / tap decisions, which Enter call acts

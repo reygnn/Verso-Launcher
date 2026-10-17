@@ -166,11 +166,31 @@ class ConfigStoreTest {
     }
 
     @Test
-    fun `hasSetAside only while a set-aside copy lies there`() {
-        assertFalse(store.hasSetAside())
+    fun `set aside exports the config's text, then removes it — nothing stays local`() {
         primary.writeText("{ torn")
-        store.setAsideUnreadable()
-        assertTrue(store.hasSetAside())
+        val exported = mutableListOf<String>()
+        assertTrue(store.setAsideUnreadable { exported += it; true })
+        assertEquals(listOf("{ torn"), exported)
+        assertEquals(emptyList<String>(), files())
+        assertTrue(store.isFresh())
+    }
+
+    @Test
+    fun `a failed export renames the config aside locally`() {
+        primary.writeText("{ torn")
+        assertTrue(store.setAsideUnreadable { false })
+        assertEquals("{ torn", setAside.readText())
+        assertFalse(primary.exists())
+    }
+
+    @Test
+    fun `bytes that cannot be read are not exported but renamed aside`() {
+        primary.writeText(json("a/1"))
+        var exports = 0
+        val failing = storeWith(readText = { throw java.io.IOException("EIO") })
+        assertTrue(failing.setAsideUnreadable { exports++; true })
+        assertEquals(0, exports)
+        assertTrue(setAside.isFile)
     }
 
     @Test

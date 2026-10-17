@@ -132,10 +132,12 @@ main, written on the IO thread.
 4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync → rename
    over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net is the
    user's `~backup`. `load()` is null — never an empty config — when `verso.json` is torn or
-   cannot be read; then the FIRST LOAD (only it, never `load()` itself) renames it to
-   `verso.json.unreadable` (replacing an earlier one) and starts over as a fresh install, with
-   one toast; `~restore` brings the config back. Only with no `verso.json` is the empty
-   config real.
+   cannot be read; then the FIRST LOAD (only it, never `load()` itself) moves it out of the
+   way — published to `Download/Verso/verso-unreadable-…` and only then deleted; if its bytes
+   cannot be read or the export fails, renamed to `verso.json.unreadable` (replacing an earlier
+   one) — and starts over as a fresh install, with one toast (a process-wide flag, so a dropped
+   hand-off does not lose it); `~restore` brings the last backup back. Only with no
+   `verso.json` is the empty config real.
 5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
    empty default must never be written over the real file or a backup. `LauncherState`
    refuses edits and saves until then; the Activity says why (`editable()`). Backups and undo
@@ -146,13 +148,13 @@ main, written on the IO thread.
    owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
    name. Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
-   `verso-pre-cleanup-…`). A restore's undo point is written without the sweep; the old
+   `verso-pre-cleanup-…`), and one set-aside unreadable config (`verso-unreadable-…`). A restore's undo point is written without the sweep; the old
    one goes only once the restored config is saved (it may be the very file restored).
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient
    `parse` for outside files) → if it equals the current config, stop (an undo point
    would replace the real one) → write the undo point → write the restored config to
    `verso.json` in the same IO task (the restore must survive a lost hand-back; a failed
-   write adopts nothing) → drop the set-aside files → sweep the old undo point → `adopt`. No
+   write adopts nothing) → sweep the old undo point → `adopt`. No
    undo point, no restore.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay

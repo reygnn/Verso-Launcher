@@ -147,7 +147,10 @@ class MainActivity : Activity() {
             io = ::submitIo,
             main = { task -> onUi { task.run() } },
             loadConfig = { store.load() },
-            setAsideUnreadable = { store.setAsideUnreadable() },
+            // Exported to Download/Verso, where the user can see it (one copy, the newest).
+            setAsideUnreadable = {
+                store.setAsideUnreadable { text -> backupStore.write(BackupFiles.UNREADABLE_BASE, text) != null }
+            },
             enumerateApps = { apps.loadApps() },
             serialize = ConfigJson::serialize,
             writeConfig = { payload -> store.write(payload) },
@@ -165,7 +168,7 @@ class MainActivity : Activity() {
                 if (listChanged) appDrawer.refilter()
             },
             isFreshInstall = { store.isFresh() },
-            hasSetAside = { store.hasSetAside() },
+            startedOverFlag = app.startedOver,
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
             initialRecents = app.recentKeys,
             onRecentsChanged = { app.recentKeys = it },

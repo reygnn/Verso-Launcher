@@ -124,10 +124,9 @@ keyboard, no prompt:
       aborted, so a restore never destroys what it overwrote without a trace. A
       backup that doesn't parse changes nothing. To undo a restore, run
       `~restore-saf` and pick that `verso-pre-restore-…` file. If `verso.json` itself
-      can't be read when Verso starts, it is renamed to `verso.json.unreadable` and Verso
-      starts over with the default favorites (a toast says so); `~restore` brings your
-      config back from the last `~backup`. Only the latest such copy is kept, and a
-      restore that succeeds clears it
+      can't be read when Verso starts, it is moved to `Download/Verso/verso-unreadable-…`
+      and Verso starts over with the default favorites (a toast says so); `~restore`
+      brings your config back from the last `~backup`. Only the latest such copy is kept.
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to

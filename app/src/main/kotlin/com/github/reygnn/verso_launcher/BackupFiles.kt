@@ -35,6 +35,8 @@ internal object BackupFiles {
     const val BACKUP_BASE = "verso"
     const val PRE_RESTORE_BASE = "verso-pre-restore"
     const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
+    /** An unreadable verso.json the first load moved out of the way (one copy, the newest). */
+    const val UNREADABLE_BASE = "verso-unreadable"
 
     /** One of the app's own rows in the backup folder. */
     data class Entry(val id: Long, val name: String)

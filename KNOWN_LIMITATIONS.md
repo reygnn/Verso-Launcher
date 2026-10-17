@@ -27,12 +27,13 @@ file (not `verso.json`) and load it on start.
 ## An unreadable config starts over
 
 If `verso.json` cannot be read when Verso starts — torn, or a read error the system reports —
-Verso renames it to `verso.json.unreadable` and starts over with the
-default favorites; a toast says so. A torn file and a passing read error look the same to
+Verso moves it to `Download/Verso/verso-unreadable-…` (or, if even that fails, renames it to
+`verso.json.unreadable` in its own files) and starts over with the default favorites; a toast
+says so. A torn file and a passing read error look the same to
 the launcher, so it does not wait. Your config comes back only from your own `~backup`
 (`~restore`, or `~restore-saf` on another phone); without one it is gone, except for the
-renamed bytes, which only a manual rescue (adb) can reach; only the latest renamed copy is
-kept. There is no `.bak`: a write is atomic, but a file that goes bad later has no second copy
+moved bytes in Download/Verso — a torn file, to repair by hand if at all; only the latest copy
+is kept. There is no `.bak`: a write is atomic, but a file that goes bad later has no second copy
 on the device — `~backup` is that copy.
 
 ## Private space is not reachable

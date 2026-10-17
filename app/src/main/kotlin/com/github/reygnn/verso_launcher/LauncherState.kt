@@ -1,5 +1,7 @@
 package com.github.reygnn.verso_launcher
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 /**
  * The launcher's data: the config (favorites, hidden apps, custom names, tags), the enumerated
  * app list and the in-memory recents — plus the rules for keeping them consistent while a
@@ -46,8 +48,9 @@ package com.github.reygnn.verso_launcher
  *                      is false when the hand-off brought the same app list (and no new config):
  *                      nothing to re-render — a re-render would also void a tap in flight.
  * @param isFreshInstall true when there is no verso.json yet (IO thread, before the read).
- * @param hasSetAside   true while an unreadable config lies set aside (IO thread): a fresh
- *                      install beside one is a start-over whose hand-off was lost.
+ * @param startedOverFlag set on the IO thread when a first load set the config aside; the
+ *                      process-wide one, so a hand-off dropped for a superseded load or a
+ *                      recreated activity does not lose the toast ([takeStartedOver]).
  * @param defaultFavoriteCandidates the candidate keys per default favorite slot, see
  *                      [LauncherLogic.pickDefaultFavorites] (IO thread, fresh install only).
  * @param initialRecents the "?" list to start from — the process-wide one, so an Activity
@@ -65,7 +68,7 @@ internal class LauncherState(
     private val writeConfig: (String) -> Boolean,
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
     private val isFreshInstall: () -> Boolean = { false },
-    private val hasSetAside: () -> Boolean = { false },
+    private val startedOverFlag: AtomicBoolean = AtomicBoolean(),
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
     initialRecents: List<String> = emptyList(),
     private val onRecentsChanged: (List<String>) -> Unit = {},
@@ -111,11 +114,9 @@ internal class LauncherState(
     var configLoaded = false
         private set
 
-    // The first load found the config unreadable, set it aside and started over: said once.
-    private var startedOver = false
-
-    /** True once after the first load set an unreadable config aside and started over. */
-    fun takeStartedOver(): Boolean = startedOver.also { startedOver = false }
+    /** True once after a first load set an unreadable config aside and started over — asked
+     *  once the config is loaded, i.e. by the hand-off that brought the fresh start. */
+    fun takeStartedOver(): Boolean = configLoaded && startedOverFlag.getAndSet(false)
 
     @Volatile private var loadGeneration = 0
     @Volatile private var configEpoch = 0
@@ -145,14 +146,12 @@ internal class LauncherState(
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             // Checked before the read: only a config that is not on disk at all gets seeded.
             val freshBefore = loadConfigNow && isFreshInstall()
-            // A load that set the config aside but whose hand-off was dropped (superseded, or
-            // the activity recreated) left no verso.json: this load must still say so.
-            val startedOverBefore = freshBefore && hasSetAside()
             val read = if (loadConfigNow) loadConfig() else null
             // Unreadable: set aside (renamed, not deleted) and start over as a fresh install —
             // default favorites, and a restore brings the user's back. If it cannot be moved,
             // the config stays not loaded and the next resume tries again.
             val setAside = loadConfigNow && read == null && setAsideUnreadable()
+            if (setAside) startedOverFlag.set(true)
             val diskConfig = read ?: if (setAside) VersoConfig() else null
             val fresh = freshBefore || setAside
             val loaded = enumerateApps()
@@ -170,7 +169,6 @@ internal class LauncherState(
                 if (diskConfig != null && configEpoch == epoch) {
                     config = diskConfig
                     configLoaded = true
-                    startedOver = setAside || startedOverBefore
                     replaced = true
                     // First start: give the home page something to show. Saving here writes
                     // verso.json, so later starts are no longer fresh and never re-seed — a

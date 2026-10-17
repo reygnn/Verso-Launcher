@@ -50,9 +50,6 @@ internal class ConfigStore(
     /** True on a fresh install: no verso.json yet. Only then are default favorites seeded. */
     fun isFresh(): Boolean = !primary.exists()
 
-    /** True while an unreadable config lies set aside ([setAsideUnreadable]). */
-    fun hasSetAside(): Boolean = setAside.isFile
-
     /**
      * Publish [payload] as verso.json: written to verso.json.new, synced, then renamed over the
      * primary — a reader sees the old file or the new one, never half of one. Never throws;
@@ -74,12 +71,19 @@ internal class ConfigStore(
     }
 
     /**
-     * Move an unreadable verso.json out of the way, to verso.json.unreadable — replacing an
-     * earlier one, so there is only ever one — for a manual rescue. True when it is gone.
-     * Never throws.
+     * Move an unreadable verso.json out of the way. Where the user can see it: [export] gets its
+     * text (Download/Verso, a published copy) and only then is verso.json deleted. If its bytes
+     * cannot be read or the export fails, it is renamed to verso.json.unreadable instead —
+     * replacing an earlier one, so there is only ever one. True when verso.json is gone, so the
+     * load can start over. Never throws.
      */
-    fun setAsideUnreadable(): Boolean = try {
-        rename(primary, setAside).also { if (it) syncDir(dir) else log("could not set the config aside", null) }
+    fun setAsideUnreadable(export: (String) -> Boolean = { false }): Boolean = try {
+        val text = try { readText(primary) } catch (e: Exception) { null }
+        if (text != null && export(text)) {
+            primary.delete().also { if (it) syncDir(dir) else log("could not remove the exported config", null) }
+        } else {
+            rename(primary, setAside).also { if (it) syncDir(dir) else log("could not set the config aside", null) }
+        }
     } catch (e: Exception) {
         log("setting the config aside failed", e)
         false

@@ -62,7 +62,7 @@ class BackupFilesTest {
     }
 
     @Test fun `every base is distinct and claims no other base's files`() {
-        val bases = listOf(BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE)
+        val bases = listOf(BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE, BackupFiles.UNREADABLE_BASE)
         assertEquals(bases.size, bases.toSet().size)
         for (a in bases) for (b in bases) if (a != b) {
             assertFalse("$a claims $b", BackupFiles.isPublished(a, "$b-2026-10-13_120745.json"))
