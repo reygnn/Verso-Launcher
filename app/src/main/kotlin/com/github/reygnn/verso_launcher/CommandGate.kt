@@ -1,22 +1,9 @@
 package com.github.reygnn.verso_launcher
 
 /**
- * The "~" commands, one at a time (hard rule 15): while one runs, [start] refuses a second, and
- * the Activity refuses edits ([busy], MainActivity.editAllowed): a save queued behind a restore's
- * IO step would land after the restored file and write the old config back, and a recreation
- * before the hand-back would leave it there. Nothing else is held back — launching, typing and
- * page turns go on.
- *
- * A command is a chain of steps — main-thread code and IO tasks. A step HOLDS the run when it
- * starts and RELEASES it when it is over ([finish], or [io]); the last release ends the run.
- * A step that starts the next one before releasing its own hands the run over without a gap.
- * There is no "done" call a path could forget: every way out of a step ends the run once
- * nothing else holds it.
- *
- * The gate belongs to the Activity. A hand-back that onUi drops for a destroyed instance goes
- * with that instance's gate; the next one starts free.
- *
- * Main thread only. Pure Kotlin, JVM-tested (CommandGateTest).
+ * The "~" commands, one at a time (hard rule 15). A command is a chain of steps; each step
+ * holds the run and releases it on every way out, and the last release ends the run — there
+ * is no "done" call a path could forget. Main thread only.
  */
 internal class CommandGate {
 
@@ -29,11 +16,7 @@ internal class CommandGate {
 
     val busy: Boolean get() = current != null
 
-    /**
-     * Start a run unless one is running — false then, and [first] does not run. [first] runs at
-     * once; what it [hold]s keeps the run going, otherwise the run ends as it returns (also when
-     * it throws).
-     */
+    /** False if a run is going. Otherwise [first] runs at once; unless it [hold]s, the run ends as it returns or throws. */
     fun start(first: (Ticket) -> Unit): Boolean {
         if (current != null) return false
         val ticket = Ticket()
@@ -47,12 +30,11 @@ internal class CommandGate {
         return true
     }
 
-    /** A further step of [ticket] starts. */
     fun hold(ticket: Ticket) {
         if (current === ticket) ticket.holds++
     }
 
-    /** The end of a step [hold] started: [block] runs, then the step is released, whatever [block] does. */
+    /** Ends a step [hold] started, whatever [block] does. */
     fun finish(ticket: Ticket, block: () -> Unit) {
         try {
             block()
@@ -62,11 +44,8 @@ internal class CommandGate {
     }
 
     /**
-     * One IO step of [ticket]: [work] through [submit] (the IO thread), [then] with its result
-     * back through [post] (the main thread), as a step of [ticket]. A refused task ends the step
-     * at once with [then] (null). A [work] that throws — a bug, every IO function catches its
-     * own errors (hard rule 2) — must not leave the gate shut for good: [logError] gets it (on the
-     * IO thread), and [then] gets null too.
+     * [work] on the IO thread, [then] with its result back on main. A refused task or a [work]
+     * that throws gives [then] null — a bug must not leave the gate shut for good.
      */
     fun <T : Any> io(
         ticket: Ticket,

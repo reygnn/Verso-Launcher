@@ -15,28 +15,12 @@ import android.widget.MultiAutoCompleteTextView
 import android.widget.TextView
 
 /**
- * The long-press "set a custom name and tags" dialog, lifted out of [MainActivity] so the
- * Activity keeps only the config decision (what an empty or unchanged field means) and the
- * dialog lifecycle. This is a VIEW-construction extraction — every line touches a framework
- * widget, so its behaviour is pinned by a Robolectric test (RenameDialogFilterTest) rather
- * than a plain JVM one.
- *
- * The contract is deliberately narrow: strings in, a canonical (name, tags) pair out via
- * [onCommit]. The dialog trims the name and runs the tags through [LauncherLogic.parseTags]
- * (so the caller receives already-canonical tags), but does NOT decide whether an empty
- * name clears an override or whether an empty tag list drops the key — that reads the app's
- * system label and mutates the config, so it stays with the caller.
+ * The long-press "custom name and tags" dialog. It hands a trimmed name and canonical tags to
+ * [onCommit]; what an empty field means is the caller's decision.
  */
 internal object RenameDialog {
 
-    /**
-     * Build, show and return the rename dialog. The caller owns the returned [AlertDialog]:
-     * it should track it (to dismiss on teardown) and attach its own dismiss listener.
-     *
-     * [initialName] is what the name field starts with (the custom name, or the app's own
-     * label as the placeholder default). [initialTags] is the stored tags pre-joined as the
-     * comma-separated string the field edits. [allTags] feeds the autocomplete pool.
-     */
+    /** The caller owns the returned dialog (dismiss on teardown). */
     fun show(
         context: Context,
         title: String,
@@ -48,12 +32,8 @@ internal object RenameDialog {
         onCommit: (name: String, tags: List<String>) -> Unit,
     ): AlertDialog {
 
-        // No autocorrect/autocapitalize on either field: a deliberate custom name or tag
-        // must not be silently "corrected" on the way in.
         val noSuggest = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         val nameInput = EditText(context).apply {
-            // What the field accepts is what gets stored: no invisible look-alike or control
-            // characters (LauncherLogic.isSpoofChar), at most MAX_NAME_LENGTH.
             filters = arrayOf(
                 InputFilter { source, start, end, _, _, _ ->
                     val sub = source.subSequence(start, end).toString()
@@ -69,30 +49,19 @@ internal object RenameDialog {
             setSelection(text.length)
         }
         val tagsInput = MultiAutoCompleteTextView(context).apply {
-            // Show the stored tags back as a plain comma-separated list to edit.
             setText(initialTags)
             hint = context.getString(R.string.hint_rename_tags)
             isSingleLine = true
             inputType = noSuggest
-            // Force tags lowercase as typed, via the same ROOT fold used to store and match
-            // them — so the field shows exactly what gets saved, regardless of whether the
-            // keyboard's shift/auto-capitalize is on. (inputType requests no caps, but that
-            // hint isn't honored by every keyboard; the filter is the guarantee.) Only the
-            // tag field is folded — a custom name keeps its case.
+            // Not every keyboard honours "no caps"; the fold makes the field show what is stored.
             filters = arrayOf(InputFilter { source, start, end, _, _, _ ->
                 val sub = source.subSequence(start, end).toString()
                 val folded = LauncherLogic.foldLabel(sub)
-                if (folded == sub) null else folded  // null = accept unchanged
+                if (folded == sub) null else folded
             })
-            // Autocomplete the comma-separated token being typed from the already-defined
-            // tags: type "g" and "games" is offered. A brand-new tag can still be typed
-            // freely — the suggestions are additive. CommaTokenizer scopes the completion to
-            // the current token so the others are left intact.
             setTokenizer(MultiAutoCompleteTextView.CommaTokenizer())
             threshold = 1
-            // Own dark, monospace dropdown so it fits the terminal look instead of the
-            // default light Material popup. getView is fully overridden, so the unused
-            // resource id passed to ArrayAdapter is never inflated.
+            // getView is fully overridden, so the layout id is never inflated.
             setAdapter(object : ArrayAdapter<String>(
                 context, android.R.layout.simple_list_item_1, allTags
             ) {
@@ -115,20 +84,14 @@ internal object RenameDialog {
             addView(nameInput, LinearLayout.LayoutParams(MATCH, WRAP))
             addView(tagsInput, LinearLayout.LayoutParams(MATCH, WRAP))
         }
-        // Dark dialog theme so the rename popup stays in the black terminal look instead of
-        // flashing the platform's default light Material dialog.
         return AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle(title)
             .setView(container)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val name = nameInput.text?.toString()?.trim().orEmpty()
-                // Tags are canonicalised here; the caller only decides set-vs-drop.
                 val tags = LauncherLogic.parseTags(tagsInput.text?.toString().orEmpty())
                 onCommit(name, tags)
             }
-            // Neutral button jumps straight to the system App info screen (uninstall,
-            // permissions, force-stop live there). The caller owns the navigation and its
-            // error handling; the dialog just closes on tap (default listener behaviour).
             .setNeutralButton(R.string.action_app_info) { _, _ -> onAppInfo() }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

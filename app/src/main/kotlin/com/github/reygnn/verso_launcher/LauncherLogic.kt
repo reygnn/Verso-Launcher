@@ -6,94 +6,52 @@ import java.text.Normalizer
 import java.util.Locale
 
 /**
- * The launcher's pure decision logic, lifted out of [MainActivity] so it can be
- * unit-tested on the JVM without an Android runtime. Nothing here touches the
- * framework, disk or any shared state: every function is a total, deterministic
- * mapping from its arguments to a new list/value. The Activity keeps ownership of
- * the UI wiring and the mutable config; it only delegates the "what to show / how
- * to order / how to reorder" questions here.
- *
- * These are `internal`, not `private`, purely so the test source set can reach
- * them — they add nothing to the shipped APK that the inlined originals didn't.
+ * The launcher's pure decision logic: no framework, disk or shared state, so it is
+ * JVM-testable. The Activity owns the UI wiring and the mutable config.
  */
 
-/** The command-line mode, chosen by the prompt's leading sigil. Top-level so the
- *  Activity, the adapter and the tests can all name it. */
+/** The command-line mode, chosen by the prompt's leading sigil. */
 internal enum class Mode {
     NORMAL, HIDDEN_EDIT, FAV_EDIT, FAV_REORDER, RECENTS, TAG_FILTER, TAG_EDIT, COMMAND
 }
 
-/** The kinds of empty list, each with its own explanation (see [LauncherLogic.emptyHint]). */
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
 
-/** A one-shot "~" command, typed out in full and fired with Enter. Unlike a [Mode]
- *  it renders nothing: it acts once and the prompt is cleared. Top-level for the
- *  same reason [Mode] is — the Activity and the tests both name it. */
+/** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
 internal enum class Command { RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
 
-/**
- * What a config keeps for apps that are no longer installed ([LauncherLogic.orphans]): their
- * [keys], and how many entries of each section those are — what "~cleanup" offers to remove.
- */
+/** The config entries of uninstalled apps ([LauncherLogic.orphans]) and their count per section. */
 internal data class Orphans(val keys: Set<String>, val favorites: Int, val hidden: Int, val names: Int, val tags: Int) {
     val isEmpty: Boolean get() = keys.isEmpty()
 }
 
-/** The two fields the ordering/search logic needs from a row: its identity [key]
- *  and its case-folded label. AppEntry implements this, and tests fake it with a
- *  trivial data class — so a logic test needs no app fixtures at all. */
+/** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
 internal interface Ordered {
     val key: String
     val labelLower: String
 }
 
-/**
- * A rendered list row. Lifted out of [MainActivity] (where it was a private nested
- * sealed interface) so [LauncherLogic.rowsFor] can build it purely and the tests can
- * assert on it without an Android runtime.
- *
- * Generic over [Ordered] for the SAME reason the rest of this file is: the app rows in
- * production carry an AppEntry, while a test fakes them with a trivial [Ordered]. [AppRow] therefore holds
- * a `T`, not a concrete AppEntry; [TagRow]/[CommandRow] carry no app and are `Row<Nothing>`
- * so they slot into a `Row<T>` list for any T (the interface is `out T`).
- */
+/** A rendered list row. Rows without an app are `Row<Nothing>`, so they fit a `Row<T>` list for any T. */
 internal sealed interface Row<out T : Ordered>
 internal data class AppRow<out T : Ordered>(val entry: T) : Row<T>
 internal data class TagRow(val name: String) : Row<Nothing>
 internal data class CommandRow(val name: String, val command: Command) : Row<Nothing>
 
-/**
- * What an Enter on the command line should DO, decided purely from the prompt state. Lifted
- * out of MainActivity's setOnEditorActionListener so the branch order — which is load-bearing,
- * not cosmetic — is one testable mapping instead of an inlined `when`. The Activity performs
- * the side effects ([EnterAction.Run] clears the prompt first, [EnterAction.SetPrompt] drives
- * the TextWatcher, [EnterAction.LaunchApp] starts the app); this only decides which.
- */
+/** What an Enter on the command line does ([LauncherLogic.enterAction]); the Activity performs it. */
 internal sealed interface EnterAction<out T : Ordered> {
-    /** Run a one-shot "~" command; the Activity clears the prompt before running it. */
     data class Run(val command: Command) : EnterAction<Nothing>
-    /** Launch the app nearest the command line (an [AppRow] under a read mode). */
     data class LaunchApp<out T : Ordered>(val entry: T) : EnterAction<T>
-    /** Rewrite the prompt — drill into a tag ("#tag"/"##tag"), or clear back to NORMAL ("").
-     *  Drives the TextWatcher exactly as typing would. */
+    /** Drives the TextWatcher exactly as typing would. */
     data class SetPrompt(val text: String) : EnterAction<Nothing>
-    /** Drop the keyboard — Enter on an empty prompt, where the drawer already shows every
-     *  app and the IME is only in the way of scrolling it. */
     data object DismissKeyboard : EnterAction<Nothing>
-    /** Do nothing at all — an ambiguous "~" abbreviation, or an empty list to act on. */
     data object None : EnterAction<Nothing>
 }
 
-/**
- * One key event as the command line's editor-action listener sees it, in plain values so the
- * decision below stays free of android.view.KeyEvent: is it the key-DOWN, its repeat count
- * (a held key repeats its down), and is it an Enter key (ENTER or NUMPAD_ENTER).
- */
+/** One key event in plain values, so [LauncherLogic.enterEdge] stays free of android.view.KeyEvent. */
 internal data class EnterKey(val down: Boolean, val repeatCount: Int, val isEnterKey: Boolean)
 
-/** What the editor-action listener does with one call ([LauncherLogic.enterEdge]). */
 internal enum class EnterEdge {
-    /** The one call per Enter that acts ([LauncherLogic.enterAction]). */
+    /** The one call per Enter that acts. */
     ACT,
     /** The rest of an Enter already acted on (its key-up, a held key's repeats): swallowed. */
     CONSUME,
@@ -101,34 +59,21 @@ internal enum class EnterEdge {
     PASS,
 }
 
-/**
- * What a TAP on a list row should DO, decided purely from the mode and the tapped row. Lifted
- * out of MainActivity's setOnItemClickListener for the same reason [EnterAction] is: the
- * per-mode dispatch is real branching logic that belongs in a tested pure function, not inlined
- * behind a click listener. The Activity maps each action to its side effect (toggle a set,
- * pick up a reorder, launch, rewrite the prompt); this only decides which.
- */
+/** What a tap on a list row does ([LauncherLogic.tapAction]); the Activity performs it. */
 internal sealed interface TapAction<out T : Ordered> {
     data class Launch<out T : Ordered>(val entry: T) : TapAction<T>
     data class ToggleHidden<out T : Ordered>(val entry: T) : TapAction<T>
     data class ToggleFavorite<out T : Ordered>(val entry: T) : TapAction<T>
     data class ReorderPick<out T : Ordered>(val entry: T) : TapAction<T>
     data class ToggleTag<out T : Ordered>(val entry: T) : TapAction<T>
-    /** Run the command a [CommandRow] carries; the Activity clears the prompt first. */
     data class Run(val command: Command) : TapAction<Nothing>
-    /** Drill a tag row into its filter ("#tag" for the "#" overview, "##tag" for "##"). */
     data class SetPrompt(val text: String) : TapAction<Nothing>
-    /** A stale position (the list shrank under the tap), or a row a mode ignores. */
     data object None : TapAction<Nothing>
 }
 
 internal object LauncherLogic {
 
-    /**
-     * Map a trimmed prompt to its mode. Two doubled sigils MUST be tested before their
-     * single form — "!!" before "!", "##" before "#" — because each is a strict prefix
-     * of the other. The order of these branches is load-bearing, not cosmetic.
-     */
+    /** Doubled sigils are tested before their single form ("!!" before "!", "##" before "#"). */
     fun parseMode(trimmed: String): Mode = when {
         trimmed.startsWith("!!") -> Mode.FAV_REORDER
         trimmed.startsWith("##") -> Mode.TAG_EDIT
@@ -136,24 +81,14 @@ internal object LauncherLogic {
         trimmed.startsWith("!") -> Mode.FAV_EDIT
         trimmed.startsWith("?") -> Mode.RECENTS
         trimmed.startsWith("#") -> Mode.TAG_FILTER
-        // "~" is a live sigil like the rest: it lists the commands still matching what
-        // has been typed. The cost is that a label containing "~" is no longer
-        // searchable — the same trade every other sigil already makes.
         trimmed.startsWith("~") -> Mode.COMMAND
         else -> Mode.NORMAL
     }
 
     /**
-     * Every "~" command with its canonical spelling. One list, so the overview rows,
-     * the abbreviation resolver and the exact parser can never drift apart — adding a
-     * command here is the whole change.
-     *
-     * Ordered harmless-first: ~restart only reads the config again, ~backup only writes a copy
-     * out to Downloads; then the ones that CHANGE the live config —
-     * ~restore, ~restore-saf and ~cleanup. The overview is bottom-anchored, so these sit
-     * nearest the prompt: each is guarded instead — an undo point first, and a picker
-     * (~restore-saf) or a confirmation dialog (~cleanup) — and none runs on a mistyped
-     * prefix, since an ambiguous one resolves to nothing.
+     * Every "~" command — the one list the overview, the abbreviations and the parser share.
+     * Harmless ones first: the overview is bottom-anchored, so the config-changing ones sit
+     * nearest the prompt, each guarded by an undo point (and a picker or a confirmation).
      */
     val COMMANDS: List<Pair<String, Command>> = listOf(
         "~restart" to Command.RESTART,
@@ -164,11 +99,8 @@ internal object LauncherLogic {
     )
 
     /**
-     * The entries of [config] that belong to no app in [installed] (the keys of a COMPLETE
-     * enumeration — every profile read; the caller must not pass a partial one, or a profile
-     * that failed to load would look uninstalled) and that [kept] does not hold on to (an app
-     * not listed but still on the device). Kept on purpose until asked: a reinstalled app gets
-     * its place, name and tags back. "~cleanup" is the asking (see [Cleanup.plan]).
+     * The entries of [config] whose key is neither in [installed] nor [kept]. [installed] must
+     * come from a COMPLETE enumeration, or a profile that failed to load would look uninstalled.
      */
     fun orphans(config: VersoConfig, installed: Set<String>, kept: (String) -> Boolean = { false }): Orphans {
         val verdict = HashMap<String, Boolean>()
@@ -183,63 +115,37 @@ internal object LauncherLogic {
         )
     }
 
-    /** The command spelled EXACTLY by [trimmed] (case-folded), or null. A bare "~" is none:
-     *  it opens the overview. */
+    /** The command spelled exactly by [trimmed] (folded), or null; a bare "~" is none. */
     fun parseCommand(trimmed: String): Command? {
-        // Only what IS a command line: the fold drops invisible marks, so a combining dot in
-        // front ("\u0307~restore") would otherwise fold to a command the prompt's mode — read
-        // from the raw text — never showed.
+        // The fold drops U+0307, so "\u0307~restore" would fold to a command its mode never showed.
         if (!trimmed.startsWith("~")) return null
         val q = foldLabel(trimmed)
         return COMMANDS.firstOrNull { it.first == q }?.second
     }
 
-    /** The commands an overview should list for [trimmed]: every one whose name starts
-     *  with it. A bare "~" therefore lists them all, which is the point of the mode. */
     fun commandsMatching(trimmed: String): List<Pair<String, Command>> {
         val q = foldLabel(trimmed)
         return COMMANDS.filter { it.first.startsWith(q) }
     }
 
     /**
-     * The command Enter should run: an exact match, or an unambiguous abbreviation —
-     * "~b" is only ever "~backup", so typing it out is busywork.
-     *
-     * EXACT beats prefix, and that is load-bearing: "~restore" both names a command and
-     * prefixes "~restore-saf", and spelling one out in full must mean the one spelled.
-     * An abbreviation that still fits more than one command ("~r", "~re") resolves to
-     * null rather than picking — the overview is already showing which are in the
-     * running, and guessing between two commands that both replace the config is not a
-     * guess worth making.
+     * An exact match, else an unambiguous abbreviation ("~b"). Exact must win: "~restore" also
+     * prefixes "~restore-saf". An ambiguous abbreviation ("~r") resolves to null, never a guess.
      */
     fun resolveCommand(trimmed: String): Command? {
-        // The abbreviation path too: commandsMatching folds, and the fold drops invisible
-        // marks — "\u0307~b" must not run "~backup" from what the mode shows as a search.
+        // As in parseCommand: commandsMatching folds the U+0307 away.
         if (!trimmed.startsWith("~")) return null
         parseCommand(trimmed)?.let { return it }
         return commandsMatching(trimmed).singleOrNull()?.second
     }
 
     /**
-     * Case-fold a display label to its search/sort key. Folds with Locale.ROOT (never
-     * the device locale) so the I/i mapping stays invariant — the exact same reason
-     * [search] folds its needle with ROOT. Both sides MUST use this: if a label were
-     * folded with the device locale, a Turkish/Azeri phone would key "Instagram" under
-     * a dotless ı and [search]'s ROOT-folded "i" needle would never match it. The one
-     * place a label becomes an [Ordered.labelLower].
-     *
-     * Two Unicode details on top of that, both of which made a search silently miss:
-     *  - NFC first, so a label stored decomposed ("Cafe" + U+0301) and a composed "café"
-     *    typed on the keyboard become the same code points before they are compared.
-     *  - ROOT lowercases the capital dotted İ (U+0130) to "i" + a combining dot above
-     *    (U+0307), so "İşCep" folded to six characters and "iş" never matched. The dot is
-     *    dropped: in a ROOT-lowercased, NFC string a lone U+0307 only ever comes from İ
-     *    (letters that really carry a dot above, like ż or ė, stay precomposed under NFC).
-     *  - The Greek final sigma ς becomes σ, the letter it is: "ΟΔΟΣ" lowercases to "οδος" at
-     *    the end of a word and must still find "οδοστρωμα", where the same Σ is a σ.
-     *  - Composed again at the end: lowercasing and dropping the dot can leave a sequence that
-     *    NFC would combine ("İ" + acute → "i" + acute), and a fold that is not its own fixed
-     *    point makes stored tags change shape on every load and labels miss their search.
+     * The only fold (hard rule 9) for labels, needles and tags. Locale.ROOT, never the device
+     * locale: a Turkish phone would fold "Instagram" to a dotless ı and no "i" would find it.
+     *  - NFC first, so a decomposed "café" matches a typed one.
+     *  - ROOT lowercases İ to "i" + U+0307; the dot is dropped (in NFC a lone U+0307 only comes from İ).
+     *  - Final ς becomes σ, so "ΟΔΟΣ" still finds "οδοστρωμα".
+     *  - NFC again at the end: the fold must be its own fixed point, or stored tags change on every load.
      */
     fun foldLabel(label: String): String = nfc(
         nfc(label)
@@ -250,12 +156,7 @@ internal object LauncherLogic {
 
     private fun nfc(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFC)
 
-    /**
-     * [s] cut to at most [max] chars without splitting a character: the cut falls on a
-     * grapheme boundary, so a surrogate pair, a letter with its marks or a ZWJ emoji sequence
-     * is kept whole or dropped whole — never left as a lone half that the file would store
-     * as "?".
-     */
+    /** [s] cut to at most [max] chars on a grapheme boundary — never half a surrogate pair or emoji sequence. */
     fun truncate(s: String, max: Int): String {
         if (s.length <= max) return s
         val it = BreakIterator.getCharacterInstance(Locale.ROOT).apply { setText(s) }
@@ -265,12 +166,7 @@ internal object LauncherLogic {
 
     private const val COMBINING_DOT_ABOVE = "\u0307"
 
-    /**
-     * [apps] as shown: each under its custom name from [names] if it has one, else its own
-     * [AppEntry.systemLabel] — then in drawer order ([sortedForDrawer]), since a name can move an
-     * app alphabetically. An entry whose label already fits is kept as it is. Input already in
-     * drawer order by system label (the enumeration's) makes the stable sort nearly free.
-     */
+    /** [apps] under their custom names from [names], re-sorted — a name can move an app alphabetically. */
     fun named(apps: List<AppEntry>, names: Map<String, String>, locale: Locale = Locale.getDefault()): List<AppEntry> =
         sortedForDrawer(
             apps.map { e ->
@@ -281,14 +177,9 @@ internal object LauncherLogic {
         )
 
     /**
-     * [all] in drawer order: alphabetical the way the user's language sorts — "Ärzte" next to
-     * "Apotheke", not after "Zoom" as plain code-point order puts every umlaut and accent. The
-     * collation follows [locale] (the device's), because "alphabetical" differs by language:
-     * German files Ä under A, Swedish after Z. Ties the collator considers equal fall back to
-     * the folded label and then the key, so the order is total and stable across loads.
-     *
-     * A Collator per call: they are not thread-safe, and this runs on the IO thread (the
-     * enumeration) as well as the main thread (a rename's re-sort).
+     * Alphabetical by the device language's collation (German files Ä under A, Swedish after Z),
+     * then folded label and key, so the order is total. A Collator per call: it is not
+     * thread-safe, and this runs on the IO thread too.
      */
     fun <T : Ordered> sortedForDrawer(all: List<T>, locale: Locale = Locale.getDefault()): List<T> {
         val collator = Collator.getInstance(locale)
@@ -299,31 +190,20 @@ internal object LauncherLogic {
         )
     }
 
-    /**
-     * Substring search over [all] by case-folded label. Folds [needle] with
-     * Locale.ROOT (not the device locale) so the I/i mapping stays invariant — a
-     * Turkish/Azeri device must not turn "Instagram" into an unmatchable dotless ı.
-     * An empty needle returns [all] unchanged (the edit modes' "no filter" case).
-     */
+    /** Substring search by folded label; an empty needle returns [all]. */
     fun <T : Ordered> search(all: List<T>, needle: String): List<T> {
         val n = foldLabel(needle)
         return if (n.isEmpty()) all else all.filter { it.labelLower.contains(n) }
     }
 
-    /** The launchable favorites, in their stored ([favorites]) order. Entries not
-     *  present in [all] (a favorite whose app is uninstalled) drop out silently. */
     fun <T : Ordered> favoritesInDisplayOrder(all: List<T>, favorites: Collection<String>): List<T> {
         val rank = favorites.withIndex().associate { (i, p) -> p to i }
         return all.filter { it.key in rank }.sortedBy { rank[it.key] }
     }
 
     /**
-     * The favorites a fresh install starts with. [slots] is one candidate list per default
-     * favorite (phone, messenger, …), each holding launcher keys in preference order — the
-     * user's default app first, then any other app that can do the job. Per slot the first
-     * candidate that is actually in [all] wins; a slot with no launchable candidate is skipped,
-     * and an app already picked for an earlier slot is not added twice (one app can cover two
-     * jobs). The result keeps slot order, which becomes the home page's top-down order.
+     * Per slot (phone, messenger, …: candidate keys in preference order) the first candidate in
+     * [all]; empty slots are skipped, an app is not picked twice, slot order is kept.
      */
     fun <T : Ordered> pickDefaultFavorites(all: List<T>, slots: List<List<String>>): List<String> {
         val launchable = all.mapTo(HashSet()) { it.key }
@@ -334,47 +214,23 @@ internal object LauncherLogic {
         return picked.toList()
     }
 
-    /** The drawer set: everything not hidden, PLUS any favorite even when also
-     *  hidden. The single place "favoriting overrides hiding" lives, so the
-     *  empty-prompt view and the "*" drawer can never disagree. */
+    /** Everything not hidden, plus every favorite: favoriting overrides hiding. */
     fun <T : Ordered> drawer(all: List<T>, hidden: Set<String>, favorites: Set<String>): List<T> =
         all.filter { it.key !in hidden || it.key in favorites }
 
     /**
-     * The prefix a star prompt filters the drawer by, or null if [trimmed] is not a star
-     * prompt at all (then it is an ordinary [search]).
-     *
-     * The star is a wildcard at EITHER end: "a*" and "*a" both mean "apps starting with a",
-     * and a bare "*" is the empty prefix — the whole drawer. Accepting both ends is what makes
-     * the feature independent of where the text caret happens to sit. The star prompt is
-     * reached two ways: the user types "*" themselves (the caret then lands AFTER it, so the
-     * prefix grows behind the star: "*a", "*ab", …), or the star is typed after a prefix
-     * ("ab*"). Pinning the caret to one side instead was tried twice and is not something an app
-     * can rely on — a programmatic setText restarts the input connection, and where the IME
-     * leaves the caret afterwards is its business, not ours.
+     * The prefix of a star prompt, or null if [trimmed] is none. The star counts at either end
+     * ("a*" == "*a"): where the IME leaves the caret after a programmatic setText is not ours to pin.
      */
     fun starPrefix(trimmed: String): String? =
         if (trimmed.startsWith("*") || trimmed.endsWith("*")) {
-            // "* gm" is "*gm": no label starts with a space. A space before a trailing star does
-            // count ("a *" is the word "a").
+            // "* gm" is "*gm": no label starts with a space. "a *" keeps it (the word "a").
             trimmed.removePrefix("*").trimStart().removeSuffix("*")
         } else {
             null
         }
 
-    /**
-     * The "*" drawer, optionally narrowed to labels that START WITH [prefix]. A bare "*"
-     * (empty prefix) is the whole [drawer]; with a prefix it keeps only the drawer entries
-     * whose label begins with it. Which spelling produced [prefix] is [starPrefix]'s problem.
-     *
-     * [prefix] is ROOT-folded like every other match here, and a startsWith test is what makes
-     * this "Anfangsbuchstaben" rather than the substring [search].
-     *
-     * Deliberately scoped to the drawer, NOT allApps: bare "*" already means "the drawer", so
-     * narrowing it keeps hidden non-favorites out — reach a hidden app by name with a plain
-     * (star-less) search instead. Favorites are ordered last (nearest the prompt under
-     * isStackFromBottom) exactly as the bare drawer is.
-     */
+    /** The [drawer] narrowed to labels starting with [prefix], favorites last. Hidden apps stay out. */
     fun <T : Ordered> drawerStartingWith(
         all: List<T>,
         hidden: Set<String>,
@@ -387,9 +243,7 @@ internal object LauncherLogic {
         return orderWithFavorites(narrowed, favorites)
     }
 
-    /** Non-favorites first (in their incoming order), favorites last in [favorites]
-     *  rank order — so with isStackFromBottom the config-first favorite sits nearest
-     *  the prompt. No favorites configured: [apps] is returned untouched. */
+    /** Favorites last, in rank order — under isStackFromBottom the first favorite sits nearest the prompt. */
     fun <T : Ordered> orderWithFavorites(apps: List<T>, favorites: Collection<String>): List<T> {
         if (favorites.isEmpty()) return apps
         val rank = favorites.withIndex().associate { (i, p) -> p to i }
@@ -397,13 +251,7 @@ internal object LauncherLogic {
         return rest + favs.sortedBy { rank[it.key] }
     }
 
-    /**
-     * Move [pickedKey] onto [targetKey]'s slot within [order], returning the new
-     * order — or null when the move is a no-op or impossible (either key absent, or
-     * both the same). Inserting AFTER the target when moving down / AT it when moving
-     * up lands the picked key exactly where the target sat, shifting the rows between
-     * by one. Pure: [order] is not mutated.
-     */
+    /** [pickedKey] moved onto [targetKey]'s slot, or null when either is absent or both are the same. */
     fun reorder(order: List<String>, pickedKey: String, targetKey: String): List<String>? {
         val from = order.indexOf(pickedKey)
         val to = order.indexOf(targetKey)
@@ -415,133 +263,65 @@ internal object LauncherLogic {
         return out
     }
 
-    /**
-     * Record a launch in the most-recent-first recents list: [key] goes to the front,
-     * any earlier occurrence is dropped (a relaunch moves the app up rather than
-     * duplicating it), and the result is capped at [limit]. Pure: [current] is not
-     * mutated. The Activity holds this list in memory only — it is deliberately never
-     * persisted, so it starts empty on every cold start.
-     */
     fun pushRecent(current: List<String>, key: String, limit: Int): List<String> =
         (listOf(key) + current.filter { it != key }).take(limit)
 
-    /**
-     * The recently-launched apps as rows, ready for the list. [recentKeys] is
-     * most-recent-first; the result is REVERSED so the most recent lands last — with
-     * isStackFromBottom that's the row nearest the prompt (the Enter quick-launch
-     * target), matching how favorites read. Keys whose app is no longer in [all] (an
-     * uninstall since it was launched) drop out silently.
-     */
+    /** Reversed: under isStackFromBottom the most recent sits nearest the prompt (the Enter target). */
     fun <T : Ordered> recentsInDisplayOrder(all: List<T>, recentKeys: List<String>): List<T> {
         val byKey = all.associateBy { it.key }
         return recentKeys.asReversed().mapNotNull { byKey[it] }
     }
 
-    /**
-     * Normalize a comma-separated tag input into canonical stored tags: each piece is
-     * trimmed and [foldLabel]-folded (ROOT, so tag matching is case- and locale-
-     * invariant like search), empties are dropped, and duplicates collapse keeping
-     * first-seen order, at most [ConfigJson.MAX_TAGS_PER_APP] of them. The single place raw tag text becomes stored tags, so [tagged]
-     * can assume its stored tags are already folded and never re-normalize per filter.
-     */
     fun parseTags(raw: String): List<String> =
         raw.split(',').map(::canonicalTag).filter { it.isNotEmpty() }.distinct()
             .take(ConfigJson.MAX_TAGS_PER_APP)
 
     /**
-     * Canonicalise ONE tag: ROOT-folded, stripped of the characters the rest of the app
-     * gives a meaning to, and trimmed. Returns "" when nothing survives — callers drop
-     * empties. THE single definition of what a tag may look like; every path that can put
-     * a tag into the config goes through here ([parseTags] for the dialog, [toggleTag] for
-     * "##", ConfigJson for a file off disk), so a tag cannot exist in one shape in memory
-     * and another on disk.
-     *
-     * '#' is removed because the tag overview builds its prompt by PREPENDING a sigil
-     * ("#" + name). A tag beginning with '#' would produce "##…", which parses as the bulk
-     * editor for a different, truncated tag — the tag would become unreachable from the
-     * very list that offered it. Other sigils are harmless: "!work" yields "#!work", and
-     * since only position 0 selects the mode that still lands in the tag filter.
-     *
-     * ',' is removed because the long-press dialog joins tags with ", " for display and
-     * re-splits on ',' when confirmed. A tag containing a comma stores fine but is torn in
-     * two the next time that dialog is opened — even to do something unrelated, like a
-     * rename. ([parseTags] splits on ',' BEFORE calling this, so the separator still works
-     * exactly as before; only a comma that survived into a single tag is dropped.)
-     *
-     * Control characters go too — a paste can carry a newline, which nothing renders.
-     *
-     * Ignoring rather than rejecting is deliberate: this is a launcher prompt, not a form.
-     * Typing "#work" should hand you the tag you obviously meant, not an error.
+     * The one definition of a tag; "" when nothing survives. Dropped silently rather than
+     * rejected:
+     *  - '#': the overview prompts "#" + name, and "##…" would select the bulk editor instead.
+     *  - ',': the dialog joins tags with ", " and splits on ',' again.
+     *  - control and [isSpoofChar] characters.
      */
     fun canonicalTag(raw: String): String =
-        // Composed again after the filter (dropping a character can let its neighbours
-        // combine), cut, and only THEN trimmed: a cut can expose a space, and a tag ending in
-        // one is out of reach of "##", whose prompt is trimmed.
+        // NFC again (a dropped character can let its neighbours combine), cut, and only then
+        // trimmed: a cut can expose a space, and "##" prompts are trimmed.
         truncate(nfc(foldLabel(raw).filter { it != '#' && it != ',' && !it.isISOControl() && !isSpoofChar(it) }), MAX_TAG_LENGTH)
             .trim()
 
-    /** A custom name's longest form — far beyond any real label, short enough that no name can
-     *  hog a row's measuring or the screen. */
     const val MAX_NAME_LENGTH = 100
 
-    /** A tag's longest form. */
     const val MAX_TAG_LENGTH = 50
 
     /**
-     * Invisible characters that only serve to make text LOOK different from what it is: the
-     * bidi embeddings, overrides and isolates (U+202A-E, U+2066-9), the directional marks
-     * (U+200E/F, U+061C), and the zero-width space/no-break space/word joiner (U+200B, U+FEFF,
-     * U+2060). A name carrying them can impersonate another app ("Signal" built from reversed
-     * pieces) or sort and search differently from how it reads. ZWJ/ZWNJ (U+200C/D) are kept:
-     * emoji sequences and scripts like Persian or Hindi need them.
+     * Invisible characters that only make text look different from what it is (bidi controls,
+     * directional marks, zero-width space/no-break space/word joiner) — a name could impersonate
+     * another app. ZWJ/ZWNJ stay: emoji sequences, Persian and Hindi need them.
      */
     fun isSpoofChar(c: Char): Boolean =
         c in '\u202A'..'\u202E' || c in '\u2066'..'\u2069' ||
             c == '\u200E' || c == '\u200F' || c == '\u061C' ||
             c == '\u200B' || c == '\uFEFF' || c == '\u2060'
 
-    /**
-     * A custom name as it may be stored: control and [isSpoofChar] characters removed, trimmed,
-     * at most [MAX_NAME_LENGTH] long (cut on a character boundary, then trimmed — see
-     * [canonicalTag]). Applied by [LauncherState.rename] to every name it stores and to every
-     * name read from a file — a restored config included.
-     */
+    /** A custom name as it may be stored (cut, then trimmed — see [canonicalTag]). */
     fun cleanName(raw: String): String =
         truncate(nfc(raw.filter { !it.isISOControl() && !isSpoofChar(it) }), MAX_NAME_LENGTH).trim()
 
     /**
-     * Add or remove [tag] on an app whose current tags are [current], returning the new
-     * list. Runs [tag] through [canonicalTag] so a typed "##Work" hits the stored "work" —
-     * stored tag values are canonical, and comparing against a raw needle would silently
-     * create a second, near-identical tag.
-     *
-     * Returns a possibly EMPTY list. The caller must store that as a removed key, never as
-     * an empty list: serialize and parse both drop empty tag lists, so keeping one would
-     * make the in-memory shape disagree with the file it was just written from.
-     *
-     * Order is append-at-the-end, matching how the long-press dialog's [parseTags] records
-     * them — first-entered stays first.
+     * [tag] (canonicalised) added at the end or removed. May return an empty list, which the
+     * caller must store as a removed key: the file never holds an empty tag list.
      */
     fun toggleTag(current: List<String>?, tag: String): List<String> {
         val folded = canonicalTag(tag)
         val list = current.orEmpty()
-        // Nothing survived canonicalisation ("##" then only "#" and commas): there is no
-        // tag to toggle, so leave the app exactly as it was rather than inventing one.
         if (folded.isEmpty()) return list
-        // minus removes only the FIRST occurrence, which is why every write path
-        // de-duplicates: a list holding the same tag twice could not be fully un-ticked.
+        // minus removes only the first occurrence — why every write path de-duplicates.
         if (folded in list) return list - folded
-        // No more than a restore accepts (ConfigJson.MAX_TAGS_PER_APP): one tag past it and
-        // every backup of this config would be refused as "not a config".
+        // One past ConfigJson's limit and every backup of this config would be refused.
         return if (list.size >= ConfigJson.MAX_TAGS_PER_APP) list else list + folded
     }
 
-    /**
-     * What an EMPTY list says, so no view is ever a silent blank: which hint fits what [mode]
-     * would have shown (mirrors [rowsFor]). Bare "#"/"##" with nothing listed means there are
-     * no tags yet, "!!" no favorites, "?" no recents; a needle that matched nothing is a "no
-     * match" of its kind; an empty plain drawer has no apps at all.
-     */
+    /** Which hint an empty list shows in [mode] (mirrors [rowsFor]). */
     fun emptyHint(mode: Mode, trimmed: String, tagEditTag: String?): EmptyHint = when (mode) {
         Mode.TAG_EDIT -> if (tagEditTag == null) EmptyHint.NO_TAGS else EmptyHint.NO_APPS
         Mode.COMMAND -> EmptyHint.NO_COMMAND
@@ -557,66 +337,32 @@ internal object LauncherLogic {
         mode == Mode.HIDDEN_EDIT || mode == Mode.FAV_EDIT || mode == Mode.FAV_REORDER || mode == Mode.TAG_EDIT
 
     /**
-     * What a rename dialog's typed [name] means for the stored name override of an app whose
-     * own label the system reports as [systemLabel]: the string to STORE, or null to CLEAR any
-     * override (so the row falls back to [systemLabel]). [name] is assumed already trimmed —
-     * RenameDialog trims it before this ever runs.
-     *
-     * An empty name, or one EQUAL to the system label, is not an override at all: storing it
-     * would persist a redundant entry that re-typing the original could then never clear. So
-     * both collapse to null, keeping `names` holding only genuine overrides.
-     *
-     * The comparison is deliberately EXACT — case- and whitespace-sensitive. A lowercase
-     * "gmail" over a system "Gmail", or a trimmed "Gmail" over a system that reports " Gmail "
-     * with spaces, changes what the row DISPLAYS, so it is a real override the user asked for,
-     * not a redundant one. Folding or trimming the system side here would silently throw those
-     * deliberate choices away. Lifted out of MainActivity so this decision — and those edges —
-     * are pinned by a JVM test instead of living inline behind the dialog's commit lambda.
+     * The name to store, or null to clear the override. Compared EXACTLY with [systemLabel]:
+     * "gmail" over "Gmail" changes what the row shows, so it is a real override.
      */
     fun resolveNameOverride(name: String, systemLabel: String): String? =
         if (name.isEmpty() || name == systemLabel) null else name
 
-    /**
-     * Every distinct tag ever defined, sorted — the suggestion pool for the tag
-     * input's autocomplete. Includes tags whose apps are currently uninstalled, so a
-     * known tag can still be reused. Values in [tags] are already folded (see
-     * [parseTags]/ConfigJson), so this only flattens, de-dupes and sorts ([sortedTags]).
-     */
+    /** Every tag defined, uninstalled apps' included — the autocomplete pool and the "##" overview. */
     fun allTags(tags: Map<String, List<String>>, locale: Locale = Locale.getDefault()): List<String> =
         sortedTags(tags.values.flatten().distinct(), locale)
 
-    /**
-     * Tags carried by at least one currently-installed app, sorted — the bare-"#"
-     * overview list. Unlike [allTags], this iterates [all] and so drops "ghost" tags
-     * whose only apps have been uninstalled, guaranteeing every listed tag drills into
-     * a non-empty result. Tag values are already folded (see [parseTags]).
-     */
+    /** Only tags of installed apps, so every tag in the "#" overview drills into a non-empty list. */
     fun <T : Ordered> tagsInUse(
         all: List<T>,
         tags: Map<String, List<String>>,
         locale: Locale = Locale.getDefault(),
     ): List<String> = sortedTags(all.flatMap { tags[it.key].orEmpty() }.distinct(), locale)
 
-    /** Tags in the device language's alphabetical order — the same collation as the app list
-     *  ([sortedForDrawer]), so "ärzte" sits next to "arbeit", not after "zuhause". Ties the
-     *  collator considers equal fall back to plain string order, so the order is total. */
+    /** The same collation as [sortedForDrawer], then plain string order, so the order is total. */
     fun sortedTags(tags: Collection<String>, locale: Locale = Locale.getDefault()): List<String> {
         val collator = Collator.getInstance(locale)
         return tags.sortedWith(compareBy<String, String>(collator) { it }.thenBy { it })
     }
 
     /**
-     * The "#" filter: apps carrying a tag that PREFIX-matches [needle]. [needle] is
-     * canonicalised exactly like a stored tag ([canonicalTag]: folded, "#", "," and control
-     * characters dropped, trimmed) — otherwise a needle could hold characters no stored tag
-     * can, and never match. "#gam" pulls in every app under a tag starting with "gam"
-     * (e.g. "games") — typing a partial shows the apps of all matching tags, which is
-     * the practical behaviour for a launcher. An empty needle returns every tagged
-     * app. [tags] is keyed by app key and assumed already folded (see [parseTags]).
-     * Apps keep their incoming order; a tag pointing at an app not in [all]
-     * (uninstalled) drops out because we iterate [all]. Hidden apps are intentionally
-     * NOT excluded — a tag is an explicit choice, the same way favoriting overrides
-     * hiding.
+     * Apps with a tag starting with [needle] (canonicalised like a stored tag, or it could hold
+     * characters no tag can); an empty needle gives every tagged app. Hidden apps are included.
      */
     fun <T : Ordered> tagged(all: List<T>, tags: Map<String, List<String>>, needle: String): List<T> {
         val n = canonicalTag(needle)
@@ -626,42 +372,12 @@ internal object LauncherLogic {
         }
     }
 
-    /**
-     * The canonical tag behind a "##" prompt, or null when the bare-"##" overview is showing
-     * and no tag is chosen yet. Lifted out of MainActivity.applyFilter for the same reason the
-     * rest of this file is: it is the SINGLE place that decides "overview vs. a chosen tag" from
-     * the raw prompt, and that decision drives [rowsFor]'s bare-"##" branch, the "##tag" edit
-     * list and the adapter's [x]/[ ] membership glyph — so it must be one tested mapping, not
-     * inlined behind the TextWatcher.
-     *
-     * Only meaningful in [Mode.TAG_EDIT]; every other mode yields null. [trimmed] is the
-     * already-trimmed prompt, and TAG_EDIT guarantees it starts with "##", so substring(2) is
-     * safe. What follows is run through [canonicalTag] — the SAME rule the long-press dialog and
-     * the file loader apply — so "##Work", "##work" and "##  work" are one tag. A prompt whose
-     * tail canonicalises to nothing ("##", "###", "##,") yields null: there is no tag yet, so the
-     * overview stays up rather than the app selecting a phantom empty tag.
-     */
+    /** The canonical tag behind a "##tag" prompt, or null while the bare-"##" overview shows ("##", "###", "##,"). */
     fun tagEditTagFor(mode: Mode, trimmed: String): String? =
         if (mode == Mode.TAG_EDIT) canonicalTag(trimmed.substring(2)).takeIf { it.isNotEmpty() }
         else null
 
-    /**
-     * The whole "given the prompt, what rows does the list show?" decision, lifted out of
-     * MainActivity.applyFilter so it is a single pure, exhaustively-testable mapping. The
-     * Activity keeps only the SIDE EFFECTS around it — bumping shownGeneration, resetting
-     * reorderPick, the empty-list hint, notifyDataSetChanged — and the two derived
-     * inputs it also stores as fields ([mode] and [tagEditTag]) it computes once and passes
-     * in, so there is one source of truth for each.
-     *
-     * [trimmed] is the already-trimmed prompt. [tagEditTag] is the canonical tag behind a
-     * "##tag" (null while the bare-"##" overview is up) — the Activity computes it because
-     * the adapter needs the same value; passing it avoids canonicalising twice and drifting.
-     *
-     * Branch order: the three non-app / bypass modes
-     * first (bare-"##" tag list, the "~" command overview, the bare-"#" tag list), then the
-     * per-mode app selection. Every substring index is safe because the sigil that selects a
-     * mode guarantees the prompt starts with it (see [parseMode]).
-     */
+    /** The rows the list shows for the prompt. Every substring index is safe: the mode's sigil starts [trimmed]. */
     fun <T : Ordered> rowsFor(
         mode: Mode,
         trimmed: String,
@@ -672,47 +388,29 @@ internal object LauncherLogic {
         recentKeys: List<String>,
         tagEditTag: String?,
     ): List<Row<T>> {
-        // Bare "##": allTags, NOT tagsInUse — bulk editing wants a tag whose apps are all
-        // uninstalled too, since that is exactly the one you came to re-assign.
+        // allTags, not tagsInUse: a tag whose apps are all gone is the one to re-assign.
         if (mode == Mode.TAG_EDIT && tagEditTag == null) {
             return allTags(tags).map { TagRow(it) }
         }
-        // "~" overview: the commands still matching what has been typed. Not an app list.
         if (mode == Mode.COMMAND) {
             return commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
         }
-        // Bare "#": the in-use tags to drill into (drops ghost tags whose apps are all gone).
         if (mode == Mode.TAG_FILTER && trimmed.substring(1).isBlank()) {
             return tagsInUse(allApps, tags).map { TagRow(it) }
         }
         val apps: List<T> = when (mode) {
-            // Reorder ignores any text after the sigil: filtering would scramble the positions
-            // the reorder acts on.
+            // Text after "!!" is ignored: filtering would scramble the positions the reorder acts on.
             Mode.FAV_REORDER -> favoritesInDisplayOrder(allApps, favorites)
-            // "?gm": the recents, narrowed like a search, keeping their order.
             Mode.RECENTS -> search(recentsInDisplayOrder(allApps, recentKeys), trimmed.substring(1).trim())
             Mode.TAG_FILTER -> tagged(allApps, tags, trimmed.substring(1).trim())
-            // Edit modes list EVERY app (so anything can be toggled), narrowed by what
-            // follows the sigil; membership shows as [x]/[ ] in the adapter.
             Mode.HIDDEN_EDIT, Mode.FAV_EDIT -> search(allApps, trimmed.substring(1).trim())
-            // "##tag": every app so anything can be tagged. Deliberately NOT reordered to
-            // put tagged first — rows would jump under the finger as you tick them.
+            // Not reordered tagged-first: rows would jump under the finger.
             Mode.TAG_EDIT -> allApps
-            // Handled above; named only to keep the when exhaustive.
             Mode.COMMAND -> emptyList()
             Mode.NORMAL -> {
-                // "*" is a wildcard at either end: a bare "*" is the whole drawer (everything
-                // except hidden, but a favorite is always kept), and a star beside a prefix
-                // narrows that drawer to labels STARTING WITH it. "a*" and "*a" are the same
-                // query, so the list follows along whether the caret sat before or after the
-                // star while the prefix was typed (see starPrefix).
                 val wildcard = starPrefix(trimmed)
                 when {
-                    // Empty prompt: the plain alphabetical drawer. In Verso the favorites live
-                    // on the home screen, so the app drawer behind the swipe opens on EVERY
-                    // (non-hidden) app, A to Z — what a drawer is expected to show. Kept
-                    // strictly alphabetical (no favorites-last regrouping like "*"): the
-                    // Activity anchors this one view at the TOP, so it reads like any drawer.
+                    // Strictly alphabetical (no favorites-last): the Activity anchors this view at the top.
                     trimmed.isEmpty() -> drawer(allApps, hidden, favorites)
                     wildcard != null -> drawerStartingWith(allApps, hidden, favorites, wildcard)
                     // Plain search spans ALL apps, so a hidden app stays reachable by name.
@@ -723,12 +421,7 @@ internal object LauncherLogic {
         return apps.map { AppRow(it) }
     }
 
-    /**
-     * The one- or two-cell monospace marker a row carries in each edit mode, lifted out of
-     * the adapter's bindAppRow so the glyph selection is pure and testable. "[ ] "/"[x] "
-     * are the same width, and "» "/"  " are the same width, so labels stay column-aligned.
-     * The read modes (and COMMAND, which renders no app rows) carry no marker.
-     */
+    /** The edit-mode marker; each pair of markers has the same width, so labels stay aligned. */
     fun rowPrefix(
         mode: Mode,
         isHidden: Boolean,
@@ -744,22 +437,9 @@ internal object LauncherLogic {
     }
 
     /**
-     * What Enter on the command line does, given the resolved [command], the [mode], whether
-     * the raw prompt [promptBlank] is empty, and the [lastRow] (the row nearest the prompt
-     * under isStackFromBottom — the natural Enter target). The branch ORDER is load-bearing:
-     *
-     *  1. A resolved [command] wins over everything, including a COMMAND-mode overview still
-     *     being typed ("~b" both matches and is in COMMAND mode) — an exact/unambiguous
-     *     command must fire rather than no-op.
-     *  2. COMMAND mode with no resolved command ("~r", still ambiguous) does NOTHING: the
-     *     overview already shows what's in the running, so clearing would throw away the typing.
-     *  3. TAG_EDIT is two views behind one sigil, so it never launches: with the overview up
-     *     Enter drills into the nearest tag, otherwise it's a plain "done" (clear).
-     *  4. An empty prompt already IS the full drawer in Verso, so Enter there only drops the
-     *     keyboard to reveal the whole list. This MUST sit before the launch branch, or a
-     *     "leeres Enter" would launch whichever app happens to be nearest the prompt.
-     *  5. The read modes act on [lastRow]: launch an app, or drill a bare-"#" tag row.
-     *  6. Anything else (a non-empty edit-mode prompt) is a "done" gesture: clear to NORMAL.
+     * What Enter does; [lastRow] is the row nearest the prompt. The branch order is load-bearing:
+     * a resolved command beats COMMAND mode's "still ambiguous, do nothing"; TAG_EDIT never
+     * launches; a blank prompt only drops the keyboard and must come before the launch branch.
      */
     fun <T : Ordered> enterAction(
         mode: Mode,
@@ -777,25 +457,15 @@ internal object LauncherLogic {
         mode == Mode.NORMAL || mode == Mode.RECENTS || mode == Mode.TAG_FILTER -> when (lastRow) {
             is AppRow -> EnterAction.LaunchApp(lastRow.entry)
             is TagRow -> EnterAction.SetPrompt("#${lastRow.name}")
-            // A CommandRow only exists in COMMAND mode (handled above) and null means an
-            // empty list — neither is an Enter target here.
             else -> EnterAction.None
         }
         else -> EnterAction.SetPrompt("")
     }
 
     /**
-     * The character a key press types when it starts typing on the home page or the list, or
-     * null when it types nothing there. [unicodeChar] is KeyEvent.unicodeChar; [chord] is a
-     * Ctrl, Meta or LEFT Alt chord (a shortcut, not typing). Right Alt is AltGr, which types
-     * "@", "€", "{" on a German layout — those count.
-     *
-     * Null as well for anything that is no valid code point — above all a dead key ("^", "´"
-     * on a German keyboard), whose unicodeChar carries KeyCharacterMap.COMBINING_ACCENT, the
-     * sign bit: Character.toChars rejects that negative Int with an exception, which crashed
-     * the launcher on every press. isValidCodePoint rejects every negative Int, so a dead key
-     * needs no check of its own — do not add one back. Ignoring it is enough: in the prompt
-     * itself the TextView composes accents on its own. And null for 0 and for a control character.
+     * The character a key press types, or null. [chord] is Ctrl, Meta or LEFT Alt; right Alt is
+     * AltGr ("@", "€") and types. A dead key's unicodeChar is negative (COMBINING_ACCENT) and
+     * Character.toChars throws on it — isValidCodePoint already rejects it.
      */
     fun typedChar(unicodeChar: Int, chord: Boolean): String? {
         if (chord) return null
@@ -806,19 +476,10 @@ internal object LauncherLogic {
     }
 
     /**
-     * Which call of the command line's editor-action listener is THE Enter. A soft keyboard's
-     * Enter arrives once, as the GO/DONE action with no event. A key Enter — a hardware or
-     * Bluetooth keyboard, or a key the keyboard app forwards — arrives as a call per key event:
-     * the down, the repeats while it is held, and the up, all of them carrying the GO action
-     * (seen on One UI) or none. Only the first down acts; the rest is consumed, not passed on —
-     * passed back, the TextView's own handling of the up drops the keyboard. Present since the
-     * first commit: the old guard acted on "GO action OR key-down", so the up acted again — an
-     * app launched twice from one Enter, and an Enter that ran a command then saw the cleared
-     * prompt and dropped the keyboard.
-     *
-     * [imeAction]: the call's action is GO or DONE. [key]: the event, null for a soft Enter.
-     * A GO/DONE with a key other than Enter counts as well — defensive only: TextView hands the
-     * listener key events for ENTER and NUMPAD_ENTER alone, so no real input takes that branch.
+     * Which editor-action call is THE Enter. A soft Enter arrives once with no event; a key
+     * Enter arrives per key event (down, repeats, up), with the GO action (One UI) or none.
+     * Only the first down acts; the rest is consumed — passed back, the TextView's handling of
+     * the up drops the keyboard.
      */
     fun enterEdge(imeAction: Boolean, key: EnterKey?): EnterEdge = when {
         key == null -> if (imeAction) EnterEdge.ACT else EnterEdge.PASS
@@ -827,12 +488,7 @@ internal object LauncherLogic {
         else -> EnterEdge.CONSUME
     }
 
-    /**
-     * What a tap on [row] does in the given [mode]. A [TagRow] drills into its filter (which
-     * sigil is decided by the mode it was rendered in), a [CommandRow] runs its command, and an
-     * [AppRow] fans out per mode — launch under the read modes, toggle/pick under the edit
-     * modes. A null [row] is a stale position (the list shrank under the tap) and does nothing.
-     */
+    /** What a tap on [row] does; a null [row] is a stale position (the list shrank under the tap). */
     fun <T : Ordered> tapAction(mode: Mode, row: Row<T>?): TapAction<T> = when (row) {
         null -> TapAction.None
         is TagRow -> TapAction.SetPrompt(if (mode == Mode.TAG_EDIT) "##${row.name}" else "#${row.name}")
@@ -843,8 +499,6 @@ internal object LauncherLogic {
             Mode.FAV_EDIT -> TapAction.ToggleFavorite(row.entry)
             Mode.FAV_REORDER -> TapAction.ReorderPick(row.entry)
             Mode.TAG_EDIT -> TapAction.ToggleTag(row.entry)
-            // A CommandRow never reaches here (handled above); an AppRow can't be rendered in
-            // COMMAND mode, so this only keeps the when exhaustive.
             Mode.COMMAND -> TapAction.None
         }
     }

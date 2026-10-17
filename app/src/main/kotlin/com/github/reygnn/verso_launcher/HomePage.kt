@@ -27,25 +27,8 @@ import android.widget.ScrollView
 import android.widget.Toast
 
 /**
- * The front page: Kolibri Launcher's home layout, with Kolibri's default settings.
- *
- *   [ 24dp page padding inside the system bars ]
- *   48dp gap
- *   12:34                      clock, 60sp sans-serif-light
- *   Di., 13 Okt.   87% ⚡       date + battery (+ charging / protection icon), 18sp
- *   8dp gap
- *   Favorite                   favorites, bold, ~34sp, top-down, scroll if too many
- *   Favorite
- *
- * Every text and icon carries Kolibri's thin tonal outline, so it reads on any wallpaper with
- * no scrim. Clock, date and battery react to a DOUBLE tap (alarms / calendar / battery usage),
- * as in Kolibri — a single stray touch does nothing. The numbers live in [HomeStyle].
- *
- * Pure view work, lifted out of MainActivity so the Activity is left with the wiring: it
- * builds this once, feeds [render] the favorites, starts/stops the battery updates with its
- * own lifecycle, and decides what a tap or long-press on a favorite means ([onLaunch],
- * [onEdit]) and how the drawer opens ([onOpenDrawer]). The page never takes focus, so it never
- * summons the keyboard.
+ * The front page, Kolibri Launcher's home layout: clock, date + battery (each a double-tap
+ * target), the favorites. The numbers live in [HomeStyle].
  */
 internal class HomePage(
     private val activity: Activity,
@@ -53,15 +36,11 @@ internal class HomePage(
     private val onEdit: (AppEntry) -> Unit,
     private val onOpenDrawer: () -> Unit,
 ) {
-    // A display-size (density) change recreates the activity and this page with it (the
-    // manifest no longer handles "density"), so every value derived from this is fresh.
     private val density get() = activity.resources.displayMetrics.density
     private val outlinePx get() = HomeStyle.OUTLINE_DP * density
-    // White on a dark wallpaper, black on a light one (HomeStyle.palette, applyTextColor).
     private var textColor = HomeStyle.TEXT_COLOR
     private var outlineColor = HomeStyle.tonalOutlineColor(textColor)
 
-    // Kolibri's subtle press feedback: the text dims while pressed, no ripple.
     private var pressableText = pressable(textColor)
 
     private fun pressable(color: Int) = ColorStateList(
@@ -71,15 +50,11 @@ internal class HomePage(
 
     private val favorites = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
 
-    /**
-     * Scrolls the favorites only when there are more than fit. While it can still scroll the
-     * swiped way, a swipe scrolls it instead of turning the page (see SwipeGesture.claims), so
-     * the Activity's swipe frame asks this view.
-     */
+    /** The swipe frame asks it: while it can still scroll that way, a swipe scrolls it. */
     val scroller: ScrollView = ScrollView(activity).apply {
         isVerticalScrollBarEnabled = false
         overScrollMode = View.OVER_SCROLL_NEVER
-        clipToPadding = false  // the outline reaches 1dp past the glyphs: don't clip it
+        clipToPadding = false  // the outline reaches past the glyphs
         addView(favorites, ViewGroup.LayoutParams(MATCH, WRAP))
     }
 
@@ -89,20 +64,12 @@ internal class HomePage(
     private val chargingIcon: OutlinedImageView
     private val protectedIcon: OutlinedImageView
 
-    /** The page itself, for the Activity's root frame. */
     val view: LinearLayout
 
-    // The favorites last rendered (null if never drawn), so the per-keystroke re-render from
-    // the drawer skips rebuilding rows that did not change — whole entries, so a change of
-    // label OR status (a work profile paused/resumed, an archived app restored) rebuilds them.
+    // Skips the per-keystroke re-render from the drawer; whole entries, so a status change rebuilds.
     private var rendered: List<AppEntry>? = null
-    // The last render call, so a colour switch can redraw the favorites in the new colours.
     private var lastRender: Pair<List<AppEntry>, Boolean>? = null
 
-    /**
-     * Switch the page to [color] (see HomeStyle.palette): clock, date, battery, the state icons
-     * and the favorites — each with the matching tonal outline.
-     */
     fun applyTextColor(color: Int) {
         if (color == textColor) return
         textColor = color
@@ -120,8 +87,6 @@ internal class HomePage(
 
     init {
         clock = OutlinedTextClock(activity).apply {
-            // TextClock follows the system 12/24-hour setting by itself; the patterns are the
-            // locale's own ("h:mm a" in en-US, "a h:mm" in ko, "H:mm" in de, …).
             format12Hour = localPattern("hmm")
             format24Hour = localPattern("Hmm")
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
@@ -130,7 +95,6 @@ internal class HomePage(
             onDoubleTap(R.string.a11y_open_alarms) { openAlarms() }
         }
         val infoPad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
-        // A short date in the locale's own order: "Tue, Oct 13" (en-US), "Di., 13. Okt." (de).
         date = OutlinedTextClock(activity).apply {
             format12Hour = localPattern("EEEdMMM")
             format24Hour = localPattern("EEEdMMM")
@@ -143,7 +107,7 @@ internal class HomePage(
             text = BatteryInfo.UNKNOWN_LABEL
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
             outlined()
-            setTextColor(textColor)  // like clock and date: no press dimming on a double-tap target
+            setTextColor(textColor)  // no press dimming on a double-tap target
             setPadding(infoPad, infoPad, infoPad, infoPad)
             onDoubleTap(R.string.a11y_open_battery) { openBatteryUsage() }
         }
@@ -179,12 +143,8 @@ internal class HomePage(
             addView(scroller, LinearLayout.LayoutParams(MATCH, 0, 1f).apply {
                 topMargin = HomeStyle.FAVORITES_TOP_MARGIN_DP.dp()
             })
-            // System bars and any camera cutout (portrait is locked on phones, but Android 16
-            // ignores that lock on large screens, so landscape can still occur) plus Kolibri's 24dp
-            // page padding. The keyboard never shows over this page, so no IME inset.
-            // IgnoringVisibility: the status bar is hidden on this page (MainActivity.showStatusBar)
-            // and shown in the drawer — padding for the bar either way keeps the clock and the
-            // favorites from jumping up and down with every page turn.
+            // Cutout too: Android 16 ignores the portrait lock on large screens. IgnoringVisibility
+            // (hard rule 12), or the page would jump with every page turn.
             val pad = HomeStyle.PAGE_PADDING_DP.dp()
             setOnApplyWindowInsetsListener { v, insets ->
                 val i = insets.getInsetsIgnoringVisibility(
@@ -193,24 +153,15 @@ internal class HomePage(
                 v.setPadding(i.left + pad, i.top + pad, i.right + pad, i.bottom + pad)
                 insets
             }
-            // The swipes are invisible to a screen reader, so "open all apps" is also a
-            // custom accessibility action on the page itself (TalkBack's actions menu).
+            // The swipes are invisible to a screen reader.
             contentDescription = activity.getString(R.string.a11y_home)
             accessibilityDelegate = OpenDrawerAction()
         }
     }
 
     /**
-     * Show [favs] (launchable favorites, in their stored order) top to bottom, styled like
-     * Kolibri's home favorites: bold, sized between the date and three quarters of the clock,
-     * padded proportionally, outlined. Each row is only as wide as its text, so the space
-     * beside a short name stays free for the swipe.
-     *
-     * [loaded] false means the app list has not been enumerated yet: then nothing is drawn,
-     * rather than flashing the "no favorites" hint on every cold start.
-     *
-     * Each row's listeners close over ITS entry rather than a position, so a reload landing
-     * between finger-down and the click can never redirect a tap to another app.
+     * [loaded] false draws nothing, rather than flashing the "no favorites" hint on a cold start.
+     * Listeners close over the entry, not a position, so a reload cannot redirect a tap.
      */
     fun render(favs: List<AppEntry>, loaded: Boolean) {
         lastRender = favs to loaded
@@ -220,14 +171,12 @@ internal class HomePage(
         favorites.removeAllViews()
 
         if (favs.isEmpty()) {
-            // A fresh install: say how to get anywhere, instead of an empty page.
             val pad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
             favorites.addView(OutlinedTextView(activity).apply {
                 text = activity.getString(R.string.home_hint)
                 setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
                 outlined()
                 setPadding(pad, pad, pad, pad)
-                // Tapping the hint does what it says — a way in for anyone who doesn't swipe.
                 setOnClickListener { onOpenDrawer() }
             }, LinearLayout.LayoutParams(MATCH, WRAP))
             return
@@ -252,7 +201,6 @@ internal class HomePage(
                 ellipsize = TextUtils.TruncateAt.END
                 setPadding(padH, padV, padH, padV)
                 outlined()
-                // A paused or archived favorite is dimmed like its drawer row; TalkBack hears why.
                 alpha = HomeStyle.rowAlpha(entry.status)
                 contentDescription = unavailableDescription(activity, entry)
                 setOnClickListener { onLaunch(entry) }
@@ -261,7 +209,6 @@ internal class HomePage(
         }
     }
 
-    /** HOME while already home: back to the first favorite. */
     fun scrollToTop() = scroller.smoothScrollTo(0, 0)
 
     // ---- battery ----------------------------------------------------------------
@@ -271,10 +218,8 @@ internal class HomePage(
     }
     private var batteryRegistered = false
 
-    /** Live battery updates while the launcher is visible — call from onStart. */
     fun startBattery() {
         if (batteryRegistered) return
-        // ACTION_BATTERY_CHANGED is sticky: registering hands back the current state at once.
         // NOT_EXPORTED still receives this system broadcast.
         val sticky = try {
             activity.registerReceiver(
@@ -286,13 +231,11 @@ internal class HomePage(
             Log.w("Verso", "battery receiver registration failed", e)
             return
         }
-        // Flag first: whatever happens while showing the first reading, stopBattery must
-        // still unregister what was registered.
+        // Flag first, so stopBattery unregisters even if showing the first reading throws.
         batteryRegistered = true
         showBattery(sticky)
     }
 
-    /** Call from onStop. */
     fun stopBattery() {
         if (!batteryRegistered) return
         batteryRegistered = false
@@ -307,11 +250,9 @@ internal class HomePage(
                 intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1),
             )
         )
-        // Only on a change: the broadcast repeats every few seconds while charging, and every
-        // setText on this WRAP_CONTENT view would re-lay out the whole page.
+        // The broadcast repeats while charging; each setText would re-lay out the page.
         if (batteryText.text.toString() != label) {
             batteryText.text = label
-            // "87%" alone reads as "87 percent" — say what it is.
             batteryText.contentDescription = activity.getString(R.string.a11y_battery, label)
         }
         val state = BatteryInfo.chargeState(
@@ -324,20 +265,16 @@ internal class HomePage(
 
     // ---- double-tap targets ---------------------------------------------------------
 
-    /** Clock: the system alarms screen (whatever clock app handles it). */
     private fun openAlarms() = startGuarded(Intent(AlarmClock.ACTION_SHOW_ALARMS))
 
-    /** Date: the calendar, opened at "now" (Kolibri's intent). */
     private fun openCalendar() {
         val uri = CalendarContract.CONTENT_URI.buildUpon().appendPath("time")
         ContentUris.appendId(uri, System.currentTimeMillis())
         startGuarded(Intent(Intent.ACTION_VIEW).setData(uri.build()))
     }
 
-    /** Battery: the system battery-usage screen. */
     private fun openBatteryUsage() = startGuarded(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
 
-    /** A device without a handler gets a short toast instead of a crashed HOME. */
     private fun startGuarded(intent: Intent) {
         try {
             activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -375,21 +312,15 @@ internal class HomePage(
         setOutline(outlinePx, outlineColor)
     }
 
-    /**
-     * Fire [onActivate] on a double tap only (Kolibri's clock / date / battery behaviour).
-     *
-     * A screen reader is the exception: TalkBack's own "double-tap to activate" arrives as ONE
-     * click, which the gate would always swallow — and a second activation within 300 ms is
-     * practically impossible, so the action was unreachable. An accessibility click therefore
-     * runs [onActivate] directly, and TalkBack announces what it does ([label], a string res).
-     */
+    /** TalkBack's "double-tap to activate" arrives as ONE click, which the gate would swallow:
+     *  an accessibility click runs [onActivate] directly. */
     private fun View.onDoubleTap(label: Int, onActivate: () -> Unit) {
         val gate = DoubleTapGate()
         setOnClickListener { if (gate.tap(SystemClock.uptimeMillis())) onActivate() }
         accessibilityDelegate = object : View.AccessibilityDelegate() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfo(host, info)
-                // Same id as the plain click: this relabels it ("double-tap to open alarms").
+                // Same id as the plain click: this relabels it.
                 info.addAction(
                     AccessibilityNodeInfo.AccessibilityAction(
                         AccessibilityNodeInfo.ACTION_CLICK,
@@ -410,12 +341,9 @@ internal class HomePage(
 
     private fun Int.dp(): Int = activity.dp(this)
 
-    /** [skeleton] laid out the way the current locale writes it ("Tue, Oct 13" in en-US,
-     *  "Di., 13. Okt." in de) instead of one fixed order for every language. */
     private fun localPattern(skeleton: String): String =
         android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), skeleton)
 
-    /** "Open all apps" as a TalkBack custom action on the page. */
     private inner class OpenDrawerAction : View.AccessibilityDelegate() {
         override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
             super.onInitializeAccessibilityNodeInfo(host, info)
@@ -442,10 +370,6 @@ internal class HomePage(
     }
 }
 
-/**
- * What a screen reader says for a dimmed app (see [AppStatus]) — on the home page and in the
- * drawer alike — or null for a ready one, whose label reads fine as it is.
- */
 internal fun unavailableDescription(context: android.content.Context, entry: AppEntry): String? =
     when (entry.status) {
         AppStatus.READY -> null

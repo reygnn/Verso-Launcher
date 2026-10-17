@@ -1,37 +1,20 @@
 package com.github.reygnn.verso_launcher
 
 /**
- * The whole editable state, mirroring verso.json 1:1. It is the single
- * source of truth for hidden/favorite membership: the filter and the adapter
- * read it live, so a toggle only mutates this + saves + notifies — the loaded
- * AppEntry list never has to be rebuilt. The flattened component string
- * ("package/class", see AppEntry.key) is the key throughout, so apps that
- * expose more than one launcher activity stay individually addressable.
- *
- * `internal` (not private-nested in MainActivity) so [ConfigJson] and its unit
- * tests can name it; it holds no framework types, so it stays JVM-testable.
+ * The whole editable state, mirroring verso.json 1:1 — the single source of truth for
+ * hidden/favorite/name/tag membership, keyed by [AppEntry.key].
  */
 internal class VersoConfig(
     val hidden: MutableSet<String> = linkedSetOf(),
-    // A LinkedHashSet, not a List: favorites need BOTH insertion order (for the
-    // rank used when laying rows out) AND O(1) membership (getView tests it per
-    // visible row, applyFilter/orderWithFavorites/toggle test it too). A plain
-    // List gave order but O(n) contains; the linked set gives both, and it also
-    // makes a favorite inherently unique — toggling can never create a duplicate.
+    // A linked set: favorites need both their order (the home page's) and O(1) membership.
     val favorites: MutableSet<String> = linkedSetOf(),
     val names: MutableMap<String, String> = linkedMapOf(),
-    // Per-app tags for the "#" filter. Values are canonical (ROOT-folded, deduped,
-    // see LauncherLogic.parseTags), ordered first-entered. Stored in verso.json like
-    // names; a key with no tags is dropped rather than persisting an empty list.
+    // Canonical tags (LauncherLogic.parseTags), first-entered order; no empty lists.
     val tags: MutableMap<String, MutableList<String>> = linkedMapOf(),
 ) {
     /**
-     * Whether [other] holds the same config: the same favorites in the same order (the order is
-     * the home page's), the same hidden set, names and tags. Map and set order does not count —
-     * a config read back from a file and one edited in memory can differ there and still be
-     * the same. The order inside one app's tag list does count (it is the order the tags were
-     * entered), so two configs differing only there are not the same — a restore then writes
-     * an undo point it did not strictly need. Used to see that a restore would change nothing.
+     * Same favorites in the same order, same hidden set, names and tags; map and set order does
+     * not count, the order inside one app's tag list does.
      */
     fun sameContent(other: VersoConfig): Boolean =
         favorites.toList() == other.favorites.toList() &&
@@ -39,21 +22,12 @@ internal class VersoConfig(
             names == other.names &&
             tags == other.tags
 
-    /**
-     * A copy for handing to the background loader. loadApps() only READS these
-     * collections; taking the copy on the main thread (where every mutation
-     * also happens) means the loader owns an isolated snapshot and can't race
-     * a concurrent rename/toggle — LinkedHashMap et al. aren't thread-safe, so
-     * a read during a structural write could otherwise throw. Values are
-     * immutable Strings, so copying the containers is enough.
-     */
+    /** A copy for another thread: these collections are not thread-safe and are mutated on main. */
     fun snapshot() = VersoConfig(
         LinkedHashSet(hidden),
         LinkedHashSet(favorites),
         LinkedHashMap(names),
-        // Deep-copy the tag lists too — a shallow map copy would still share the inner
-        // MutableLists with the live cfg, reopening the very cross-thread mutation the
-        // snapshot exists to prevent.
+        // Deep: the inner tag lists must not be shared with the live config.
         LinkedHashMap<String, MutableList<String>>().also { c ->
             for ((k, v) in tags) c[k] = ArrayList(v)
         },

@@ -4,15 +4,9 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * verso.json on disk: one file, written atomically, read once. [ConfigJson] owns the JSON; this
- * owns the FILE. No .bak, no repair from older copies — the safety net is the user's ~backup.
- *
- * Everything Android-only is injected, so a test drives it against a temp directory:
- *   [dir]      where verso.json lives (filesDir in the app)
- *   [log]      android.util.Log in the app, a collector in tests — this class never throws
- *   [syncDir]  fsync of the directory (android.system.Os), so a rename survives a power cut
- *   [rename]   File.renameTo — a seam so a test can make one rename fail
- *   [readText] File.readText — a seam so a test can make a read throw (root ignores chmod)
+ * verso.json on disk, written atomically (hard rule 4); [ConfigJson] owns the JSON. Never throws.
+ * [syncDir] fsyncs the directory so a rename survives a power cut; [rename] and [readText] are
+ * test seams (root ignores chmod).
  */
 internal class ConfigStore(
     private val dir: File,
@@ -26,12 +20,7 @@ internal class ConfigStore(
     private val pending get() = File(dir, "$CONFIG_FILE.new")
     private val setAside get() = File(dir, "$CONFIG_FILE.unreadable")
 
-    /**
-     * The config, or the empty one when there is no verso.json (a fresh install). Null —
-     * never an empty config — when it is there but torn or cannot be read: an empty config
-     * would be saved over it with the next edit. The first load then sets it aside and starts
-     * over (LauncherState). Never throws.
-     */
+    /** Null, never an empty config, when verso.json is there but torn or unreadable. */
     fun load(): VersoConfig? {
         if (!primary.isFile) return VersoConfig()
         val text = try {
@@ -43,14 +32,9 @@ internal class ConfigStore(
         return ConfigJson.parse(text) ?: run { log("config unparseable", null); null }
     }
 
-    /** True on a fresh install: no verso.json yet. Only then are default favorites seeded. */
     fun isFresh(): Boolean = !primary.exists()
 
-    /**
-     * Publish [payload] as verso.json: written to verso.json.new, synced, then renamed over the
-     * primary — a reader sees the old file or the new one, never half of one. Never throws;
-     * false if nothing was published (the old file stands).
-     */
+    /** False if nothing was published (the old file stands). */
     fun write(payload: String): Boolean = try {
         FileOutputStream(pending).use { out ->
             out.write(payload.toByteArray(Charsets.UTF_8))
@@ -66,13 +50,8 @@ internal class ConfigStore(
         false
     }
 
-    /**
-     * Move an unreadable verso.json out of the way. Where the user can see it: [export] gets its
-     * text (Download/Verso, a published copy) and only then is verso.json deleted. If its bytes
-     * cannot be read or the export fails, it is renamed to verso.json.unreadable instead —
-     * replacing an earlier one, so there is only ever one. True when verso.json is gone, so the
-     * load can start over. Never throws.
-     */
+    /** Exports the text (to Download/Verso) before deleting; failing that, renames it to
+     *  verso.json.unreadable. True when verso.json is gone. */
     fun setAsideUnreadable(export: (String) -> Boolean = { false }): Boolean = try {
         val text = try { readText(primary) } catch (e: Exception) { null }
         if (text != null && export(text)) {

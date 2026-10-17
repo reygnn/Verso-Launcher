@@ -13,19 +13,12 @@ import android.widget.TextClock
 import android.widget.TextView
 
 /**
- * A thin, crisp outline around a TextView's glyphs — Kolibri's wallpaper-independent
- * replacement for a drop shadow or a scrim, ported to plain platform widgets (Kolibri's
- * versions extend the AppCompat classes, which Verso does not ship).
+ * A crisp outline around a TextView's glyphs (Kolibri's): stroked in the outline colour, then
+ * filled on top, so only the stroke's outer half shows.
  *
- * The glyphs are painted twice: first STROKED in the outline colour, then filled normally on
- * top. The fill covers the inner half of the centred stroke, so only its outer half shows as a
- * contour — it wins contrast locally against both dark and light wallpaper pixels at once.
- *
- * TextView.onDraw takes the paint colour from the view's text colour, so the colour swap has
- * to go through setTextColor — which invalidates. The host view therefore ignores invalidate()
- * while it is mid-draw, or the two swaps would schedule redraws forever. That flag lives on the
- * host as a primitive (false by default): View's own constructor calls invalidate() before any
- * field of this helper would be initialised.
+ * The colour swap must go through setTextColor, which invalidates, so the host ignores
+ * invalidate() mid-draw or it redraws forever. That flag is a primitive on the host: View's
+ * constructor calls invalidate() before this helper's fields are initialised.
  */
 internal class TextOutline {
     private var widthPx = 0f
@@ -69,11 +62,7 @@ internal class OutlinedTextView(context: Context) : TextView(context) {
         super.invalidate()
     }
 
-    /**
-     * Stroke and fill overlap: drawn at a reduced alpha (a dimmed, paused or archived row) they
-     * must be composed first and faded as one, or the outline shows through the glyphs. True
-     * only while an outline is on, so plain text keeps the cheap path.
-     */
+    /** At reduced alpha (a dimmed row) stroke and fill must fade as one, or the outline shows through. */
     override fun hasOverlappingRendering(): Boolean = outline.isActive
 
     override fun onDraw(canvas: Canvas) {
@@ -120,12 +109,9 @@ internal class OutlinedTextClock(context: Context) : TextClock(context) {
 }
 
 /**
- * The icon counterpart (charging bolt, protection shield). Its drawable is a two-layer
- * LayerDrawable (ic_*_outlined.xml, from Kolibri): a fatter-stroke copy underneath and the
- * normal icon on top. The top layer is tinted with the text colour, the layer beneath with the
- * outline colour — so the icon gets the same crisp rim as the text beside it. SRC_IN (not the
- * SRC_ATOP default of setColorFilter(int)) so a translucent outline colour stays translucent
- * instead of letting the drawable's own white bleed through.
+ * The icon counterpart: a two-layer LayerDrawable (ic_*_outlined.xml), a fatter copy beneath
+ * tinted with the outline colour. SRC_IN, not setColorFilter(int)'s SRC_ATOP, so a translucent
+ * outline does not let the drawable's own white bleed through.
  */
 internal class OutlinedImageView(context: Context) : ImageView(context) {
     private var iconColor = Color.WHITE
