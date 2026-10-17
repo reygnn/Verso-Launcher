@@ -70,8 +70,8 @@ package com.github.reygnn.verso_launcher
  * ============================================================================
  *
  * FILES — real files in a JUnit `TemporaryFolder`, never a mocked filesystem:
- * the interaction between rename, parse and the three files (.tmp, primary,
- * .bak) is the thing under test. Only the directory fsync is stubbed.
+ * the interaction between write, rename and parse is the thing under test. Only the
+ * directory fsync is stubbed.
  *
  * LOCALE — a class whose tests set the default locale holds a DefaultLocaleRule, and the
  * test just sets it:

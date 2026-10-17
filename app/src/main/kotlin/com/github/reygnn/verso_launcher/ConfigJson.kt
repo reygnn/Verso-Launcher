@@ -30,7 +30,7 @@ internal object ConfigJson {
     /**
      * Parse the JSON text back into a config. A missing key yields an empty section
      * (a partially-written or older file still loads what it can); malformed JSON
-     * returns null so the caller can fall back to the .bak. favorites/hidden keep
+     * returns null (the file is then set aside). favorites/hidden keep
      * their array order (favorites' order is the rank); names is an unordered map.
      *
      * This leniency is safe ONLY because the input is our own file. For a document

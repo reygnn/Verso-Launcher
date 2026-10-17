@@ -26,13 +26,14 @@ file (not `verso.json`) and load it on start.
 
 ## An unreadable config starts over
 
-If `verso.json` and its `.bak` cannot be read when Verso starts — torn by a crash, or a read
-error the system reports — Verso renames them to `*.unreadable` and starts over with the
+If `verso.json` cannot be read when Verso starts — torn, or a read error the system reports —
+Verso renames it to `verso.json.unreadable` and starts over with the
 default favorites; a toast says so. A torn file and a passing read error look the same to
 the launcher, so it does not wait. Your config comes back only from your own `~backup`
 (`~restore`, or `~restore-saf` on another phone); without one it is gone, except for the
-renamed bytes, which only a manual rescue (adb) can reach. Only the latest renamed copy is
-kept, and a successful restore removes it.
+renamed bytes, which only a manual rescue (adb) can reach; only the latest renamed copy is
+kept. There is no `.bak`: a write is atomic, but a file that goes bad later has no second copy
+on the device — `~backup` is that copy.
 
 ## Private space is not reachable
 
@@ -71,7 +72,7 @@ app to Android, so its backups sit there too. Delete stale ones with a file mana
 
 The app's own `verso.json` is excluded from Android's cloud backup
 (`data_extraction_rules.xml`), but a device-to-device transfer copies it on purpose
-(without its `.tmp`/`.bak` recovery copies and the home cache). Entries for apps in a
+(without the home cache and a set-aside unreadable copy). Entries for apps in a
 work profile or clone carry that profile's serial (`package/class#10`), which on the new
 phone may belong to no profile or another one; such entries then simply match nothing.
 The same happens on one phone when a work profile is removed and set up again: the new

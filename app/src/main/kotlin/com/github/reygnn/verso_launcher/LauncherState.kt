@@ -45,9 +45,7 @@ package com.github.reygnn.verso_launcher
  *                      that captured the old one (an open rename dialog) must go. [listChanged]
  *                      is false when the hand-off brought the same app list (and no new config):
  *                      nothing to re-render — a re-render would also void a tap in flight.
- * @param isFreshInstall true when neither verso.json nor its .bak exists yet (IO thread, before
- *                      the read). A lone recoverable .tmp still counts as fresh; seeding is then
- *                      skipped anyway, because it only fills a config with no favorites.
+ * @param isFreshInstall true when there is no verso.json yet (IO thread, before the read).
  * @param defaultFavoriteCandidates the candidate keys per default favorite slot, see
  *                      [LauncherLogic.pickDefaultFavorites] (IO thread, fresh install only).
  * @param initialRecents the "?" list to start from — the process-wide one, so an Activity
@@ -201,8 +199,7 @@ internal class LauncherState(
      */
     fun save() {
         // Before the first load lands, [config] is the empty default, not the user's config.
-        // Writing it would rotate the real file into .bak and publish an empty primary — one
-        // more save, or a process death before the hand-off, and every favorite is gone. Every
+        // Writing it would replace the real file with an empty one and every favorite is gone. Every
         // mutation path already checks it; this is the last line.
         if (!configLoaded) return
         val payload = serialize(config)

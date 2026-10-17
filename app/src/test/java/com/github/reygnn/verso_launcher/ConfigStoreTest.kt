@@ -11,18 +11,9 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 
 /**
- * JVM unit tests for [ConfigStore] — the .bak rotation state machine.
- *
- * This is the highest-consequence logic in the app and the reason ConfigStore exists as a
- * separate class: getting the rotation wrong silently destroys the last known-good backup.
- * It has already happened once here (commit 7e4745d, "fix: .bak-Rotation validiert den
- * Primary" — rotation used to promote an unvalidated, possibly torn primary over a good
- * .bak). Nothing pinned that fix until these tests.
- *
- * Real files in a real temp directory, no mocking of the filesystem: the whole point is
- * the interaction between rename, parse and the two files. Only the directory fsync is
- * stubbed, because android.system.Os is the one call that cannot run on a plain JVM —
- * file CONTENTS are still synced for real via java.io.FileDescriptor.sync().
+ * JVM unit tests for [ConfigStore] — one verso.json, written via verso.json.new + sync +
+ * rename, read once. Real files in a real temp directory; only the directory fsync is
+ * stubbed (android.system.Os), and the rename and read seams fail on demand.
  */
 class ConfigStoreTest {
 
@@ -34,466 +25,153 @@ class ConfigStoreTest {
     private var dirSyncs = 0
 
     private val primary get() = File(dir, "verso.json")
-    private val backup get() = File(dir, "verso.json.bak")
-    private val temp get() = File(dir, "verso.json.tmp")
+    private val pending get() = File(dir, "verso.json.new")
+    private val setAside get() = File(dir, "verso.json.unreadable")
 
     @Before
     fun setUp() {
         dir = tmp.newFolder("files")
-        store = ConfigStore(
-            dir = dir,
-            log = { msg, _ -> logs += msg },
-            syncDir = { dirSyncs++ },
-        )
+        store = ConfigStore(dir = dir, log = { msg, _ -> logs += msg }, syncDir = { dirSyncs++ })
     }
 
-    /** A store identical to [store] but with the rename primitive overridden, so a test
-     *  can force a chosen rename to fail and drive the two "rename refused" branches that
-     *  a real filesystem never reaches. */
-    private fun storeWith(rename: (File, File) -> Boolean) = ConfigStore(
-        dir = dir,
-        log = { msg, _ -> logs += msg },
-        syncDir = { dirSyncs++ },
-        rename = rename,
-    )
-
-    /** A store whose file read is [readText] — to make one file's read throw. */
-    private fun storeReading(readText: (File) -> String) = ConfigStore(
-        dir = dir,
-        log = { msg, _ -> logs += msg },
-        syncDir = { dirSyncs++ },
-        readText = readText,
-    )
+    private fun storeWith(
+        rename: (File, File) -> Boolean = File::renameTo,
+        readText: (File) -> String = { it.readText() },
+    ) = ConfigStore(dir = dir, log = { msg, _ -> logs += msg }, syncDir = { dirSyncs++ }, rename = rename, readText = readText)
 
     private fun json(vararg favorites: String) = ConfigJson.serialize(cfg(*favorites))
 
-    private fun loggedAbout(fragment: String) = logs.any { fragment in it }
+    private fun files() = dir.list()!!.sorted()
 
     // ---- load ----------------------------------------------------------------
 
     @Test
     fun `a fresh install loads an empty config without logging`() {
-        val loaded = store.load()!!
-
-        assertTrue(loaded.favorites.isEmpty())
+        assertTrue(store.load()!!.favorites.isEmpty())
         assertEquals(emptyList<String>(), logs)
     }
 
     @Test
-    fun `isFresh only while neither primary nor bak mirror exists`() {
+    fun `isFresh only while there is no verso json`() {
         assertTrue(store.isFresh())
-        store.write(json("a/1"), rotateBackup = true)
+        store.write(json("a/1"))
         assertFalse(store.isFresh())
     }
 
+    /** Torn is null, never an empty config: the next edit would save that over the file. */
     @Test
-    fun `a lone bak mirror or an unreadable primary is not a fresh install`() {
-        backup.writeText(json("a/1"))
-        assertFalse(store.isFresh())
-        backup.delete()
+    fun `a torn verso json is null, not an empty config`() {
         primary.writeText("{ torn")
-        assertFalse(store.isFresh())
-    }
-
-    @Test
-    fun `a good primary is loaded and bak mirror is not consulted`() {
-        primary.writeText(json("a/1"))
-        backup.writeText(json("SHOULD-NOT-BE-READ"))
-
-        assertEquals(listOf("a/1"), store.load()!!.favorites.toList())
-        assertEquals(emptyList<String>(), logs)
-    }
-
-    @Test
-    fun `a torn primary falls back to bak mirror`() {
-        primary.writeText("{ this is not json")
-        backup.writeText(json("from/bak"))
-
-        assertEquals(listOf("from/bak"), store.load()!!.favorites.toList())
-        assertTrue(loggedAbout("recovered from .bak"))
-    }
-
-    /** A crash between the .bak rotation and the publish: the primary is gone, .bak is one
-     *  save behind, and the complete newest config sits in the .tmp. */
-    @Test
-    fun `a missing primary recovers the newer tmp before the older bak mirror`() {
-        temp.writeText(json("newest"))
-        backup.writeText(json("one/behind"))
-
-        assertEquals(listOf("newest"), store.load()!!.favorites.toList())
-        assertTrue(loggedAbout("recovered the newer, unpublished .tmp"))
-    }
-
-    @Test
-    fun `recovering from tmp heals the primary and keeps the bak mirror`() {
-        temp.writeText(json("newest"))
-        backup.writeText(json("one/behind"))
-
-        store.load()
-
-        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals(listOf("one/behind"), ConfigJson.parse(backup.readText())!!.favorites.toList())
-    }
-
-    @Test
-    fun `a torn primary with a good tmp and bak heals from the tmp by renaming it`() {
-        primary.writeText("{ torn")
-        temp.writeText(json("newest"))
-        backup.writeText(json("one/behind"))
-
-        assertEquals(listOf("newest"), store.load()!!.favorites.toList())
-
-        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertFalse("the tmp was published, not rewritten and left behind", temp.exists())
-        assertEquals(listOf("one/behind"), ConfigJson.parse(backup.readText())!!.favorites.toList())
-    }
-
-    @Test
-    fun `if the tmp cannot be renamed the primary is written in place and the tmp kept`() {
-        temp.writeText(json("newest"))
-        backup.writeText(json("one/behind"))
-        val refusing = storeWith { from, to -> if (from == temp) false else from.renameTo(to) }
-
-        assertEquals(listOf("newest"), refusing.load()!!.favorites.toList())
-
-        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals("the recovered tmp is never truncated", listOf("newest"), ConfigJson.parse(temp.readText())!!.favorites.toList())
-    }
-
-    @Test
-    fun `a lone tmp is still a fresh install, and load recovers it`() {
-        temp.writeText(json("only/tmp"))
-        assertTrue(store.isFresh())
-        assertEquals(listOf("only/tmp"), store.load()!!.favorites.toList())
-    }
-
-    @Test
-    fun `a torn tmp falls through to the bak mirror`() {
-        temp.writeText("{ torn")
-        backup.writeText(json("from/bak"))
-
-        assertEquals(listOf("from/bak"), store.load()!!.favorites.toList())
-    }
-
-    @Test
-    fun `a good primary wins over a leftover tmp`() {
-        primary.writeText(json("primary"))
-        temp.writeText(json("stale"))
-
-        assertEquals(listOf("primary"), store.load()!!.favorites.toList())
-    }
-
-    /** The heal: after recovering, the bad primary is rewritten so later loads stop
-     *  hitting the fallback and we are never left running on a single copy. */
-    @Test
-    fun `recovering from bak mirror heals the primary in place`() {
-        primary.writeText("{ torn")
-        backup.writeText(json("from/bak"))
-
-        store.load()
-
-        assertEquals(listOf("from/bak"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-    }
-
-    /**
-     * The load-bearing one, and the shape of the bug 7e4745d fixed: healing must NOT
-     * rotate. At that moment .bak is the ONLY good copy and the primary is the torn file
-     * being replaced — rotating would overwrite the good backup with garbage.
-     */
-    @Test
-    fun `healing does not rotate the torn primary onto the good bak mirror`() {
-        primary.writeText("{ torn")
-        backup.writeText(json("from/bak"))
-
-        store.load()
-
-        assertEquals(listOf("from/bak"), ConfigJson.parse(backup.readText())!!.favorites.toList())
-    }
-
-    /** Unreadable is null, never an empty config: the next edit would save that empty
-     *  config over the real file. */
-    @Test
-    fun `a published copy that does not parse is null, not an empty config`() {
-        primary.writeText("{ torn")
-        backup.writeText("also not json")
         assertNull(store.load())
-
-        backup.delete()
-        assertNull("a torn primary alone", store.load())
-
-        primary.delete()
-        backup.writeText("{ torn")
-        assertNull("a torn .bak alone", store.load())
-    }
-
-    /** Nothing published, only a torn leftover .tmp: a fresh install, so empty is real. */
-    @Test
-    fun `a lone torn tmp is a fresh install and loads empty`() {
-        temp.writeText("{ torn")
-        assertTrue(store.load()!!.favorites.isEmpty())
-    }
-
-    /** A primary that cannot be READ (an I/O error) is treated like a torn one: the .bak
-     *  steps in. */
-    @Test
-    fun `a primary that cannot be read falls back to bak mirror like a torn one`() {
-        primary.writeText(json("newest"))
-        backup.writeText(json("one/behind"))
-        val failing = storeReading { if (it == primary) throw java.io.IOException("EIO") else it.readText() }
-
-        assertEquals(listOf("one/behind"), failing.load()!!.favorites.toList())
+        assertFalse("a torn file is no fresh install", store.isFresh())
     }
 
     @Test
-    fun `a directory where the config should be is treated as absent, not fatal`() {
-        File(dir, "verso.json").mkdirs()
-
-        assertTrue(store.load()!!.favorites.isEmpty())
-    }
-
-    // ---- setAsideUnreadable ("~reset", a restore over an unreadable config) -------
-
-    @Test
-    fun `set aside renames every copy, deletes nothing, and the next load is a fresh install`() {
-        primary.writeText("{ torn")
-        backup.writeText("also torn")
-        temp.writeText("torn too")
-
-        assertTrue(store.setAsideUnreadable())
-        assertEquals("{ torn", File(dir, "verso.json.unreadable").readText())
-        assertEquals("also torn", File(dir, "verso.json.bak.unreadable").readText())
-        assertEquals("torn too", File(dir, "verso.json.tmp.unreadable").readText())
-        assertTrue(store.isFresh())
-        assertTrue(store.load()!!.favorites.isEmpty())
-    }
-
-    /** Only the newest generation is kept: it replaces the earlier one, and what the earlier
-     *  one left beside it (here a .bak this one does not have) goes. */
-    @Test
-    fun `set aside keeps only the newest generation`() {
-        File(dir, "verso.json.unreadable").writeText("earlier")
-        File(dir, "verso.json.bak.unreadable").writeText("earlier bak")
-        File(dir, "verso.json.unreadable-2").writeText("from an older version")
-        primary.writeText("{ torn")
-
-        assertTrue(store.setAsideUnreadable())
-        assertEquals("{ torn", File(dir, "verso.json.unreadable").readText())
-        assertEquals(listOf("verso.json.unreadable"), dir.list()!!.filter { "unreadable" in it })
-    }
-
-    @Test
-    fun `dropping the set-aside files leaves the config alone`() {
-        File(dir, "verso.json.unreadable").writeText("old")
-        File(dir, "verso.json.bak.unreadable").writeText("old bak")
+    fun `a verso json that cannot be read is null`() {
         primary.writeText(json("a/1"))
-
-        store.dropSetAside()
-        assertEquals(listOf("verso.json"), dir.list()!!.sorted())
-    }
-
-    /** The primary goes last: a refused rename leaves a published copy — still unreadable,
-     *  never a silent fresh start. */
-    @Test
-    fun `a refused rename of the primary leaves it in place and reports failure`() {
-        primary.writeText("{ torn")
-        backup.writeText("also torn")
-        val refusing = storeWith { from, to -> if (from == primary) false else from.renameTo(to) }
-
-        assertFalse(refusing.setAsideUnreadable())
-        assertTrue(primary.isFile)
-        assertNull(store.load())
-        assertFalse(store.isFresh())
-    }
-
-    // ---- write and rotation --------------------------------------------------
-
-    @Test
-    fun `the first save publishes a primary and no bak mirror yet`() {
-        assertTrue(store.write(json("a/1"), rotateBackup = true))
-
-        assertEquals(listOf("a/1"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertFalse("there is nothing to rotate on the first save", backup.exists())
+        val failing = storeWith(readText = { throw java.io.IOException("EIO") })
+        assertNull(failing.load())
     }
 
     @Test
-    fun `the second save rotates the previous primary into bak mirror`() {
-        store.write(json("first"), rotateBackup = true)
-        store.write(json("second"), rotateBackup = true)
-
-        assertEquals(listOf("second"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals(listOf("first"), ConfigJson.parse(backup.readText())!!.favorites.toList())
+    fun `a directory where verso json should be is treated as absent`() {
+        primary.mkdirs()
+        assertTrue(store.load()!!.favorites.isEmpty())
     }
 
-    /**
-     * The regression guard for 7e4745d. A primary that went bad AFTER the last good save
-     * (bit rot, a torn in-place fallback) must not be promoted over the good .bak — the
-     * rotation re-parses it first and skips when it no longer parses.
-     */
+    /** A crash between writing verso.json.new and the rename leaves the old file in force; the
+     *  .new is neither read nor kept. */
     @Test
-    fun `a primary that no longer parses is not rotated over a good bak mirror`() {
-        store.write(json("good"), rotateBackup = true)
-        store.write(json("newer"), rotateBackup = true)   // .bak = "good"
-        primary.writeText("{ went bad after the save")
-
-        store.write(json("newest"), rotateBackup = true)
-
-        assertEquals(listOf("good"), ConfigJson.parse(backup.readText())!!.favorites.toList())
-        assertTrue(loggedAbout("skipping rotate"))
+    fun `a new file left by a crash does not disturb the load and is removed`() {
+        primary.writeText(json("old"))
+        pending.writeText(json("half written"))
+        assertEquals(listOf("old"), store.load()!!.favorites.toList())
+        assertFalse(pending.exists())
     }
 
+    /** Earlier versions kept .bak, .tmp and numbered set-aside copies: nothing reads them any
+     *  more, the first load removes them — but keeps the one set-aside copy. */
     @Test
-    fun `a skipped rotation still publishes the new primary`() {
-        store.write(json("good"), rotateBackup = true)
-        primary.writeText("{ went bad")
+    fun `files of earlier versions are removed, the set-aside copy and the config stay`() {
+        primary.writeText(json("current"))
+        for (name in listOf("verso.json.bak", "verso.json.tmp", "verso.json.unreadable-2", "verso.json.bak.unreadable")) {
+            File(dir, name).writeText("old")
+        }
+        setAside.writeText("set aside")
+        File(dir, "home-cache.txt").writeText("not ours to touch")
 
-        store.write(json("newest"), rotateBackup = true)
-
-        assertEquals(listOf("newest"), ConfigJson.parse(primary.readText())!!.favorites.toList())
+        assertEquals(listOf("current"), store.load()!!.favorites.toList())
+        assertEquals(listOf("home-cache.txt", "verso.json", "verso.json.unreadable"), files())
     }
 
-    @Test
-    fun `rotateBackup false replaces the primary and leaves bak mirror untouched`() {
-        store.write(json("first"), rotateBackup = true)
-        store.write(json("second"), rotateBackup = true)   // .bak = "first"
-
-        store.write(json("healed"), rotateBackup = false)
-
-        assertEquals(listOf("healed"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals(listOf("first"), ConfigJson.parse(backup.readText())!!.favorites.toList())
-    }
+    // ---- write ---------------------------------------------------------------
 
     @Test
-    fun `the temp file never survives a successful publish`() {
-        store.write(json("a/1"), rotateBackup = true)
-
-        assertFalse(temp.exists())
-    }
-
-    @Test
-    fun `a successful publish fsyncs the directory`() {
-        store.write(json("a/1"), rotateBackup = true)
-
+    fun `a write publishes the config, leaves no new file and syncs the directory`() {
+        assertTrue(store.write(json("f/1", "f/2")))
+        assertEquals(listOf("verso.json"), files())
+        assertEquals(listOf("f/1", "f/2"), store.load()!!.favorites.toList())
         assertEquals(1, dirSyncs)
+    }
+
+    @Test
+    fun `a second write replaces the first`() {
+        store.write(json("first"))
+        store.write(json("second"))
+        assertEquals(listOf("second"), store.load()!!.favorites.toList())
+        assertEquals(listOf("verso.json"), files())
+    }
+
+    @Test
+    fun `a refused rename keeps the old file and leaves no new file`() {
+        store.write(json("old"))
+        val refusing = storeWith(rename = { _, _ -> false })
+
+        assertFalse(refusing.write(json("new")))
+        assertEquals("no .new left behind (checked before load, which would clear it)", listOf("verso.json"), files())
+        assertEquals(listOf("old"), store.load()!!.favorites.toList())
+        assertTrue(logs.any { "save failed" in it })
     }
 
     @Test
     fun `a failed write is reported rather than thrown`() {
-        val broken = ConfigStore(
-            dir = File(dir, "does/not/exist"),
-            log = { msg, _ -> logs += msg },
-            syncDir = { dirSyncs++ },
-        )
-
-        assertFalse(broken.write(json("a/1"), rotateBackup = true))
-        assertTrue(loggedAbout("config save failed"))
+        dir.deleteRecursively()
+        assertFalse(store.write(json("x")))
     }
-
-    // ---- the two together ----------------------------------------------------
 
     @Test
     fun `a written config round-trips back through load`() {
         val original = VersoConfig(
-            hidden = linkedSetOf("h/1"),
             favorites = linkedSetOf("f/1", "f/2"),
+            hidden = linkedSetOf("h/1"),
             names = linkedMapOf("f/1" to "Custom"),
             tags = linkedMapOf("f/2" to mutableListOf("work")),
         )
-
-        store.write(ConfigJson.serialize(original), rotateBackup = true)
+        store.write(ConfigJson.serialize(original))
         val loaded = store.load()!!
-
-        assertEquals(listOf("f/1", "f/2"), loaded.favorites.toList())
-        assertEquals(listOf("h/1"), loaded.hidden.toList())
-        assertEquals("Custom", loaded.names["f/1"])
-        assertEquals(listOf("work"), loaded.tags["f/2"])
+        assertTrue(original.sameContent(loaded))
     }
 
-    /** Losing the primary entirely (not merely torn) must still recover, and the recovery
-     *  must not eat the backup it recovered from. */
+    // ---- setAsideUnreadable ----------------------------------------------------
+
     @Test
-    fun `a deleted primary is rebuilt from bak mirror without losing bak mirror`() {
-        store.write(json("first"), rotateBackup = true)
-        store.write(json("second"), rotateBackup = true)   // .bak = "first"
-        assertTrue(primary.delete())
+    fun `set aside renames the config, replaces an earlier copy, and the next load is fresh`() {
+        setAside.writeText("earlier")
+        primary.writeText("{ torn")
 
-        val loaded = store.load()!!
-
-        assertEquals(listOf("first"), loaded.favorites.toList())
-        assertTrue(backup.exists())
-        assertEquals(listOf("first"), ConfigJson.parse(primary.readText())!!.favorites.toList())
+        assertTrue(store.setAsideUnreadable())
+        assertEquals("{ torn", setAside.readText())
+        assertTrue(store.isFresh())
+        assertTrue(store.load()!!.favorites.isEmpty())
     }
 
-    // ---- the rename seam: forced-failure paths -------------------------------
-    //
-    // The .bak rotation and the temp->primary publish both go through rename, and both
-    // have a "rename refused" branch that a real filesystem never triggers (POSIX rename
-    // onto a free — or even an existing — name always succeeds). The seam forces the
-    // chosen rename to fail so those branches are exercised for real, on real files.
-
-    /**
-     * Step 3's in-place fallback: if the temp->primary rename is refused (the exotic FS
-     * the comment describes), the payload must still be published by writing dst directly,
-     * and the temp file must not be left behind. The write still succeeds.
-     */
     @Test
-    fun `a refused publish rename falls back to an in-place write`() {
-        // Fail only the publish rename (temp -> primary); leave rotation alone.
-        val s = storeWith { src, dst -> if (src.name.endsWith(".tmp")) false else src.renameTo(dst) }
+    fun `a refused set-aside leaves the config in place`() {
+        primary.writeText("{ torn")
+        val refusing = storeWith(rename = { _, _ -> false })
 
-        assertTrue(s.write(json("a/1"), rotateBackup = true))
-
-        assertEquals(listOf("a/1"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertFalse("the temp file must not survive the in-place fallback", temp.exists())
-    }
-
-    /**
-     * The in-place fallback still fsyncs the directory — it is a real publish, not a
-     * shortcut, so the rename-durability sync at step 4 must run exactly as on the fast
-     * path. (A regression here would silently trade durability for the fallback.)
-     */
-    @Test
-    fun `a refused publish rename still fsyncs the directory`() {
-        val s = storeWith { src, dst -> if (src.name.endsWith(".tmp")) false else src.renameTo(dst) }
-
-        s.write(json("a/1"), rotateBackup = true)
-
-        assertEquals(1, dirSyncs)
-    }
-
-    /**
-     * The reason the in-place fallback is safe: even if its non-atomic dst write tore,
-     * .bak still holds the previous good copy. So after a fallback publish the .bak
-     * mirror rotated in this same save must remain a valid, loadable config.
-     */
-    @Test
-    fun `an in-place publish leaves the bak mirror intact and recoverable`() {
-        store.write(json("first"), rotateBackup = true)   // primary = first, no .bak yet
-        val s = storeWith { src, dst -> if (src.name.endsWith(".tmp")) false else src.renameTo(dst) }
-
-        // Rotation (first -> .bak) uses rename with a non-.tmp source, so it still runs;
-        // only the publish falls back in place.
-        assertTrue(s.write(json("second"), rotateBackup = true))
-
-        assertEquals(listOf("second"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals(listOf("first"), ConfigJson.parse(backup.readText())!!.favorites.toList())
-    }
-
-    /**
-     * Step 2's rotate failure is non-fatal: if promoting the primary into .bak is refused,
-     * we log and carry on — the new primary is still published, and the existing .bak is
-     * left exactly as it was rather than half-updated or destroyed.
-     */
-    @Test
-    fun `a refused bak rotation is non-fatal and preserves the existing bak mirror`() {
-        store.write(json("first"), rotateBackup = true)
-        store.write(json("second"), rotateBackup = true)   // .bak = "first"
-        // Fail only the rotation (primary -> .bak); the publish rename still succeeds.
-        val s = storeWith { src, dst -> if (dst.name.endsWith(".bak")) false else src.renameTo(dst) }
-
-        assertTrue(s.write(json("third"), rotateBackup = true))
-
-        assertEquals(listOf("third"), ConfigJson.parse(primary.readText())!!.favorites.toList())
-        assertEquals(listOf("first"), ConfigJson.parse(backup.readText())!!.favorites.toList())
-        assertTrue(loggedAbout("rotate failed"))
+        assertFalse(refusing.setAsideUnreadable())
+        assertTrue(primary.isFile)
+        assertNull(store.load())
     }
 }

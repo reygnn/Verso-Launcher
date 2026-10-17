@@ -116,8 +116,8 @@ keyboard, no prompt:
       only after the new one is safely written: a failed or interrupted backup never
       costs you the old one. Always just the one current backup, never a pile. An
       ordinary file: it survives an uninstall and can be copied off the device
-      (that's how you move a config to another phone), which the internal `.bak`
-      mirror cannot
+      (that's how you move a config to another phone) — the only copy besides
+      `verso.json` itself
     - `~restore` — adopt the newest of those backups again. No file picker. The
       config being replaced is first written next to it as
       `verso-pre-restore-<date>_<time>.json`; if that fails, the restore is
@@ -184,11 +184,9 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no DataStore / Room / SharedPreferences — the small amount of state (hidden
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
   `filesDir` (beside it only `home-cache.txt`, a throwaway copy of the favorites for an
-  instant first frame), written durably (temp-file + fsync + rename, then a directory
-  fsync so the rename itself survives power-loss, not just a crash); the previous
-  good version is rotated into a `.bak` that recovery falls back to and heals the
-  primary from on the next load (a newer, complete temp file left by an interrupted
-  save is tried first); and edited only through the in-app modes above
+  instant first frame), written atomically (a `.new` file + fsync + rename, then a
+  directory fsync so the rename itself survives power-loss); no `.bak` — your own
+  `~backup` is the copy to fall back on; and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`
 - no ViewBinding / XML layouts — UI built in code
 

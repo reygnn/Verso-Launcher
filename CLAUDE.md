@@ -54,7 +54,7 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   (`VersoApp.io`) does all disk and PackageManager work; results come back via
   `runOnUiThread` (`MainActivity.onUi`). `LauncherState` plays the ViewModel role
   as plain Kotlin.
-- **Persistence:** one JSON file, `filesDir/verso.json` (+ `.tmp`, `.bak`), via
+- **Persistence:** one JSON file, `filesDir/verso.json`, via
   `ConfigStore` — not SharedPreferences, not DataStore. Beside it only
   `home-cache.txt` (`HomeCache`), a disposable copy of the favorites for the cold-start
   frame. Off-device backups in `Download/Verso/` via MediaStore (`BackupStore`).
@@ -92,7 +92,7 @@ com.github.reygnn.verso_launcher/
                       Enter/tap actions, tags, default favorites
   AppEntry, VersoConfig   the data
   ConfigJson          verso.json <-> VersoConfig (parse / parseForeign / serialize)
-  ConfigStore         verso.json on disk: atomic write, .tmp/.bak recovery
+  ConfigStore         verso.json on disk: atomic write (.new + sync + rename), set-aside
   BackupStore         Download/Verso via MediaStore
   BackupFiles         pure backup naming rules
   RestoreSteps        the IO half of a restore, in its load-bearing order
@@ -125,16 +125,13 @@ main, written on the IO thread.
    content provider (an offline cloud drive) can block that read indefinitely, and it
    touches no file of the app's own; the undo point and the adoption still go through
    `VersoApp.io`.
-4. **`verso.json` write sequence is load-bearing** (`ConfigStore.write`): temp +
-   fsync → rotate the primary to `.bak` only if it still parses → publish → fsync dir.
-   A heal never rotates. `load()` prefers primary, then a parseable `.tmp`, then `.bak`,
-   and returns **null — never an empty config — when a published copy (primary or `.bak`)
-   exists but none parses** (a read error counts as torn). Only with no published copy at all
-   is the empty config real. On null the FIRST LOAD (and only it — never `load()` itself, or a
-   `~backup` before it could replace the real backup with nothing) sets the files aside —
-   renamed to `*.unreadable`, primary last, only the newest generation kept, dropped once a
-   restore is saved (`ConfigStore.setAsideUnreadable`, `dropSetAside`) — and starts over as a
-   fresh install, with one toast; the user's config comes back with `~restore`.
+4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync → rename
+   over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net is the
+   user's `~backup`. `load()` is null — never an empty config — when `verso.json` is torn or
+   cannot be read; then the FIRST LOAD (only it, never `load()` itself) renames it to
+   `verso.json.unreadable` (replacing an earlier one) and starts over as a fresh install, with
+   one toast; `~restore` brings the config back. Only with no `verso.json` is the empty
+   config real.
 5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
    empty default must never be written over the real file or a backup. `LauncherState`
    refuses edits and saves until then; the Activity says why (`editable()`). Backups and undo
@@ -162,10 +159,9 @@ main, written on the IO thread.
    for labels, needles and tags (`canonicalTag` builds on it). Lists are sorted with
    a `Collator` for the device locale (`sortedForDrawer`, `sortedTags`), never by
    code point.
-10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`: neither
-    primary nor `.bak` exists) and only into a config with no favorites (a lone `.tmp`
-    recovered on a "fresh" install keeps its own). An existing config with no favorites
-    is the user's choice.
+10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`: no `verso.json`)
+    and only into a config with no favorites. An existing config with no favorites is the
+    user's choice.
 11. **Page turn = Unity-Kolibri's.** Closing the drawer is a drag that follows the
     finger (Unity's `DragToDismissCore`: starts once the list is at its top, 28 % of the
     height or a 3× min-fling release commits, a flick back cancels, 220 ms settle);

@@ -4,34 +4,15 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * The verso.json file layer: reading the config with its .tmp and .bak fallbacks, and
- * publishing it back atomically with a validated .bak rotation. [ConfigJson] owns the JSON; this owns
- * the FILES.
+ * verso.json on disk: one file, written atomically, read once. [ConfigJson] owns the JSON; this
+ * owns the FILE. No .bak, no repair from older copies — the safety net is the user's ~backup.
  *
- * Lifted out of MainActivity so the rotation state machine can be unit-tested on the JVM.
- * That machine — re-parse the on-disk primary, skip the rotation when it no longer parses,
- * heal-without-rotating versus normal-save-with-rotating, rename-or-fall-back-to-in-place —
- * is the highest-consequence logic in the app: getting it wrong silently destroys the last
- * known-good backup, which has happened here once already. It was also the only part with
- * no test, precisely because it sat behind an Activity.
- *
- * Everything it needs from Android is injected, so a test can drive it against a temp
- * directory:
- *   [dir]     where verso.json, its .bak and its .tmp live (filesDir in the app)
- *   [log]     android.util.Log in the app, a collector in tests — this class never
- *             throws, so the log IS its error channel and a test can assert on it
- *   [syncDir] fsync of the directory, the one genuinely Android-only call
- *             (android.system.Os). File CONTENTS are synced with plain
- *             java.io.FileDescriptor.sync(), which works on any JVM and is therefore
- *             exercised for real by the tests.
- *   [rename]  the atomic rename primitive, defaulting to [File.renameTo]. A seam only
- *             so a test can force it to fail on a chosen file: the two "rename refused"
- *             paths below (the .bak rotation and the temp->primary publish with its
- *             in-place fallback) never fire on a normal filesystem, so a real temp dir
- *             cannot reach them. Production is unchanged — it uses [File.renameTo].
- *   [readText] reading one config file, defaulting to [File.readText]. A seam for the same
- *             reason: a read that THROWS on a file that is there (an I/O error) cannot be
- *             set up reliably on a real filesystem — root ignores a missing read permission.
+ * Everything Android-only is injected, so a test drives it against a temp directory:
+ *   [dir]      where verso.json lives (filesDir in the app)
+ *   [log]      android.util.Log in the app, a collector in tests — this class never throws
+ *   [syncDir]  fsync of the directory (android.system.Os), so a rename survives a power cut
+ *   [rename]   File.renameTo — a seam so a test can make one rename fail
+ *   [readText] File.readText — a seam so a test can make a read throw (root ignores chmod)
  */
 internal class ConfigStore(
     private val dir: File,
@@ -42,213 +23,63 @@ internal class ConfigStore(
 ) {
 
     private val primary get() = File(dir, CONFIG_FILE)
-    private val backup get() = File(dir, "$CONFIG_FILE.bak")
-    private val temp get() = File(dir, "$CONFIG_FILE.tmp")
+    private val pending get() = File(dir, "$CONFIG_FILE.new")
+    private val setAside get() = File(dir, "$CONFIG_FILE.unreadable")
 
     /**
-     * Read the config, preferring the primary verso.json and falling back to an unpublished
-     * .tmp, then to the .bak mirror written by [write], if the primary is missing, torn or cannot
-     * be read (a torn file and a read error are treated alike). Never throws.
-     *
-     * Null — "unreadable", never an empty config — when a published copy (primary or .bak)
-     * exists but none parses: an empty config there would be saved over the real file with the
-     * next edit. The first load then sets the files aside and starts over (LauncherState). Only
-     * with no published copy at all is the empty config real (a fresh install).
+     * The config, or the empty one when there is no verso.json (a fresh install). Null —
+     * never an empty config — when it is there but torn or cannot be read: an empty config
+     * would be saved over it with the next edit. The first load then sets it aside and starts
+     * over (LauncherState). Never throws.
      */
     fun load(): VersoConfig? {
-        parse(primary)?.let { return it }
-        // The temp before the .bak: a temp survives only when the most recent write did not
-        // complete its publish (every completed write renames it away), so a temp that parses
-        // is the NEWEST config — e.g. after a crash between the .bak rotation and the publish,
-        // where the primary is gone and .bak is one save behind. A temp torn mid-write does not
-        // parse and falls through to .bak. Healed without rotating, like the .bak case below:
-        // .bak still holds the previous good copy.
-        parse(temp)?.let { recovered ->
-            log("primary config unreadable — recovered the newer, unpublished .tmp", null)
-            publishTemp(recovered)
-            return recovered
-        }
-        parse(backup)?.let { recovered ->
-            log("primary config unreadable — recovered from .bak", null)
-            // Heal the primary now instead of waiting for the next toggle: rewrite the
-            // recovered config over the bad primary so later resumes stop hitting this
-            // path and we're never left running on a single copy. rotateBackup = false:
-            // .bak IS the good copy — rotating the torn primary into it would destroy the
-            // very backup we just read from.
-            write(ConfigJson.serialize(recovered), rotateBackup = false)
-            return recovered
-        }
-        // isFile, not exists(): a directory where a file should be holds no config either.
-        if (primary.isFile || backup.isFile) {
-            log("no copy of the config parses — not loaded", null)
-            return null
-        }
-        return VersoConfig()
-    }
-
-    /**
-     * Heal from a .tmp that just parsed: publish THAT file as the primary by renaming it, the
-     * step its interrupted write never got to. Not via [write]: write() starts by rewriting the
-     * .tmp, which would truncate the only copy of the newest config before writing it again —
-     * a crash or a full disk in that moment would leave it torn and lose the save it held.
-     * If the rename is refused, the primary is written in place (fsynced) from [recovered] and
-     * the .tmp is left alone; .bak is never touched.
-     */
-    private fun publishTemp(recovered: VersoConfig) {
-        try {
-            if (!rename(temp, primary)) {
-                FileOutputStream(primary).use { fos ->
-                    fos.write(ConfigJson.serialize(recovered).toByteArray(Charsets.UTF_8))
-                    fos.flush()
-                    fos.fd.sync()
-                }
-            }
-            syncDir(dir)
-        } catch (e: Exception) {
-            log("config heal from .tmp failed", e)
-        }
-    }
-
-    /**
-     * True on a fresh install: neither verso.json nor its .bak exists. Only then are default
-     * favorites seeded — an existing config with no favorites is the user's choice. A file that
-     * exists but is unreadable still counts as "not fresh": that is corruption, not a first start.
-     */
-    fun isFresh(): Boolean = !primary.exists() && !backup.exists()
-
-    /**
-     * Move an unreadable config out of the way, so the first load can start over (LauncherState).
-     * Renamed to "<name>.unreadable", not deleted: the bytes stay for a manual rescue. Only this
-     * newest generation is kept — it replaces what an earlier one left — and a restore that was
-     * saved drops it ([dropSetAside]). The .tmp, the .bak and the primary go in that order, the
-     * primary last: a refused rename leaves a published copy, still unreadable, never a silent
-     * fresh start. True when nothing published is left in place. Never throws.
-     */
-    fun setAsideUnreadable(): Boolean {
-        return try {
-            val moved = mutableSetOf<String>()
-            for (file in listOf(temp, backup, primary)) {
-                if (!file.isFile) continue
-                val target = File(dir, "${file.name}.unreadable")
-                if (!rename(file, target)) {
-                    log("could not set ${file.name} aside", null)
-                    return false
-                }
-                moved += target.name
-            }
-            dropSetAside(keep = moved)
-            syncDir(dir)
-            true
-        } catch (e: Exception) {
-            log("setting the unreadable config aside failed", e)
-            false
-        }
-    }
-
-    /** Delete the set-aside files — all, after a restore was saved; or all but [keep], the
-     *  generation just set aside. Never throws. */
-    fun dropSetAside(keep: Set<String> = emptySet()) {
-        dir.listFiles { f -> f.name.startsWith(CONFIG_FILE) && ".unreadable" in f.name && f.name !in keep }
-            ?.forEach { if (!it.delete()) log("could not drop ${it.name}", null) }
-    }
-
-    /**
-     * Parse one config file. Returns null when the file is absent (a normal state, not logged),
-     * cannot be read or is unparseable (both logged, so real corruption is visible). Never throws.
-     */
-    private fun parse(file: File): VersoConfig? {
-        if (!file.isFile) return null
+        // Files of earlier versions (.bak, .tmp, numbered set-aside copies) and a .new left by
+        // a crash: none is read any more. This line can go once no device carries them.
+        dir.listFiles { f -> f.name.startsWith("$CONFIG_FILE.") && f.name != setAside.name }
+            ?.forEach { it.delete() }
+        if (!primary.isFile) return VersoConfig()
         val text = try {
-            readText(file)
+            readText(primary)
         } catch (e: Exception) {
-            log("config unreadable: ${file.path}", e)
+            log("config unreadable", e)
             return null
         }
-        // ConfigJson owns the JSON parsing (and is unit-tested); it returns null, never
-        // throws, on malformed input — log here where the file path is known.
-        return ConfigJson.parse(text)
-            ?: run { log("config unparseable: ${file.path}", null); null }
+        return ConfigJson.parse(text) ?: run { log("config unparseable", null); null }
+    }
+
+    /** True on a fresh install: no verso.json yet. Only then are default favorites seeded. */
+    fun isFresh(): Boolean = !primary.exists()
+
+    /**
+     * Publish [payload] as verso.json: written to verso.json.new, synced, then renamed over the
+     * primary — a reader sees the old file or the new one, never half of one. Never throws;
+     * false if nothing was published (the old file stands).
+     */
+    fun write(payload: String): Boolean = try {
+        FileOutputStream(pending).use { out ->
+            out.write(payload.toByteArray(Charsets.UTF_8))
+            out.flush()
+            out.fd.sync()
+        }
+        if (!rename(pending, primary)) throw java.io.IOException("rename of ${pending.name} refused")
+        syncDir(dir)
+        true
+    } catch (e: Exception) {
+        log("config save failed", e)
+        pending.delete()
+        false
     }
 
     /**
-     * Atomically publish [payload] as verso.json, writing the WHOLE file each time.
-     * MUST be called from the caller's single disk-writing thread so concurrent writes
-     * stay serialized on the temp file. Never throws — a failure degrades durability, not
-     * correctness, and is logged: a HOME app must not crash on a bad save. Returns whether
-     * the publish succeeded.
-     *
-     * Sequence: temp-write + fsync-contents -> rotate -> publish + fsync-dir.
-     *   - fsync of the temp CONTENTS closes the window where the rename's metadata could
-     *     reach disk ahead of the bytes (which would publish a truncated file).
-     *   - the final fsync of the DIRECTORY makes the rename itself durable: rename is
-     *     atomic for visibility but not durability, so without it a power-cut can roll the
-     *     publish back to the previous file — a lost most-recent toggle, never corruption.
-     *
-     * [rotateBackup] moves the current primary into .bak (by rename, never an unsynced
-     * copy) before the new one is published, so a good copy is on disk at all times; a
-     * normal save wants this. A HEAL after recovering from .bak must NOT rotate at all:
-     * there the on-disk primary is the torn file we're replacing and .bak holds the ONLY
-     * good copy — rotating would overwrite that good .bak with garbage.
+     * Move an unreadable verso.json out of the way, to verso.json.unreadable — replacing an
+     * earlier one, so there is only ever one — for a manual rescue. True when it is gone.
+     * Never throws.
      */
-    fun write(payload: String, rotateBackup: Boolean): Boolean {
-        val tmp = temp
-        val dst = primary
-        val bak = backup
-        return try {
-            // (1) Write to the temp file and force its bytes onto disk BEFORE anything
-            //     is published, so a rename can never expose contents that aren't there.
-            FileOutputStream(tmp).use { fos ->
-                fos.write(payload.toByteArray(Charsets.UTF_8))
-                fos.flush()
-                fos.fd.sync()
-            }
-
-            // (2) Rotate the current good primary into .bak by RENAME (atomic, can't
-            //     tear) — unless we're healing, where the on-disk primary is bad and
-            //     .bak is the good copy we must not clobber. We do NOT delete .bak
-            //     first: renaming onto it replaces it atomically on POSIX, and leaving
-            //     it keeps a good copy present at all times. On the first save dst
-            //     doesn't exist yet, so .bak appears from save #2 onward.
-            //
-            //     But rename promotes the primary UNVALIDATED, so first re-parse it and
-            //     skip the rotation if it no longer parses. After the first load the
-            //     config is served from memory, so a primary that silently went bad afterwards (bit rot,
-            //     or a torn in-place fallback at step 3 last time) would otherwise be
-            //     rotated straight onto .bak — destroying the last known-good backup.
-            //     This read is the only place that re-checks the on-disk primary; the
-            //     preserved .bak refreshes on the next save once the primary is good
-            //     again. One read+parse of a tiny file per save is a cheap insurance.
-            if (rotateBackup && dst.exists()) {
-                when {
-                    parse(dst) == null ->
-                        log("config primary invalid — keeping .bak, skipping rotate", null)
-                    !rename(dst, bak) ->
-                        log("config .bak rotate failed (non-fatal)", null)
-                }
-            }
-
-            // (3) Publish the new primary. After a rotation dst is gone, so this
-            //     renames onto a FREE name — accepted by every filesystem, and it
-            //     sidesteps the old "refuse rename onto existing target" problem. The
-            //     in-place fallback only fires on an exotic FS that still refused; it
-            //     fsyncs (unlike the old copyTo), and .bak still holds a good config,
-            //     so even a torn in-place dst stays recoverable.
-            if (!rename(tmp, dst)) {
-                FileOutputStream(dst).use { fos ->
-                    fos.write(payload.toByteArray(Charsets.UTF_8))
-                    fos.flush()
-                    fos.fd.sync()
-                }
-                tmp.delete()
-            }
-
-            // (4) Make the renames themselves durable (see the doc above).
-            syncDir(dir)
-            true
-        } catch (e: Exception) {
-            log("config save failed", e)
-            false
-        }
+    fun setAsideUnreadable(): Boolean = try {
+        rename(primary, setAside).also { if (it) syncDir(dir) else log("could not set the config aside", null) }
+    } catch (e: Exception) {
+        log("setting the config aside failed", e)
+        false
     }
 
     companion object {

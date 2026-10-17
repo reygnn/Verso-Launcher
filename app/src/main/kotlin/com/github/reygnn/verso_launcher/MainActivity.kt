@@ -222,7 +222,7 @@ class MainActivity : Activity() {
             setAsideUnreadable = { store.setAsideUnreadable() },
             enumerateApps = ::loadApps,
             serialize = ConfigJson::serialize,
-            writeConfig = { payload -> store.write(payload, rotateBackup = true) },
+            writeConfig = { payload -> store.write(payload) },
             onRefreshed = { configReplaced, listChanged ->
                 // The rename dialog read the OLD config when it opened and writes back on
                 // OK; left up over a wholesale replace it would persist stale fields into
@@ -1085,8 +1085,8 @@ class MainActivity : Activity() {
 
     /**
      * The verso.json file layer. Everything Android-specific it needs is injected here:
-     * filesDir, android.util.Log and the directory fsync. Loading, rotating and publishing
-     * itself lives in [ConfigStore], where it is unit-tested away from the Activity.
+     * filesDir, android.util.Log and the directory fsync. Loading and publishing itself lives
+     * in [ConfigStore], where it is unit-tested away from the Activity.
      */
     private val store by lazy {
         ConfigStore(
@@ -1152,9 +1152,8 @@ class MainActivity : Activity() {
      * taken (see BackupFiles) — no pile to sift through, which is what lets [restoreConfig]
      * work without a file picker: it reads the newest one.
      *
-     * Different from the .bak mirror [ConfigStore] keeps: that one rotates away after two
-     * saves and lives in filesDir, so it dies with the app. This one is an ordinary file in
-     * shared storage that can be copied off the device.
+     * The only copy besides verso.json itself (which lives in filesDir and dies with the app):
+     * an ordinary file in shared storage that can be copied off the device.
      *
      * The config in memory, serialized here on the main thread, where it is only ever mutated,
      * so the read is race-free. Never before the first load (runCommand): memory then holds the
@@ -1453,9 +1452,8 @@ class MainActivity : Activity() {
                 current = outgoing,
                 restored = restored,
                 writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
-                writeConfig = { payload -> store.write(payload, rotateBackup = true) },
+                writeConfig = { payload -> store.write(payload) },
                 sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
-                dropSetAside = { store.dropSetAside() },
             )
         }) { outcome ->
             when (outcome) {
