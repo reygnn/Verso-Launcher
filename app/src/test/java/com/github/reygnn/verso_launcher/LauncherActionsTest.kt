@@ -132,6 +132,58 @@ class LauncherActionsTest {
         }
     }
 
+    // ---- enterEdge -----------------------------------------------------------
+
+    private fun enterKey(down: Boolean, repeatCount: Int = 0, isEnterKey: Boolean = true) =
+        EnterKey(down = down, repeatCount = repeatCount, isEnterKey = isEnterKey)
+
+    /** A soft keyboard's Enter: the GO action once, with no event. It acts. */
+    @Test fun `a soft Enter acts`() {
+        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = null))
+    }
+
+    /** No event and no GO/DONE (another IME action): not an Enter, left to the TextView. */
+    @Test fun `another IME action without an event passes`() {
+        assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = null))
+    }
+
+    /** A key Enter as One UI delivers it (seen on the A17): GO on the down AND on the up. The
+     *  down acts, the up is consumed — it used to act again, launching an app twice. Consumed,
+     *  not passed: passed back, the TextView's own handling of the up drops the keyboard. */
+    @Test fun `a key Enter with the GO action acts on its down and consumes its up`() {
+        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = true)))
+        assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = false)))
+    }
+
+    /** The same key Enter without the GO action (IME_NULL): the down still acts, the up is
+     *  still consumed. */
+    @Test fun `a key Enter without an IME action acts on its down and consumes its up`() {
+        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = true)))
+        assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = false)))
+    }
+
+    /** A held Enter repeats its down: only the first acts, or an app launches over and over. */
+    @Test fun `a held Enter acts once, its repeats are consumed`() {
+        for (imeAction in listOf(true, false)) {
+            assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction, enterKey(down = true, repeatCount = 1)))
+            assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction, enterKey(down = true, repeatCount = 5)))
+        }
+    }
+
+    /** Defensive: GO with a key other than Enter is still one Enter — down acts, up consumed.
+     *  No real input takes this path (TextView hands the listener ENTER and NUMPAD_ENTER only);
+     *  it pins that such an event is never passed on half-handled. */
+    @Test fun `defensive - GO on another key acts on its down and consumes its up`() {
+        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = true, isEnterKey = false)))
+        assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = false, isEnterKey = false)))
+    }
+
+    /** Neither Enter nor GO/DONE: not ours, down or up. */
+    @Test fun `any other key passes`() {
+        assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = true, isEnterKey = false)))
+        assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = false, isEnterKey = false)))
+    }
+
     // ---- tapAction -----------------------------------------------------------
 
     @Test fun `tapping nothing (a stale position) does nothing`() {
