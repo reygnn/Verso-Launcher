@@ -758,6 +758,27 @@ internal object LauncherLogic {
     }
 
     /**
+     * The character a key press types when it starts typing on the home page or the list, or
+     * null when it types nothing there. [unicodeChar] is KeyEvent.unicodeChar; [chord] is a
+     * Ctrl, Meta or LEFT Alt chord (a shortcut, not typing). Right Alt is AltGr, which types
+     * "@", "€", "{" on a German layout — those count.
+     *
+     * Null as well for anything that is no valid code point — above all a dead key ("^", "´"
+     * on a German keyboard), whose unicodeChar carries KeyCharacterMap.COMBINING_ACCENT, the
+     * sign bit: Character.toChars rejects that negative Int with an exception, which crashed
+     * the launcher on every press. isValidCodePoint rejects every negative Int, so a dead key
+     * needs no check of its own — do not add one back. Ignoring it is enough: in the prompt
+     * itself the TextView composes accents on its own. And null for 0 and for a control character.
+     */
+    fun typedChar(unicodeChar: Int, chord: Boolean): String? {
+        if (chord) return null
+        if (unicodeChar == 0 || !Character.isValidCodePoint(unicodeChar) || Character.isISOControl(unicodeChar)) {
+            return null
+        }
+        return String(Character.toChars(unicodeChar))
+    }
+
+    /**
      * What a tap on [row] does in the given [mode]. A [TagRow] drills into its filter (which
      * sigil is decided by the mode it was rendered in), a [CommandRow] runs its command, and an
      * [AppRow] fans out per mode — launch under the read modes, toggle/pick under the edit
