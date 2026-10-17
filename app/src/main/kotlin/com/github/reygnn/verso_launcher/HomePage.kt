@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.SystemClock
@@ -268,9 +269,8 @@ internal class HomePage(
     private fun openAlarms() = startGuarded(Intent(AlarmClock.ACTION_SHOW_ALARMS))
 
     private fun openCalendar() {
-        val uri = CalendarContract.CONTENT_URI.buildUpon().appendPath("time")
-        ContentUris.appendId(uri, System.currentTimeMillis())
-        startGuarded(Intent(Intent.ACTION_VIEW).setData(uri.build()))
+        val time = Uri.withAppendedPath(CalendarContract.CONTENT_URI, "time")
+        startGuarded(Intent(Intent.ACTION_VIEW).setData(ContentUris.withAppendedId(time, System.currentTimeMillis())))
     }
 
     private fun openBatteryUsage() = startGuarded(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))

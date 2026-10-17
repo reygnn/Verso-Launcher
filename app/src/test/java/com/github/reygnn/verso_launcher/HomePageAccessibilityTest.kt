@@ -38,7 +38,7 @@ class HomePageAccessibilityTest {
         assertTrue(date.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
         val started = shadowOf(activity).nextStartedActivity
         assertEquals(android.content.Intent.ACTION_VIEW, started?.action)
-        assertTrue(started?.data.toString().startsWith("content://com.android.calendar/time"))
+        assertTrue(started?.data.toString(), Regex("""content://com\.android\.calendar/time/\d+""").matches(started?.data.toString()))
     }
 
     @Test fun `one accessibility click on the battery opens its usage screen`() {
