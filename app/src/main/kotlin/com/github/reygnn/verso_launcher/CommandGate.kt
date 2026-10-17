@@ -12,9 +12,19 @@ internal class CommandGate {
         internal var holds = 0
     }
 
+    /** Proof that no run was going when an edit was asked for (hard rule 15): LauncherState's
+     *  edits take one, so an edit path that skips the check does not compile. */
+    class Idle internal constructor(private val gate: CommandGate) {
+        /** False once a run has started since: a permit kept across a command is void. */
+        val current: Boolean get() = !gate.busy
+    }
+
     private var current: Ticket? = null
 
     val busy: Boolean get() = current != null
+
+    /** A permit to edit, or null while a run is going. */
+    fun idle(): Idle? = if (busy) null else Idle(this)
 
     /** False if a run is going. Otherwise [first] runs at once; unless it [hold]s, the run ends as it returns or throws. */
     fun start(first: (Ticket) -> Unit): Boolean {

@@ -123,4 +123,13 @@ class CommandGateTest {
         }
         assertFalse(gate.busy)
     }
+
+    @Test fun `an edit permit only while no run is going, and void once one starts`() {
+        val gate = CommandGate()
+        val permit = gate.idle()!!
+        assertTrue(permit.current)
+        var during: CommandGate.Idle? = null
+        gate.start { during = gate.idle(); assertFalse("kept across a command start", permit.current) }
+        assertNull(during)
+    }
 }

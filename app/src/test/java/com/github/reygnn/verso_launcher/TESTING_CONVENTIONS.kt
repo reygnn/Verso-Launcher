@@ -153,8 +153,9 @@ package com.github.reygnn.verso_launcher
  *    only reads one side.
  * 3. Honest KDoc beats fake tests. If something is genuinely not testable on
  *    the JVM, say why and test it on a device — a pseudo-test that asserts on
- *    faked-out machinery proves nothing. Rules that live in Activity glue or
- *    the manifest get a source scan in SourceGuardTest.
+ *    faked-out machinery proves nothing. Rules in Activity glue become a type
+ *    where possible (CommandGate's Ticket, the Idle edit permit); only what no
+ *    type or test reaches gets a source scan in SourceGuardTest.
  * 4. Mutation check every fix: revert it, watch the new test fail, restore.
  * 5. Pin boundaries from both sides (the neighbouring values just below and
  *    just above), and never let a fixture re-implement the production logic

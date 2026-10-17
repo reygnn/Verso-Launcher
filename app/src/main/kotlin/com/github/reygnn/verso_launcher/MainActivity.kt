@@ -122,7 +122,7 @@ class MainActivity : Activity() {
             state = state,
             palette = palette,
             onTap = ::onDrawerTap,
-            onLongPress = { entry -> if (editAllowed()) promptRename(entry) },
+            onLongPress = { entry -> if (editPermit() != null) promptRename(entry) },
             onEnter = ::onDrawerEnter,
             onFiltered = ::renderHome,
         )
@@ -131,7 +131,7 @@ class MainActivity : Activity() {
         homePage = HomePage(
             activity = this,
             onLaunch = ::launch,
-            onEdit = { if (editAllowed()) promptRename(it) },
+            onEdit = { if (editPermit() != null) promptRename(it) },
             onOpenDrawer = { openDrawer() },
         )
         home = homePage.view
@@ -782,12 +782,13 @@ class MainActivity : Activity() {
     }
 
     /** Not while a "~" command runs (hard rule 15), and only once the config is loaded. */
-    private fun editAllowed(): Boolean {
-        if (gate.busy) {
+    private fun editPermit(): CommandGate.Idle? {
+        val idle = gate.idle()
+        if (idle == null) {
             toast(getString(R.string.toast_busy))
-            return false
+            return null
         }
-        return editable()
+        return idle.takeIf { editable() }
     }
 
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
@@ -819,12 +820,12 @@ class MainActivity : Activity() {
     internal fun onDrawerTap(action: TapAction<AppEntry>) {
         when (action) {
             is TapAction.Launch -> launch(action.entry)
-            is TapAction.ToggleHidden -> if (editAllowed()) {
-                state.toggleHidden(action.entry.key)
+            is TapAction.ToggleHidden -> editPermit()?.let {
+                state.toggleHidden(it, action.entry.key)
                 afterToggle()
             }
-            is TapAction.ToggleFavorite -> if (editAllowed()) {
-                state.toggleFavorite(action.entry.key)
+            is TapAction.ToggleFavorite -> editPermit()?.let {
+                state.toggleFavorite(it, action.entry.key)
                 afterToggle()
             }
             is TapAction.ReorderPick -> reorderTap(action.entry.key)
@@ -847,8 +848,8 @@ class MainActivity : Activity() {
 
     private fun toggleTagOn(key: String) {
         val tag = appDrawer.tagEditTag ?: return
-        if (!editAllowed()) return
-        state.toggleTag(key, tag)
+        val idle = editPermit() ?: return
+        state.toggleTag(idle, key, tag)
         appDrawer.notifyChanged()
     }
 
@@ -862,13 +863,13 @@ class MainActivity : Activity() {
         when (appDrawer.reorderPick) {
             null -> { appDrawer.reorderPick = key; appDrawer.notifyChanged() }
             key  -> { appDrawer.reorderPick = null; appDrawer.notifyChanged() }
-            else -> if (editAllowed()) moveFavorite(appDrawer.reorderPick!!, key)
+            else -> editPermit()?.let { moveFavorite(it, appDrawer.reorderPick!!, key) }
         }
     }
 
-    private fun moveFavorite(pickedKey: String, targetKey: String) {
+    private fun moveFavorite(idle: CommandGate.Idle, pickedKey: String, targetKey: String) {
         appDrawer.reorderPick = null
-        state.moveFavorite(pickedKey, targetKey)
+        state.moveFavorite(idle, pickedKey, targetKey)
         appDrawer.refilter()  // re-render in the (new) order
     }
 
@@ -889,8 +890,8 @@ class MainActivity : Activity() {
             onAppInfo = { openAppInfo(entry) },
         ) { name, tags ->
             // A run may have started while the dialog was up (a ~restore-saf read ending).
-            if (!editAllowed()) return@show
-            state.rename(key, entry.systemLabel, name, tags)
+            val idle = editPermit() ?: return@show
+            state.rename(idle, key, entry.systemLabel, name, tags)
             appDrawer.refilter()
         }
         renameDialog = dialog

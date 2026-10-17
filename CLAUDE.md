@@ -194,7 +194,8 @@ main, written on the IO thread.
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
 15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused
-    with a toast and stays in the prompt, and so is an edit (`editAllowed`) — a save queued
+    with a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take a `CommandGate.Idle` permit
+    (`editPermit`), so an edit path without the check does not compile — a save queued
     behind a restore's IO step would write the old config back over it. Nothing else is
     held back — no layer, no cancel; launching, typing and page turns go on. A run ends with its last step, never by a "done" call:
     every step holds it and releases it on every path (`CommandGate.io` catches what its

@@ -136,27 +136,27 @@ internal class LauncherState(
         }
     }
 
-    fun toggleHidden(key: String) = toggleIn(cfg.hidden, key)
+    fun toggleHidden(idle: CommandGate.Idle, key: String) = toggleIn(idle, cfg.hidden, key)
 
-    fun toggleFavorite(key: String) = toggleIn(cfg.favorites, key)
+    fun toggleFavorite(idle: CommandGate.Idle, key: String) = toggleIn(idle, cfg.favorites, key)
 
-    private fun toggleIn(set: MutableSet<String>, key: String) {
-        if (!configLoaded) return
+    private fun toggleIn(idle: CommandGate.Idle, set: MutableSet<String>, key: String) {
+        if (!configLoaded || !idle.current) return
         if (!set.remove(key)) set.add(key)
         mutated()
     }
 
     /** An app left with no tags loses its key: the file drops empty lists, memory must match. */
-    fun toggleTag(key: String, tag: String) {
-        if (!configLoaded) return
+    fun toggleTag(idle: CommandGate.Idle, key: String, tag: String) {
+        if (!configLoaded || !idle.current) return
         val next = LauncherLogic.toggleTag(cfg.tags[key], tag)
         if (next.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = next.toMutableList()
         mutated()
     }
 
     /** False, nothing saved, when the move is impossible or a no-op. */
-    fun moveFavorite(pickedKey: String, targetKey: String): Boolean {
-        if (!configLoaded) return false
+    fun moveFavorite(idle: CommandGate.Idle, pickedKey: String, targetKey: String): Boolean {
+        if (!configLoaded || !idle.current) return false
         val newOrder = LauncherLogic.reorder(cfg.favorites.toList(), pickedKey, targetKey)
             ?: return false
         cfg.favorites.clear()
@@ -166,8 +166,8 @@ internal class LauncherState(
     }
 
     /** A blank name, or one equal to [systemLabel], clears the override; [tags] arrive canonical. */
-    fun rename(key: String, systemLabel: String, name: String, tags: List<String>) {
-        if (!configLoaded) return
+    fun rename(idle: CommandGate.Idle, key: String, systemLabel: String, name: String, tags: List<String>) {
+        if (!configLoaded || !idle.current) return
         val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), systemLabel)
         if (override == null) cfg.names.remove(key) else cfg.names[key] = override
         if (tags.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = tags.toMutableList()

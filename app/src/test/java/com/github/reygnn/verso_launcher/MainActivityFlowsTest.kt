@@ -92,6 +92,13 @@ class MainActivityFlowsTest {
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
     }
 
+    @Test fun `no command but ~restart before the first load`() {
+        holdIo()
+        controller.setup()
+        enter("~backup")
+        assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
+    }
+
     private fun startSwipeUp() {
         val t = SystemClock.uptimeMillis()
         root.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, 500f, 1500f, 0))

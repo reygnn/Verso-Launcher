@@ -13,22 +13,22 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 477 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 475 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           67  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           68  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, a failed save reported, needsRefresh, recents, reports that
                                 come even when a step throws (a "~cleanup" waits for it),
                                 an unreadable config (set aside, a fresh start, said once — also after a
                                 dropped hand-off or a recreation;
                                 if it cannot be moved: not loaded, no edit, retried)
-CommandGateTest              9  one "~" command at a time: a run ends with its last step,
-                                refusal, hand-over, exceptions
+CommandGateTest             10  one "~" command at a time: a run ends with its last step,
+                                refusal, hand-over, exceptions, the edit permit
 LauncherRowsTest            37  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
@@ -45,9 +45,9 @@ SwipeFrameTest              12  Robolectric: real MotionEvents through the frame
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 AppDrawerTest                5  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on
-MainActivityFlowsTest        4  Robolectric, the real Activity: a second command and an edit
-                                refused while one runs (prompt kept), no edit before the
-                                first load, HOME ending a running swipe
+MainActivityFlowsTest        5  Robolectric, the real Activity: a second command and an edit
+                                refused while one runs (prompt kept), no edit and no command
+                                but ~restart before the first load, HOME ending a running swipe
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
 VersoConfigTest              9  snapshot deep copy, sameContent
 TapGuardTest                 4  stale-click guard
@@ -61,12 +61,8 @@ HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in 
                                 own digits
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest              8  source scans: no lenient ConfigJson.parse in MainActivity,
-                                no density in configChanges, ~cleanup's IO guards, no
-                                brace-less object templates, every command inside the gate,
-                                backup/restore take only a loaded config, no names in
-                                the enumeration, no edit while a command runs, ~restart and
-                                no command before the load
+SourceGuardTest              3  source scans: no lenient ConfigJson.parse in MainActivity,
+                                no brace-less object templates, no density in configChanges
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
@@ -95,8 +91,9 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 - **Few Activity tests, on purpose.** `MainActivity` is glue; its decisions live in
   `LauncherLogic` / `LauncherState`. `MainActivityFlowsTest` covers only flows that need
   no LauncherApps or MediaStore fake (Robolectric models both too thinly to test anything
-  but the fake). The rest is checked on a device; `SourceGuardTest` scans the source for
-  the edits there that would be silently dangerous (see its tests).
+  but the fake). The rest is checked on a device; rules an edit could silently break are
+  types where possible (the gate's `Ticket` and `Idle` permit), `SourceGuardTest` scans
+  only what neither a type nor a test reaches.
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the
   backup layer is tested on a device instead.
