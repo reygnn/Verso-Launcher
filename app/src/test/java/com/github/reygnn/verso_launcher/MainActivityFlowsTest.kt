@@ -16,18 +16,16 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.shadows.ShadowSystemClock
 import org.robolectric.shadows.ShadowToast
 import java.io.File
-import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
  * A few of MainActivity's flows on the real Activity — only what needs no LauncherApps or
  * MediaStore fakes (Robolectric models both too thinly to test anything but the fake): a
- * second command and an edit refused while one runs, no edit before the first load, a late
- * HOME leaving a fresh swipe alone. The process's IO thread is real; the tests drain it, or
+ * second command and an edit refused while one runs, no edit before the first load, HOME
+ * ending a running swipe. The process's IO thread is real; the tests drain it, or
  * hold it with a latch to keep a command running.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -112,17 +110,8 @@ class MainActivityFlowsTest {
 
     private val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
 
-    @Test fun `a late HOME right after coming back leaves a fresh swipe alone`() {
+    @Test fun `HOME ends a running swipe`() {
         started()
-        startSwipeUp()
-        assertTrue("the drag has started", root.isDragging)
-        controller.newIntent(home)
-        assertTrue("HOME within the late window keeps the drag", root.isDragging)
-    }
-
-    @Test fun `a HOME long after coming back still ends a swipe`() {
-        started()
-        ShadowSystemClock.advanceBy(Duration.ofMillis(SwipeGesture.LATE_HOME_MS + 500))
         startSwipeUp()
         assertTrue("the drag has started", root.isDragging)
         controller.newIntent(home)

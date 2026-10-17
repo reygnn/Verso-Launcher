@@ -55,8 +55,8 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 ## Deferred earlier
 
 - RTL layouts.
-- "First swipe after returning from an app does nothing" (A17): a late HOME intent aborting the
-  swipe is fixed (round 5); if it still happens, the system gesture zone or the keyboard window
-  taking the touch remain (not fixable in code).
+- "First swipe after returning from an app does nothing" (A17): seen once, not reproduced. A
+  late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
+  workaround was tried and removed again — only with a real reproduction.
 - An app that switches its launcher activity loses its favorite/name/tags.
 - Split MainActivity; lint's version bumps (compileSdk 37, AGP, Gradle, Robolectric).
