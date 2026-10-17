@@ -72,7 +72,8 @@ internal object HomeStyle {
      * that supports dark text (Android's WallpaperColors.HINT_SUPPORTS_DARK_TEXT) the text turns
      * black with a white rim, otherwise it stays white with a black rim; the rims come from
      * [tonalOutlineColor], which flips by itself. The drawer's greys, the prompt's bar and the
-     * system bars' icons follow the same switch.
+     * system bars' icons follow the same switch. The drawer's rows are the favorites' colour:
+     * both lie on the wallpaper with the same outline; only the hint and the × are dimmed.
      *
      * The prompt sits on a bar of its own ([Palette.promptBar]: translucent white behind dark text,
      * black behind light text) instead of an outline — an EditText cannot take the stroked second
@@ -81,10 +82,10 @@ internal object HomeStyle {
      */
     fun palette(lightWallpaper: Boolean): Palette =
         if (lightWallpaper) {
-            Palette(homeText = 0xFF000000.toInt(), listText = 0xFF2B2B2B.toInt(), listDim = 0xFF5C5C5C.toInt(),
+            Palette(homeText = 0xFF000000.toInt(), listText = 0xFF000000.toInt(), listDim = 0xFF5C5C5C.toInt(),
                 promptBar = 0xD0FFFFFF.toInt(), darkBarIcons = true)
         } else {
-            Palette(homeText = TEXT_COLOR, listText = 0xFFD4D4D4.toInt(), listDim = 0xFF808080.toInt(),
+            Palette(homeText = TEXT_COLOR, listText = TEXT_COLOR, listDim = 0xFF808080.toInt(),
                 promptBar = 0xD0000000.toInt(), darkBarIcons = false)
         }
 
