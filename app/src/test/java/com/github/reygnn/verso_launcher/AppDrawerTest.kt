@@ -30,6 +30,7 @@ class AppDrawerTest {
     ).also { it.refresh() }
 
     private val taps = mutableListOf<TapAction<AppEntry>>()
+    private var filtered = 0
     private val drawer = AppDrawer(
         activity = activity,
         state = state,
@@ -37,7 +38,7 @@ class AppDrawerTest {
         onTap = { taps += it },
         onLongPress = {},
         onEnter = {},
-        onFiltered = {},
+        onFiltered = { filtered++ },
     )
 
     private fun rows(): List<String> {
@@ -54,6 +55,15 @@ class AppDrawerTest {
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), rows())
         drawer.setPrompt("br")
         assertEquals(listOf("Bravo"), rows())
+    }
+
+    /** Home re-renders from onFiltered: a search cannot change the favorites. */
+    @Test fun `typing does not ask home to re-render, a refilter does`() {
+        drawer.setPrompt("br")
+        drawer.setPrompt("")
+        assertEquals(0, filtered)
+        drawer.refilter()
+        assertEquals(1, filtered)
     }
 
     @Test fun `an edit mode marks each row`() {

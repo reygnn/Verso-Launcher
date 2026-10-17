@@ -66,7 +66,8 @@ class LauncherStateTest {
         },
         enumerateApps = {
             enumerations++
-            if (enumerationFails) null else installed.reversed()
+            // Sorted, as Apps.enumerate hands it over.
+            if (enumerationFails) null else LauncherLogic.sortedForDrawer(installed.reversed())
         },
         serialize = { c ->
             "fav=${c.favorites.joinToString(",")};hid=${c.hidden.joinToString(",")};" +

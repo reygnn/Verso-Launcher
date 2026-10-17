@@ -167,14 +167,15 @@ internal object LauncherLogic {
     private const val COMBINING_DOT_ABOVE = "\u0307"
 
     /** [apps] under their custom names from [names], re-sorted — a name can move an app alphabetically. */
-    fun named(apps: List<AppEntry>, names: Map<String, String>, locale: Locale = Locale.getDefault()): List<AppEntry> =
-        sortedForDrawer(
-            apps.map { e ->
-                val label = names[e.key] ?: e.systemLabel
-                if (label == e.label) e else e.withLabel(label)
-            },
-            locale,
-        )
+    /** [apps] arrive sorted (the enumeration sorts on the IO thread): only a changed label re-sorts. */
+    fun named(apps: List<AppEntry>, names: Map<String, String>, locale: Locale = Locale.getDefault()): List<AppEntry> {
+        var relabelled = false
+        val shown = apps.map { e ->
+            val label = names[e.key] ?: e.systemLabel
+            if (label == e.label) e else e.withLabel(label).also { relabelled = true }
+        }
+        return if (relabelled) sortedForDrawer(shown, locale) else shown
+    }
 
     /**
      * Alphabetical by the device language's collation (German files Ä under A, Swedish after Z),

@@ -496,6 +496,12 @@ class LauncherLogicTest {
         assertSame(alpha, LauncherLogic.named(listOf(alpha), emptyMap(), Locale.GERMANY).single())
     }
 
+    /** The enumeration sorts already: with no label changed, named must not sort again. */
+    @Test fun `named keeps the order it gets when no label changes`() {
+        val apps = listOf(sys("Bravo"), sys("Alpha"))
+        assertEquals(listOf("Bravo", "Alpha"), LauncherLogic.named(apps, emptyMap(), Locale.GERMANY).map { it.label })
+    }
+
     @Test fun `named sorts by the shown label in the device language`() {
         val apps = listOf(sys("Zoom"), sys("Bravo"), sys("Alpha"))
         val names = mapOf(sys("Alpha").key to "Ärzte")

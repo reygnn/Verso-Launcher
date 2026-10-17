@@ -305,10 +305,13 @@ internal class AppDrawer(
         // On an anchor flip the ListView keeps the old position: pin it to the right end.
         if (anchorFlipped && topAnchored && shown.isNotEmpty()) listView.setSelection(0)
         if (anchorFlipped && !topAnchored && shown.isNotEmpty()) listView.setSelection(shown.lastIndex)
-        onFiltered()
     }
 
-    fun refilter() = applyFilter(prompt.text?.toString().orEmpty())
+    /** After a change to the apps or the config; typing alone never changes the favorites. */
+    fun refilter() {
+        applyFilter(prompt.text?.toString().orEmpty())
+        onFiltered()
+    }
 
     fun typeIntoPrompt(c: String) {
         prompt.requestFocus()
