@@ -89,6 +89,7 @@ com.github.reygnn.verso_launcher/
   SwipeFrame          window root; watches dispatchTouchEvent for the page-turn swipe
   SwipeGesture        pure gesture decisions: Unity's page drag + Kolibri's flick
   TapGuard            stale-click protection for list rows
+  Guard               hard rule 2's backstop around every IO-thread and SAF-thread task
   RenameDialog        long-press dialog: custom name + tags
   LauncherState       config + app list + recents, and the concurrency rules (pure)
   CommandGate         the "~" commands one at a time: a run ends with its last step (pure)

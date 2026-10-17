@@ -486,17 +486,8 @@ class MainActivity : Activity() {
     /** Run [block] on the main thread for THIS instance — or not at all once it is destroyed. */
     private fun onUi(block: () -> Unit) = runOnUiThread { if (!isDestroyed) block() }
 
-    /**
-     * Backstop for hard rule 2: an exception escaping on the executor (or the SAF read thread)
-     * would kill the process on every start. Logged, not thrown.
-     */
-    private fun guarded(what: String, task: Runnable) = Runnable {
-        try {
-            task.run()
-        } catch (e: RuntimeException) {
-            Log.w("Verso", "$what failed", e)
-        }
-    }
+    /** For the executor and the SAF read thread: an escape there kills the process on every start. */
+    private fun guarded(what: String, task: Runnable) = Guard.wrap(what, ::logWarning, task)
 
     /** A refused task is reported as false, never thrown (the executor is never shut down, but a HOME app must not crash). */
     private fun submitIo(task: Runnable): Boolean {
