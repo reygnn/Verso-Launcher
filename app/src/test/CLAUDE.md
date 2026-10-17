@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 474 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 486 tests):
 
 ```
 LauncherLogicTest          144  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -59,6 +59,9 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
                                 tap, the "open all apps" action, the empty-favorites hint
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
+EnumerationTest             12  the enumeration with faked profiles: null when the profiles or
+                                the personal one cannot be read, incomplete for every skipped
+                                profile or app (hard rule 14), empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
 SourceGuardTest              3  source scans: no lenient ConfigJson.parse in MainActivity,

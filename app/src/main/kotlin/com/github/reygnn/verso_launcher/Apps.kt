@@ -93,72 +93,24 @@ internal class Apps(
     fun loadApps(): List<AppEntry>? = enumerate()?.apps
 
     fun enumerate(): Enumeration? {
-        var complete = true
-        val emptyProfiles = HashSet<Long>()
-        val self = ownPackage
-        val personal = Process.myUserHandle()
         // The badge is localized and the cache outlives a language change: part of the key.
         val locale = locale()
-        // Hard rule 2. Binder calls throw plain RuntimeExceptions (DeadSystem, Security). If the
-        // profiles or the personal profile cannot be read: null, not empty, so the last list stays.
-        val profiles = try {
-            launcherApps.profiles
-        } catch (e: RuntimeException) {
-            Log.w("Verso", "app enumeration failed: profiles", e)
-            return null
-        }
-        val entries = mutableListOf<AppEntry>()
-        for (user in profiles) {
-            val isPersonal = user == personal
-            var serial: Long? = null
-            var paused = false
-            val activities = try {
-                // Binder calls too, so inside the try.
-                if (!isPersonal) {
-                    serial = userManager.getSerialNumberForUser(user).takeIf { it >= 0 }
-                        ?: run { complete = false; continue }
-                    paused = userManager.isQuietModeEnabled(user)
+        return enumerate(
+            profiles = { launcherApps.profiles },
+            personal = Process.myUserHandle(),
+            serialOf = { userManager.getSerialNumberForUser(it) },
+            paused = { userManager.isQuietModeEnabled(it) },
+            activities = { user ->
+                launcherApps.getActivityList(null, user).map { info ->
+                    { RawApp(info.componentName.packageName, info.componentName.className, info.label.toString(), info.applicationInfo.isArchived) }
                 }
-                launcherApps.getActivityList(null, user)
-            } catch (e: RuntimeException) {
-                if (isPersonal) {
-                    Log.w("Verso", "app enumeration failed", e)
-                    return null
-                }
-                Log.w("Verso", "skipping profile $serial", e)
-                complete = false
-                continue
-            }
-            // An empty personal list is never real.
-            if (activities.isEmpty()) {
-                if (isPersonal) complete = false else serial?.let { emptyProfiles += it }
-            }
-            for (info in activities) {
-                try {
-                    val component = info.componentName
-                    if (component.className.isNullOrEmpty()) continue
-                    if (component.packageName == self) continue
-                    // Cleaned like a custom name: no bidi tricks to pass for another app.
-                    val raw = LauncherLogic.cleanName(info.label.toString()).ifEmpty { component.packageName }
-                    // A binder call per app: cached across loads, IO thread only.
-                    val systemLabel = if (serial == null) raw else {
-                        badgedLabels.getOrPut(VersoApp.BadgeKey(serial, raw, locale)) { pm.getUserBadgedLabel(raw, user).toString() }
-                    }
-                    entries += AppEntry.of(
-                        label = systemLabel,
-                        packageName = component.packageName,
-                        className = component.className,
-                        systemLabel = systemLabel,
-                        profile = serial,
-                        status = AppStatus.of(profilePaused = paused, archived = info.applicationInfo.isArchived),
-                    )
-                } catch (e: RuntimeException) {
-                    Log.w("Verso", "skipping app", e)
-                    complete = false
-                }
-            }
-        }
-        return Enumeration(LauncherLogic.sortedForDrawer(entries), complete, emptyProfiles)
+            },
+            // A binder call per app: cached across loads, IO thread only.
+            badge = { raw, serial, user ->
+                badgedLabels.getOrPut(VersoApp.BadgeKey(serial, raw, locale)) { pm.getUserBadgedLabel(raw, user).toString() }
+            },
+            ownPackage = ownPackage,
+        )
     }
 
     /**
@@ -202,4 +154,78 @@ internal class Apps(
         const val STILL_THERE_FLAGS = PackageManager.MATCH_DISABLED_COMPONENTS or
             PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS or PackageManager.MATCH_UNINSTALLED_PACKAGES
     }
+}
+
+/** One launcher activity as the system reports it; reading it may throw (a binder call). */
+internal class RawApp(val packageName: String, val className: String?, val label: String, val archived: Boolean)
+
+/**
+ * Every profile's launcher activities, system labels only. [P] is the profile handle (a
+ * UserHandle in the app). Null when the profiles or the personal profile cannot be read, so the
+ * last list stays (hard rule 2); a skipped profile or app makes it incomplete (hard rule 14).
+ */
+internal fun <P> enumerate(
+    profiles: () -> List<P>,
+    personal: P,
+    serialOf: (P) -> Long,
+    paused: (P) -> Boolean,
+    activities: (P) -> List<() -> RawApp>,
+    badge: (raw: String, serial: Long, profile: P) -> String,
+    ownPackage: String,
+): Enumeration? {
+    var complete = true
+    val emptyProfiles = HashSet<Long>()
+    val all = try {
+        profiles()
+    } catch (e: RuntimeException) {
+        Log.w("Verso", "app enumeration failed: profiles", e)
+        return null
+    }
+    val entries = mutableListOf<AppEntry>()
+    for (user in all) {
+        val isPersonal = user == personal
+        var serial: Long? = null
+        var isPaused = false
+        val found = try {
+            if (!isPersonal) {
+                serial = serialOf(user).takeIf { it >= 0 } ?: run { complete = false; continue }
+                isPaused = paused(user)
+            }
+            activities(user)
+        } catch (e: RuntimeException) {
+            if (isPersonal) {
+                Log.w("Verso", "app enumeration failed", e)
+                return null
+            }
+            Log.w("Verso", "skipping profile $serial", e)
+            complete = false
+            continue
+        }
+        // An empty personal list is never real.
+        if (found.isEmpty()) {
+            if (isPersonal) complete = false else serial?.let { emptyProfiles += it }
+        }
+        for (read in found) {
+            try {
+                val app = read()
+                if (app.className.isNullOrEmpty()) continue
+                if (app.packageName == ownPackage) continue
+                // Cleaned like a custom name: no bidi tricks to pass for another app.
+                val raw = LauncherLogic.cleanName(app.label).ifEmpty { app.packageName }
+                val systemLabel = if (serial == null) raw else badge(raw, serial, user)
+                entries += AppEntry.of(
+                    label = systemLabel,
+                    packageName = app.packageName,
+                    className = app.className,
+                    systemLabel = systemLabel,
+                    profile = serial,
+                    status = AppStatus.of(profilePaused = isPaused, archived = app.archived),
+                )
+            } catch (e: RuntimeException) {
+                Log.w("Verso", "skipping app", e)
+                complete = false
+            }
+        }
+    }
+    return Enumeration(LauncherLogic.sortedForDrawer(entries), complete, emptyProfiles)
 }
