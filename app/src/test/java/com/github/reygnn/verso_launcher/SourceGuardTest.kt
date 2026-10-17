@@ -31,9 +31,10 @@ class SourceGuardTest {
 
     @Test fun `cleanup's IO steps keep their guards`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val apps = source("src/main/kotlin/com/github/reygnn/verso_launcher/Apps.kt")
         // Every way enumerate() can miss an app marks it incomplete: the serial lookup, a
         // failing profile, a failing app, a silently empty profile (hard rule 14).
-        assertTrue(Regex("""complete = false""").findAll(activity).count() >= 4)
+        assertTrue(Regex("""complete = false""").findAll(apps).count() >= 4)
         // The undo point goes to its own base, never over the backup or the restore undo point.
         assertTrue(Regex("""backupStore\.write\(\s*BackupFiles\.PRE_CLEANUP_BASE""").containsMatchIn(activity))
         assertTrue(activity.contains("Command.CLEANUP -> cleanup(t)"))
@@ -55,8 +56,8 @@ class SourceGuardTest {
     @Test fun `the enumeration carries no custom names`() {
         // Names are applied on the main thread from the live config (LauncherLogic.named). An
         // enumeration that baked them in again would go stale with every rename in flight.
-        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        val body = activity.substringAfter("private fun enumerate(): Enumeration?", missingDelimiterValue = "")
+        val apps = source("src/main/kotlin/com/github/reygnn/verso_launcher/Apps.kt")
+        val body = apps.substringAfter("fun enumerate(): Enumeration?", missingDelimiterValue = "")
             .substringBefore("\n    }\n")
         assertTrue("enumerate() not found, or it takes a config again", body.isNotEmpty())
         assertFalse(Regex("""names\s*(\[|\.get\b|\.getValue\b)|\bnamed\(""").containsMatchIn(body))

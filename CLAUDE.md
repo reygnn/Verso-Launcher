@@ -76,7 +76,9 @@ com.github.reygnn.verso_launcher/
   VersoApp            process-wide: the IO executor, the recents, palette and
                       badge-label caches
   MainActivity        the window: both pages, commands, backup/restore orchestration,
-                      app enumeration, launching
+                      launching
+  Apps                the apps on the device (IO side): enumeration of every profile,
+                      ~cleanup's "still there?", default favorites
   HomePage            the front page (clock/date/battery, favorites, a11y actions)
   HomeStyle           pure look constants + outline colour, palette, BatteryInfo,
                       DoubleTapGate
