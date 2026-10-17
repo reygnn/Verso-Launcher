@@ -166,6 +166,14 @@ class ConfigStoreTest {
     }
 
     @Test
+    fun `hasSetAside only while a set-aside copy lies there`() {
+        assertFalse(store.hasSetAside())
+        primary.writeText("{ torn")
+        store.setAsideUnreadable()
+        assertTrue(store.hasSetAside())
+    }
+
+    @Test
     fun `a refused set-aside leaves the config in place`() {
         primary.writeText("{ torn")
         val refusing = storeWith(rename = { _, _ -> false })

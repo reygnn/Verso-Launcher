@@ -66,7 +66,7 @@ class LauncherStateTest {
         loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk.snapshot() },
         setAsideUnreadable = {
             setAsideCalls++
-            if (setAsideWorks) { diskUnreadable = false; disk = VersoConfig() }
+            if (setAsideWorks) { diskUnreadable = false; disk = VersoConfig(); setAsideOnDisk = true; fresh = true }
             setAsideWorks
         },
         enumerateApps = {
@@ -82,11 +82,14 @@ class LauncherStateTest {
         writeConfig = { payload -> written += payload; writeSucceeds },
         onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed },
         isFreshInstall = { fresh },
+        hasSetAside = { setAsideOnDisk },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
     )
 
     /** What isFreshInstall() answers — "no verso.json on disk yet". */
     private var fresh = false
+    /** What hasSetAside() answers — "verso.json.unreadable lies there". */
+    private var setAsideOnDisk = false
     /** The default-favorite slots the Activity would resolve. */
     private var candidates = listOf(listOf(key("Charlie")), listOf("gone/Gone", key("Alpha")))
     private var candidatesCalls = 0
@@ -198,6 +201,26 @@ class LauncherStateTest {
         state.refresh()  // a resume: needsRefresh
         runAll()
         assertTrue(state.configLoaded)
+    }
+
+    /** The load that set the config aside is superseded before its hand-off (a package change,
+     *  a resume): the next load finds no verso.json, a fresh install — and must still say so. */
+    @Test fun `a start-over whose hand-off was lost is still said`() {
+        diskUnreadable = true
+        state.refresh()
+        runIo()                 // set aside; its hand-off is queued
+        state.refresh()         // supersedes it
+        runAll()
+        assertEquals(1, setAsideCalls)
+        assertTrue(state.configLoaded)
+        assertEquals(setOf(key("Charlie"), key("Alpha")), state.config.favorites)
+        assertTrue("said", state.takeStartedOver())
+    }
+
+    @Test fun `a fresh install with nothing set aside is no start-over`() {
+        fresh = true
+        started()
+        assertFalse(state.takeStartedOver())
     }
 
     @Test fun `a readable config is never set aside`() {

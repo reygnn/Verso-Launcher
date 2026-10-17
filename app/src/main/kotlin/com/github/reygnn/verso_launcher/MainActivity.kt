@@ -165,6 +165,7 @@ class MainActivity : Activity() {
                 if (listChanged) appDrawer.refilter()
             },
             isFreshInstall = { store.isFresh() },
+            hasSetAside = { store.hasSetAside() },
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
             initialRecents = app.recentKeys,
             onRecentsChanged = { app.recentKeys = it },

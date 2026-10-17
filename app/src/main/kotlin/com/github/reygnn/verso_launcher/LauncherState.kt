@@ -46,6 +46,8 @@ package com.github.reygnn.verso_launcher
  *                      is false when the hand-off brought the same app list (and no new config):
  *                      nothing to re-render — a re-render would also void a tap in flight.
  * @param isFreshInstall true when there is no verso.json yet (IO thread, before the read).
+ * @param hasSetAside   true while an unreadable config lies set aside (IO thread): a fresh
+ *                      install beside one is a start-over whose hand-off was lost.
  * @param defaultFavoriteCandidates the candidate keys per default favorite slot, see
  *                      [LauncherLogic.pickDefaultFavorites] (IO thread, fresh install only).
  * @param initialRecents the "?" list to start from — the process-wide one, so an Activity
@@ -63,6 +65,7 @@ internal class LauncherState(
     private val writeConfig: (String) -> Boolean,
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
     private val isFreshInstall: () -> Boolean = { false },
+    private val hasSetAside: () -> Boolean = { false },
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
     initialRecents: List<String> = emptyList(),
     private val onRecentsChanged: (List<String>) -> Unit = {},
@@ -142,6 +145,9 @@ internal class LauncherState(
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             // Checked before the read: only a config that is not on disk at all gets seeded.
             val freshBefore = loadConfigNow && isFreshInstall()
+            // A load that set the config aside but whose hand-off was dropped (superseded, or
+            // the activity recreated) left no verso.json: this load must still say so.
+            val startedOverBefore = freshBefore && hasSetAside()
             val read = if (loadConfigNow) loadConfig() else null
             // Unreadable: set aside (renamed, not deleted) and start over as a fresh install —
             // default favorites, and a restore brings the user's back. If it cannot be moved,
@@ -164,7 +170,7 @@ internal class LauncherState(
                 if (diskConfig != null && configEpoch == epoch) {
                     config = diskConfig
                     configLoaded = true
-                    startedOver = setAside
+                    startedOver = setAside || startedOverBefore
                     replaced = true
                     // First start: give the home page something to show. Saving here writes
                     // verso.json, so later starts are no longer fresh and never re-seed — a

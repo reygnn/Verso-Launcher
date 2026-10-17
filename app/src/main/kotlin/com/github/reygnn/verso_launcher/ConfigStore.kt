@@ -50,6 +50,9 @@ internal class ConfigStore(
     /** True on a fresh install: no verso.json yet. Only then are default favorites seeded. */
     fun isFresh(): Boolean = !primary.exists()
 
+    /** True while an unreadable config lies set aside ([setAsideUnreadable]). */
+    fun hasSetAside(): Boolean = setAside.isFile
+
     /**
      * Publish [payload] as verso.json: written to verso.json.new, synced, then renamed over the
      * primary — a reader sees the old file or the new one, never half of one. Never throws;
