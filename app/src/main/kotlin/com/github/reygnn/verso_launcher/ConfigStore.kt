@@ -33,10 +33,6 @@ internal class ConfigStore(
      * over (LauncherState). Never throws.
      */
     fun load(): VersoConfig? {
-        // Files of earlier versions (.bak, .tmp, numbered set-aside copies) and a .new left by
-        // a crash: none is read any more. This line can go once no device carries them.
-        dir.listFiles { f -> f.name.startsWith("$CONFIG_FILE.") && f.name != setAside.name }
-            ?.forEach { it.delete() }
         if (!primary.isFile) return VersoConfig()
         val text = try {
             readText(primary)

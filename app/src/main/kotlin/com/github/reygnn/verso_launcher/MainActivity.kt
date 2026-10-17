@@ -160,11 +160,7 @@ class MainActivity : Activity() {
                 // The rename dialog read the OLD config when it opened and writes back on
                 // OK; left up over a wholesale replace it would persist stale fields into
                 // the config that just arrived.
-                if (configReplaced) {
-                    renameDialog?.dismiss()
-                    // Its counts were for the config just replaced.
-                    commandDialog?.dismiss()
-                }
+                if (configReplaced) dismissDialogs()
                 // The first load found the config unreadable, set it aside and started over.
                 if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
                 if (listChanged) appDrawer.refilter()
@@ -397,8 +393,7 @@ class MainActivity : Activity() {
         // A drag still holding the page must not act on it after this turn (see abortDrag).
         root.abortDrag()
         showStatusBar(true)
-        renameDialog?.dismiss()
-        commandDialog?.dismiss()
+        dismissDialogs()
         home.animate().cancel()
         drawer.animate().cancel()
         drawer.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
@@ -446,8 +441,7 @@ class MainActivity : Activity() {
         // HOME, Back or the screen going off while a finger drags the drawer: that drag is over
         // and must not settle the drawer back open over a home that is now in front.
         root.abortDrag()
-        renameDialog?.dismiss()
-        commandDialog?.dismiss()
+        dismissDialogs()
         showStatusBar(false)
         appDrawer.hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -644,20 +638,22 @@ class MainActivity : Activity() {
         started = false
         cleanupTicket++
         // Also a dialog opened from the home page, which closeDrawer does not touch.
-        renameDialog?.dismiss()
-        commandDialog?.dismiss()
+        dismissDialogs()
         closeDrawer(animate = false)
         homePage.stopBattery()
         super.onStop()
     }
 
-    override fun onDestroy() {
-        // Tear down an open rename dialog first — an undismissed dialog leaks its
-        // window once the activity's context is gone. setOnDismissListener nulls the
-        // field; guarding here is belt-and-suspenders.
+    /** The rename and the cleanup dialog: both read the config as it was when they opened. */
+    private fun dismissDialogs() {
         renameDialog?.dismiss()
-        renameDialog = null
         commandDialog?.dismiss()
+    }
+
+    override fun onDestroy() {
+        // An undismissed dialog leaks its window.
+        dismissDialogs()
+        renameDialog = null
         commandDialog = null
         // No executor shutdown: the IO thread is the process's (VersoApp.io), and work this
         // instance queued — a save above all — must still run for the next one. What it
@@ -730,8 +726,7 @@ class MainActivity : Activity() {
         // HOME is a "back to a clean home screen" gesture, so a rename dialog left open has
         // no business surviving it: confirming it afterwards would apply a rename the user
         // has visually left behind.
-        renameDialog?.dismiss()
-        commandDialog?.dismiss()
+        dismissDialogs()
         cleanupTicket++
         // Also clears the prompt (closeDrawer always does), so the next swipe up opens on
         // the plain drawer rather than whatever mode was last typed.
@@ -1062,8 +1057,7 @@ class MainActivity : Activity() {
                     state.adopt(restored)
                     // A dialog opened against the pre-restore config would write its stale name
                     // and tags over what the restore just brought in.
-                    renameDialog?.dismiss()
-                    commandDialog?.dismiss()
+                    dismissDialogs()
                     toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
                 }
             }

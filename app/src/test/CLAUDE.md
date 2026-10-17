@@ -32,7 +32,7 @@ CommandGateTest              9  one "~" command at a time: a run ends with its l
 LauncherRowsTest            37  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
-                                (exported to Downloads, else renamed: one copy), files of earlier versions removed
+                                (exported to Downloads, else renamed: one copy), a crash's .new ignored
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         26  Enter / tap decisions, which Enter call acts

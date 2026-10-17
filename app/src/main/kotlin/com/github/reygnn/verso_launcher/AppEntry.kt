@@ -11,8 +11,6 @@ package com.github.reygnn.verso_launcher
 internal data class AppEntry(
     /** What is shown: the custom name if one is set, else [systemLabel]. */
     val label: String,
-    /** [label] case-folded once ([LauncherLogic.foldLabel]) so sort and search never re-fold. */
-    override val labelLower: String,
     val packageName: String,
     val className: String,
     /** The app's own label as the system reports it — WITHOUT any custom name. Kept so a
@@ -35,9 +33,12 @@ internal data class AppEntry(
      */
     override val key: String = keyOf(packageName, className, profile)
 
+    /** [label] case-folded once ([LauncherLogic.foldLabel]); derived, so it cannot disagree. */
+    override val labelLower: String = LauncherLogic.foldLabel(label)
+
     /** The same app under a different displayed label (rename / clear rename). */
     fun withLabel(newLabel: String): AppEntry =
-        copy(label = newLabel, labelLower = LauncherLogic.foldLabel(newLabel))
+        copy(label = newLabel)
 
     companion object {
         fun of(
@@ -47,7 +48,7 @@ internal data class AppEntry(
             systemLabel: String,
             profile: Long? = null,
             status: AppStatus = AppStatus.READY,
-        ) = AppEntry(label, LauncherLogic.foldLabel(label), packageName, className, systemLabel, profile, status)
+        ) = AppEntry(label, packageName, className, systemLabel, profile, status)
 
         /**
          * "package/class" for the personal profile — exactly ComponentName.flattenToString(),

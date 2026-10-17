@@ -839,6 +839,7 @@ class LauncherStateTest {
         assertEquals("com.example.mail/com.example.mail.MainActivity", e.key)
         assertEquals("mail", e.labelLower)
         assertEquals("inbox", e.withLabel("Inbox").labelLower)
+        assertEquals("a plain copy cannot leave it stale", "inbox", e.copy(label = "Inbox").labelLower)
         assertEquals(e.key, e.withLabel("Inbox").key)
     }
 }

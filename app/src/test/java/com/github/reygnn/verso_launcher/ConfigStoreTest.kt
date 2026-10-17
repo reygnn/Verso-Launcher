@@ -79,29 +79,19 @@ class ConfigStoreTest {
         assertTrue(store.load()!!.favorites.isEmpty())
     }
 
-    /** A crash between writing verso.json.new and the rename leaves the old file in force; the
-     *  .new is neither read nor kept. */
+    /** A crash between writing verso.json.new and the rename leaves the old file in force. */
     @Test
-    fun `a new file left by a crash does not disturb the load and is removed`() {
+    fun `a new file left by a crash does not disturb the load`() {
         primary.writeText(json("old"))
         pending.writeText(json("half written"))
         assertEquals(listOf("old"), store.load()!!.favorites.toList())
-        assertFalse(pending.exists())
     }
 
-    /** Earlier versions kept .bak, .tmp and numbered set-aside copies: nothing reads them any
-     *  more, the first load removes them — but keeps the one set-aside copy. */
     @Test
-    fun `files of earlier versions are removed, the set-aside copy and the config stay`() {
-        primary.writeText(json("current"))
-        for (name in listOf("verso.json.bak", "verso.json.tmp", "verso.json.unreadable-2", "verso.json.bak.unreadable")) {
-            File(dir, name).writeText("old")
-        }
-        setAside.writeText("set aside")
-        File(dir, "home-cache.txt").writeText("not ours to touch")
-
-        assertEquals(listOf("current"), store.load()!!.favorites.toList())
-        assertEquals(listOf("home-cache.txt", "verso.json", "verso.json.unreadable"), files())
+    fun `the next write replaces a new file left by a crash`() {
+        pending.writeText(json("half written"))
+        assertTrue(store.write(json("next")))
+        assertEquals(listOf("verso.json"), files())
     }
 
     // ---- write ---------------------------------------------------------------
