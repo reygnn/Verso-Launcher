@@ -24,7 +24,7 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 ## Review of refactor/simple-gate (2026-10-17), below the merge threshold
 
 - An IO step stuck in a system service (no timeout) keeps the gate busy for that activity
-  instance; on main the commands queued behind it silently.
+  instance: every further command is refused with "busy" until it ends.
 
 ## Second review of refactor/simple-gate (2026-10-17), left open
 
@@ -59,4 +59,4 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
   late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
   workaround was tried and removed again — only with a real reproduction.
 - An app that switches its launcher activity loses its favorite/name/tags.
-- Split MainActivity; lint's version bumps (compileSdk 37, AGP, Gradle, Robolectric).
+- Lint's version bumps (compileSdk 37, AGP, Gradle, Robolectric).

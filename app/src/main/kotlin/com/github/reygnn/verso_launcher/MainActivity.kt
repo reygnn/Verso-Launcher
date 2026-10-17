@@ -827,8 +827,9 @@ class MainActivity : Activity() {
 
     /**
      * "~cleanup": offer to remove what the config keeps for apps that are no longer installed.
-     * The check ([cleanupCheck]) runs on the IO thread: a fresh, COMPLETE enumeration, and only
-     * entries whose package is gone from the device altogether. Nothing is removed without the
+     * The check ([Apps.cleanupCheck]) runs on the IO thread: a fresh, COMPLETE enumeration, and
+     * only entries the system confirms gone ([Cleanup.plan]: the exact activity in the personal
+     * profile, the package in another one). Nothing is removed without the
      * dialog's OK, and then [LauncherState.cleanup] checks again and writes an undo point first.
      */
     private fun cleanup(t: CommandGate.Ticket) {

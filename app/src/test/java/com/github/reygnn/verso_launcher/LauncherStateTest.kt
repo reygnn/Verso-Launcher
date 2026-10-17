@@ -573,8 +573,8 @@ class LauncherStateTest {
     }
 
     @Test fun `save before the first load writes nothing`() {
-        // The empty default in memory must never be written over the real file: it would
-        // rotate the real config into .bak and publish an empty primary.
+        // The empty default in memory must never be written over the real file: every
+        // favorite would be gone.
         disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
         state.refresh()  // the load is queued, not yet run
         state.save()
@@ -689,7 +689,8 @@ class LauncherStateTest {
     }
 
     @Test fun `a fresh install whose recovered config has favorites is not seeded`() {
-        // E.g. a lone .tmp recovered: "fresh" (no primary, no .bak) but the user's own favorites.
+        // The other half of hard rule 10: seeds go only into a config with no favorites, even
+        // when the install counts as fresh.
         fresh = true
         disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
         state.refresh()

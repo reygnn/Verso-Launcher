@@ -134,8 +134,8 @@ class ConfigJsonTest {
     }
 
     @Test fun `truncated JSON returns null - the torn-write recovery trigger`() {
-        // A half-written primary (power-loss mid-save) is exactly what loadConfig()
-        // must reject so it falls back to .bak. Pin that these parse to null.
+        // A torn verso.json must parse to null, never to a config: ConfigStore.load() then
+        // reports it unreadable and the first load sets it aside. Pin that these parse to null.
         assertNull(ConfigJson.parse("{\"favorites\":[\"x\""))  // unterminated
         assertNull(ConfigJson.parse("{"))                      // bare opening brace
         assertNull(ConfigJson.parse("   "))                    // whitespace only
