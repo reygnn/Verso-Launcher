@@ -41,6 +41,7 @@ internal class BackupStore(
     private val log: (String, Exception?) -> Unit,
     private val beforePublish: () -> Unit = {},
     private val now: () -> LocalDateTime = LocalDateTime::now,
+    private val owner: String? = null,
 ) {
 
     // MediaStore stores RELATIVE_PATH WITH a trailing slash; the query below must match it.
@@ -165,9 +166,12 @@ internal class BackupStore(
         val query = Bundle().apply {
             putString(
                 ContentResolver.QUERY_ARG_SQL_SELECTION,
-                "${MediaStore.MediaColumns.RELATIVE_PATH}=?",
+                "${MediaStore.MediaColumns.RELATIVE_PATH}=?" +
+                    if (owner != null) " AND ${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=?" else "",
             )
-            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf("$relativePath/"))
+            // Without a storage permission MediaStore shows only own rows anyway; the owner check
+            // keeps a restore and the sweep to them should that ever change.
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, listOfNotNull("$relativePath/", owner).toTypedArray())
             putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
         }
         resolver.query(

@@ -222,7 +222,7 @@ class MainActivity : Activity() {
             enumerateApps = ::loadApps,
             serialize = ConfigJson::serialize,
             writeConfig = { payload -> store.write(payload, rotateBackup = true) },
-            onRefreshed = { configReplaced ->
+            onRefreshed = { configReplaced, listChanged ->
                 // The rename dialog read the OLD config when it opened and writes back on
                 // OK; left up over a wholesale replace it would persist stale fields into
                 // the config that just arrived.
@@ -233,7 +233,7 @@ class MainActivity : Activity() {
                 }
                 // The first load found the config unreadable, set it aside and started over.
                 if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
-                refilter()
+                if (listChanged) refilter()
             },
             isFreshInstall = { store.isFresh() },
             defaultFavoriteCandidates = ::defaultFavoriteCandidates,
@@ -520,11 +520,15 @@ class MainActivity : Activity() {
         // that per-frame relayout is what made the list blink/redraw before. The prompt
         // moves in a single step rather than tracking the slide; a fair trade for a
         // launcher's command line, and it never clips or flickers.
+        //
+        // The bars IGNORING their visibility, like the home page: the status bar is shown and
+        // hidden with every page turn, and following it made the list jump mid-slide. The IME
+        // only while it is up (getInsetsIgnoringVisibility does not take it).
         val pad = 12.dp()
         drawer.setOnApplyWindowInsetsListener { v, insets ->
-            val i = insets.getInsets(
-                WindowInsets.Type.systemBars() or WindowInsets.Type.ime() or
-                    WindowInsets.Type.displayCutout()
+            val i = android.graphics.Insets.max(
+                insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()),
+                insets.getInsets(WindowInsets.Type.ime()),
             )
             v.setPadding(i.left + pad, i.top + pad, i.right + pad, i.bottom + pad)
             insets
@@ -552,6 +556,8 @@ class MainActivity : Activity() {
                 // A long-press that opened the rename dialog can carry on into a drag with the
                 // finger still down; that must not turn the page under the dialog.
                 if (renameDialog != null || commandDialog != null) return@claims false
+                // A flick down on favorites scrolled down scrolls them back, not to the recents.
+                if (dir == SwipeDir.DOWN && !drawerOpen && homePage.scroller.canScrollVertically(-1)) return@claims false
                 // Read live: cheap, and never stale (a display-size change recreates the
                 // activity anyway — "density" is not in configChanges).
                 val topExclusion = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
@@ -910,6 +916,13 @@ class MainActivity : Activity() {
      *  without leaving; [onStop] turns it home. */
     override fun onPause() {
         resumed = false
+        // A change still waiting to be collected is picked up by the next resume instead.
+        // (View.removeCallbacks always answers true, so the flag says whether one waits.)
+        if (refreshSoonPending) {
+            root.removeCallbacks(refreshSoon)
+            refreshSoonPending = false
+            appsDirty = true
+        }
         super.onPause()
     }
 
@@ -917,8 +930,22 @@ class MainActivity : Activity() {
      * The installed apps may have changed (see appsChanged / profilesChanged). In front: reload
      * now. Behind another app: only note it — a burst of updates (a store updating 20 apps)
      * would otherwise run 20 full enumerations for a page nobody sees; onResume reloads once.
+     * In front, a burst too (a store updating apps while home is shown, an app switching its
+     * components) is collected for half a second into one refresh.
      */
     private fun appsMaybeChanged() {
+        if (resumed) {
+            root.removeCallbacks(refreshSoon)
+            root.postDelayed(refreshSoon, CHANGE_SETTLE_MS)
+            refreshSoonPending = true
+        } else {
+            appsDirty = true
+        }
+    }
+
+    private var refreshSoonPending = false
+    private val refreshSoon = Runnable {
+        refreshSoonPending = false
         if (resumed) {
             lastRefresh = SystemClock.uptimeMillis()
             state.refresh()
@@ -1075,6 +1102,7 @@ class MainActivity : Activity() {
             resolver = contentResolver,
             subDir = BackupFiles.DIR,
             log = ::logWarning,
+            owner = packageName,
         )
     }
 
@@ -1724,7 +1752,9 @@ class MainActivity : Activity() {
                     // The app's own label — the only one an enumeration knows; custom names are
                     // applied over it later (LauncherLogic.named). In another profile it
                     // carries the system's badge, so the work copy reads apart.
-                    val raw = info.label.toString()
+                    // Cleaned like a custom name: no bidi overrides or invisible marks another
+                    // app could use to pass for a different one, and a sane length.
+                    val raw = LauncherLogic.cleanName(info.label.toString()).ifEmpty { component.packageName }
                     // The badge is a binder call per app (DevicePolicyManager strings for a work
                     // profile): cached per (profile, label) across loads — IO thread only.
                     val systemLabel = if (serial == null) raw else {
@@ -2035,7 +2065,9 @@ class MainActivity : Activity() {
         if (which and WallpaperManager.FLAG_SYSTEM == 0) return@OnColorsChangedListener
         val light = colors.wantsDarkText()
         ++paletteGeneration
-        applyPalette(HomeStyle.palette(light))
+        // Live and time-of-day wallpapers report colours often; repaint only on a real change.
+        val p = HomeStyle.palette(light)
+        if (p != palette) applyPalette(p)
     }
 
     // Bumped by every palette decision, so the IO thread's first answer cannot overwrite a
@@ -2237,6 +2269,8 @@ class MainActivity : Activity() {
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
         /** A return home re-enumerates anyway once the last load is this old (see onResume). */
         const val REFRESH_STALE_MS = 5 * 60 * 1000L
+        /** How long package changes in front are collected into one refresh. */
+        const val CHANGE_SETTLE_MS = 500L
         /** How long a paused profile's "ready" toast stays expected after the tap (see launch). */
         const val PROFILE_WAIT_MS = 2 * 60 * 1000L
         /** A page drag that does not commit settles back this fast (Unity's settle-back). */

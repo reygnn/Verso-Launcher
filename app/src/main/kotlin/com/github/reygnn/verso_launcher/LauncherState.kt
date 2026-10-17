@@ -42,7 +42,9 @@ package com.github.reygnn.verso_launcher
  * @param writeConfig   persist that text durably (IO thread); true on success.
  * @param onRefreshed   main thread, after a [refresh] hand-off was applied. [configReplaced] is
  *                      true when the config was swapped wholesale for the disk copy — anything
- *                      that captured the old one (an open rename dialog) must go.
+ *                      that captured the old one (an open rename dialog) must go. [listChanged]
+ *                      is false when the hand-off brought the same app list (and no new config):
+ *                      nothing to re-render — a re-render would also void a tap in flight.
  * @param isFreshInstall true when neither verso.json nor its .bak exists yet (IO thread, before
  *                      the read). A lone recoverable .tmp still counts as fresh; seeding is then
  *                      skipped anyway, because it only fills a config with no favorites.
@@ -61,7 +63,7 @@ internal class LauncherState(
     private val enumerateApps: () -> List<AppEntry>?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
-    private val onRefreshed: (configReplaced: Boolean) -> Unit,
+    private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
     private val isFreshInstall: () -> Boolean = { false },
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
     initialRecents: List<String> = emptyList(),
@@ -178,14 +180,17 @@ internal class LauncherState(
                 // enumeration itself failed (e.g. a system_server restart): keep the last
                 // known-good list rather than blanking the launcher.
                 lastLoadCommitted = loaded != null
+                // Most refreshes (a resume, a package callback for an app not listed) bring the
+                // same list: AppEntry is a data class, status included, so == sees any change.
+                val changed = replaced || (loaded != null && (!appsLoaded || loaded != enumerated))
                 if (loaded != null) {
                     enumerated = loaded
                     appsLoaded = true
                 }
                 // Shown under the names as they are NOW — a rename, a restore since the
-                // request included.
-                relabel()
-                onRefreshed(replaced)
+                // request included (those relabel at once themselves).
+                if (changed) relabel()
+                onRefreshed(replaced, changed)
             })
         })
     }

@@ -33,9 +33,23 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in.
 - The rows' outline alpha is not pinned by a test of its own.
 
+## Review round 5 (2026-10-17), left open
+
+- A wallpaper colour change while the config is not loaded leaves the cached favorites in the
+  old colour (HomePage.applyTextColor re-renders from an empty render).
+- The 5-minute safety-net refresh could be an hour: callbacks already flag real changes.
+- Dimmed rows go through an offscreen layer every frame while scrolling; a row bind allocates a
+  ColorStateList even when nothing changed; the first wallpaper-colour query after boot
+  delays the first enumeration.
+- A file another app plants in Download/Verso can be picked with ~restore-saf (hide or rename
+  apps); a confirmation with counts before adopting a picked file would show it.
+- TalkBack: edit modes announce no state change, page turns no pane title, the empty-list
+  live region is likely silent, recents only by swipe, battery icons as separate stops.
+- Home ignores the system font size (by design for the clock); paused/archived is shown by
+  opacity alone.
+
 ## Seen on the A17
 
-- The restore toast ("… rückgängig: ~restore-saf, verso-pre-restore wählen") is cut off.
 - `BackupStoreInstrumentedTest` leaves empty `Download/VersoTest-…` folders behind.
 
 ## Deferred earlier

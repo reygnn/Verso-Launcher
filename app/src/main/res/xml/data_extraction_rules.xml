@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Cloud backup stays off: allowBackup="false" says so, and every domain is excluded here
      too, so it holds whichever of the two the platform reads. A device-to-device transfer moves verso.json
-     (the config) but not its recovery copies, which describe the old phone's last writes,
+     (the config) but not its recovery copies, which describe the old phone's last writes, nor
+     an unreadable config set aside (*.unreadable),
      nor the home-cache, which is rebuilt on the first load. -->
 <data-extraction-rules>
     <cloud-backup>
@@ -18,6 +19,9 @@
     <device-transfer>
         <exclude domain="file" path="verso.json.tmp" />
         <exclude domain="file" path="verso.json.bak" />
+        <exclude domain="file" path="verso.json.unreadable" />
+        <exclude domain="file" path="verso.json.bak.unreadable" />
+        <exclude domain="file" path="verso.json.tmp.unreadable" />
         <exclude domain="file" path="home-cache.txt" />
         <exclude domain="file" path="home-cache.txt.tmp" />
     </device-transfer>

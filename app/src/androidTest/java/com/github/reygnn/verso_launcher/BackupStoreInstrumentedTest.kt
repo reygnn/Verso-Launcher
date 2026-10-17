@@ -44,9 +44,12 @@ class BackupStoreInstrumentedTest {
     private var clockFrozen = false
 
     private fun store(beforePublish: () -> Unit = {}) =
-        BackupStore(resolver, subDir, { msg, e -> logs += listOfNotNull(msg, e?.message).joinToString(": ") }, beforePublish) {
-            clock.also { if (!clockFrozen) clock = clock.plusSeconds(1) }
-        }
+        BackupStore(
+            resolver, subDir, { msg, e -> logs += listOfNotNull(msg, e?.message).joinToString(": ") }, beforePublish,
+            now = { clock.also { if (!clockFrozen) clock = clock.plusSeconds(1) } },
+            // As the app does: only own rows (the test APK runs in the app's package).
+            owner = instrumentation.targetContext.packageName,
+        )
 
     @Before fun setUp() {
         shell("mkdir -p $dirPath")
@@ -144,7 +147,7 @@ class BackupStoreInstrumentedTest {
 
     @Test fun anOwnBackupFromBeforeTheTimestampsIsRestoredThenReplaced() {
         // What the fixed-name version left on a device: an own "verso (2).json".
-        val legacy = BackupStore(resolver, subDir, { msg, _ -> logs += msg }) { clock }
+        val legacy = BackupStore(resolver, subDir, { msg, _ -> logs += msg }, now = { clock }, owner = instrumentation.targetContext.packageName)
         legacyWrite(legacy, "verso (2).json", PAYLOAD_A)
         assertEquals(PAYLOAD_A, readLatest("verso"))
 

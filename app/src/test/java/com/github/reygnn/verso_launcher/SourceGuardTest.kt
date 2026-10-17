@@ -60,6 +60,9 @@ class SourceGuardTest {
             .substringBefore("\n    }\n")
         assertTrue("enumerate() not found, or it takes a config again", body.isNotEmpty())
         assertFalse(Regex("""names\s*(\[|\.get\b|\.getValue\b)|\bnamed\(""").containsMatchIn(body))
+        // Another app's own label is cleaned like a custom name (no bidi overrides, no
+        // invisible marks to pass for a different app).
+        assertTrue(body.contains("LauncherLogic.cleanName(info.label.toString())"))
     }
 
     @Test fun `every command runs inside the gate`() {

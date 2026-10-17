@@ -32,10 +32,10 @@
     <string name="toast_config_reset">config unreadable — started over. ~restore brings a backup back</string>
     <string name="toast_restore_write_failed">restore not saved — nothing restored</string>
     <string name="toast_not_loaded">config not loaded yet — try again in a moment</string>
-    <string name="toast_not_default_home">set Verso as default home app to turn work apps on</string>
+    <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
     <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
     <string name="toast_backup_failed">backup failed — nothing written</string>
-    <string name="toast_restore_ok">restored — to undo: ~restore-saf, pick verso-pre-restore (%1$s)</string>
+    <string name="toast_restore_ok">restored — undo: ~restore-saf, pre-restore %1$s</string>
     <string name="toast_restore_same">nothing to restore — that config is already in use</string>
     <string name="toast_restore_list_failed">Download/Verso unreadable — try ~restore-saf</string>
     <string name="toast_restore_undo_failed">nothing changed — could not save the current config</string>

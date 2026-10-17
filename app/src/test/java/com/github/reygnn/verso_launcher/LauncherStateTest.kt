@@ -56,6 +56,7 @@ class LauncherStateTest {
     }
 
     private val refreshed = mutableListOf<Boolean>()
+    private val listChanges = mutableListOf<Boolean>()
 
     private val state = LauncherState(
         io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
@@ -79,7 +80,7 @@ class LauncherStateTest {
                 "tags=${c.tags.entries.joinToString(",") { "${it.key}=${it.value.joinToString("+")}" }}"
         },
         writeConfig = { payload -> written += payload; writeSucceeds },
-        onRefreshed = { replaced -> refreshed += replaced },
+        onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed },
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
     )
@@ -131,6 +132,21 @@ class LauncherStateTest {
         runAll()
         assertEquals(1, loadConfigCalls)
         assertEquals(listOf(false), refreshed)
+    }
+
+    /** A refresh that brings the same list asks for no re-render (it would void a tap in
+     *  flight); a new app, a changed status or a new config do. */
+    @Test fun `a hand-off says whether the list changed`() {
+        started()
+        listChanges.clear()
+        state.refresh()
+        runAll()
+        assertEquals(listOf(false), listChanges)
+        installed = installed + app("Delta")
+        state.refresh()
+        runAll()
+        assertEquals(listOf(false, true), listChanges)
+        assertTrue("Delta" in labels())
     }
 
     @Test fun `the list is shown in drawer order whatever order the enumeration reports`() {
@@ -621,7 +637,7 @@ class LauncherStateTest {
         val reported = mutableListOf<List<String>>()
         val s = LauncherState(
             io = { true }, main = {}, loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
-            serialize = { "" }, writeConfig = { true }, onRefreshed = {},
+            serialize = { "" }, writeConfig = { true }, onRefreshed = { _, _ -> },
             initialRecents = listOf("a", "b"),
             onRecentsChanged = { reported += it },
         )
