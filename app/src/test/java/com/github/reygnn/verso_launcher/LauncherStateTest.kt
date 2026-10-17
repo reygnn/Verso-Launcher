@@ -33,10 +33,11 @@ class LauncherStateTest {
     private var diskUnreadable = false
     private var loadConfigCalls = 0
 
-    /** The installed apps (system labels); enumerate applies custom names from the snapshot. */
+    /** The installed apps under their system labels — what an enumeration reports, as is: no
+     *  custom names, and NOT sorted (reversed below), so the tests see LauncherState apply both. */
     private var installed = listOf(app("Alpha"), app("Bravo"), app("Charlie"))
     private var enumerationFails = false
-    private val enumeratedWith = mutableListOf<VersoConfig>()
+    private var enumerations = 0
 
     /** Every payload handed to writeConfig, in order. */
     private val written = mutableListOf<String>()
@@ -63,13 +64,9 @@ class LauncherStateTest {
         // A copy, like a real read: the file and the live config must never be one object,
         // or a test could pass only because a mutation also "changed the disk".
         loadConfig = { loadConfigCalls++; if (loadThrows) throw IllegalStateException("load bug"); if (diskUnreadable) null else disk.snapshot() },
-        enumerateApps = { cfg ->
-            enumeratedWith += cfg
-            if (enumerationFails) null
-            else installed.map { a ->
-                val name = cfg.names[a.key] ?: a.systemLabel
-                AppEntry.of(name, a.packageName, a.className, a.systemLabel, a.profile)
-            }.let { LauncherLogic.sortedForDrawer(it) }
+        enumerateApps = {
+            enumerations++
+            if (enumerationFails) null else installed.reversed()
         },
         // A readable stand-in for ConfigJson (org.json is not needed to test the rules).
         serialize = { c ->
@@ -124,14 +121,25 @@ class LauncherStateTest {
         assertEquals(1, loadConfigCalls)
     }
 
-    @Test fun `a warm refresh enumerates from a snapshot and does not re-read the file`() {
+    @Test fun `a warm refresh does not re-read the file`() {
         started()
         state.refresh()
         runAll()
         assertEquals(1, loadConfigCalls)
         assertEquals(listOf(false), refreshed)
-        // The loader got a COPY, never the live config object.
-        assertTrue(enumeratedWith.last() !== state.config)
+    }
+
+    @Test fun `the list is shown in drawer order whatever order the enumeration reports`() {
+        started()
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+    }
+
+    @Test fun `the first load shows the custom names it read`() {
+        disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
+        state.refresh()
+        runAll()
+        assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
+        assertEquals("the system label stays on the entry", "Alpha", state.apps.last().systemLabel)
     }
 
     @Test fun `reload forces a fresh read of the file`() {
@@ -342,11 +350,11 @@ class LauncherStateTest {
 
     @Test fun `a refresh superseded while queued skips its work entirely`() {
         started()
-        val before = enumeratedWith.size
+        val before = enumerations
         state.refresh()
         state.refresh()
         runAll()
-        assertEquals("only the newest load enumerates", before + 1, enumeratedWith.size)
+        assertEquals("only the newest load enumerates", before + 1, enumerations)
         assertEquals(listOf(false), refreshed)
     }
 
@@ -389,23 +397,26 @@ class LauncherStateTest {
 
     // ---- rename vs. an in-flight load -------------------------------------------------
 
-    @Test fun `a rename during a load drops that load's stale labels`() {
+    @Test fun `a rename during a load keeps its name, and the load's new apps still land`() {
+        // A list carries no names: it lands, and the names are applied at its hand-off.
         started()
+        installed = installed + app("Delta")
         state.refresh()
-        runIo()                                            // enumerated with the OLD names
+        runIo()                                            // enumerated before the rename
         state.rename(key("Alpha"), "Alpha", "Zulu", emptyList())
         runAll()
-        assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
+        assertEquals(listOf("Bravo", "Charlie", "Delta", "Zulu"), labels())
+        assertFalse(state.needsRefresh)
     }
 
     @Test fun `rename relabels and re-sorts in memory without re-enumerating`() {
         started()
-        val before = enumeratedWith.size
+        val before = enumerations
         state.rename(key("Alpha"), "Alpha", "Zulu", listOf("work"))
         assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
         assertEquals("Zulu", state.config.names[key("Alpha")])
         assertEquals(listOf("work"), state.config.tags[key("Alpha")])
-        assertEquals(before, enumeratedWith.size)
+        assertEquals(before, enumerations)
     }
 
     @Test fun `a rename re-sorts in the device language's alphabet`() {
@@ -617,19 +628,28 @@ class LauncherStateTest {
         assertFalse(state.needsRefresh)
     }
 
-    @Test fun `a load dropped by a rename leaves the launcher needing a refresh`() {
+    @Test fun `clearing a name during a load shows the system label once the load lands`() {
+        disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
         started()
-        installed = installed + app("Delta")
         state.refresh()
         runIo()
-        state.rename(key("Alpha"), "Alpha", "Zulu", emptyList())
+        state.rename(key("Alpha"), "Alpha", "", emptyList())   // blank: back to the app's own
         runAll()
-        assertFalse("Delta" in labels())   // the stale list was dropped, Delta with it
-        assertTrue(state.needsRefresh)
-        state.refresh()
-        runAll()
-        assertTrue("Delta" in labels())
-        assertFalse(state.needsRefresh)
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+    }
+
+    @Test fun `forget of a listed app's name shows its own label again`() {
+        disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
+        started()
+        state.forget(setOf(key("Alpha")))
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+    }
+
+    @Test fun `a restore shows its names at once, and drops the names it does not have`() {
+        disk = VersoConfig(names = linkedMapOf(key("Bravo") to "Mine"))
+        started()
+        state.adopt(VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu")))
+        assertEquals("before any refresh lands", listOf("Bravo", "Charlie", "Zulu"), labels())
     }
 
     @Test fun `a rename before the config is loaded is ignored and the first load still lands`() {

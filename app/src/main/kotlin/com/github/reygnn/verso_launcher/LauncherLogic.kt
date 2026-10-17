@@ -273,6 +273,21 @@ internal object LauncherLogic {
     private const val COMBINING_DOT_ABOVE = "\u0307"
 
     /**
+     * [apps] as shown: each under its custom name from [names] if it has one, else its own
+     * [AppEntry.systemLabel] — then in drawer order ([sortedForDrawer]), since a name can move an
+     * app alphabetically. An entry whose label already fits is kept as it is. Input already in
+     * drawer order by system label (the enumeration's) makes the stable sort nearly free.
+     */
+    fun named(apps: List<AppEntry>, names: Map<String, String>, locale: Locale = Locale.getDefault()): List<AppEntry> =
+        sortedForDrawer(
+            apps.map { e ->
+                val label = names[e.key] ?: e.systemLabel
+                if (label == e.label) e else e.withLabel(label)
+            },
+            locale,
+        )
+
+    /**
      * [all] in drawer order: alphabetical the way the user's language sorts — "Ärzte" next to
      * "Apotheke", not after "Zoom" as plain code-point order puts every umlaut and accent. The
      * collation follows [locale] (the device's), because "alphabetical" differs by language:

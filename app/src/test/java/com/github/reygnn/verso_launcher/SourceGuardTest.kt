@@ -53,6 +53,16 @@ class SourceGuardTest {
         }
     }
 
+    @Test fun `the enumeration carries no custom names`() {
+        // Names are applied on the main thread from the live config (LauncherLogic.named). An
+        // enumeration that baked them in again would go stale with every rename in flight.
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val body = activity.substringAfter("private fun enumerate(): Enumeration?", missingDelimiterValue = "")
+            .substringBefore("\n    }\n")
+        assertTrue("enumerate() not found, or it takes a config again", body.isNotEmpty())
+        assertFalse(Regex("""names\s*(\[|\.get\b|\.getValue\b)|\bnamed\(""").containsMatchIn(body))
+    }
+
     @Test fun `every command runs inside the gate`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
         // Three ways in (hard rule 15): the typed commands, the ~restore-saf answer, a confirmed
