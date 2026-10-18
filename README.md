@@ -1,9 +1,10 @@
 # Verso Launcher
 
-A **plain text launcher for Android with a hidden command line**, and the successor of
-Sigil Launcher, which is no longer maintained. Sigil was a terminal: one prompt,
-keyboard always up. Verso keeps that whole command line but moves it behind a page
-turn, so the front looks like an ordinary minimal text launcher.
+A **plain text launcher for Android with a hidden command line** — the child of Kolibri
+Launcher and Sigil Launcher. Neither is maintained any more; **Verso is the official
+successor of both.** Kolibri gives it the quiet home screen. Sigil was a terminal: one
+prompt, keyboard always up. Verso keeps that whole command line but moves it behind a
+page turn, so the front looks like an ordinary minimal text launcher.
 
 The name is the idea: a sheet of paper has a **recto** (the front) and a **verso** (the
 back). The front is your home screen; swipe up and you turn the page to the back, where
@@ -176,9 +177,9 @@ live in `HomeStyle.kt`. Not ported: the alarm/calendar indicators next to the cl
 the double-tap events dialog (they need calendar permission), and the left/right swipe
 actions.
 
-Verso replaces Sigil Launcher: it started as a copy of the Sigil 0.2.x line (favorites,
-hidden apps, custom names, tags, `~` commands) with a different front end, and Sigil
-itself is discontinued. Everything the prompt can do
+Kolibri Launcher and Sigil Launcher are both discontinued, and Verso is the official
+successor of both. It started as a copy of the Sigil 0.2.x line (favorites, hidden apps,
+custom names, tags, `~` commands) with Kolibri's home screen as its front end. Everything the prompt can do
 is unchanged except the empty line: in Sigil it showed your favorites, in Verso it
 shows the full drawer, because the favorites now live on the front page.
 

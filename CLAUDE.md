@@ -38,7 +38,8 @@ it is built.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,
-and there is no Sigil compatibility to keep: its only user has moved over.
+and there is no Sigil compatibility to keep: its only user has moved over. Kolibri
+Launcher is discontinued too (October 2026); Verso is the official successor of both.
 
 ---
 
