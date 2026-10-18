@@ -25,14 +25,17 @@ internal object UsageLog {
     fun decayed(usage: Usage, now: Long): Double =
         usage.score * exp(-LAMBDA_PER_MS * (now - usage.at).coerceAtLeast(0L))
 
+    /** A launch stamped while the clock ran ahead would never decay: from [now] on it does. */
+    fun settled(usage: Usage, now: Long): Usage = if (usage.at > now) usage.copy(at = now) else usage
+
     fun recorded(log: Map<String, Usage>, key: String, now: Long): Map<String, Usage> {
         val before = log[key]?.let { decayed(it, now) } ?: 0.0
-        return log + (key to Usage(before + 1.0, now))
+        return log.mapValues { settled(it.value, now) } + (key to Usage(before + 1.0, now))
     }
 
     /** Launches counted before the file was read are added to what it held. */
     fun merged(disk: Map<String, Usage>, memory: Map<String, Usage>, now: Long): Map<String, Usage> {
-        val out = HashMap(disk)
+        val out = HashMap(disk.mapValues { settled(it.value, now) })
         for ((key, usage) in memory) {
             val sum = decayed(usage, now) + (disk[key]?.let { decayed(it, now) } ?: 0.0)
             out[key] = Usage(sum, now)
@@ -50,7 +53,7 @@ internal object UsageLog {
     fun format(log: Map<String, Usage>, now: Long): String = buildString {
         for ((key, usage) in log) {
             if (decayed(usage, now) < FORGET_BELOW) continue
-            append(key).append('\t').append(usage.score).append('\t').append(usage.at).append('\n')
+            append(key).append('\t').append(usage.score).append('\t').append(minOf(usage.at, now)).append('\n')
         }
     }
 
@@ -60,16 +63,22 @@ internal object UsageLog {
             val parts = line.split('\t')
             if (parts.size != 3 || parts[0].isEmpty()) continue
             val score = parts[1].toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 } ?: continue
-            val at = parts[2].toLongOrNull() ?: continue
+            val at = parts[2].toLongOrNull()?.takeIf { it >= 0 } ?: continue
             out[parts[0]] = Usage(score, at)
         }
         return out
     }
 
-    fun read(dir: File): Map<String, Usage> = try {
-        File(dir, FILE).takeIf { it.isFile }?.readText()?.let(::parse).orEmpty()
+    /** Ours stays far smaller; anything larger is not read into memory, just replaced. */
+    const val MAX_BYTES = 1_000_000L
+
+    /** Null when the file is there but could not be read: not loaded, the next refresh retries
+     *  (writing over it would wipe the counts). No file, or a file too large, is an empty log. */
+    fun read(dir: File): Map<String, Usage>? = try {
+        val file = File(dir, FILE)
+        if (!file.isFile || file.length() > MAX_BYTES) emptyMap() else parse(file.readText())
     } catch (e: Exception) {
-        emptyMap()
+        null
     }
 
     fun write(dir: File, log: Map<String, Usage>, now: Long) {

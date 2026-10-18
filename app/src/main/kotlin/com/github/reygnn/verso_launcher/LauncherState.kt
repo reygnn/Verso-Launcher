@@ -34,7 +34,7 @@ internal class LauncherState(
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
     initialRecents: List<String> = emptyList(),
     private val onRecentsChanged: (List<String>) -> Unit = {},
-    private val loadUsage: () -> Map<String, Usage> = { emptyMap() },
+    private val loadUsage: () -> Map<String, Usage>? = { emptyMap() },
     private val writeUsage: (Map<String, Usage>, Long) -> Unit = { _, _ -> },
     private val now: () -> Long = System::currentTimeMillis,
     initialUsage: Map<String, Usage> = emptyMap(),

@@ -1,6 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -79,22 +80,41 @@ class UsageLogTest {
             "d\tInfinity\t5\n" +
             "e\t1.0\n" +            // a torn line
             "f\t1.0\t5\textra\n" +
-            "g\t1.0\tnow\n"
+            "g\t1.0\tnow\n" +
+            "h\t1.0\t-9223372036854775808\n"  // would never decay: now - at overflows
         assertEquals(mapOf("a" to Usage(1.0, 5L)), UsageLog.parse(text))
     }
 
     @Test fun `no file is an empty log, and a write lands whole`() {
         val dir = folder.newFolder()
-        assertTrue(UsageLog.read(dir).isEmpty())
+        assertEquals(emptyMap<String, Usage>(), UsageLog.read(dir))
         val log = mapOf("a" to Usage(2.0, t0))
         UsageLog.write(dir, log, t0)
         assertEquals(log, UsageLog.read(dir))
         assertTrue(!File(dir, "${UsageLog.FILE}.tmp").exists())
     }
 
-    @Test fun `an unreadable file is an empty log`() {
+    @Test fun `an unreadable file is not an empty log - it must not be written over`() {
         val dir = folder.newFolder()
-        File(dir, UsageLog.FILE).mkdir()  // a directory where the file should be
-        assertTrue(UsageLog.read(dir).isEmpty())
+        val file = File(dir, UsageLog.FILE).apply { writeText("a\t1.0\t5\n") }
+        file.setReadable(false)
+        assertNull(UsageLog.read(dir))
+    }
+
+    @Test fun `a file too large is not read, only replaced`() {
+        val dir = folder.newFolder()
+        File(dir, UsageLog.FILE).writeText("a\t1.0\t5\n" + "x".repeat(UsageLog.MAX_BYTES.toInt()))
+        assertEquals(emptyMap<String, Usage>(), UsageLog.read(dir))
+    }
+
+    @Test fun `a launch stamped in the future starts to decay once the clock is right`() {
+        val ahead = mapOf("a" to Usage(3.0, t0 + 365 * day), "b" to Usage(1.0, t0))
+        // A later launch of another app settles it.
+        val log = UsageLog.recorded(ahead, "b", t0)
+        assertEquals(Usage(3.0, t0), log["a"])
+        assertEquals(3.0 * exp(-0.6048), UsageLog.decayed(log.getValue("a"), t0 + 7 * day), 1e-9)
+        // So does the load, and the file never keeps it.
+        assertEquals(Usage(3.0, t0), UsageLog.merged(ahead, emptyMap(), t0)["a"])
+        assertEquals("a\t3.0\t$t0\n", UsageLog.format(mapOf("a" to Usage(3.0, t0 + day)), t0))
     }
 }

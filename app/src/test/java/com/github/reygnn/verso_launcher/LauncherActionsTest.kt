@@ -215,5 +215,7 @@ class LauncherActionsTest {
         val row = OrderRow(toUsage = true)
         assertEquals(EnterAction.ToggleOrder, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = row))
         assertEquals(TapAction.ToggleOrder, LauncherLogic.tapAction<OrderedFake>(Mode.ORDER, row))
+        // "%abc" shows no row: Enter does nothing.
+        assertEquals(EnterAction.None, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = null))
     }
 }

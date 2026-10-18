@@ -413,7 +413,8 @@ internal object LauncherLogic {
         if (mode == Mode.COMMAND) {
             return commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
         }
-        if (mode == Mode.ORDER) return listOf(OrderRow(toUsage = !byUsage))
+        // Only "%" itself: "%abc" is a typo, not a switch.
+        if (mode == Mode.ORDER) return if (trimmed == "%") listOf(OrderRow(toUsage = !byUsage)) else emptyList()
         if (mode == Mode.TAG_FILTER && trimmed.substring(1).isBlank()) {
             return tagsInUse(allApps, tags).map { TagRow(it) }
         }
@@ -469,7 +470,7 @@ internal object LauncherLogic {
     ): EnterAction<T> = when {
         command != null -> EnterAction.Run(command)
         mode == Mode.COMMAND -> EnterAction.None
-        mode == Mode.ORDER -> EnterAction.ToggleOrder
+        mode == Mode.ORDER -> if (lastRow is OrderRow) EnterAction.ToggleOrder else EnterAction.None
         mode == Mode.TAG_EDIT -> when (lastRow) {
             is TagRow -> EnterAction.SetPrompt("##${lastRow.name}")
             else -> EnterAction.SetPrompt("")

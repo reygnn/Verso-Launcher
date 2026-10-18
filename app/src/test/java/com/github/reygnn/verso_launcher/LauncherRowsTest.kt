@@ -32,8 +32,12 @@ class LauncherRowsTest {
     @Test fun `percent shows the one row that turns the order the other way`() {
         val toUsage = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, null)
         assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = true)), toUsage)
-        val back = LauncherLogic.rowsFor(Mode.ORDER, "%x", apps, hidden, favorites, tags, recents, null, byUsage = true)
+        val back = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, null, byUsage = true)
         assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = false)), back)
+    }
+
+    @Test fun `text after the percent is a typo, not a switch`() {
+        assertTrue(LauncherLogic.rowsFor(Mode.ORDER, "%abc", apps, hidden, favorites, tags, recents, null).isEmpty())
     }
 
     @Test fun `by usage, the plain drawer is most used first and a search is not reordered`() {

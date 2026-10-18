@@ -55,6 +55,8 @@ class MainActivity : Activity() {
     private var appsDirty = true
     private var lastRefresh = 0L
     private var resumed = false
+    // Set by a launch that started: the pause it brings turns the page home (see onPause).
+    private var launchedApp = false
     // Between onStart and onStop: the launcher can be seen (see cleanup).
     private var started = false
     private val gate = CommandGate()
@@ -407,8 +409,14 @@ class MainActivity : Activity() {
         }
         // The recents must be what the pull reveals; a settle back clears the prompt again.
         val prompt = if (fromTop) RECENTS_PROMPT else ""
-        if (appDrawer.prompt.text?.toString() != prompt) appDrawer.setPrompt(prompt)
-        else if (prompt.isEmpty() && drawer.visibility != View.VISIBLE) resortByUsage()
+        if (drawer.visibility != View.VISIBLE) {
+            if (appDrawer.prompt.text?.toString() != prompt) appDrawer.setPrompt(prompt)
+            else if (prompt.isEmpty()) resortByUsage()
+            // The A-to-Z list rises from its top, not where it was last left.
+            if (prompt.isEmpty() && appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
+        } else if (appDrawer.prompt.text?.toString() != prompt) {
+            appDrawer.setPrompt(prompt)
+        }
         drawer.visibility = View.VISIBLE
         drawer.alpha = 1f
         return height - abs(drawer.translationY)
@@ -478,6 +486,12 @@ class MainActivity : Activity() {
     /** The page stays as it is — a dialog or the shade on top pauses without leaving; [onStop] turns it home. */
     override fun onPause() {
         resumed = false
+        // A dialog-like or translucent app never stops this activity: without this the drawer
+        // (or the recents) would stay open under it, and re-sort in view on the next refresh.
+        if (launchedApp) {
+            launchedApp = false
+            closeDrawer(animate = false)
+        }
         // A change still waiting to be collected is picked up by the next resume instead.
         // (View.removeCallbacks always answers true, so the flag says whether one waits.)
         if (refreshSoonPending) {
@@ -1077,6 +1091,7 @@ class MainActivity : Activity() {
                     launcherApps.startMainActivity(component, user, null, null)
                     // Only a launch that actually started counts as recent.
                     state.recordLaunch(entry.key)
+                    launchedApp = true
                 }
             }
         } catch (e: SecurityException) {

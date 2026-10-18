@@ -731,6 +731,36 @@ class LauncherStateTest {
         assertEquals(false, state.toggleOrder(idle))
     }
 
+    @Test fun `an unreadable usage_txt is not written over, a later read still merges`() {
+        val io = ArrayDeque<Runnable>()
+        val main = ArrayDeque<Runnable>()
+        val writes = mutableListOf<Map<String, Usage>>()
+        var readable = false
+        val s = LauncherState(
+            io = { io.addLast(it); true }, main = { main.addLast(it) },
+            loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
+            serialize = { "" }, writeConfig = { true }, onRefreshed = { _, _ -> },
+            loadUsage = { if (readable) mapOf("a" to Usage(5.0, 1000L)) else null },
+            writeUsage = { log, _ -> writes += log },
+            now = { 1000L },
+        )
+        fun drain() {
+            while (io.isNotEmpty() || main.isNotEmpty()) {
+                while (io.isNotEmpty()) io.removeFirst().run()
+                while (main.isNotEmpty()) main.removeFirst().run()
+            }
+        }
+        s.refresh()
+        drain()
+        s.recordLaunch("b")
+        drain()
+        assertTrue("a failed read must not lead to a write", writes.isEmpty())
+        readable = true
+        s.refresh()
+        drain()
+        assertEquals(mapOf("a" to Usage(5.0, 1000L), "b" to Usage(1.0, 1000L)), writes.single())
+    }
+
     @Test fun `launches before usage_txt is read are added to it, then every launch is written`() {
         val io = ArrayDeque<Runnable>()
         val main = ArrayDeque<Runnable>()
