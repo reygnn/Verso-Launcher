@@ -132,6 +132,8 @@ internal class AppDrawer(
         }
         emptyView = OutlinedTextView(activity).apply {
             textSize = 18f
+            // Italic like the prompt's hint: a hint, not an app row.
+            setTypeface(listTypeface, Typeface.ITALIC)
             gravity = Gravity.BOTTOM or Gravity.START
             setPadding(0, 0, 0, 10.dp())
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE

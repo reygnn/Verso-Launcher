@@ -91,10 +91,11 @@ class AppDrawerTest {
         assertEquals(light.listText, row.currentTextColor)
     }
 
-    @Test fun `the prompt's hint is italic`() {
+    @Test fun `the prompt's hint and the empty-list hint are italic`() {
         val hint = drawer.prompt.hint as Spanned
         val span = hint.getSpans(0, hint.length, StyleSpan::class.java).single()
         assertEquals(Typeface.ITALIC, span.style)
+        assertEquals(Typeface.ITALIC, emptyHint.typeface.style)
     }
 
     @Test fun `a tap on a row goes to the Activity as the tap's decision`() {

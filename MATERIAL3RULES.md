@@ -172,7 +172,7 @@ contrast, not from a scheme:
 |--------------------------------------|-----------------------------------------------------|
 | Home text (clock, date, favorites)   | white on a dark wallpaper, black on a light one (`HomeStyle.palette`, Unity Kolibri's smart contrast from `WallpaperColors.HINT_SUPPORTS_DARK_TEXT`) |
 | Readability on any wallpaper         | tonal outline: `HomeStyle.tonalOutlineColor` (white rim for dark text, black for light, eased in between) |
-| Drawer text, hints                   | `Palette.listText` (= the home text colour) for everything: rows, the prompt, its hint, × and the empty-list hint, all with the same tonal outline as home, right on the wallpaper; the prompt's hint set apart by italics; cursor and selection in the text colour; system-bar icons dark on a light wallpaper |
+| Drawer text, hints                   | `Palette.listText` (= the home text colour) for everything: rows, the prompt, its hint, × and the empty-list hint, all with the same tonal outline as home, right on the wallpaper; the prompt's hint and the empty-list hint set apart by italics; cursor and selection in the text colour; system-bar icons dark on a light wallpaper |
 | Pressed state of a favorite          | `HomePage.pressableText` (derived from `TEXT_COLOR`) |
 | Charging / battery-protection marks  | outlined vector drawables (`ic_bolt_*`, `ic_shield_*`) |
 
