@@ -18,7 +18,7 @@ class SwipeFrameTest {
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
     private val frame = SwipeFrame(activity)
 
-    private var drawerOpen = false
+    private var closeDir: SwipeDir? = null
     private var dragAllowed = true
     private var startOffset = 0f
     private val drags = mutableListOf<Pair<SwipeDir, Float>>()
@@ -26,8 +26,8 @@ class SwipeFrameTest {
     private val flicks = mutableListOf<SwipeDir>()
 
     init {
-        frame.isDrawerOpen = { drawerOpen }
-        frame.canDrag = { dragAllowed }
+        frame.closeDirection = { closeDir }
+        frame.canDrag = { _, _ -> dragAllowed }
         frame.pageHeight = { HEIGHT }
         frame.onDragStart = { startOffset }
         frame.onDrag = { dir, offset -> drags += dir to offset }
@@ -53,7 +53,7 @@ class SwipeFrameTest {
     }
 
     @Test fun `a slow pull down past the threshold closes the drawer`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         stroke(from = 100f, to = 500f, durationMs = 4000)  // 40 % of 1000, 0.1 px/ms
         assertEquals(listOf(SwipeDir.DOWN to DragEnd.COMMIT), ends)
         assertTrue(drags.all { it.first == SwipeDir.DOWN })
@@ -61,7 +61,7 @@ class SwipeFrameTest {
     }
 
     @Test fun `a closing pull stops at 80 percent of the page`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         stroke(from = 100f, to = 1500f, durationMs = 6000, lift = false)  // far past the page
         assertEquals(HEIGHT * SwipeGesture.DRAG_MAX_CLOSE_FRACTION, drags.last().second, 0.001f)
     }
@@ -72,7 +72,7 @@ class SwipeFrameTest {
     }
 
     @Test fun `a slow short pull down settles back`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         stroke(from = 100f, to = 250f, durationMs = 3000)  // 15 %
         assertEquals(listOf(SwipeDir.DOWN to DragEnd.CANCEL), ends)
     }
@@ -83,14 +83,29 @@ class SwipeFrameTest {
         assertTrue("offset grows as the finger moves up", drags.last().second > drags.first().second)
     }
 
+    @Test fun `pulling home down follows the finger the whole page and opens past the threshold`() {
+        stroke(from = 200f, to = 600f, durationMs = 4000)
+        assertEquals(listOf(SwipeDir.DOWN to DragEnd.COMMIT), ends)
+        assertTrue("offset grows as the finger moves down", drags.last().second > drags.first().second)
+    }
+
+    @Test fun `the recents close with a pull up, capped like the drawer's pull down`() {
+        closeDir = SwipeDir.UP
+        stroke(from = 1900f, to = 100f, durationMs = 6000, lift = false)
+        assertTrue(drags.all { it.first == SwipeDir.UP })
+        assertEquals(HEIGHT * SwipeGesture.DRAG_MAX_CLOSE_FRACTION, drags.last().second, 0.001f)
+        send(MotionEvent.ACTION_UP, 100f, 7000)
+        assertEquals(listOf(SwipeDir.UP to DragEnd.COMMIT), ends)
+    }
+
     @Test fun `a quick short flick forward commits`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         stroke(from = 100f, to = 180f, durationMs = 40, steps = 4)
         assertEquals(listOf(SwipeDir.DOWN to DragEnd.COMMIT), ends)
     }
 
     @Test fun `pulling far and then flicking back cancels`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         send(MotionEvent.ACTION_DOWN, 100f, 1000)
         for (i in 1..20) send(MotionEvent.ACTION_MOVE, 100f + 30f * i, 1000L + 200L * i)  // to 700, slowly
         for (i in 1..4) send(MotionEvent.ACTION_MOVE, 700f - 60f * i, 5000L + 10L * i)    // fast back up
@@ -99,7 +114,7 @@ class SwipeFrameTest {
     }
 
     @Test fun `a second finger cancels the drag`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         stroke(from = 100f, to = 600f, durationMs = 2000, lift = false)
         send(MotionEvent.ACTION_POINTER_DOWN, 600f, 3100)
         send(MotionEvent.ACTION_UP, 600f, 3200)
@@ -107,7 +122,7 @@ class SwipeFrameTest {
     }
 
     @Test fun `an aborted drag ends without a decision and swallows the rest`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         stroke(from = 100f, to = 600f, durationMs = 2000, lift = false)
         frame.abortDrag()  // HOME pressed meanwhile
         val dragsSoFar = drags.size
@@ -119,7 +134,7 @@ class SwipeFrameTest {
     }
 
     @Test fun `a page caught beyond the close limit continues from where it is`() {
-        drawerOpen = true
+        closeDir = SwipeDir.DOWN
         startOffset = 950f  // the drawer had only just started opening
         stroke(from = 100f, to = 120f, durationMs = 400, steps = 4, lift = false)
         assertEquals(950f, drags.first().second, 0.001f)

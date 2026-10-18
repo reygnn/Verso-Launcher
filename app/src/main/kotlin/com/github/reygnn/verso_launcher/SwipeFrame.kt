@@ -22,10 +22,12 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
 
     var onSwipe: (SwipeDir) -> Unit = {}
 
-    var isDrawerOpen: () -> Boolean = { false }
+    /** Toward the side the open drawer came from; null while it is closed. */
+    var closeDirection: () -> SwipeDir? = { null }
 
-    /** False while the content under the finger can still scroll that way, or a dialog is open. */
-    var canDrag: (SwipeDir) -> Boolean = { false }
+    /** Direction and the y of the down. False while the content under the finger can still
+     *  scroll that way, or a dialog is open. */
+    var canDrag: (SwipeDir, Float) -> Boolean = { _, _ -> false }
 
     var pageHeight: () -> Float = { height.toFloat() }
 
@@ -87,14 +89,14 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                 if (watching && !triggered) {
                     val dx = ev.x - downX
                     val dy = ev.y - downY
-                    val drag = SwipeGesture.dragDirection(isDrawerOpen(), dx, dy, slop)
-                    if (drag != null && canDrag(drag)) {
+                    val drag = SwipeGesture.dragDirection(closeDirection(), dx, dy, slop)
+                    if (drag != null && canDrag(drag, downY)) {
                         triggered = true
                         dragDir = drag
                         cancelChildren(ev)
                         // Start where the page is: the slop travelled is not added, so it does not jump.
                         val start = onDragStart(drag).coerceAtLeast(0f)
-                        dragLimit = maxOf(dragMax(drag), start)
+                        dragLimit = maxOf(dragMax(), start)
                         dragOffset = start
                         onDrag(drag, dragOffset)
                         return true
@@ -130,9 +132,9 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
         return consumed || ev.actionMasked == MotionEvent.ACTION_DOWN
     }
 
-    /** A closing pull stops short of the bottom (Unity's cap); the release slides the rest. */
-    private fun dragMax(dir: SwipeDir): Float =
-        if (dir == SwipeDir.UP) pageHeight() else pageHeight() * SwipeGesture.DRAG_MAX_CLOSE_FRACTION
+    /** A closing pull stops short of the edge (Unity's cap); the release slides the rest. */
+    private fun dragMax(): Float =
+        if (closeDirection() == null) pageHeight() else pageHeight() * SwipeGesture.DRAG_MAX_CLOSE_FRACTION
 
     val isDragging: Boolean get() = dragDir != null
 

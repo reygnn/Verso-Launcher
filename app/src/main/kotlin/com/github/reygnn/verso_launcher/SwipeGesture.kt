@@ -55,10 +55,14 @@ internal object SwipeGesture {
     fun homeAlpha(open: Float, height: Float): Float =
         (1f - open / (height * HOME_FADE_FRACTION)).coerceIn(0f, 1f)
 
-    fun dragDirection(drawerOpen: Boolean, dx: Float, dy: Float, slop: Float): SwipeDir? {
+    /**
+     * Home drags either way (up: the drawer, down: the recents from the top); an open drawer
+     * only toward [closeDir], the way back to the side it came from — null while closed.
+     */
+    fun dragDirection(closeDir: SwipeDir?, dx: Float, dy: Float, slop: Float): SwipeDir? {
         if (abs(dy) <= slop || abs(dy) <= abs(dx) * DOMINANCE) return null
         val dir = if (dy < 0) SwipeDir.UP else SwipeDir.DOWN
-        return if (dir == (if (drawerOpen) SwipeDir.DOWN else SwipeDir.UP)) dir else null
+        return if (closeDir == null || dir == closeDir) dir else null
     }
 
     fun dragOffset(offset: Float, delta: Float, max: Float): Float = (offset + delta).coerceIn(0f, max)

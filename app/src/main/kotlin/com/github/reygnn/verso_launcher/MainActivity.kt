@@ -41,6 +41,7 @@ import android.window.OnBackInvokedDispatcher
 import java.io.File
 import java.io.FileDescriptor
 import java.util.concurrent.RejectedExecutionException
+import kotlin.math.abs
 
 /**
  * The launcher's single window: the home page (recto) in front, the drawer with Sigil's command
@@ -103,6 +104,10 @@ class MainActivity : Activity() {
     // THE source of truth for which page is up. The views' visibility trails it by the
     // length of the page-turn animation, so nothing may read visibility instead.
     private var drawerOpen = false
+    // The recents come down from the top like a HUD and go back up; the drawer rises from below.
+    private var drawerFromTop = false
+    // Whether the running drag (or Back preview) set out to open the drawer.
+    private var dragOpens = false
 
     // Tracked so they can be dismissed on teardown: an undismissed dialog leaks its window.
     private var renameDialog: AlertDialog? = null
@@ -152,15 +157,19 @@ class MainActivity : Activity() {
             onSwipe = { dir ->
                 when {
                     dir == SwipeDir.UP && !drawerOpen -> openDrawer()
-                    dir == SwipeDir.DOWN && !drawerOpen -> openDrawer(RECENTS_PROMPT)
+                    dir == SwipeDir.DOWN && !drawerOpen -> openDrawer(RECENTS_PROMPT, fromTop = true)
                 }
             }
-            isDrawerOpen = { this@MainActivity.drawerOpen }
-            canDrag = canDrag@{ dir ->
+            closeDirection = { if (drawerOpen) closeDir() else null }
+            canDrag = canDrag@{ dir, downY ->
                 if (renameDialog != null || commandDialog != null) return@canDrag false
-                when (dir) {
-                    SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
-                    SwipeDir.DOWN -> !appDrawer.listView.canScrollVertically(-1)
+                when {
+                    drawerOpen && drawerFromTop -> !appDrawer.listView.canScrollVertically(1)
+                    drawerOpen -> !appDrawer.listView.canScrollVertically(-1)
+                    dir == SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
+                    // A pull from the very top is the notification shade's.
+                    else -> downY >= SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density &&
+                        !homePage.scroller.canScrollVertically(-1)
                 }
             }
             pageHeight = ::pageHeight
@@ -186,13 +195,13 @@ class MainActivity : Activity() {
                 }
 
                 override fun onBackStarted(backEvent: BackEvent) {
-                    previewFrom = if (closes()) beginPageDrag(SwipeDir.DOWN) else null
+                    previewFrom = if (closes()) beginPageDrag(closeDir()) else null
                 }
 
                 override fun onBackProgressed(backEvent: BackEvent) {
                     val from = previewFrom ?: return
                     if (!drawerOpen) return
-                    dragPage(SwipeDir.DOWN, from + backEvent.progress * pageHeight() * BACK_PREVIEW_FRACTION)
+                    dragPage(closeDir(), from + backEvent.progress * pageHeight() * BACK_PREVIEW_FRACTION)
                     // The drag's own fade starts far past the preview; let home show through faintly.
                     home.alpha = backEvent.progress * BACK_PREVIEW_HOME_ALPHA
                 }
@@ -258,7 +267,7 @@ class MainActivity : Activity() {
      * Turn to the drawer. The prompt is always empty here ([closeDrawer] leaves it so); "?" opens
      * the recents WITHOUT the keyboard, "" with it.
      */
-    private fun openDrawer(initialPrompt: String = "") {
+    private fun openDrawer(initialPrompt: String = "", fromTop: Boolean = false) {
         if (drawerOpen) return
         drawerOpen = true
         // A drag still holding the page must not act on it after this turn.
@@ -272,8 +281,11 @@ class MainActivity : Activity() {
         drawer.visibility = View.VISIBLE
         drawer.alpha = 1f
         // The parent's height, not the drawer's: a drawer that was GONE has not been measured yet.
-        // One already showing (dragged, or caught mid-close) slides on from where it is.
-        if (fromHidden) drawer.translationY = pageHeight()
+        // One already showing on this side (dragged, or caught mid-close) slides on from where it is.
+        if (fromHidden || fromTop != drawerFromTop) {
+            drawerFromTop = fromTop
+            drawer.translationY = hiddenY()
+        }
         drawer.requestApplyInsets()
         if (initialPrompt.isNotEmpty()) appDrawer.setPrompt(initialPrompt)
         else if (appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
@@ -318,11 +330,17 @@ class MainActivity : Activity() {
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
         home.animate().alpha(1f).setDuration(HOME_FADE_MS).withLayer()
             .setInterpolator(AccelerateInterpolator()).start()
-        drawer.animate().translationY(pageHeight()).setDuration(DRAWER_SLIDE_MS).withLayer()
+        drawer.animate().translationY(hiddenY()).setDuration(DRAWER_SLIDE_MS).withLayer()
             .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
                 if (!drawerOpen) drawer.visibility = View.GONE
             }.start()
     }
+
+    /** Where the closed drawer waits: above the page for the recents, below it otherwise. */
+    private fun hiddenY(): Float = if (drawerFromTop) -pageHeight() else pageHeight()
+
+    /** Back toward the side the drawer came from. */
+    private fun closeDir(): SwipeDir = if (drawerFromTop) SwipeDir.UP else SwipeDir.DOWN
 
     private fun showHomeNow() {
         home.animate().cancel()
@@ -352,32 +370,39 @@ class MainActivity : Activity() {
         // A full-screen view group at partial alpha is composed offscreen every frame without a layer.
         home.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         val height = pageHeight()
-        return if (dir == SwipeDir.UP) {
-            // Focus stays blocked: the drawer is not the page in front until the drag commits.
-            if (drawer.visibility != View.VISIBLE) drawer.translationY = height
-            drawer.visibility = View.VISIBLE
-            drawer.alpha = 1f
-            height - drawer.translationY
-        } else {
-            drawer.translationY
+        dragOpens = !drawerOpen
+        if (!dragOpens) return abs(drawer.translationY)
+        val fromTop = dir == SwipeDir.DOWN
+        // Focus stays blocked: the drawer is not the page in front until the drag commits.
+        if (drawer.visibility != View.VISIBLE || fromTop != drawerFromTop) {
+            drawerFromTop = fromTop
+            drawer.translationY = hiddenY()
         }
+        // The recents must be what the pull reveals; a settle back clears the prompt again.
+        val prompt = if (fromTop) RECENTS_PROMPT else ""
+        if (appDrawer.prompt.text?.toString() != prompt) appDrawer.setPrompt(prompt)
+        drawer.visibility = View.VISIBLE
+        drawer.alpha = 1f
+        return height - abs(drawer.translationY)
     }
 
-    private fun dragPage(dir: SwipeDir, offset: Float) {
-        if ((dir == SwipeDir.DOWN) != drawerOpen) return
+    /** [offset] runs along the drag: how far it opened, or how far it closed. */
+    private fun dragPage(@Suppress("UNUSED_PARAMETER") dir: SwipeDir, offset: Float) {
+        if (dragOpens == drawerOpen) return
         val height = pageHeight()
-        val open = if (dir == SwipeDir.UP) offset else height - offset  // how far the drawer is up
-        drawer.translationY = height - open
+        val open = if (dragOpens) offset else height - offset  // how much of the drawer shows
+        drawer.translationY = if (drawerFromTop) open - height else height - open
         home.alpha = SwipeGesture.homeAlpha(open, height)
     }
 
-    private fun endPageDrag(dir: SwipeDir, end: DragEnd) {
+    private fun endPageDrag(@Suppress("UNUSED_PARAMETER") dir: SwipeDir, end: DragEnd) {
         // Belt and braces next to abortDrag: a drag only ever ends on the page it grabbed.
-        if ((dir == SwipeDir.DOWN) != drawerOpen) return
+        if (dragOpens == drawerOpen) return
         when {
-            dir == SwipeDir.UP && end == DragEnd.COMMIT -> openDrawer()
-            dir == SwipeDir.DOWN && end == DragEnd.COMMIT -> closeDrawer()
-            dir == SwipeDir.UP -> settle(open = false)
+            dragOpens && end == DragEnd.COMMIT ->
+                openDrawer(if (drawerFromTop) RECENTS_PROMPT else "", fromTop = drawerFromTop)
+            end == DragEnd.COMMIT -> closeDrawer()
+            dragOpens -> settle(open = false)
             else -> settle(open = true)
         }
     }
@@ -385,9 +410,13 @@ class MainActivity : Activity() {
     /** A drag that did not commit falls back to the page it started on; nothing else changes. */
     private fun settle(open: Boolean) {
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // the drag's layer; withLayer takes over
-        drawer.animate().translationY(if (open) 0f else pageHeight()).setDuration(DRAG_SETTLE_MS).withLayer()
+        drawer.animate().translationY(if (open) 0f else hiddenY()).setDuration(DRAG_SETTLE_MS).withLayer()
             .setInterpolator(DecelerateInterpolator()).withEndAction {
-                if (!drawerOpen) drawer.visibility = View.GONE
+                if (!drawerOpen) {
+                    drawer.visibility = View.GONE
+                    // A recents pull that fell back left its "?" behind.
+                    if (appDrawer.prompt.text?.isNotEmpty() == true) appDrawer.prompt.setText("")
+                }
             }.start()
         home.animate().alpha(if (open) 0f else 1f).setDuration(DRAG_SETTLE_MS).withLayer()
             .setInterpolator(DecelerateInterpolator()).withEndAction {

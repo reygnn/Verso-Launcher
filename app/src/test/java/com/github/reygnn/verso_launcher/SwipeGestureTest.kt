@@ -75,27 +75,29 @@ class SwipeGestureTest {
     private val slop = 10f
 
     @Test fun `home drags up, the drawer drags down - once past the slop`() {
-        assertEquals(SwipeDir.UP, SwipeGesture.dragDirection(drawerOpen = false, dx = 0f, dy = -11f, slop = slop))
-        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(drawerOpen = true, dx = 0f, dy = 11f, slop = slop))
-        assertNull(SwipeGesture.dragDirection(drawerOpen = false, dx = 0f, dy = -10f, slop = slop))  // in the slop
+        assertEquals(SwipeDir.UP, SwipeGesture.dragDirection(closeDir = null, dx = 0f, dy = -11f, slop = slop))
+        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(closeDir = SwipeDir.DOWN, dx = 0f, dy = 11f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(closeDir = null, dx = 0f, dy = -10f, slop = slop))  // in the slop
     }
 
     @Test fun `the drawer side has the same slop and dominance boundaries`() {
-        assertNull(SwipeGesture.dragDirection(drawerOpen = true, dx = 0f, dy = 10f, slop = slop))      // in the slop
-        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(drawerOpen = true, dx = 0f, dy = 11f, slop = slop))
-        assertNull(SwipeGesture.dragDirection(drawerOpen = true, dx = 20f, dy = 30f, slop = slop))     // exactly 1.5x
-        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(drawerOpen = true, dx = 20f, dy = 31f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(closeDir = SwipeDir.DOWN, dx = 0f, dy = 10f, slop = slop))      // in the slop
+        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(closeDir = SwipeDir.DOWN, dx = 0f, dy = 11f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(closeDir = SwipeDir.DOWN, dx = 20f, dy = 30f, slop = slop))     // exactly 1.5x
+        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(closeDir = SwipeDir.DOWN, dx = 20f, dy = 31f, slop = slop))
     }
 
-    @Test fun `home does not drag down and the drawer does not drag up`() {
-        // Home's down is the recents flick; the drawer's up is a scroll of its list.
-        assertNull(SwipeGesture.dragDirection(drawerOpen = false, dx = 0f, dy = 50f, slop = slop))
-        assertNull(SwipeGesture.dragDirection(drawerOpen = true, dx = 0f, dy = -50f, slop = slop))
+    @Test fun `home drags down too, an open drawer only back toward its side`() {
+        // Down from home pulls the recents from the top; an open drawer's other way scrolls its list.
+        assertEquals(SwipeDir.DOWN, SwipeGesture.dragDirection(closeDir = null, dx = 0f, dy = 50f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(closeDir = SwipeDir.DOWN, dx = 0f, dy = -50f, slop = slop))
+        assertEquals(SwipeDir.UP, SwipeGesture.dragDirection(closeDir = SwipeDir.UP, dx = 0f, dy = -50f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(closeDir = SwipeDir.UP, dx = 0f, dy = 50f, slop = slop))
     }
 
     @Test fun `a drag must be vertical enough`() {
-        assertNull(SwipeGesture.dragDirection(drawerOpen = false, dx = 20f, dy = -30f, slop = slop))   // exactly 1.5x
-        assertEquals(SwipeDir.UP, SwipeGesture.dragDirection(drawerOpen = false, dx = 20f, dy = -31f, slop = slop))
+        assertNull(SwipeGesture.dragDirection(closeDir = null, dx = 20f, dy = -30f, slop = slop))   // exactly 1.5x
+        assertEquals(SwipeDir.UP, SwipeGesture.dragDirection(closeDir = null, dx = 20f, dy = -31f, slop = slop))
     }
 
     @Test fun `the drag offset follows the finger both ways and stays within its range`() {

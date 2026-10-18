@@ -174,8 +174,11 @@ main, written on the IO thread.
     finger (Unity's `DragToDismissCore`: starts once the list is at its top, 28 % of the
     height or a 3× min-fling release commits, a flick back cancels, 220 ms settle);
     opening is the same drag upward from home (an extension — Unity only flicks it
-    open). The flick (4× touch slop, 1.2 px/ms average, 1.5× dominance, 48 dp top band)
-    remains for the recents swipe and as the open fallback. All of it lives in
+    open). The recents (`?`) are the same drawer from the other side, a HUD: dragged down
+    from home (not from the 48 dp top band), closed by a drag up once the list is at its
+    end; the drawer remembers its side (`drawerFromTop`) and closes toward it. The flick
+    (4× touch slop, 1.2 px/ms average, 1.5× dominance, 48 dp top band) remains as the open
+    fallback. All of it lives in
     `SwipeFrame.dispatchTouchEvent`, never `onInterceptTouchEvent` (a scrolling list
     disables intercept mid-gesture); the decisions are pure in `SwipeGesture`. Details that
     are easy to break: a second finger cancels a drag; a drag can grab a page still moving and continues from

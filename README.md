@@ -37,10 +37,11 @@ keyboard, no prompt:
   a light outline on a light one (the drawer and the status-bar icons too), switching
   by itself when you change the wallpaper.
 - **Pull up** → the drawer comes up with your finger; let go past about a quarter of
-  the screen (or flick) and it opens, otherwise it drops back. **Swipe down** → your
-  recently used apps (the drawer opened on its `?` view, without the keyboard; Back goes
-  straight home). A swipe down that starts at the very top edge is left to the
-  notification shade. A second finger cancels a pull.
+  the screen (or flick) and it opens, otherwise it drops back. **Pull down** → your
+  recently used apps come down from the top like a HUD, the same way with your finger
+  (the drawer on its `?` view, without the keyboard); **pull up** to put them away, or
+  Back, which goes straight home. A pull down that starts at the very top edge is left to
+  the notification shade. A second finger cancels a pull.
 - With a hardware keyboard, just type: the drawer opens with what you typed in the
   command line (the Search key opens it empty).
 
