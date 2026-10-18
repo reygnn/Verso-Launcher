@@ -9,6 +9,12 @@ The name is the idea: a sheet of paper has a **recto** (the front) and a **verso
 back). The front is your home screen; swipe up and you turn the page to the back, where
 every app and every sigil command lives.
 
+<p>
+  <img src="docs/screenshots/home.png" alt="Front page: clock, date, battery and favorites" width="270">
+  &nbsp;
+  <img src="docs/screenshots/drawer.png" alt="Back page: #google lists the Google apps, the command line and keyboard below" width="270">
+</p>
+
 ## The two pages
 
 **Front (home)** — Kolibri Launcher's home layout, with Kolibri's default settings, no
