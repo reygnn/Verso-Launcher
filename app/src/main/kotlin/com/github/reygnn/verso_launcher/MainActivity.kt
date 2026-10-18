@@ -264,8 +264,8 @@ class MainActivity : Activity() {
     // ---- turning the page ---------------------------------------------------
 
     /**
-     * Turn to the drawer. The prompt is always empty here ([closeDrawer] leaves it so); "?" opens
-     * the recents WITHOUT the keyboard, "" with it.
+     * Turn to the drawer with [initialPrompt]: "?" opens the recents WITHOUT the keyboard, "" with
+     * it. Set even when it looks unneeded: [closeDrawer] clears the old one only once the page is gone.
      */
     private fun openDrawer(initialPrompt: String = "", fromTop: Boolean = false) {
         if (drawerOpen) return
@@ -287,8 +287,8 @@ class MainActivity : Activity() {
             drawer.translationY = hiddenY()
         }
         drawer.requestApplyInsets()
-        if (initialPrompt.isNotEmpty()) appDrawer.setPrompt(initialPrompt)
-        else if (appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
+        if (appDrawer.prompt.text?.toString() != initialPrompt) appDrawer.setPrompt(initialPrompt)
+        else if (initialPrompt.isEmpty() && appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
         drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS).withLayer()
             .setInterpolator(AccelerateDecelerateInterpolator()).start()
@@ -319,21 +319,27 @@ class MainActivity : Activity() {
         appDrawer.hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         appDrawer.prompt.clearFocus()
-        if (appDrawer.prompt.text?.isNotEmpty() == true) appDrawer.prompt.setText("")
         home.animate().cancel()
         drawer.animate().cancel()
         home.visibility = View.VISIBLE
         if (!animate) {
+            clearPromptIfClosed()
             showHomeNow()
             return
         }
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
         home.animate().alpha(1f).setDuration(HOME_FADE_MS).withLayer()
             .setInterpolator(AccelerateInterpolator()).start()
+        // The prompt goes with the page: cleared before the slide, the list would switch mid-way.
         drawer.animate().translationY(hiddenY()).setDuration(DRAWER_SLIDE_MS).withLayer()
             .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
                 if (!drawerOpen) drawer.visibility = View.GONE
+                clearPromptIfClosed()
             }.start()
+    }
+
+    private fun clearPromptIfClosed() {
+        if (!drawerOpen && appDrawer.prompt.text?.isNotEmpty() == true) appDrawer.prompt.setText("")
     }
 
     /** Where the closed drawer waits: above the page for the recents, below it otherwise. */
@@ -415,7 +421,7 @@ class MainActivity : Activity() {
                 if (!drawerOpen) {
                     drawer.visibility = View.GONE
                     // A recents pull that fell back left its "?" behind.
-                    if (appDrawer.prompt.text?.isNotEmpty() == true) appDrawer.prompt.setText("")
+                    clearPromptIfClosed()
                 }
             }.start()
         home.animate().alpha(if (open) 0f else 1f).setDuration(DRAG_SETTLE_MS).withLayer()
