@@ -169,7 +169,7 @@ keyboard, no prompt:
 
 ## Lineage
 
-The front page is a port of [Kolibri Launcher](https://github.com/reygnn/Kolibri-Launcher)'s home
+The front page is a port of Kolibri Launcher's home
 screen (`fragment_home.xml`, `HomeFavoritesAdapter`, `TextOutline`, the default layout
 values) to plain platform widgets — no AndroidX, no RecyclerView. Kolibri's adjustable
 settings (size, spacing, alignment, colours) are fixed at Kolibri's defaults; the numbers
