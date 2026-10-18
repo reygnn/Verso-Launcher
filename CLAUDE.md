@@ -33,8 +33,11 @@ is constants in `HomeStyle.kt`), left/right swipe actions, any runtime permissio
 Apps come from `LauncherApps` across all profiles (work, clone); apps of a paused
 profile and archived apps stay listed, dimmed (`AppStatus`), and a first tap brings
 them back; private space is not reachable (no `ACCESS_HIDDEN_PROFILES`). See
-`KNOWN_LIMITATIONS.md`. A new feature category needs explicit user agreement before
-it is built.
+`KNOWN_LIMITATIONS.md`.
+
+**Feature freeze since 0.2.12 (2026-10-18): bugfixes only.** No new feature, sigil, command
+or setting — not even a small one — unless the user lifts the freeze. A fix may change
+behaviour only to make it do what it already claims to do.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,

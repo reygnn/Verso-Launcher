@@ -1,7 +1,7 @@
 # Ideas
 
 Not a plan — things seen and deliberately not built (yet). One line each, with where it came
-from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
+from. Under the feature freeze (see `CLAUDE.md`) only the bugs here are fair game.
 
 ## Review round 4 (2026-10-17), left open on purpose
 
