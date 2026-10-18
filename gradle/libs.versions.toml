@@ -7,7 +7,7 @@
 # Core versions mirror the family (~/AndroidStudio_Projects/_skeleton).
 [versions]
 agp    = "9.4.1"
-kotlin = "2.3.21"
+# No kotlin entry: no Kotlin plugin is applied, so AGP's built-in Kotlin sets the version.
 # Test-only.
 junit  = "4.13.2"
 json   = "20260814"
