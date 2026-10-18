@@ -59,4 +59,5 @@ from. A new feature category still needs the user's agreement (see `CLAUDE.md`).
   late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
   workaround was tried and removed again — only with a real reproduction.
 - An app that switches its launcher activity loses its favorite/name/tags.
-- Lint's version bumps (compileSdk 37, AGP, Gradle, Robolectric).
+- Lint's version bumps: compileSdk/targetSdk 37 (with the whole family), Robolectric 4.17
+  (only worth it with SDK 37), androidx.test runner 1.7.0.
