@@ -6,8 +6,11 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.Editable
 import android.text.InputType
+import android.text.SpannableString
+import android.text.Spanned
 import android.text.TextUtils
 import android.text.TextWatcher
+import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -157,8 +160,11 @@ internal class AppDrawer(
         }
 
         prompt = OutlinedEditText(activity).apply {
-            hint = activity.getString(R.string.hint_search)
-            setHintTextColor(palette.listDim)
+            // In the text colour, set apart by the slant alone.
+            hint = SpannableString(activity.getString(R.string.hint_search)).apply {
+                setSpan(StyleSpan(Typeface.ITALIC), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+            }
+            setHintTextColor(palette.listText)
             setTextColor(palette.listText)
             textCursorDrawable = cursorDrawable.apply { setSize(2.dp(), 1) }
             typeface = Typeface.MONOSPACE
@@ -239,7 +245,7 @@ internal class AppDrawer(
     fun applyPalette(p: Palette) {
         palette = p
         prompt.setTextColor(palette.listText)
-        prompt.setHintTextColor(palette.listDim)
+        prompt.setHintTextColor(palette.listText)
         clearButton.setTextColor(palette.listDim)
         prompt.setOutline(outlinePx, palette.listOutline)
         clearButton.setOutline(outlinePx, palette.listOutline)

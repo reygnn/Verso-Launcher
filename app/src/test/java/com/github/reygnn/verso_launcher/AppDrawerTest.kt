@@ -1,6 +1,9 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
+import android.graphics.Typeface
+import android.text.Spanned
+import android.text.style.StyleSpan
 import android.widget.TextView
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -81,11 +84,17 @@ class AppDrawerTest {
         val light = HomeStyle.palette(lightWallpaper = true)
         drawer.applyPalette(light)
         assertEquals(light.listText, drawer.prompt.currentTextColor)
-        assertEquals(light.listDim, drawer.prompt.currentHintTextColor)
+        assertEquals(light.listText, drawer.prompt.currentHintTextColor)
         assertEquals(light.listDim, emptyHint.currentTextColor)
         drawer.setPrompt("")
         val row = drawer.listView.adapter.getView(0, null, drawer.listView) as TextView
         assertEquals(light.listText, row.currentTextColor)
+    }
+
+    @Test fun `the prompt's hint is italic`() {
+        val hint = drawer.prompt.hint as Spanned
+        val span = hint.getSpans(0, hint.length, StyleSpan::class.java).single()
+        assertEquals(Typeface.ITALIC, span.style)
     }
 
     @Test fun `a tap on a row goes to the Activity as the tap's decision`() {
