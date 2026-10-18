@@ -6,7 +6,7 @@
 # they never enter the shipped release — the zero-dependency APK is untouched.
 # Core versions mirror the family (~/AndroidStudio_Projects/_skeleton).
 [versions]
-agp    = "9.4.0"
+agp    = "9.4.1"
 kotlin = "2.3.21"
 # Test-only.
 junit  = "4.13.2"
