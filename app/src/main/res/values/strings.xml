@@ -76,7 +76,7 @@
     <string name="empty_no_match">no app matches</string>
     <string name="empty_no_apps">no apps</string>
     <string name="empty_no_tags">no tags yet — create one with ##name</string>
-    <string name="empty_no_tag_match">no tag starts like that</string>
+    <string name="empty_no_tag_match">no tag or package starts like that</string>
     <string name="empty_no_favorites">no favorites yet — add some with !</string>
     <string name="empty_no_recents">no recent apps yet — the list resets when the launcher restarts</string>
     <string name="empty_no_command">no such command — ~ lists them all</string>

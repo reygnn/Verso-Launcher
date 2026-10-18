@@ -917,6 +917,25 @@ class LauncherLogicTest {
         assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b"), tags, "worko").keys())
     }
 
+    @Test fun `tagged falls back to the package when no tag matches`() {
+        val apps = listOf(
+            OrderedFake("gm", packageName = "com.google.android.gm"),
+            OrderedFake("cam", packageName = "com.samsung.android.camera"),
+            OrderedFake("verso", packageName = "com.github.reygnn.verso_launcher"),
+        )
+        assertEquals(listOf("gm"), LauncherLogic.tagged(apps, emptyMap(), "google").keys())
+        assertEquals(listOf("gm"), LauncherLogic.tagged(apps, emptyMap(), "GOO").keys())
+        assertEquals(listOf("verso"), LauncherLogic.tagged(apps, emptyMap(), "reygnn").keys())
+        // A matching tag wins: no package rows mixed in.
+        assertEquals(listOf("cam"), LauncherLogic.tagged(apps, mapOf("cam" to listOf("google")), "google").keys())
+    }
+
+    @Test fun `the package fallback skips the first segment and an empty needle`() {
+        val apps = listOf(OrderedFake("gm", packageName = "com.google.android.gm"))
+        assertEquals(emptyList<String>(), LauncherLogic.tagged(apps, emptyMap(), "com").keys())
+        assertEquals(emptyList<String>(), LauncherLogic.tagged(apps, emptyMap(), "").keys())
+    }
+
     // ---- fixed points and safe cuts ------------------------------------------
 
     @Test fun `a command needs the tilde in the raw prompt, not just after folding`() {

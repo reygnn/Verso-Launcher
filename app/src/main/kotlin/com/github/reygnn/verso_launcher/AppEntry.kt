@@ -7,7 +7,7 @@ package com.github.reygnn.verso_launcher
 internal data class AppEntry(
     /** The custom name if one is set, else [systemLabel]. */
     val label: String,
-    val packageName: String,
+    override val packageName: String,
     val className: String,
     /** The system's label without any custom name; for another profile it carries the badge ("Gmail (Work)"). */
     val systemLabel: String,

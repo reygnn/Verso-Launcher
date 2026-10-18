@@ -74,7 +74,7 @@
     <string name="empty_no_match">Keine App passt</string>
     <string name="empty_no_apps">Keine Apps</string>
     <string name="empty_no_tags">Noch keine Tags — anlegen mit ##name</string>
-    <string name="empty_no_tag_match">Kein Tag beginnt so</string>
+    <string name="empty_no_tag_match">Kein Tag und kein Paket beginnt so</string>
     <string name="empty_no_favorites">Noch keine Favoriten — mit ! hinzufügen</string>
     <string name="empty_no_recents">Noch keine zuletzt genutzten Apps (leer nach Neustart des Launchers)</string>
     <string name="empty_no_command">Kein solcher Befehl — ~ zeigt alle</string>

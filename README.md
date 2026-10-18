@@ -81,7 +81,10 @@ keyboard, no prompt:
     that tag's apps
   - `#text` — tag filter: the apps under every tag starting with `text` (so `#gam`
     finds your `games` apps). Tap or **Enter** to launch. Tags are assigned in the
-    long-press dialog or in bulk with `##`; a tagged app shows here even when hidden
+    long-press dialog or in bulk with `##`; a tagged app shows here even when hidden.
+    When no tag starts with `text`, the package names are searched instead, so `#google`,
+    `#samsung` or `#reygnn` lists an app maker's apps without any tag set (any part of the
+    package name after the first, `com.google.android.gm` for `#google` or `#android`)
   - `##` — edit tags in bulk: lists every tag you defined (also one whose apps are all
     uninstalled, so it can be reused), tap one and you get **every** app
     with an `[x]`/`[ ]` for that tag; tap a row to toggle it, saved immediately. This

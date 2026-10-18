@@ -29,6 +29,7 @@ internal data class Orphans(val keys: Set<String>, val favorites: Int, val hidde
 internal interface Ordered {
     val key: String
     val labelLower: String
+    val packageName: String
 }
 
 /** A rendered list row. Rows without an app are `Row<Nothing>`, so they fit a `Row<T>` list for any T. */
@@ -364,14 +365,21 @@ internal object LauncherLogic {
     /**
      * Apps with a tag starting with [needle] (canonicalised like a stored tag, or it could hold
      * characters no tag can); an empty needle gives every tagged app. Hidden apps are included.
+     * When no tag matches, the apps whose package matches ([packageMatches]): "#google", "#samsung".
      */
     fun <T : Ordered> tagged(all: List<T>, tags: Map<String, List<String>>, needle: String): List<T> {
         val n = canonicalTag(needle)
-        return all.filter { entry ->
+        val byTag = all.filter { entry ->
             val ts = tags[entry.key].orEmpty()
             if (n.isEmpty()) ts.isNotEmpty() else ts.any { it.startsWith(n) }
         }
+        if (byTag.isNotEmpty() || n.isEmpty()) return byTag
+        return all.filter { packageMatches(it.packageName, n) }
     }
+
+    /** A package segment after the first starts with [needle]; the first ("com", "de") would match nearly everything. */
+    fun packageMatches(packageName: String, needle: String): Boolean =
+        packageName.lowercase(Locale.ROOT).split('.').drop(1).any { it.startsWith(needle) }
 
     /** The canonical tag behind a "##tag" prompt, or null while the bare-"##" overview shows ("##", "###", "##,"). */
     fun tagEditTagFor(mode: Mode, trimmed: String): String? =
