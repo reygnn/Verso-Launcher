@@ -13,14 +13,14 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 514 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 518 tests):
 
 ```
 LauncherLogicTest          148  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           69  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           70  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, a failed save reported, needsRefresh, recents, reports that
                                 come even when a step throws (a "~cleanup" waits for it),
@@ -29,7 +29,7 @@ LauncherStateTest           69  the concurrency rules: refresh/rename/adopt
                                 if it cannot be moved: not loaded, no edit, retried)
 CommandGateTest             10  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, the edit permit
-LauncherRowsTest            39  rowsFor per mode
+LauncherRowsTest            40  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
                                 (exported to Downloads, else renamed: one copy), a crash's .new ignored
@@ -53,7 +53,8 @@ VersoConfigTest             10  snapshot deep copy, sameContent
 GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-UsageLogTest                10  the "%" order: decay, a launch, merge, sort, usage.txt and its junk
+UsageLogTest                12  the "%" order: decay, a launch, merge, sort, a clock ahead, usage.txt (junk,
+                                unreadable: not loaded, too large)
 RestoreStepsTest             4  the restore's IO order: undo point, config, then the old undo
                                 point swept; no-op restore; a failed write
 BackupStoreTest              5  readCapped (the bounded restore read)
