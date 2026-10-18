@@ -147,7 +147,7 @@ internal class AppDrawer(
             text = "×"
             typeface = Typeface.MONOSPACE
             textSize = 24f
-            setTextColor(palette.listDim)
+            setTextColor(palette.listText)
             gravity = Gravity.CENTER
             minWidth = 48.dp()
             contentDescription = activity.getString(R.string.clear_prompt)
@@ -246,7 +246,7 @@ internal class AppDrawer(
         palette = p
         prompt.setTextColor(palette.listText)
         prompt.setHintTextColor(palette.listText)
-        clearButton.setTextColor(palette.listDim)
+        clearButton.setTextColor(palette.listText)
         prompt.setOutline(outlinePx, palette.listOutline)
         clearButton.setOutline(outlinePx, palette.listOutline)
         // The theme's accent all but vanishes on a light wallpaper.
@@ -256,7 +256,7 @@ internal class AppDrawer(
         prompt.textSelectHandle?.let { prompt.setTextSelectHandle(it.mutate().apply { setTint(p.listText) }) }
         prompt.textSelectHandleLeft?.let { prompt.setTextSelectHandleLeft(it.mutate().apply { setTint(p.listText) }) }
         prompt.textSelectHandleRight?.let { prompt.setTextSelectHandleRight(it.mutate().apply { setTint(p.listText) }) }
-        emptyView.setTextColor(palette.listDim)
+        emptyView.setTextColor(palette.listText)
         emptyView.setOutline(outlinePx, palette.listOutline)
         adapter.notifyDataSetChanged()
     }

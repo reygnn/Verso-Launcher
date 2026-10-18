@@ -85,7 +85,7 @@ class AppDrawerTest {
         drawer.applyPalette(light)
         assertEquals(light.listText, drawer.prompt.currentTextColor)
         assertEquals(light.listText, drawer.prompt.currentHintTextColor)
-        assertEquals(light.listDim, emptyHint.currentTextColor)
+        assertEquals(light.listText, emptyHint.currentTextColor)
         drawer.setPrompt("")
         val row = drawer.listView.adapter.getView(0, null, drawer.listView) as TextView
         assertEquals(light.listText, row.currentTextColor)
