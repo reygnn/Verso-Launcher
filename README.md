@@ -40,7 +40,8 @@ keyboard, no prompt:
   the screen (or flick) and it opens, otherwise it drops back. **Pull down** → your
   recently used apps come down from the top like a HUD, the same way with your finger
   (the drawer on its `?` view, without the keyboard); **pull up** to put them away, or
-  Back, which goes straight home. A pull down that starts at the very top edge is left to
+  Back, which goes straight home. Clear the `?` (×, or type) and it is the plain drawer
+  again, closed with a pull down. A pull down that starts at the very top edge is left to
   the notification shade. A second finger cancels a pull.
 - With a hardware keyboard, just type: the drawer opens with what you typed in the
   command line (the Search key opens it empty).

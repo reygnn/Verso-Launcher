@@ -37,6 +37,7 @@ internal class AppDrawer(
     private val onLongPress: (AppEntry) -> Unit,
     private val onEnter: (EnterAction<AppEntry>) -> Unit,
     private val onFiltered: () -> Unit,
+    private val onModeChanged: (Mode) -> Unit = {},
 ) {
     val view: LinearLayout
 
@@ -268,6 +269,7 @@ internal class AppDrawer(
 
     fun applyFilter(raw: String) {
         val q = raw.trim()
+        val previous = mode
         mode = LauncherLogic.parseMode(q)
         // Only on change: restarting input on every keystroke makes the IME flicker.
         val wantedAction = if (LauncherLogic.isEditMode(mode)) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_GO
@@ -314,6 +316,7 @@ internal class AppDrawer(
         // On an anchor flip the ListView keeps the old position: pin it to the right end.
         if (anchorFlipped && topAnchored && shown.isNotEmpty()) listView.setSelection(0)
         if (anchorFlipped && !topAnchored && shown.isNotEmpty()) listView.setSelection(shown.lastIndex)
+        if (mode != previous) onModeChanged(mode)
     }
 
     /** After a change to the apps or the config; typing alone never changes the favorites. */

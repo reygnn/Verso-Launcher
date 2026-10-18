@@ -32,6 +32,7 @@ class AppDrawerTest {
 
     private val taps = mutableListOf<TapAction<AppEntry>>()
     private var filtered = 0
+    private val modes = mutableListOf<Mode>()
     private val drawer = AppDrawer(
         activity = activity,
         state = state,
@@ -40,6 +41,7 @@ class AppDrawerTest {
         onLongPress = {},
         onEnter = {},
         onFiltered = { filtered++ },
+        onModeChanged = { modes += it },
     )
 
     private fun rows(): List<String> {
@@ -96,6 +98,13 @@ class AppDrawerTest {
         val span = hint.getSpans(0, hint.length, StyleSpan::class.java).single()
         assertEquals(Typeface.ITALIC, span.style)
         assertEquals(Typeface.ITALIC, emptyHint.typeface.style)
+    }
+
+    @Test fun `a mode change is reported once, typing within a mode is not`() {
+        drawer.setPrompt("?")
+        drawer.setPrompt("?a")
+        drawer.setPrompt("")
+        assertEquals(listOf(Mode.RECENTS, Mode.NORMAL), modes)
     }
 
     @Test fun `a tap on a row goes to the Activity as the tap's decision`() {

@@ -130,6 +130,10 @@ class MainActivity : Activity() {
             onLongPress = { entry -> if (editPermit() != null) promptRename(entry) },
             onEnter = ::onDrawerEnter,
             onFiltered = ::renderHome,
+            onModeChanged = { mode ->
+                // Out of the recents (× or typing) it is the plain drawer: it goes back down like one.
+                if (drawerOpen && drawerFromTop && mode != Mode.RECENTS && !root.isDragging) drawerFromTop = false
+            },
         )
         drawer = appDrawer.view
 
