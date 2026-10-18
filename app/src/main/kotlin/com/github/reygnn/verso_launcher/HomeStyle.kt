@@ -41,18 +41,14 @@ internal object HomeStyle {
     const val PRESSED_ALPHA = 180
     const val TEXT_COLOR = 0xFFFFFFFF.toInt()
 
-    /**
-     * Unity Kolibri's "smart contrast", keyed on WallpaperColors.HINT_SUPPORTS_DARK_TEXT. The
-     * prompt gets a bar instead of an outline: an EditText cannot take the stroked second pass
-     * (cursor and selection would be drawn twice).
-     */
+    /** Unity Kolibri's "smart contrast", keyed on WallpaperColors.HINT_SUPPORTS_DARK_TEXT. */
     fun palette(lightWallpaper: Boolean): Palette =
         if (lightWallpaper) {
             Palette(homeText = 0xFF000000.toInt(), listText = 0xFF000000.toInt(), listDim = 0xFF575757.toInt(),
-                promptBar = 0xD0FFFFFF.toInt(), darkBarIcons = true)
+                darkBarIcons = true)
         } else {
             Palette(homeText = TEXT_COLOR, listText = TEXT_COLOR, listDim = 0xFF999999.toInt(),
-                promptBar = 0xD0000000.toInt(), darkBarIcons = false)
+                darkBarIcons = false)
         }
 
     const val UNAVAILABLE_ALPHA = 0.45f
@@ -145,7 +141,6 @@ internal data class Palette(
     val homeText: Int,
     val listText: Int,
     val listDim: Int,
-    val promptBar: Int,
     val darkBarIcons: Boolean,
 ) {
     val listOutline: Int get() = HomeStyle.tonalOutlineColor(listText)

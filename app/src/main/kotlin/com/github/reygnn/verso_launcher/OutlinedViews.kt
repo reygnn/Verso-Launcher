@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.LayerDrawable
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextClock
 import android.widget.TextView
@@ -74,6 +75,47 @@ internal class OutlinedTextView(context: Context) : TextView(context) {
         outline.beginStroke(this)
         super.onDraw(canvas)
         outline.endStroke(this)
+        drawingOutline = false
+        super.onDraw(canvas)
+    }
+}
+
+/**
+ * The command line with the outline. The stroke pass also strokes the hint and clears the
+ * selection highlight, or a translucent selection would be drawn twice; the cursor is opaque,
+ * drawn twice in the same place.
+ */
+internal class OutlinedEditText(context: Context) : EditText(context) {
+    private val outline = TextOutline()
+    private var drawingOutline = false
+    private var outlineColors: ColorStateList? = null
+
+    fun setOutline(widthPx: Float, color: Int) {
+        outline.set(widthPx, color)
+        outlineColors = ColorStateList.valueOf(color)
+        invalidate()
+    }
+
+    override fun invalidate() {
+        if (drawingOutline) return
+        super.invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (!outline.isActive) {
+            super.onDraw(canvas)
+            return
+        }
+        drawingOutline = true
+        val hint = hintTextColors
+        val highlight = highlightColor
+        outline.beginStroke(this)
+        outlineColors?.let { setHintTextColor(it) }
+        highlightColor = Color.TRANSPARENT
+        super.onDraw(canvas)
+        outline.endStroke(this)
+        setHintTextColor(hint)
+        highlightColor = highlight
         drawingOutline = false
         super.onDraw(canvas)
     }

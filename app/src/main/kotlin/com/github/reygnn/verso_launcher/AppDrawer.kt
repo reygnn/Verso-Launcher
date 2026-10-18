@@ -17,7 +17,6 @@ import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -62,14 +61,14 @@ internal class AppDrawer(
     var shown: List<Row<AppEntry>> = emptyList()
         private set
 
-    private lateinit var clearButton: TextView
+    private lateinit var clearButton: OutlinedTextView
     private lateinit var promptRow: LinearLayout
     // Recoloured in place: the Editor loads its cursor drawable once and ignores a new one.
     private val cursorDrawable = GradientDrawable()
     private lateinit var emptyView: OutlinedTextView
     lateinit var listView: ListView
         private set
-    lateinit var prompt: EditText
+    lateinit var prompt: OutlinedEditText
         private set
     private lateinit var adapter: AppListAdapter
 
@@ -141,7 +140,7 @@ internal class AppDrawer(
         }
         view.addView(listFrame, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
-        clearButton = TextView(activity).apply {
+        clearButton = OutlinedTextView(activity).apply {
             text = "×"
             typeface = Typeface.MONOSPACE
             textSize = 24f
@@ -157,7 +156,7 @@ internal class AppDrawer(
             }
         }
 
-        prompt = EditText(activity).apply {
+        prompt = OutlinedEditText(activity).apply {
             hint = activity.getString(R.string.hint_search)
             setHintTextColor(palette.listDim)
             setTextColor(palette.listText)
@@ -165,6 +164,8 @@ internal class AppDrawer(
             typeface = Typeface.MONOSPACE
             textSize = 20f
             background = null
+            // Room for the outline's outer half: the view clips at its bounds.
+            setPadding(2.dp(), 2.dp(), 2.dp(), 2.dp())
             isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or
                 InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
@@ -210,7 +211,6 @@ internal class AppDrawer(
         }
         promptRow = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(palette.promptBar)
             setPadding(8.dp(), 0, 8.dp(), 0)
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = 48.dp()
@@ -241,8 +241,9 @@ internal class AppDrawer(
         prompt.setTextColor(palette.listText)
         prompt.setHintTextColor(palette.listDim)
         clearButton.setTextColor(palette.listDim)
-        promptRow.setBackgroundColor(palette.promptBar)
-        // The theme's accent all but vanishes on the light bar.
+        prompt.setOutline(outlinePx, palette.listOutline)
+        clearButton.setOutline(outlinePx, palette.listOutline)
+        // The theme's accent all but vanishes on a light wallpaper.
         cursorDrawable.setColor(p.listText)
         prompt.invalidate()
         prompt.highlightColor = p.selection

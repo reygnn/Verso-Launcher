@@ -63,8 +63,8 @@ keyboard, no prompt:
 ## The command line
 
 - Lists launchable apps over your wallpaper in the favorites' colour — white on a dark one,
-  black on a light one, with the same outline. The command line sits on a translucent bar
-  of its own (dark under light text, light under dark), so it reads on any wallpaper.
+  black on a light one, with the same outline. The command line carries that outline too,
+  right on the wallpaper.
 - Lists the launchable apps of every profile through `LauncherApps` — your own plus
   a work profile or cloned apps, which carry the system's badge ("Calculator
   (Work)") and start in their own profile. Installs, uninstalls and updates show up

@@ -1,8 +1,6 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.graphics.drawable.ColorDrawable
-import android.view.View
 import android.widget.TextView
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -46,9 +44,7 @@ class AppDrawerTest {
         return (0 until adapter.count).map { (adapter.getView(it, null, drawer.listView) as TextView).text.toString() }
     }
 
-    /** The only outlined text view in the page's own tree: the rows live in the adapter. */
-
-    private val emptyHint: TextView get() = drawer.view.collect<OutlinedTextView>().single()
+    private val emptyHint: TextView get() = drawer.listView.emptyView as TextView
 
     @Test fun `the plain drawer lists every app A to Z, a search narrows it`() {
         drawer.setPrompt("")
@@ -81,12 +77,11 @@ class AppDrawerTest {
         assertEquals(activity.getString(R.string.empty_no_command), emptyHint.text.toString())
     }
 
-    @Test fun `a palette switch recolours the prompt, its bar, the hint and the rows`() {
+    @Test fun `a palette switch recolours the prompt, the hint and the rows`() {
         val light = HomeStyle.palette(lightWallpaper = true)
         drawer.applyPalette(light)
         assertEquals(light.listText, drawer.prompt.currentTextColor)
         assertEquals(light.listDim, drawer.prompt.currentHintTextColor)
-        assertEquals(light.promptBar, ((drawer.prompt.parent as View).background as ColorDrawable).color)
         assertEquals(light.listDim, emptyHint.currentTextColor)
         drawer.setPrompt("")
         val row = drawer.listView.adapter.getView(0, null, drawer.listView) as TextView

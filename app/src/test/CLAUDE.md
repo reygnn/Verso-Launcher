@@ -36,8 +36,8 @@ ConfigStoreTest             17  verso.json on real temp files: .new + rename, no
 ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
 LauncherActionsTest         26  Enter / tap decisions, which Enter call acts
-HomeStyleTest               24  sizes, luminance, outline-colour thresholds, battery,
-                                AppStatus and its dimming, the wallpaper palette, the prompt bar's contrast
+HomeStyleTest               23  sizes, luminance, outline-colour thresholds, battery,
+                                AppStatus and its dimming, the wallpaper palette
 BackupFilesTest             17  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what

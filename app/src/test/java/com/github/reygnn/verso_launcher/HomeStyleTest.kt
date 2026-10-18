@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.roundToInt
 
 /** The expected values are Kolibri's defaults, so a drift from Kolibri's look shows up here. */
 class HomeStyleTest {
@@ -85,7 +84,6 @@ class HomeStyleTest {
         assertEquals(HomeStyle.TEXT_COLOR, p.homeText)
         assertEquals(HomeStyle.argb(153, 0, 0, 0), HomeStyle.tonalOutlineColor(p.homeText))
         assertEquals(0x000000, p.listOutline and 0xFFFFFF)
-        assertEquals(0x000000, p.promptBar and 0xFFFFFF)
         assertEquals("drawer rows in the favorites' colour", p.homeText, p.listText)
         assertEquals(false, p.darkBarIcons)
     }
@@ -95,29 +93,8 @@ class HomeStyleTest {
         assertEquals(0xFF000000.toInt(), p.homeText)
         assertEquals(HomeStyle.argb(204, 255, 255, 255), HomeStyle.tonalOutlineColor(p.homeText))
         assertEquals(0xFFFFFF, p.listOutline and 0xFFFFFF)
-        assertEquals(0xFFFFFF, p.promptBar and 0xFFFFFF)
         assertEquals("drawer rows in the favorites' colour", p.homeText, p.listText)
         assertEquals(true, p.darkBarIcons)
-    }
-
-    /** The bar is translucent: checked over the worst ground for it, at WCAG's 4.5:1 for the hint too. */
-
-    @Test fun `the prompt bar keeps text and hint readable over any wallpaper`() {
-        fun over(bar: Int, ground: Int): Int {
-            val a = (bar ushr 24) / 255.0
-            fun mix(shift: Int) = ((bar shr shift and 0xFF) * a + (ground shr shift and 0xFF) * (1 - a)).roundToInt()
-            return HomeStyle.argb(255, mix(16), mix(8), mix(0))
-        }
-        fun contrast(x: Int, y: Int): Double {
-            val (hi, lo) = listOf(HomeStyle.luminance(x), HomeStyle.luminance(y)).sortedDescending()
-            return (hi + 0.05) / (lo + 0.05)
-        }
-        for ((light, worst) in listOf(true to 0xFF000000.toInt(), false to 0xFFFFFFFF.toInt())) {
-            val p = HomeStyle.palette(lightWallpaper = light)
-            val bar = over(p.promptBar, worst)
-            assertTrue("text on the ${if (light) "light" else "dark"} bar", contrast(p.listText, bar) >= 4.5)
-            assertTrue("hint on the ${if (light) "light" else "dark"} bar", contrast(p.listDim, bar) >= 4.5)
-        }
     }
 
     @Test fun `the selection is the text colour, translucent`() {
