@@ -136,4 +136,12 @@ class VersoConfigTest {
         assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = linkedMapOf("a/A" to "Alpha"), tags = a.tags)))
         assertFalse(a.sameContent(VersoConfig(favorites = a.favorites, hidden = a.hidden, names = a.names, tags = linkedMapOf("a/A" to mutableListOf("home")))))
     }
+
+    @Test
+    fun `the order counts for sameContent and survives a snapshot`() {
+        val cfg = VersoConfig(byUsage = true)
+        assertTrue(cfg.snapshot().byUsage)
+        assertFalse(cfg.sameContent(VersoConfig()))
+        assertTrue(cfg.sameContent(VersoConfig(byUsage = true)))
+    }
 }

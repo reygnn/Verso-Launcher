@@ -210,4 +210,10 @@ class LauncherActionsTest {
         assertEquals(TapAction.SetPrompt("##!work"), LauncherLogic.tapAction(Mode.TAG_EDIT, TagRow("!work")))
         assertEquals(Mode.TAG_EDIT, LauncherLogic.parseMode("##!work"))
     }
+
+    @Test fun `Enter and a tap on the percent row toggle the order`() {
+        val row = OrderRow(toUsage = true)
+        assertEquals(EnterAction.ToggleOrder, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = row))
+        assertEquals(TapAction.ToggleOrder, LauncherLogic.tapAction<OrderedFake>(Mode.ORDER, row))
+    }
 }

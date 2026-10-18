@@ -113,6 +113,13 @@ keyboard, no prompt:
   - `?` — the last 8 launched apps, newest nearest the command line. Kept in
     memory only, so it starts empty on every cold start; **Enter** relaunches the
     most recent. `?text` narrows them like a search
+  - `%` — **Enter** (or a tap on its row) switches the plain drawer between A to Z and
+    **most used first**, and keeps it that way. Most used is Kolibri's decayed count:
+    each launch from Verso counts, fading with time (a week old counts about half, a month
+    old a tenth), so what you use now rises above what you used a lot once. Only the plain
+    drawer is reordered; searches, tags and the edit modes stay as they are. The counts live
+    in `usage.txt` beside the config — not in `verso.json` and not in a backup; lose it and
+    counting starts over
   - `~[text]` — commands. Typing `~` lists the commands; typing more narrows the
     list (`~r` leaves `~restart`, `~restore` and `~restore-saf`). Tap a row to run it, or press
     **Enter** once what you typed can only mean one command — `~b` is enough for

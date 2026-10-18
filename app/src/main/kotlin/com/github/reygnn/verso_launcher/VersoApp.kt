@@ -22,6 +22,10 @@ class VersoApp : Application() {
     /** The "?" list, newest first; in memory only. */
     internal var recentKeys: List<String> = emptyList()
 
+    /** The "%" launches, and whether usage.txt was read into them yet. Main thread only. */
+    internal var usage: Map<String, Usage> = emptyMap()
+    internal var usageLoaded = false
+
     /** Set on [io] when an unreadable config was set aside; taken by whichever instance's
      *  hand-off lands first, so the toast is never lost. */
     internal val startedOver = java.util.concurrent.atomic.AtomicBoolean()

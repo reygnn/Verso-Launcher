@@ -13,14 +13,14 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 490 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 514 tests):
 
 ```
-LauncherLogicTest          145  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          148  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           67  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           69  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues, seeding,
                                 save-before-load, a failed save reported, needsRefresh, recents, reports that
                                 come even when a step throws (a "~cleanup" waits for it),
@@ -29,30 +29,31 @@ LauncherStateTest           67  the concurrency rules: refresh/rename/adopt
                                 if it cannot be moved: not loaded, no edit, retried)
 CommandGateTest             10  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, the edit permit
-LauncherRowsTest            37  rowsFor per mode
+LauncherRowsTest            39  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
                                 (exported to Downloads, else renamed: one copy), a crash's .new ignored
-ConfigJsonTest              29  round-trip, parseForeign's refusal of foreign JSON,
+ConfigJsonTest              31  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, size limits
-LauncherActionsTest         26  Enter / tap decisions, which Enter call acts
+LauncherActionsTest         27  Enter / tap decisions, which Enter call acts
 HomeStyleTest               23  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
 BackupFilesTest             17  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
-SwipeFrameTest              12  Robolectric: real MotionEvents through the frame — delta and
+SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
-AppDrawerTest                6  Robolectric: the back page — rows per prompt, edit-mode markers,
+AppDrawerTest                8  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on
 MainActivityFlowsTest        5  Robolectric, the real Activity: a second command and an edit
                                 refused while one runs (prompt kept), no edit and no command
                                 but ~restart before the first load, HOME ending a running swipe
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
-VersoConfigTest              9  snapshot deep copy, sameContent
+VersoConfigTest             10  snapshot deep copy, sameContent
 GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
+UsageLogTest                10  the "%" order: decay, a launch, merge, sort, usage.txt and its junk
 RestoreStepsTest             4  the restore's IO order: undo point, config, then the old undo
                                 point swept; no-op restore; a failed write
 BackupStoreTest              5  readCapped (the bounded restore read)

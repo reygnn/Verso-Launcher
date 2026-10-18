@@ -63,6 +63,12 @@ class LauncherLogicTest {
         assertEquals(Mode.NORMAL, LauncherLogic.parseMode("*"))
     }
 
+    @Test fun `percent is the order toggle, whatever follows it`() {
+        assertEquals(Mode.ORDER, LauncherLogic.parseMode("%"))
+        assertEquals(Mode.ORDER, LauncherLogic.parseMode("%abc"))
+        assertEquals(Mode.NORMAL, LauncherLogic.parseMode("a%"))
+    }
+
     @Test fun `dash is hidden-edit`() {
         assertEquals(Mode.HIDDEN_EDIT, LauncherLogic.parseMode("-"))
         assertEquals(Mode.HIDDEN_EDIT, LauncherLogic.parseMode("-maps"))

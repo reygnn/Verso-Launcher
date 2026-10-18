@@ -16,6 +16,7 @@ internal object ConfigJson {
             put("favorites", JSONArray(config.favorites.toList()))
             put("names", names)
             put("tags", tags)
+            put("order", if (config.byUsage) ORDER_USAGE else ORDER_NAME)
         }.toString(2)
     }
 
@@ -48,6 +49,9 @@ internal object ConfigJson {
         null
     }
 
+    const val ORDER_NAME = "name"
+    const val ORDER_USAGE = "usage"
+
     const val MAX_ENTRIES = 5_000
 
     const val MAX_TAGS_PER_APP = 100
@@ -70,6 +74,8 @@ internal object ConfigJson {
 
     private fun parseObject(j: JSONObject): VersoConfig {
         val loaded = VersoConfig()
+        // Absent (an older file) or unknown: A to Z.
+        loaded.byUsage = j.opt("order") == ORDER_USAGE
         // opt() as? String, not getString(): Android's getString coerces 123 to "123".
         j.optJSONArray("hidden")?.let {
             for (i in 0 until it.length()) (it.opt(i) as? String)?.let { s -> loaded.hidden += s }

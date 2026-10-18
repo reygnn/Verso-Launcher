@@ -34,6 +34,12 @@ internal class LauncherState(
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
     initialRecents: List<String> = emptyList(),
     private val onRecentsChanged: (List<String>) -> Unit = {},
+    private val loadUsage: () -> Map<String, Usage> = { emptyMap() },
+    private val writeUsage: (Map<String, Usage>, Long) -> Unit = { _, _ -> },
+    private val now: () -> Long = System::currentTimeMillis,
+    initialUsage: Map<String, Usage> = emptyMap(),
+    initialUsageLoaded: Boolean = false,
+    private val onUsageChanged: (Map<String, Usage>, Boolean) -> Unit = { _, _ -> },
 ) {
     /** Read-only from outside: every change goes through this class (save, configEpoch). */
     val config: ConfigView get() = cfg
@@ -58,6 +64,12 @@ internal class LauncherState(
     var recentKeys: List<String> = initialRecents
         private set
 
+    /** The launches behind the "%" order. Written only once the file was read (or it was lost). */
+    var usage: Map<String, Usage> = initialUsage
+        private set
+
+    private var usageLoaded = initialUsageLoaded
+
     /** Read from disk once (or adopted from a restore); after that [config] is the truth. */
     var configLoaded = false
         private set
@@ -79,6 +91,7 @@ internal class LauncherState(
         // Captured at request time, not at the read.
         val epoch = configEpoch
         val loadConfigNow = !configLoaded
+        val loadUsageNow = !usageLoaded
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             val freshBefore = loadConfigNow && isFreshInstall()
@@ -88,6 +101,7 @@ internal class LauncherState(
             if (setAside) startedOverFlag.set(true)
             val diskConfig = read ?: if (setAside) VersoConfig() else null
             val fresh = freshBefore || setAside
+            val diskUsage = if (loadUsageNow) loadUsage() else null
             val loaded = enumerateApps()
             val seeds = if (fresh && loaded != null) {
                 LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
@@ -104,6 +118,13 @@ internal class LauncherState(
                         cfg.favorites.addAll(seeds)
                         mutated()
                     }
+                }
+                if (diskUsage != null && !usageLoaded) {
+                    val counted = usage
+                    usage = UsageLog.merged(diskUsage, counted, now())
+                    usageLoaded = true
+                    onUsageChanged(usage, true)
+                    if (counted.isNotEmpty()) persistUsage()
                 }
                 lastLoadCommitted = loaded != null
                 // Most refreshes bring the same list; AppEntry ==, status included, sees any change.
@@ -235,6 +256,23 @@ internal class LauncherState(
     fun recordLaunch(key: String) {
         recentKeys = LauncherLogic.pushRecent(recentKeys, key, RECENTS_LIMIT)
         onRecentsChanged(recentKeys)
+        usage = UsageLog.recorded(usage, key, now())
+        onUsageChanged(usage, usageLoaded)
+        if (usageLoaded) persistUsage()
+    }
+
+    private fun persistUsage() {
+        val log = usage
+        val at = now()
+        io(Runnable { writeUsage(log, at) })
+    }
+
+    /** "%": the plain drawer by usage, or back to A to Z. Null, nothing saved, when refused. */
+    fun toggleOrder(idle: CommandGate.Idle): Boolean? {
+        if (!configLoaded || !idle.current) return null
+        cfg.byUsage = !cfg.byUsage
+        mutated()
+        return cfg.byUsage
     }
 
     /** The epoch bump keeps a first load still in flight from landing over the restore. */

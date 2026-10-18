@@ -27,6 +27,23 @@ class LauncherRowsTest {
     private fun tagNames(rows: List<Row<OrderedFake>>) =
         rows.filterIsInstance<TagRow>().map { it.name }
 
+    // ---- ORDER ("%") -------------------------------------------------------------
+
+    @Test fun `percent shows the one row that turns the order the other way`() {
+        val toUsage = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, null)
+        assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = true)), toUsage)
+        val back = LauncherLogic.rowsFor(Mode.ORDER, "%x", apps, hidden, favorites, tags, recents, null, byUsage = true)
+        assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = false)), back)
+    }
+
+    @Test fun `by usage, the plain drawer is most used first and a search is not reordered`() {
+        val usage = mapOf("com.c/C" to Usage(2.0, 0L))
+        val plain = LauncherLogic.rowsFor(Mode.NORMAL, "", apps, hidden, favorites, tags, recents, null, byUsage = true, usage = usage)
+        assertEquals(listOf("com.c/C", "com.a/A"), appKeys(plain))
+        val search = LauncherLogic.rowsFor(Mode.NORMAL, "a", apps, hidden, favorites, tags, recents, null, byUsage = true, usage = usage)
+        assertEquals(appKeys(rowsFor(Mode.NORMAL, "a")), appKeys(search))
+    }
+
     // ---- NORMAL --------------------------------------------------------------
 
     // The empty prompt is the plain alphabetical drawer — no favorites regrouping (that is "*").

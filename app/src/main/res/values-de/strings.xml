@@ -78,4 +78,8 @@
     <string name="empty_no_favorites">Noch keine Favoriten — mit ! hinzufügen</string>
     <string name="empty_no_recents">Noch keine zuletzt genutzten Apps (leer nach Neustart des Launchers)</string>
     <string name="empty_no_command">Kein solcher Befehl — ~ zeigt alle</string>
+    <string name="order_to_usage" formatted="false">% nach Nutzung sortieren</string>
+    <string name="order_to_name" formatted="false">% von A bis Z sortieren</string>
+    <string name="toast_order_usage">Drawer: meistgenutzte zuerst</string>
+    <string name="toast_order_name">Drawer: von A bis Z</string>
 </resources>

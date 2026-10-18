@@ -718,6 +718,49 @@ class LauncherStateTest {
         assertEquals(listOf("k5", "k10", "k9", "k8", "k7", "k6", "k4", "k3"), state.recentKeys)
     }
 
+    // ---- "%" order and usage -----------------------------------------------------
+
+    @Test fun `the order toggle is refused before the load and saved after it`() {
+        assertNull(state.toggleOrder(idle))
+        assertTrue(written.isEmpty())
+        started()
+        assertEquals(true, state.toggleOrder(idle))
+        assertTrue(state.config.byUsage)
+        runAll()
+        assertEquals(1, written.size)
+        assertEquals(false, state.toggleOrder(idle))
+    }
+
+    @Test fun `launches before usage_txt is read are added to it, then every launch is written`() {
+        val io = ArrayDeque<Runnable>()
+        val main = ArrayDeque<Runnable>()
+        val writes = mutableListOf<Map<String, Usage>>()
+        val reported = mutableListOf<Pair<Map<String, Usage>, Boolean>>()
+        val s = LauncherState(
+            io = { io.addLast(it); true }, main = { main.addLast(it) },
+            loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
+            serialize = { "" }, writeConfig = { true }, onRefreshed = { _, _ -> },
+            loadUsage = { mapOf("a" to Usage(1.0, 1000L)) },
+            writeUsage = { log, _ -> writes += log },
+            now = { 1000L },
+            onUsageChanged = { log, loaded -> reported += log to loaded },
+        )
+        s.recordLaunch("a")
+        assertTrue("not written over a file not read yet", io.isEmpty())
+        assertEquals(false, reported.last().second)
+        s.refresh()
+        while (io.isNotEmpty() || main.isNotEmpty()) {
+            while (io.isNotEmpty()) io.removeFirst().run()
+            while (main.isNotEmpty()) main.removeFirst().run()
+        }
+        assertEquals(Usage(2.0, 1000L), s.usage["a"])
+        assertEquals(listOf(mapOf("a" to Usage(2.0, 1000L))), writes)
+        assertEquals(true, reported.last().second)
+        s.recordLaunch("b")
+        while (io.isNotEmpty()) io.removeFirst().run()
+        assertEquals(setOf("a", "b"), writes.last().keys)
+    }
+
     // ---- restore ------------------------------------------------------------------
 
     /** The restore wrote verso.json itself (RestoreSteps); adopt must not write it again. */

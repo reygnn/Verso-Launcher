@@ -1,6 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -33,6 +34,20 @@ class ConfigJsonTest {
         assertEquals(original.favorites.toList(), parsed.favorites.toList())
         assertEquals(original.names, parsed.names)
         assertEquals(original.tags, parsed.tags)
+    }
+
+    @Test fun `the order round-trips, and an older or unknown one is A to Z`() {
+        val byUsage = VersoConfig(byUsage = true)
+        assertTrue(ConfigJson.parse(ConfigJson.serialize(byUsage))!!.byUsage)
+        assertFalse(ConfigJson.parse(ConfigJson.serialize(VersoConfig()))!!.byUsage)
+        assertFalse(ConfigJson.parse("""{"favorites":[]}""")!!.byUsage)
+        assertFalse(ConfigJson.parse("""{"order":"USAGE"}""")!!.byUsage)
+        assertFalse(ConfigJson.parse("""{"order":1}""")!!.byUsage)
+    }
+
+    @Test fun `an order alone does not make a foreign file a config`() {
+        assertNull(ConfigJson.parseForeign("""{"order":"usage"}"""))
+        assertTrue(ConfigJson.parseForeign("""{"favorites":[],"order":"usage"}""")!!.byUsage)
     }
 
     @Test fun `round-trips an empty config`() {

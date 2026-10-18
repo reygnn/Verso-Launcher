@@ -12,7 +12,7 @@ import java.util.Locale
 
 /** The command-line mode, chosen by the prompt's leading sigil. */
 internal enum class Mode {
-    NORMAL, HIDDEN_EDIT, FAV_EDIT, FAV_REORDER, RECENTS, TAG_FILTER, TAG_EDIT, COMMAND
+    NORMAL, HIDDEN_EDIT, FAV_EDIT, FAV_REORDER, RECENTS, TAG_FILTER, TAG_EDIT, COMMAND, ORDER
 }
 
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
@@ -37,6 +37,8 @@ internal sealed interface Row<out T : Ordered>
 internal data class AppRow<out T : Ordered>(val entry: T) : Row<T>
 internal data class TagRow(val name: String) : Row<Nothing>
 internal data class CommandRow(val name: String, val command: Command) : Row<Nothing>
+/** The one "%" row: what Enter or a tap turns the plain drawer's order into. */
+internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
 
 /** What an Enter on the command line does ([LauncherLogic.enterAction]); the Activity performs it. */
 internal sealed interface EnterAction<out T : Ordered> {
@@ -44,6 +46,7 @@ internal sealed interface EnterAction<out T : Ordered> {
     data class LaunchApp<out T : Ordered>(val entry: T) : EnterAction<T>
     /** Drives the TextWatcher exactly as typing would. */
     data class SetPrompt(val text: String) : EnterAction<Nothing>
+    data object ToggleOrder : EnterAction<Nothing>
     data object DismissKeyboard : EnterAction<Nothing>
     data object None : EnterAction<Nothing>
 }
@@ -69,6 +72,7 @@ internal sealed interface TapAction<out T : Ordered> {
     data class ToggleTag<out T : Ordered>(val entry: T) : TapAction<T>
     data class Run(val command: Command) : TapAction<Nothing>
     data class SetPrompt(val text: String) : TapAction<Nothing>
+    data object ToggleOrder : TapAction<Nothing>
     data object None : TapAction<Nothing>
 }
 
@@ -83,6 +87,7 @@ internal object LauncherLogic {
         trimmed.startsWith("?") -> Mode.RECENTS
         trimmed.startsWith("#") -> Mode.TAG_FILTER
         trimmed.startsWith("~") -> Mode.COMMAND
+        trimmed.startsWith("%") -> Mode.ORDER
         else -> Mode.NORMAL
     }
 
@@ -329,6 +334,7 @@ internal object LauncherLogic {
         Mode.COMMAND -> EmptyHint.NO_COMMAND
         Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_TAGS else EmptyHint.NO_TAG_MATCH
         Mode.FAV_REORDER -> EmptyHint.NO_FAVORITES
+        Mode.ORDER -> EmptyHint.NO_MATCH  // never empty: the one OrderRow
         Mode.RECENTS -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_RECENTS else EmptyHint.NO_MATCH
         Mode.HIDDEN_EDIT, Mode.FAV_EDIT -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
         Mode.NORMAL -> if (trimmed.isEmpty()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
@@ -396,6 +402,9 @@ internal object LauncherLogic {
         tags: Map<String, List<String>>,
         recentKeys: List<String>,
         tagEditTag: String?,
+        byUsage: Boolean = false,
+        usage: Map<String, Usage> = emptyMap(),
+        now: Long = 0L,
     ): List<Row<T>> {
         // allTags, not tagsInUse: a tag whose apps are all gone is the one to re-assign.
         if (mode == Mode.TAG_EDIT && tagEditTag == null) {
@@ -404,6 +413,7 @@ internal object LauncherLogic {
         if (mode == Mode.COMMAND) {
             return commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
         }
+        if (mode == Mode.ORDER) return listOf(OrderRow(toUsage = !byUsage))
         if (mode == Mode.TAG_FILTER && trimmed.substring(1).isBlank()) {
             return tagsInUse(allApps, tags).map { TagRow(it) }
         }
@@ -415,12 +425,13 @@ internal object LauncherLogic {
             Mode.HIDDEN_EDIT, Mode.FAV_EDIT -> search(allApps, trimmed.substring(1).trim())
             // Not reordered tagged-first: rows would jump under the finger.
             Mode.TAG_EDIT -> allApps
-            Mode.COMMAND -> emptyList()
+            Mode.COMMAND, Mode.ORDER -> emptyList()
             Mode.NORMAL -> {
                 val wildcard = starPrefix(trimmed)
                 when {
-                    // Strictly alphabetical (no favorites-last): the Activity anchors this view at the top.
+                    // A to Z (or most used first, "%"), no favorites-last: the Activity anchors this view at the top.
                     trimmed.isEmpty() -> drawer(allApps, hidden, favorites)
+                        .let { if (byUsage) UsageLog.byUsage(it, usage, now) else it }
                     wildcard != null -> drawerStartingWith(allApps, hidden, favorites, wildcard)
                     // Plain search spans ALL apps, so a hidden app stays reachable by name.
                     else -> search(allApps, trimmed)
@@ -442,7 +453,7 @@ internal object LauncherLogic {
         Mode.FAV_EDIT -> if (isFavorite) "[x] " else "[ ] "
         Mode.FAV_REORDER -> if (isPicked) "\u00BB " else "  "
         Mode.TAG_EDIT -> if (isTagged) "[x] " else "[ ] "
-        Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND -> ""
+        Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND, Mode.ORDER -> ""
     }
 
     /**
@@ -458,6 +469,7 @@ internal object LauncherLogic {
     ): EnterAction<T> = when {
         command != null -> EnterAction.Run(command)
         mode == Mode.COMMAND -> EnterAction.None
+        mode == Mode.ORDER -> EnterAction.ToggleOrder
         mode == Mode.TAG_EDIT -> when (lastRow) {
             is TagRow -> EnterAction.SetPrompt("##${lastRow.name}")
             else -> EnterAction.SetPrompt("")
@@ -502,13 +514,14 @@ internal object LauncherLogic {
         null -> TapAction.None
         is TagRow -> TapAction.SetPrompt(if (mode == Mode.TAG_EDIT) "##${row.name}" else "#${row.name}")
         is CommandRow -> TapAction.Run(row.command)
+        is OrderRow -> TapAction.ToggleOrder
         is AppRow -> when (mode) {
             Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER -> TapAction.Launch(row.entry)
             Mode.HIDDEN_EDIT -> TapAction.ToggleHidden(row.entry)
             Mode.FAV_EDIT -> TapAction.ToggleFavorite(row.entry)
             Mode.FAV_REORDER -> TapAction.ReorderPick(row.entry)
             Mode.TAG_EDIT -> TapAction.ToggleTag(row.entry)
-            Mode.COMMAND -> TapAction.None
+            Mode.COMMAND, Mode.ORDER -> TapAction.None
         }
     }
 }

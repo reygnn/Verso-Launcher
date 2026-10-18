@@ -293,6 +293,9 @@ internal class AppDrawer(
             tags = state.config.tags,
             recentKeys = state.recentKeys,
             tagEditTag = tagEditTag,
+            byUsage = state.config.byUsage,
+            usage = state.usage,
+            now = System.currentTimeMillis(),
         )
         // A pick whose row is gone would make the next tap move an invisible favorite.
         if (reorderPick != null && shown.none { (it as? AppRow)?.entry?.key == reorderPick }) reorderPick = null
@@ -387,6 +390,12 @@ internal class AppDrawer(
                     tv.contentDescription = null
                     tv.alpha = 1f
                 }
+                is OrderRow -> {
+                    tv.typeface = Typeface.MONOSPACE
+                    tv.text = activity.getString(if (row.toUsage) R.string.order_to_usage else R.string.order_to_name)
+                    tv.contentDescription = null
+                    tv.alpha = 1f
+                }
                 is CommandRow -> {
                     tv.typeface = Typeface.MONOSPACE
                     tv.text = row.name
@@ -435,7 +444,7 @@ internal class AppDrawer(
                     entry.label,
                     tagEditTag.orEmpty(),
                 )
-                Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND -> unavailableDescription(activity, entry)
+                Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND, Mode.ORDER -> unavailableDescription(activity, entry)
             }
         }
     }

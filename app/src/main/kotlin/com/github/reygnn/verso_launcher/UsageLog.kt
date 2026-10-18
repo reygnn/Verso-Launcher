@@ -1,0 +1,83 @@
+package com.github.reygnn.verso_launcher
+
+import java.io.File
+import kotlin.math.exp
+
+/** One app's launches as Kolibri's decayed sum, kept as its value at [at] (epoch ms). */
+internal data class Usage(val score: Double, val at: Long)
+
+/**
+ * The "%" order: every launch from Verso counts e^(-λ·Δt) (Kolibri's λ = 1e-6/s: a day 92 %,
+ * a week 55 %, a month 10 %). The sum is carried as one number per app, decayed on each use.
+ * The file beside verso.json is disposable like [HomeCache]: lost or torn, counting starts over.
+ * Used on VersoApp.io for the file, pure otherwise.
+ */
+internal object UsageLog {
+
+    const val FILE = "usage.txt"
+
+    const val LAMBDA_PER_MS = 1e-9
+
+    /** Below this an entry is dropped on write (one launch, about 53 days ago). */
+    const val FORGET_BELOW = 0.01
+
+    /** A clock set back counts as no time passed, never as a gain. */
+    fun decayed(usage: Usage, now: Long): Double =
+        usage.score * exp(-LAMBDA_PER_MS * (now - usage.at).coerceAtLeast(0L))
+
+    fun recorded(log: Map<String, Usage>, key: String, now: Long): Map<String, Usage> {
+        val before = log[key]?.let { decayed(it, now) } ?: 0.0
+        return log + (key to Usage(before + 1.0, now))
+    }
+
+    /** Launches counted before the file was read are added to what it held. */
+    fun merged(disk: Map<String, Usage>, memory: Map<String, Usage>, now: Long): Map<String, Usage> {
+        val out = HashMap(disk)
+        for ((key, usage) in memory) {
+            val sum = decayed(usage, now) + (disk[key]?.let { decayed(it, now) } ?: 0.0)
+            out[key] = Usage(sum, now)
+        }
+        return out
+    }
+
+    /** Most used first; unused apps and ties keep [all]'s order (A to Z). */
+    fun <T : Ordered> byUsage(all: List<T>, log: Map<String, Usage>, now: Long): List<T> {
+        val scores = all.associate { it.key to (log[it.key]?.let { u -> decayed(u, now) } ?: 0.0) }
+        return all.sortedByDescending { scores.getValue(it.key) }
+    }
+
+    /** One "key<TAB>score<TAB>at" line per app still worth keeping. */
+    fun format(log: Map<String, Usage>, now: Long): String = buildString {
+        for ((key, usage) in log) {
+            if (decayed(usage, now) < FORGET_BELOW) continue
+            append(key).append('\t').append(usage.score).append('\t').append(usage.at).append('\n')
+        }
+    }
+
+    fun parse(text: String): Map<String, Usage> {
+        val out = HashMap<String, Usage>()
+        for (line in text.lineSequence()) {
+            val parts = line.split('\t')
+            if (parts.size != 3 || parts[0].isEmpty()) continue
+            val score = parts[1].toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 } ?: continue
+            val at = parts[2].toLongOrNull() ?: continue
+            out[parts[0]] = Usage(score, at)
+        }
+        return out
+    }
+
+    fun read(dir: File): Map<String, Usage> = try {
+        File(dir, FILE).takeIf { it.isFile }?.readText()?.let(::parse).orEmpty()
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    fun write(dir: File, log: Map<String, Usage>, now: Long) {
+        try {
+            val tmp = File(dir, "$FILE.tmp")
+            tmp.writeText(format(log, now))
+            if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
+        } catch (_: Exception) {
+        }
+    }
+}

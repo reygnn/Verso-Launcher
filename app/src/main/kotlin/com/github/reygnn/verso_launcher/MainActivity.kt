@@ -92,6 +92,14 @@ class MainActivity : Activity() {
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
             initialRecents = app.recentKeys,
             onRecentsChanged = { app.recentKeys = it },
+            loadUsage = { UsageLog.read(filesDir) },
+            writeUsage = { log, now -> UsageLog.write(filesDir, log, now) },
+            initialUsage = app.usage,
+            initialUsageLoaded = app.usageLoaded,
+            onUsageChanged = { log, loaded ->
+                app.usage = log
+                app.usageLoaded = loaded
+            },
         )
     }
 
@@ -292,7 +300,11 @@ class MainActivity : Activity() {
         }
         drawer.requestApplyInsets()
         if (appDrawer.prompt.text?.toString() != initialPrompt) appDrawer.setPrompt(initialPrompt)
-        else if (initialPrompt.isEmpty() && appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
+        else if (initialPrompt.isEmpty()) {
+            // A drag re-sorted it before showing it (beginPageDrag).
+            if (fromHidden) resortByUsage()
+            if (appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
+        }
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
         drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS).withLayer()
             .setInterpolator(AccelerateDecelerateInterpolator()).start()
@@ -346,6 +358,11 @@ class MainActivity : Activity() {
         if (!drawerOpen && appDrawer.prompt.text?.isNotEmpty() == true) appDrawer.prompt.setText("")
     }
 
+    /** Most used first changes with every launch, and none re-sorts a drawer out of sight. */
+    private fun resortByUsage() {
+        if (state.config.byUsage) appDrawer.applyFilter("")
+    }
+
     /** Where the closed drawer waits: above the page for the recents, below it otherwise. */
     private fun hiddenY(): Float = if (drawerFromTop) -pageHeight() else pageHeight()
 
@@ -391,6 +408,7 @@ class MainActivity : Activity() {
         // The recents must be what the pull reveals; a settle back clears the prompt again.
         val prompt = if (fromTop) RECENTS_PROMPT else ""
         if (appDrawer.prompt.text?.toString() != prompt) appDrawer.setPrompt(prompt)
+        else if (prompt.isEmpty() && drawer.visibility != View.VISIBLE) resortByUsage()
         drawer.visibility = View.VISIBLE
         drawer.alpha = 1f
         return height - abs(drawer.translationY)
@@ -848,6 +866,14 @@ class MainActivity : Activity() {
         }
     }
 
+    /** "%": saved at once like every edit; the prompt clears onto the drawer in its new order. */
+    private fun toggleOrder() {
+        val permit = editPermit() ?: return
+        val byUsage = state.toggleOrder(permit) ?: return
+        toast(getString(if (byUsage) R.string.toast_order_usage else R.string.toast_order_name))
+        appDrawer.setPrompt("")
+    }
+
     /** Internal for MainActivityFlowsTest. */
     internal fun onDrawerTap(action: TapAction<AppEntry>) {
         when (action) {
@@ -864,6 +890,7 @@ class MainActivity : Activity() {
             is TapAction.ToggleTag -> toggleTagOn(action.entry.key)
             is TapAction.Run -> runCommand(action.command)
             is TapAction.SetPrompt -> appDrawer.setPrompt(action.text)
+            TapAction.ToggleOrder -> toggleOrder()
             TapAction.None -> {}  // stale position, or a row this mode ignores
         }
     }
@@ -873,6 +900,7 @@ class MainActivity : Activity() {
             is EnterAction.Run -> runCommand(action.command)
             is EnterAction.LaunchApp -> launch(action.entry)
             is EnterAction.SetPrompt -> appDrawer.setPrompt(action.text)
+            EnterAction.ToggleOrder -> toggleOrder()
             EnterAction.DismissKeyboard -> appDrawer.hideKeyboard()
             EnterAction.None -> {}
         }
