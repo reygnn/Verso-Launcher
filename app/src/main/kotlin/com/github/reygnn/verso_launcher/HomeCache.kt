@@ -31,11 +31,8 @@ internal object HomeCache {
     }
 
     fun write(dir: File, favorites: List<AppEntry>) {
-        try {
-            val tmp = File(dir, "$FILE.tmp")
-            tmp.writeText(format(favorites))
-            if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
-        } catch (_: Exception) {
-        }
+        val tmp = File(dir, "$FILE.tmp")
+        tmp.writeText(format(favorites))
+        if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
     }
 }

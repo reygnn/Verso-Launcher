@@ -82,11 +82,8 @@ internal object UsageLog {
     }
 
     fun write(dir: File, log: Map<String, Usage>, now: Long) {
-        try {
-            val tmp = File(dir, "$FILE.tmp")
-            tmp.writeText(format(log, now))
-            if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
-        } catch (_: Exception) {
-        }
+        val tmp = File(dir, "$FILE.tmp")
+        tmp.writeText(format(log, now))
+        if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
     }
 }

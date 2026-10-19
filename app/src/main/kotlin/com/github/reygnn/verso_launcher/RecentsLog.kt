@@ -32,11 +32,8 @@ internal object RecentsLog {
     }
 
     fun write(dir: File, keys: List<String>) {
-        try {
-            val tmp = File(dir, "$FILE.tmp")
-            tmp.writeText(format(keys))
-            if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
-        } catch (_: Exception) {
-        }
+        val tmp = File(dir, "$FILE.tmp")
+        tmp.writeText(format(keys))
+        if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
     }
 }
