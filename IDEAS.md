@@ -48,6 +48,11 @@ from. Under the feature freeze (see `CLAUDE.md`) only the bugs here are fair gam
 - Home ignores the system font size (by design for the clock); paused/archived is shown by
   opacity alone.
 
+## Open question (2026-10-19)
+
+- Hidden apps show in `?` (Kolibri left them out). Both are right; leaning towards showing:
+  a hidden app is launched only by searching for it on purpose, so listing it is honest.
+
 ## Seen on the A17
 
 - `BackupStoreInstrumentedTest` leaves empty `Download/VersoTest-…` folders behind.
