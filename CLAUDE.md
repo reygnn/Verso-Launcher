@@ -128,7 +128,14 @@ main, written on the IO thread.
    `testImplementation` or `androidTestImplementation`. New deps need the user's OK.
 2. **A HOME app must never throw.** Every IO-thread path (enumeration, default
    favorites, config and backup I/O) catches broadly and degrades; an uncaught
-   exception on the executor kills the process on every start.
+   exception on the executor kills the process on every start. Crash-only beyond that:
+   a catch is armour only where it breaks a crash loop (`Guard` around every IO-thread
+   task, setting an unreadable `verso.json` aside) or protects `verso.json` (the atomic
+   write); disposable work that is rebuilt on the next start may crash. The other catches
+   are correctness or UX, not armour: the enumeration's (`Apps`) decide what `~cleanup`
+   may trust and keep the last good list, the backup ones turn a failure into its own
+   message. Main-thread catches degrade with a message specific to the exception, never
+   silently — no catch-all net.
 3. **One IO thread, process-wide** (`VersoApp.io`). Never create another executor,
    never shut it down. Main-thread state is mutated only on the main thread; hand-backs
    go through `onUi`, which drops them for a destroyed instance. The one exception: the
