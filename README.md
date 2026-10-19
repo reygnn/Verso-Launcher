@@ -110,7 +110,7 @@ keyboard, no prompt:
   - `!!` — reorder favorites: tap a row to pick it up (marked `»`), tap another
     row to drop it there; tap the picked row again to cancel. Saved immediately, and
     the front page lists them in exactly this order, top to bottom
-  - `?` — the last 8 launched apps, newest nearest the command line. Kept in
+  - `?` — the last 8 launched apps still installed, newest nearest the command line. Kept in
     `recents.txt` beside the config — not in `verso.json` and not in a backup; lose it
     and the list starts over. **Enter** relaunches the most recent. `?text` narrows
     them like a search

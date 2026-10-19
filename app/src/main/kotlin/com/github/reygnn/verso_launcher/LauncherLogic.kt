@@ -273,10 +273,13 @@ internal object LauncherLogic {
     fun pushRecent(current: List<String>, key: String, limit: Int): List<String> =
         (listOf(key) + current.filter { it != key }).take(limit)
 
-    /** Reversed: under isStackFromBottom the most recent sits nearest the prompt (the Enter target). */
-    fun <T : Ordered> recentsInDisplayOrder(all: List<T>, recentKeys: List<String>): List<T> {
+    /** The newest [limit] of the apps still there, reversed: under isStackFromBottom the most
+     *  recent sits nearest the prompt (the Enter target). */
+    fun <T : Ordered> recentsInDisplayOrder(
+        all: List<T>, recentKeys: List<String>, limit: Int = LauncherState.RECENTS_LIMIT,
+    ): List<T> {
         val byKey = all.associateBy { it.key }
-        return recentKeys.asReversed().mapNotNull { byKey[it] }
+        return recentKeys.mapNotNull { byKey[it] }.take(limit).asReversed()
     }
 
     fun parseTags(raw: String): List<String> =

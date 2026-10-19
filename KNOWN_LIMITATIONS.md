@@ -8,7 +8,8 @@ is documented before it lands in the issue tracker.
 The `?` list is kept in `recents.txt` beside `verso.json`, not in it (that file is the
 user's config: favorites, hidden apps, custom names) and not in a backup. It survives
 the launcher's process being killed; a lost or torn file only means the
-list starts over — the same as `usage.txt` behind `%`.
+list starts over — the same as `usage.txt` behind `%`. It keeps the last 32 apps launched,
+so up to 24 of them can be gone before `?` shows fewer than 8.
 
 ## An unreadable config starts over
 

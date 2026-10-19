@@ -821,6 +821,18 @@ class LauncherLogicTest {
         assertEquals(listOf("a", "b"), result.keys())
     }
 
+    @Test fun `recentsInDisplayOrder - a gone app takes no place among the shown`() {
+        val all = rows("a", "b", "c")
+        val result = LauncherLogic.recentsInDisplayOrder(all, listOf("c", "gone", "b", "a"), limit = 2)
+        assertEquals(listOf("b", "c"), result.keys())
+    }
+
+    @Test fun `recentsInDisplayOrder shows the newest eight`() {
+        val keys = (1..10).map { "k$it" }
+        val result = LauncherLogic.recentsInDisplayOrder(rows(*keys.toTypedArray()), keys.reversed())
+        assertEquals((3..10).map { "k$it" }, result.keys())
+    }
+
     @Test fun `recentsInDisplayOrder with no recents is empty`() {
         assertEquals(emptyList<String>(), LauncherLogic.recentsInDisplayOrder(rows("a", "b"), emptyList()).keys())
     }

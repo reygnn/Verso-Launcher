@@ -134,7 +134,7 @@ internal class LauncherState(
                 var recentsChanged = false
                 if (diskRecents != null && !recentsLoaded) {
                     val launched = recentKeys
-                    recentKeys = RecentsLog.merged(diskRecents, launched, RECENTS_LIMIT)
+                    recentKeys = RecentsLog.merged(diskRecents, launched, RECENTS_KEPT)
                     recentsLoaded = true
                     recentsChanged = recentKeys != launched
                     onRecentsChanged(recentKeys, true)
@@ -267,7 +267,7 @@ internal class LauncherState(
     }
 
     fun recordLaunch(key: String) {
-        recentKeys = LauncherLogic.pushRecent(recentKeys, key, RECENTS_LIMIT)
+        recentKeys = LauncherLogic.pushRecent(recentKeys, key, RECENTS_KEPT)
         onRecentsChanged(recentKeys, recentsLoaded)
         if (recentsLoaded) persistRecents()
         usage = UsageLog.recorded(usage, key, now())
@@ -311,6 +311,10 @@ internal class LauncherState(
     private fun mutated() = save()
 
     companion object {
+        /** How many "?" shows. */
         const val RECENTS_LIMIT = 8
+
+        /** How many recents.txt keeps: an app that is gone takes no place among the shown (Kolibri's × 4). */
+        const val RECENTS_KEPT = 4 * RECENTS_LIMIT
     }
 }

@@ -98,7 +98,7 @@ class MainActivity : Activity() {
                 app.recentKeys = keys
                 app.recentsLoaded = loaded
             },
-            loadRecents = { RecentsLog.read(filesDir, LauncherState.RECENTS_LIMIT) },
+            loadRecents = { RecentsLog.read(filesDir, LauncherState.RECENTS_KEPT) },
             writeRecents = { keys -> RecentsLog.write(filesDir, keys) },
             loadUsage = { UsageLog.read(filesDir) },
             writeUsage = { log, now -> UsageLog.write(filesDir, log, now) },

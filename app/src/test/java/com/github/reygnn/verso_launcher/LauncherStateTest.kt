@@ -779,8 +779,10 @@ class LauncherStateTest {
     @Test fun `recents are newest first, de-duplicated and capped`() {
         for (i in 1..10) state.recordLaunch("k$i")
         state.recordLaunch("k5")
-        assertEquals(LauncherState.RECENTS_LIMIT, state.recentKeys.size)
-        assertEquals(listOf("k5", "k10", "k9", "k8", "k7", "k6", "k4", "k3"), state.recentKeys)
+        assertEquals(listOf("k5", "k10", "k9", "k8", "k7", "k6", "k4", "k3", "k2", "k1"), state.recentKeys)
+        for (i in 11..40) state.recordLaunch("k$i")
+        assertEquals(LauncherState.RECENTS_KEPT, state.recentKeys.size)
+        assertEquals("k40", state.recentKeys.first())
     }
 
     @Test fun `recents_txt is read once, launches before it come first, and every later launch is written`() {
