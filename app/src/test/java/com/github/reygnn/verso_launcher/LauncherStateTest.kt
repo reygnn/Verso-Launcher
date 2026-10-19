@@ -250,7 +250,7 @@ class LauncherStateTest {
         assertEquals(setOf(key("Alpha")), snap.favorites)
     }
 
-    @Test fun `configLoaded is false until the disk copy or a restore is adopted`() {
+    @Test fun `configLoaded is false until the disk copy is adopted`() {
         assertFalse(state.configLoaded)
         state.refresh()
         runIo()
@@ -259,9 +259,29 @@ class LauncherStateTest {
         assertTrue(state.configLoaded)
     }
 
-    @Test fun `a restore marks the config loaded even before the first refresh`() {
-        state.adopt(VersoConfig())
-        assertTrue(state.configLoaded)
+    @Test fun `adopt before the first load is refused, and the first load still lands`() {
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        state.refresh()
+        runIo()
+        assertFalse(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
+        assertFalse(state.configLoaded)
+        runAll()
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(listOf(true), refreshed)
+    }
+
+    @Test fun `the first load of the newest generation adopts the file unchanged`() {
+        disk = VersoConfig(
+            favorites = linkedSetOf(key("Charlie"), key("Alpha")),
+            hidden = linkedSetOf(key("Bravo")),
+            names = linkedMapOf(key("Alpha") to "Mine"),
+        )
+        state.refresh()
+        state.refresh()
+        runAll()
+        assertTrue(disk.sameContent(state.loadedSnapshot()!!))
+        assertEquals(listOf(true), refreshed)
+        assertEquals(emptyList<String>(), written)
     }
 
     @Test fun `apps stay unloaded until the first enumeration commits`() {
@@ -797,22 +817,12 @@ class LauncherStateTest {
     @Test fun `adopt replaces the config and re-renders without writing or re-reading the file`() {
         started()
         val restored = VersoConfig(favorites = linkedSetOf(key("Bravo")))
-        state.adopt(restored)
+        assertTrue(state.adopt(restored))
         assertEquals(setOf(key("Bravo")), state.config.favorites)
         runAll()
         assertEquals(emptyList<String>(), written)
         assertEquals(1, loadConfigCalls)
         assertEquals(listOf(false), refreshed)
-    }
-
-    @Test fun `a restore before the cold start finished is not overwritten by it`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
-        state.refresh()
-        runIo()
-        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
-        runAll()
-        assertEquals(setOf(key("Bravo")), state.config.favorites)
-        assertTrue(state.appsLoaded)
     }
 
     // ---- default favorites -------------------------------------------------------
@@ -861,15 +871,6 @@ class LauncherStateTest {
         runAll()
         assertTrue(state.config.favorites.isEmpty())
         assertEquals(emptyList<String>(), written)
-    }
-
-    @Test fun `a restore before the fresh cold start finished is not seeded over`() {
-        fresh = true
-        state.refresh()
-        runIo()
-        state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo"))))
-        runAll()
-        assertEquals(setOf(key("Bravo")), state.config.favorites)
     }
 
     // ---- AppEntry --------------------------------------------------------------

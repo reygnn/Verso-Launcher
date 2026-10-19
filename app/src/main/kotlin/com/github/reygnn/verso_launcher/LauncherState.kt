@@ -7,10 +7,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * while a background load and the user's taps overlap. Plays the ViewModel role, in plain Kotlin.
  *
  * Threading: every public member is main-thread only; disk and LauncherApps work runs on [io],
- * results come back through [main]. The IO side reads only the @Volatile counters:
- *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
- *   configEpoch    — bumped by every config change: a first load adopts the disk config only if
- *                    nothing changed it since the request (memory is then the newer truth).
+ * results come back through [main]. The IO side reads only the @Volatile counter loadGeneration,
+ * bumped by [refresh]: the newest requested enumeration wins, older ones bail. Nothing changes the
+ * config before it is loaded (every edit, [adopt] and [cleanup] refuse), so a first load lands as read.
  * An enumeration carries no config (system labels only); custom names are applied on main from
  * the live config ([relabel]), so no edit can make an enumeration stale.
  *
@@ -41,7 +40,7 @@ internal class LauncherState(
     initialUsageLoaded: Boolean = false,
     private val onUsageChanged: (Map<String, Usage>, Boolean) -> Unit = { _, _ -> },
 ) {
-    /** Read-only from outside: every change goes through this class (save, configEpoch). */
+    /** Read-only from outside: every change goes through this class (and its save). */
     val config: ConfigView get() = cfg
     private var cfg: VersoConfig = VersoConfig()
 
@@ -70,14 +69,13 @@ internal class LauncherState(
 
     private var usageLoaded = initialUsageLoaded
 
-    /** Read from disk once (or adopted from a restore); after that [config] is the truth. */
+    /** Read from disk once; after that [config] is the truth. */
     var configLoaded = false
         private set
 
     fun takeStartedOver(): Boolean = configLoaded && startedOverFlag.getAndSet(false)
 
     @Volatile private var loadGeneration = 0
-    @Volatile private var configEpoch = 0
     @Volatile private var saveSeq = 0
 
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, cfg.favorites)
@@ -88,8 +86,6 @@ internal class LauncherState(
     /** Re-enumerate the apps (and, until loaded, read the config first) off the main thread. */
     fun refresh() {
         val generation = ++loadGeneration
-        // Captured at request time, not at the read.
-        val epoch = configEpoch
         val loadConfigNow = !configLoaded
         val loadUsageNow = !usageLoaded
         io(Runnable {
@@ -109,8 +105,7 @@ internal class LauncherState(
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile
                 var replaced = false
-                // A restore adopted before this landed is the newer truth.
-                if (diskConfig != null && configEpoch == epoch) {
+                if (diskConfig != null) {
                     cfg = diskConfig
                     configLoaded = true
                     replaced = true
@@ -198,7 +193,6 @@ internal class LauncherState(
 
     /** Drop every entry (favorite, hidden, name, tags) for [keys] in one save. */
     private fun forget(keys: Set<String>) {
-        // Before the load: unsavable, and the epoch bump would make the first load drop the disk config.
         if (!configLoaded || keys.isEmpty()) return
         cfg.favorites.removeAll(keys)
         cfg.hidden.removeAll(keys)
@@ -275,23 +269,21 @@ internal class LauncherState(
         return cfg.byUsage
     }
 
-    /** The epoch bump keeps a first load still in flight from landing over the restore. */
-    fun adopt(restored: VersoConfig) {
+    /** False, nothing adopted, before the first load: it would land over the restore. No save —
+     *  the restore has written verso.json already. */
+    fun adopt(restored: VersoConfig): Boolean {
+        if (!configLoaded) return false
         cfg = restored
-        configLoaded = true
-        ++configEpoch  // no save: the restore has written verso.json already
         relabel()
         refresh()
+        return true
     }
 
     private fun relabel() {
         apps = LauncherLogic.named(enumerated, cfg.names)
     }
 
-    private fun mutated() {
-        ++configEpoch
-        save()
-    }
+    private fun mutated() = save()
 
     companion object {
         const val RECENTS_LIMIT = 8
