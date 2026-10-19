@@ -76,7 +76,7 @@
     <string name="empty_no_tags">Noch keine Tags — anlegen mit ##name</string>
     <string name="empty_no_tag_match">Kein Tag und kein Paket beginnt so</string>
     <string name="empty_no_favorites">Noch keine Favoriten — mit ! hinzufügen</string>
-    <string name="empty_no_recents">Noch keine zuletzt genutzten Apps (leer nach Neustart des Launchers)</string>
+    <string name="empty_no_recents">Noch keine zuletzt genutzten Apps</string>
     <string name="empty_no_command">Kein solcher Befehl — ~ zeigt alle</string>
     <string name="order_to_usage" formatted="false">% nach Nutzung sortieren</string>
     <string name="order_to_name" formatted="false">% von A bis Z sortieren</string>

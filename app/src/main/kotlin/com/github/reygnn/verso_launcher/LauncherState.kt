@@ -32,7 +32,10 @@ internal class LauncherState(
     private val startedOverFlag: AtomicBoolean = AtomicBoolean(),
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
     initialRecents: List<String> = emptyList(),
-    private val onRecentsChanged: (List<String>) -> Unit = {},
+    initialRecentsLoaded: Boolean = false,
+    private val onRecentsChanged: (List<String>, Boolean) -> Unit = { _, _ -> },
+    private val loadRecents: () -> List<String>? = { emptyList() },
+    private val writeRecents: (List<String>) -> Unit = {},
     private val loadUsage: () -> Map<String, Usage>? = { emptyMap() },
     private val writeUsage: (Map<String, Usage>, Long) -> Unit = { _, _ -> },
     private val now: () -> Long = System::currentTimeMillis,
@@ -63,6 +66,9 @@ internal class LauncherState(
     var recentKeys: List<String> = initialRecents
         private set
 
+    /** Written only once recents.txt was read, like [usage]. */
+    private var recentsLoaded = initialRecentsLoaded
+
     /** The launches behind the "%" order. Written only once the file was read (or it was lost). */
     var usage: Map<String, Usage> = initialUsage
         private set
@@ -88,6 +94,7 @@ internal class LauncherState(
         val generation = ++loadGeneration
         val loadConfigNow = !configLoaded
         val loadUsageNow = !usageLoaded
+        val loadRecentsNow = !recentsLoaded
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             val freshBefore = loadConfigNow && isFreshInstall()
@@ -98,6 +105,7 @@ internal class LauncherState(
             val diskConfig = read ?: if (setAside) VersoConfig() else null
             val fresh = freshBefore || setAside
             val diskUsage = if (loadUsageNow) loadUsage() else null
+            val diskRecents = if (loadRecentsNow) loadRecents() else null
             val loaded = enumerateApps()
             val seeds = if (fresh && loaded != null) {
                 LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
@@ -121,9 +129,18 @@ internal class LauncherState(
                     onUsageChanged(usage, true)
                     if (counted.isNotEmpty()) persistUsage()
                 }
+                var recentsChanged = false
+                if (diskRecents != null && !recentsLoaded) {
+                    val launched = recentKeys
+                    recentKeys = RecentsLog.merged(diskRecents, launched, RECENTS_LIMIT)
+                    recentsLoaded = true
+                    recentsChanged = recentKeys != launched
+                    onRecentsChanged(recentKeys, true)
+                    if (launched.isNotEmpty()) persistRecents()
+                }
                 lastLoadCommitted = loaded != null
                 // Most refreshes bring the same list; AppEntry ==, status included, sees any change.
-                val changed = replaced || (loaded != null && (!appsLoaded || loaded != enumerated))
+                val changed = replaced || recentsChanged || (loaded != null && (!appsLoaded || loaded != enumerated))
                 if (loaded != null) {
                     enumerated = loaded
                     appsLoaded = true
@@ -249,10 +266,16 @@ internal class LauncherState(
 
     fun recordLaunch(key: String) {
         recentKeys = LauncherLogic.pushRecent(recentKeys, key, RECENTS_LIMIT)
-        onRecentsChanged(recentKeys)
+        onRecentsChanged(recentKeys, recentsLoaded)
+        if (recentsLoaded) persistRecents()
         usage = UsageLog.recorded(usage, key, now())
         onUsageChanged(usage, usageLoaded)
         if (usageLoaded) persistUsage()
+    }
+
+    private fun persistRecents() {
+        val keys = recentKeys
+        io(Runnable { writeRecents(keys) })
     }
 
     private fun persistUsage() {

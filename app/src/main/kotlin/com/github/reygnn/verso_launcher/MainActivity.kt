@@ -93,7 +93,13 @@ class MainActivity : Activity() {
             startedOverFlag = app.startedOver,
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
             initialRecents = app.recentKeys,
-            onRecentsChanged = { app.recentKeys = it },
+            initialRecentsLoaded = app.recentsLoaded,
+            onRecentsChanged = { keys, loaded ->
+                app.recentKeys = keys
+                app.recentsLoaded = loaded
+            },
+            loadRecents = { RecentsLog.read(filesDir, LauncherState.RECENTS_LIMIT) },
+            writeRecents = { keys -> RecentsLog.write(filesDir, keys) },
             loadUsage = { UsageLog.read(filesDir) },
             writeUsage = { log, now -> UsageLog.write(filesDir, log, now) },
             initialUsage = app.usage,

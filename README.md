@@ -111,8 +111,9 @@ keyboard, no prompt:
     row to drop it there; tap the picked row again to cancel. Saved immediately, and
     the front page lists them in exactly this order, top to bottom
   - `?` — the last 8 launched apps, newest nearest the command line. Kept in
-    memory only, so it starts empty on every cold start; **Enter** relaunches the
-    most recent. `?text` narrows them like a search
+    `recents.txt` beside the config — not in `verso.json` and not in a backup; lose it
+    and the list starts over. **Enter** relaunches the most recent. `?text` narrows
+    them like a search
   - `%` — **Enter** (or a tap on its row) switches the plain drawer between A to Z and
     **most used first**, and keeps it that way. Most used is Kolibri's decayed count:
     each launch from Verso counts, fading with time (a week old counts about half, a month
@@ -232,7 +233,8 @@ and unit-tested on the JVM or a thin view class:
   model, the `verso.json` round-trip, the durable file layer and the Downloads backup;
   `BackupFiles.kt` the backup naming rules, `RestoreSteps.kt` a restore's IO in its
   load-bearing order.
-- `HomeCache.kt` — the favorites cached for an instant home page on a cold start.
+- `HomeCache.kt` — the favorites cached for an instant home page on a cold start;
+  `UsageLog.kt` and `RecentsLog.kt` the `%` counts and the `?` list, disposable files too.
 - `VersoApp.kt` — the process: the one IO thread and what outlives an activity
   (recents, palette, badge labels).
 - `RenameDialog.kt` — the long-press dialog.

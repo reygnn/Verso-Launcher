@@ -19,8 +19,9 @@ class VersoApp : Application() {
     /** Last applied wallpaper palette, so a recreated activity starts in the right colours. Main thread only. */
     internal var palette: Palette? = null
 
-    /** The "?" list, newest first; in memory only. */
+    /** The "?" list, newest first, and whether recents.txt was read into it yet. Main thread only. */
     internal var recentKeys: List<String> = emptyList()
+    internal var recentsLoaded = false
 
     /** The "%" launches, and whether usage.txt was read into them yet. Main thread only. */
     internal var usage: Map<String, Usage> = emptyMap()

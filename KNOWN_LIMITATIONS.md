@@ -3,26 +3,12 @@
 Deliberate design choices that can look like bugs. Listed here so the behaviour
 is documented before it lands in the issue tracker.
 
-## Recents (`?`) reset when the launcher's process restarts
+## Recents (`?`) live in a disposable file
 
-The `?` recents list is held **in memory only** — it is never written to
-`verso.json` (that file is the user's config: favorites, hidden apps, custom
-names). The list therefore lives exactly as long as the launcher process.
-
-Consequence: whenever Android kills the launcher process, `?` comes back empty.
-On low-RAM / low-end devices the OS reclaims the launcher's memory
-**aggressively**, often while another app is in the foreground, so the process is
-killed and cold-started far more frequently than on a high-end phone. A normal
-background→foreground cycle keeps the list; a process death clears it.
-
-This is intended: recents are a convenience for the current session, not durable
-state, and keeping them out of `verso.json` avoids write churn and keeps the
-config file to genuine user intent. To avoid the "where did my recents go?"
-surprise, an empty `?` says so in place of the list ("no recent apps yet — the list
-resets when the launcher restarts") — see `LauncherLogic.emptyHint` and `empty_no_recents`.
-
-If durable recents are ever wanted, persist `recentKeys` to a **separate** small
-file (not `verso.json`) and load it on start.
+The `?` list is kept in `recents.txt` beside `verso.json`, not in it (that file is the
+user's config: favorites, hidden apps, custom names) and not in a backup. It survives
+the launcher's process being killed; a lost or torn file only means the
+list starts over — the same as `usage.txt` behind `%`.
 
 ## An unreadable config starts over
 

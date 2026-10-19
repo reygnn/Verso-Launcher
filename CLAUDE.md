@@ -61,8 +61,8 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
 - **Persistence:** one JSON file, `filesDir/verso.json`, via
   `ConfigStore` — not SharedPreferences, not DataStore. Beside it only
   `home-cache.txt` (`HomeCache`), a disposable copy of the favorites for the cold-start
-  frame, and `usage.txt` (`UsageLog`), the launch counts behind the `%` order — disposable
-  too, never in a backup. Off-device backups in `Download/Verso/` via MediaStore (`BackupStore`).
+  frame, `usage.txt` (`UsageLog`), the launch counts behind the `%` order, and `recents.txt`
+  (`RecentsLog`), the `?` list — disposable too, never in a backup. Off-device backups in `Download/Verso/` via MediaStore (`BackupStore`).
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath (android.jar's is a
   stub), Robolectric where a real widget is needed, **no MockK / no mocks** (fakes
   and manual queues). An `androidTest` set (androidx.test, test APK only) covers
@@ -92,6 +92,7 @@ com.github.reygnn.verso_launcher/
   OutlinedViews       the outlined text/icon views home and drawer draw with
   HomeCache           the favorites cached for an instant home page on a cold start
   UsageLog            the "%" order's launch counts (Kolibri's decay) and usage.txt
+  RecentsLog          the "?" list's recents.txt
   SwipeFrame          window root; watches dispatchTouchEvent for the page-turn swipe
   SwipeGesture        pure gesture decisions: Unity's page drag + Kolibri's flick
   TapGuard            stale-click protection for list rows
