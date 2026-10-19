@@ -1,6 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -32,5 +33,11 @@ class RecentsLogTest {
         assertEquals(emptyList<String>(), RecentsLog.read(dir, 8))
         File(dir, RecentsLog.FILE).writeText("x".repeat(RecentsLog.MAX_BYTES.toInt() + 1))
         assertEquals(emptyList<String>(), RecentsLog.read(dir, 8))
+    }
+
+    @Test fun `an unreadable file is null - it must not be written over`() {
+        val dir = folder.root
+        File(dir, RecentsLog.FILE).apply { writeText("a/A\n") }.setReadable(false)
+        assertNull(RecentsLog.read(dir, 8))
     }
 }

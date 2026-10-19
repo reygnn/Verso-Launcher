@@ -250,7 +250,7 @@ class LauncherStateTest {
         assertEquals(setOf(key("Alpha")), snap.favorites)
     }
 
-    @Test fun `configLoaded is false until the disk copy is adopted`() {
+    @Test fun `configLoaded is false until the disk copy is loaded`() {
         assertFalse(state.configLoaded)
         state.refresh()
         runIo()
@@ -265,9 +265,19 @@ class LauncherStateTest {
         runIo()
         assertFalse(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
         assertFalse(state.configLoaded)
+        assertTrue("nothing adopted", state.config.favorites.isEmpty())
         runAll()
         assertEquals(setOf(key("Alpha")), state.config.favorites)
         assertEquals(listOf(true), refreshed)
+    }
+
+    @Test fun `adopt before a fresh first load is refused, and the defaults are still seeded`() {
+        fresh = true
+        state.refresh()
+        runIo()
+        assertFalse(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
+        runAll()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
     }
 
     @Test fun `the first load of the newest generation adopts the file unchanged`() {
@@ -738,68 +748,105 @@ class LauncherStateTest {
         assertEquals(listOf("k5", "k10", "k9", "k8", "k7", "k6", "k4", "k3"), state.recentKeys)
     }
 
-    @Test fun `recents_txt is read once, launches before it come first, and every later launch is written`() {
+    /** IO and main queues of their own, for a LauncherState with a recents.txt fake. */
+    private class Queues {
         val io = ArrayDeque<Runnable>()
         val main = ArrayDeque<Runnable>()
-        val writes = mutableListOf<List<String>>()
-        var reads = 0
-        val listChanged = mutableListOf<Boolean>()
-        val s = LauncherState(
-            io = { io.addLast(it); true }, main = { main.addLast(it) },
-            loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
-            serialize = { "" }, writeConfig = { true }, onRefreshed = { _, changed -> listChanged += changed },
-            loadRecents = { reads++; listOf("a", "b") },
-            writeRecents = { writes += it },
-        )
         fun drain() {
             while (io.isNotEmpty() || main.isNotEmpty()) {
                 while (io.isNotEmpty()) io.removeFirst().run()
                 while (main.isNotEmpty()) main.removeFirst().run()
             }
         }
+    }
+
+    private fun recentsState(
+        q: Queues,
+        loadRecents: () -> List<String>?,
+        writes: MutableList<List<String>>,
+        initialRecents: List<String> = emptyList(),
+        initialRecentsLoaded: Boolean = false,
+        reported: MutableList<Pair<List<String>, Boolean>> = mutableListOf(),
+        listChanged: MutableList<Boolean> = mutableListOf(),
+    ) = LauncherState(
+        io = { q.io.addLast(it); true }, main = { q.main.addLast(it) },
+        loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
+        serialize = { "" }, writeConfig = { true }, onRefreshed = { _, changed -> listChanged += changed },
+        initialRecents = initialRecents,
+        initialRecentsLoaded = initialRecentsLoaded,
+        onRecentsChanged = { keys, loaded -> reported += keys to loaded },
+        loadRecents = loadRecents,
+        writeRecents = { writes += it },
+    )
+
+    @Test fun `recents_txt is read once, launches before it come first, and every later launch is written`() {
+        val q = Queues()
+        val writes = mutableListOf<List<String>>()
+        var reads = 0
+        val s = recentsState(q, { reads++; listOf("a", "b") }, writes)
         s.recordLaunch("b")
-        drain()
+        q.drain()
         assertEquals("not before the file was read", emptyList<List<String>>(), writes)
         s.refresh()
-        drain()
+        q.drain()
         assertEquals(listOf("b", "a"), s.recentKeys)
         assertEquals(listOf(listOf("b", "a")), writes)
         s.recordLaunch("c")
         s.refresh()
-        drain()
+        q.drain()
         assertEquals(1, reads)
         assertEquals(listOf("c", "b", "a"), writes.last())
-        assertEquals(listOf(true, false), listChanged)
     }
 
-    @Test fun `an unreadable recents_txt is not written over, a later read still merges`() {
-        val io = ArrayDeque<Runnable>()
-        val main = ArrayDeque<Runnable>()
+    @Test fun `reading recents_txt with no launch before it writes nothing`() {
+        val q = Queues()
         val writes = mutableListOf<List<String>>()
-        var readable = false
-        val s = LauncherState(
-            io = { io.addLast(it); true }, main = { main.addLast(it) },
-            loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
-            serialize = { "" }, writeConfig = { true }, onRefreshed = { _, _ -> },
-            loadRecents = { if (readable) listOf("a") else null },
-            writeRecents = { writes += it },
-        )
-        fun drain() {
-            while (io.isNotEmpty() || main.isNotEmpty()) {
-                while (io.isNotEmpty()) io.removeFirst().run()
-                while (main.isNotEmpty()) main.removeFirst().run()
-            }
-        }
+        val s = recentsState(q, { listOf("a") }, writes)
         s.refresh()
-        drain()
+        q.drain()
+        assertEquals(listOf("a"), s.recentKeys)
+        assertEquals(emptyList<List<String>>(), writes)
+    }
+
+    @Test fun `a recreated instance takes over whether recents_txt was read`() {
+        val q = Queues()
+        val writes = mutableListOf<List<String>>()
+        val reported = mutableListOf<Pair<List<String>, Boolean>>()
+        val first = recentsState(q, { listOf("a") }, writes, reported = reported)
+        first.recordLaunch("b")
+        assertEquals(listOf("b") to false, reported.last())
+        first.refresh()
+        q.drain()
+        assertEquals(listOf("b", "a") to true, reported.last())
+
+        var reads = 0
+        val (keys, loaded) = reported.last()
+        val second = recentsState(q, { reads++; null }, writes, initialRecents = keys, initialRecentsLoaded = loaded)
+        second.refresh()
+        q.drain()
+        assertEquals(0, reads)
+        second.recordLaunch("c")
+        q.drain()
+        assertEquals(listOf("c", "b", "a"), writes.last())
+    }
+
+    @Test fun `an unreadable recents_txt is not written over, a later read still merges and re-renders`() {
+        val q = Queues()
+        val writes = mutableListOf<List<String>>()
+        val listChanged = mutableListOf<Boolean>()
+        var readable = false
+        val s = recentsState(q, { if (readable) listOf("a") else null }, writes, listChanged = listChanged)
+        s.refresh()
+        q.drain()
         s.recordLaunch("b")
-        drain()
+        q.drain()
         assertEquals(emptyList<List<String>>(), writes)
         readable = true
         s.refresh()
-        drain()
+        q.drain()
         assertEquals(listOf("b", "a"), s.recentKeys)
         assertEquals(listOf(listOf("b", "a")), writes)
+        assertEquals("same apps, but the ? list changed", true, listChanged.last())
     }
 
     // ---- "%" order and usage -----------------------------------------------------

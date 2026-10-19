@@ -7,9 +7,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * while a background load and the user's taps overlap. Plays the ViewModel role, in plain Kotlin.
  *
  * Threading: every public member is main-thread only; disk and LauncherApps work runs on [io],
- * results come back through [main]. The IO side reads only the @Volatile counter loadGeneration,
- * bumped by [refresh]: the newest requested enumeration wins, older ones bail. Nothing changes the
- * config before it is loaded (every edit, [adopt] and [cleanup] refuse), so a first load lands as read.
+ * results come back through [main]. The IO side reads only the @Volatile counters:
+ *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
+ *   saveSeq        — bumped by [save]: a newer queued save carries this state, an older one skips.
+ * Nothing changes the config before it is loaded (every edit, [adopt] and [cleanup] refuse), so a
+ * first load lands as read.
  * An enumeration carries no config (system labels only); custom names are applied on main from
  * the live config ([relabel]), so no edit can make an enumeration stale.
  *

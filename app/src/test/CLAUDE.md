@@ -13,18 +13,19 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 523 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 527 tests):
 
 ```
 LauncherLogicTest          148  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           71  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           74  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load), seeding,
-                                save-before-load, a failed save reported, needsRefresh, recents (recents.txt read once, never
-                                written over unread), reports that
+                                save-before-load, a failed save reported, needsRefresh,
+                                recents (recents.txt read once, never written over
+                                unread, the read handed to a recreated instance), reports that
                                 come even when a step throws (a "~cleanup" waits for it),
                                 an unreadable config (set aside, a fresh start, said once — also after a
                                 dropped hand-off or a recreation;
@@ -57,7 +58,8 @@ TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
 UsageLogTest                12  the "%" order: decay, a launch, merge, sort, a clock ahead, usage.txt (junk,
                                 unreadable: not loaded, too large)
-RecentsLogTest               4  the "?" list's recents.txt: merge, parse, round-trip, too large
+RecentsLogTest               5  the "?" list's recents.txt: merge, parse, round-trip, too large,
+                                unreadable: null
 RestoreStepsTest             4  the restore's IO order: undo point, config, then the old undo
                                 point swept; no-op restore; a failed write
 BackupStoreTest              5  readCapped (the bounded restore read)

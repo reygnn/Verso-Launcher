@@ -215,7 +215,7 @@ and unit-tested on the JVM or a thin view class:
 
 - `LauncherState.kt` — the data: config, app list and recents, plus the rules that keep
   them consistent when a background load overlaps a toggle, rename, reorder or restore
-  (one counter; see the class comment). Plain Kotlin taking its threads as functions —
+  (see the class comment). Plain Kotlin taking its threads as functions —
   the role a ViewModel would play, without the AndroidX dependency.
   `LauncherStateTest` replays every overlap deterministically with two manual queues.
 - `AppDrawer.kt` — the back page: list, command line and what the list shows for a prompt.
