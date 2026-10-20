@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 529 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 534 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -62,6 +62,10 @@ RecentsLogTest               5  the "?" list's recents.txt: merge, parse, round-
                                 unreadable: null
 RestoreStepsTest             4  the restore's IO order: undo point, config, then the old undo
                                 point swept; no-op restore; a failed write
+CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed before every step
+                                (real verso.json files, Download/Verso swept by BackupFiles' rules),
+                                then a cold start: either config whole, nothing the user had lost,
+                                one undo point once through
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
