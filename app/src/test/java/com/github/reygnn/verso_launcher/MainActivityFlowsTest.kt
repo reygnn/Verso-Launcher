@@ -1,6 +1,8 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.DialogInterface
 import android.content.Intent
 import android.net.Uri
 import android.os.Looper
@@ -28,6 +30,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Only flows that need no LauncherApps or MediaStore fakes (Robolectric models both too thinly).
  * The process's IO thread is real: the tests drain it, or hold it with a latch to keep a command running.
+ * A restore's undo point goes to Robolectric's stub ContentResolver, which takes the write: the
+ * restore tests lean on that thin model, not on a fake.
  */
 @RunWith(RobolectricTestRunner::class)
 class MainActivityFlowsTest {
@@ -39,8 +43,10 @@ class MainActivityFlowsTest {
 
     @After fun release() {
         hold.countDown()
-        // Else a read's hand-back lands on the main looper after the test, in the next one.
+        // Else a read's or a command's hand-back lands on the main looper after the test, in the next one.
         joinReads()
+        settle()
+        if (!activity.isDestroyed) controller.pause().stop().destroy()
     }
 
     private fun settle() = repeat(4) {
@@ -48,9 +54,24 @@ class MainActivityFlowsTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
+    private fun reads() = Thread.getAllStackTraces().keys.filter { it.name == "verso-restore-read" }
+
     /** The "~restore-saf" reads run on threads of their own. */
-    private fun joinReads() =
-        Thread.getAllStackTraces().keys.filter { it.name == "verso-restore-read" }.forEach { it.join(5000) }
+    private fun joinReads(threads: Collection<Thread> = reads()) = threads.forEach {
+        it.join(5000)
+        check(!it.isAlive) { "a ~restore-saf read is still running" }
+    }
+
+    private fun configWith(entry: AppEntry) =
+        ConfigJson.serialize(VersoConfig(favorites = linkedSetOf(entry.key))).byteInputStream()
+
+    /** A provider that hangs, like an offline cloud drive: the read waits for the hold. */
+    private fun hanging(content: InputStream) = object : InputStream() {
+        override fun read(): Int {
+            check(hold.await(30, TimeUnit.SECONDS))
+            return content.read()
+        }
+    }
 
     /** A "~restore-saf" whose picker answered with [content]. */
     private fun pick(name: String, content: InputStream) {
@@ -78,6 +99,7 @@ class MainActivityFlowsTest {
     private fun tap(action: TapAction<AppEntry>) = activity.onDrawerTap(action)
 
     private val someApp = AppEntry.of("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
+    private val otherApp = AppEntry.of("Yankee", "com.yankee", "com.yankee.Main", "Yankee")
     private fun savedFavorites(): Set<String> =
         File(activity.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText())?.favorites }.orEmpty()
 
@@ -122,14 +144,7 @@ class MainActivityFlowsTest {
 
     @Test fun `~restart while a picked file is read drops the pick and says so`() {
         started()
-        // A provider that hangs, like an offline cloud drive: the read waits for the hold.
-        val config = ConfigJson.serialize(VersoConfig(favorites = linkedSetOf(someApp.key))).byteInputStream()
-        pick("verso.json", object : InputStream() {
-            override fun read(): Int {
-                hold.await(5, TimeUnit.SECONDS)
-                return config.read()
-            }
-        })
+        pick("verso.json", hanging(configWith(someApp)))
         enter("~backup")
         assertEquals("other commands run meanwhile", "", prompt.text.toString())
         settle()
@@ -142,6 +157,49 @@ class MainActivityFlowsTest {
         settle()
         assertEquals("the late read is not adopted", dropped, ShadowToast.getTextOfLatestToast())
         assertFalse(someApp.key in savedFavorites())
+    }
+
+    @Test fun `~restart drops a read whose hand-back is already queued`() {
+        started()
+        pick("verso.json", configWith(someApp))
+        joinReads()                             // read, its hand-back waits on the main looper
+        enter("~restart")
+        assertEquals(activity.getString(R.string.toast_restore_saf_dropped), ShadowToast.getTextOfLatestToast())
+        settle()
+        assertFalse(someApp.key in savedFavorites())
+    }
+
+    @Test fun `the newest pick wins over a slower one`() {
+        started()
+        pick("old.json", hanging(configWith(someApp)))
+        val slow = reads()
+        pick("new.json", configWith(otherApp))
+        joinReads(reads() - slow.toSet())
+        settle()
+        assertTrue(otherApp.key in savedFavorites())
+        hold.countDown()
+        joinReads()
+        settle()
+        assertEquals(setOf(otherApp.key), savedFavorites())
+    }
+
+    @Test fun `~restart builds the activity anew`() {
+        val before = started()
+        enter("~restart")
+        settle()
+        assertTrue(before.isDestroyed)
+    }
+
+    @Test fun `the rename dialog's OK says why it is refused while a command runs`() {
+        started()
+        activity.promptRename(someApp)
+        val dialog = ShadowDialog.getLatestDialog() as AlertDialog
+        holdIo()
+        enter("~backup")
+        ShadowToast.reset()
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(activity.getString(R.string.toast_busy), ShadowToast.getTextOfLatestToast())
     }
 
     @Test fun `~restart drops nothing once the picked file was read`() {
@@ -161,7 +219,7 @@ class MainActivityFlowsTest {
         activity.promptRename(someApp)
         val dialog = ShadowDialog.getLatestDialog()
         assertTrue(dialog.isShowing)
-        pick("verso.json", ConfigJson.serialize(VersoConfig(favorites = linkedSetOf(someApp.key))).byteInputStream())
+        pick("verso.json", configWith(someApp))
         joinReads()
         settle()
         assertTrue("restored", someApp.key in savedFavorites())

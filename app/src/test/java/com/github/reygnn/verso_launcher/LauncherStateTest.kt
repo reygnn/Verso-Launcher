@@ -617,9 +617,24 @@ class LauncherStateTest {
         runAll()
         assertTrue("shown", "Delta" in labels())
         assertTrue(state.needsRefresh)
+        listChanges.clear()
+        state.refresh()
+        runAll()
+        assertEquals("the same incomplete list again: no re-render", listOf(false), listChanges)
         enumerationComplete = true
         state.refresh()
         runAll()
+        assertFalse(state.needsRefresh)
+    }
+
+    @Test fun `a complete enumeration after an incomplete one shows the apps it adds`() {
+        enumerationComplete = false
+        started()
+        installed = installed + app("Delta")
+        enumerationComplete = true
+        state.refresh()
+        runAll()
+        assertTrue("Delta" in labels())
         assertFalse(state.needsRefresh)
     }
 
@@ -951,15 +966,16 @@ class LauncherStateTest {
         assertEquals(before, enumerations)
     }
 
-    @Test fun `adopt reports only once the restored config is in place`() {
+    @Test fun `adopt reports only once the restored config and its names are in place`() {
         started()
-        val seen = mutableListOf<Set<String>>()
-        onReport = { seen += state.config.favorites.toSet() }
-        assertTrue(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
-        assertEquals(listOf(setOf(key("Bravo"))), seen)
+        val seen = mutableListOf<Pair<Set<String>, List<String>>>()
+        onReport = { seen += state.config.favorites.toSet() to labels() }
+        val restored = VersoConfig(favorites = linkedSetOf(key("Bravo")), names = linkedMapOf(key("Alpha") to "Zulu"))
+        assertTrue(state.adopt(restored))
+        assertEquals(listOf(setOf(key("Bravo")) to listOf("Bravo", "Charlie", "Zulu")), seen)
     }
 
-    @Test fun `a refresh requested before a restore still lands after it`() {
+    @Test fun `a refresh hand-off landing after adopt keeps the restored config and the new apps`() {
         started()
         installed = installed + app("Delta")  // installed while the restore runs
         state.refresh()

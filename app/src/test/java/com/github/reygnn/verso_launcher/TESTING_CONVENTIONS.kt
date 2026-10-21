@@ -62,7 +62,9 @@ package com.github.reygnn.verso_launcher
  * Where the real Activity runs (MainActivityFlowsTest), the process's IO
  * executor is real: drain it with `app.io.submit {}.get(…)` plus
  * `shadowOf(Looper.getMainLooper()).idle()`, or hold it with a latch to keep a
- * command running.
+ * command running. recreate() is posted, as on a device: controller.get() switches
+ * only once the main looper idles. The ~restore-saf reads run on threads of their
+ * own, joined by name (joinReads).
  * ============================================================================
  */
 

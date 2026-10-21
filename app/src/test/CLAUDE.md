@@ -13,19 +13,20 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 542 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 547 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           77  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           78  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding,
                                 save-before-load, a failed save reported, needsRefresh
-                                (also after an incomplete enumeration),
+                                (also after an incomplete enumeration, which a complete one
+                                then fills in),
                                 recents (recents.txt read once, never written over
                                 unread, the read handed to a recreated instance), reports that
                                 come even when a step throws (a "~cleanup" waits for it),
@@ -50,13 +51,15 @@ SwipeFrameTest              14  Robolectric: real MotionEvents through the frame
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 AppDrawerTest                8  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on
-MainActivityFlowsTest        9  Robolectric, the real Activity: a second command and an edit
-                                refused while one runs (prompt kept), ~restart dropping a pick
-                                still being read (said; the late read not adopted; other commands
-                                ran meanwhile) and dropping nothing after it, a ~restore-saf
-                                closing the rename dialog, the first load rendering
-                                both pages, no edit and no command but ~restart before the first
-                                load, HOME ending a running swipe
+MainActivityFlowsTest       12  Robolectric, the real Activity: a second command and an edit
+                                refused while one runs (prompt kept; the rename OK says why),
+                                ~restart dropping a pick still being read (said; other
+                                commands ran meanwhile) or one whose hand-back is already
+                                queued (not adopted), and dropping nothing after it; ~restart
+                                rebuilding the activity; the newest pick winning; a
+                                ~restore-saf closing the rename dialog; no edit and no
+                                command but ~restart before the first load; HOME ending a
+                                running swipe
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
 VersoConfigTest             10  snapshot deep copy, sameContent
 GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
@@ -77,9 +80,10 @@ HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/batter
                                 tap, the "open all apps" action, the empty-favorites hint
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
-EnumerationTest             12  the enumeration with faked profiles: null when the profiles or
-                                the personal one cannot be read, incomplete for every skipped
-                                profile or app (hard rule 14), empty work profiles, status
+EnumerationTest             13  the enumeration with faked profiles: null when the profiles or
+                                the personal one cannot be read, is missing or empty,
+                                incomplete for every skipped profile or app (hard rule 14),
+                                empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
 SourceGuardTest              3  source scans: no lenient ConfigJson.parse in MainActivity,

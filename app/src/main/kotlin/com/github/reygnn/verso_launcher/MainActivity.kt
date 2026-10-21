@@ -474,7 +474,8 @@ class MainActivity : Activity() {
         super.onResume()
         resumed = true
         // Not on every return home: a full enumeration of every profile would compete with the
-        // return animation. needsRefresh covers a load that never landed — no package event retries it.
+        // return animation. needsRefresh covers a load that failed or came back incomplete — no
+        // package event retries it.
         if (appsDirty || state.needsRefresh) {
             appsDirty = false
             state.refresh()
@@ -635,10 +636,10 @@ class MainActivity : Activity() {
         gate.start { t ->
             when (command) {
                 Command.RESTART -> {
-                    // A pick still being read is dropped, and said so: a hung provider must not
-                    // block ~restart. The bump also drops a hand-back already queued.
+                    // A hung provider must not block ~restart; the bump voids a hand-back already queued.
                     if (safReading) {
                         restorePick++
+                        safReading = false
                         toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
                     }
                     recreate()
