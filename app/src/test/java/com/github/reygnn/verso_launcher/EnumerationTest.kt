@@ -57,7 +57,12 @@ class EnumerationTest {
 
     @Test fun `an empty personal list is never real`() {
         lists["me"] = { emptyList() }
-        assertFalse(run()!!.complete)
+        assertNull(run())
+    }
+
+    @Test fun `a list without the personal profile is never real`() {
+        profiles = { listOf("work") }
+        assertNull(run())
     }
 
     @Test fun `a profile without a serial is skipped, incomplete`() {

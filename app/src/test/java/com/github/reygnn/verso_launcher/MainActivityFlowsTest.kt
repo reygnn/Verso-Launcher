@@ -8,7 +8,6 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
-import android.widget.TextView
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -167,13 +166,6 @@ class MainActivityFlowsTest {
         settle()
         assertTrue("restored", someApp.key in savedFavorites())
         assertFalse(dialog.isShowing)
-    }
-
-    @Test fun `the first load renders both pages`() {
-        started()
-        val texts = activity.window.decorView.collect<TextView>().map { it.text.toString() }
-        assertTrue(activity.getString(R.string.home_hint) in texts)
-        assertTrue(activity.getString(R.string.empty_no_apps) in texts)
     }
 
     private fun startSwipeUp() {

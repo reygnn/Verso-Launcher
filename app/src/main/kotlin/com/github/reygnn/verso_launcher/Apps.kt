@@ -160,8 +160,9 @@ internal class RawApp(val packageName: String, val className: String?, val label
 
 /**
  * Every profile's launcher activities, system labels only. [P] is the profile handle (a
- * UserHandle in the app). Null when the profiles or the personal profile cannot be read, so the
- * last list stays (hard rule 2); a skipped profile or app makes it incomplete (hard rule 14).
+ * UserHandle in the app). Null when the profiles or the personal profile cannot be read, or the
+ * personal one is missing or empty (never real), so the last list and the home cache stay (hard
+ * rule 2); a skipped profile or app makes it incomplete (hard rule 14).
  */
 internal fun <P> enumerate(
     profiles: () -> List<P>,
@@ -179,6 +180,10 @@ internal fun <P> enumerate(
         profiles()
     } catch (e: RuntimeException) {
         log("app enumeration failed: profiles", e)
+        return null
+    }
+    if (personal !in all) {
+        log("app enumeration failed", IllegalStateException("no personal profile"))
         return null
     }
     val entries = mutableListOf<AppEntry>()
@@ -201,9 +206,12 @@ internal fun <P> enumerate(
             complete = false
             continue
         }
-        // An empty personal list is never real.
         if (found.isEmpty()) {
-            if (isPersonal) complete = false else serial?.let { emptyProfiles += it }
+            if (isPersonal) {
+                log("app enumeration failed", IllegalStateException("empty personal list"))
+                return null
+            }
+            serial?.let { emptyProfiles += it }
         }
         for (read in found) {
             try {
