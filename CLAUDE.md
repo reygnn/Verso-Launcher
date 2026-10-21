@@ -34,7 +34,7 @@ is constants in `HomeStyle.kt`), left/right swipe actions, any runtime permissio
 Apps come from `LauncherApps` across all profiles (work, clone); apps of a paused
 profile and archived apps stay listed, dimmed (`AppStatus`), and a first tap brings
 them back; private space is not reachable (no `ACCESS_HIDDEN_PROFILES`). See
-`KNOWN_LIMITATIONS.md`.
+`CAVEATS.md`.
 
 **Feature freeze since 0.2.12 (2026-10-18): bugfixes only.** No new feature, sigil, command
 or setting — not even a small one — unless the user lifts the freeze. A fix may change

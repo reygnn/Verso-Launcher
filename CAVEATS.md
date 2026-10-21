@@ -1,4 +1,4 @@
-# Known limitations
+# Caveats
 
 Deliberate design choices that can look like bugs. Listed here so the behaviour
 is documented before it lands in the issue tracker.
