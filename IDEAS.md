@@ -37,7 +37,11 @@ from. Under the feature freeze (see `CLAUDE.md`) only the bugs here are fair gam
 
 - A wallpaper colour change while the config is not loaded leaves the cached favorites in the
   old colour (HomePage.applyTextColor re-renders from an empty render).
-- The 5-minute safety-net refresh could be an hour: callbacks already flag real changes.
+- The 5-minute safety-net refresh (`REFRESH_STALE_MS`) could be an hour, or go: the LauncherApps
+  callbacks and profile broadcasts (registered onCreate–onDestroy, so also while behind) flag
+  every known change, a locale change recreates, `~restart` repairs by hand. It only guards
+  against a lost event (freezer, OEM quirk, archiving if it fires none) — never observed,
+  never measured (2026-10-21).
 - Dimmed rows go through an offscreen layer every frame while scrolling; a row bind allocates a
   ColorStateList even when nothing changed; the first wallpaper-colour query after boot
   delays the first enumeration.
