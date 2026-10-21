@@ -53,7 +53,6 @@ class MainActivity : Activity() {
     private var palette = HomeStyle.palette(lightWallpaper = false)
     // Whether the next onResume must re-enumerate the apps.
     private var appsDirty = true
-    private var lastRefresh = 0L
     private var resumed = false
     // Set by a launch that started: the pause it brings turns the page home (see onPause).
     private var launchedApp = false
@@ -476,10 +475,8 @@ class MainActivity : Activity() {
         resumed = true
         // Not on every return home: a full enumeration of every profile would compete with the
         // return animation. needsRefresh covers a load that never landed — no package event retries it.
-        val now = SystemClock.uptimeMillis()
-        if (appsDirty || state.needsRefresh || now - lastRefresh > REFRESH_STALE_MS) {
+        if (appsDirty || state.needsRefresh) {
             appsDirty = false
-            lastRefresh = now
             state.refresh()
         }
         // Re-asserted: an app that showed the bar must not leave it up on the home page.
@@ -526,7 +523,6 @@ class MainActivity : Activity() {
     private val refreshSoon = Runnable {
         refreshSoonPending = false
         if (resumed) {
-            lastRefresh = SystemClock.uptimeMillis()
             state.refresh()
         } else {
             appsDirty = true
@@ -1166,8 +1162,6 @@ class MainActivity : Activity() {
         const val DRAWER_SLIDE_MS = 180L
         const val HOME_FADE_MS = 200L
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
-        /** A return home re-enumerates anyway once the last load is this old. */
-        const val REFRESH_STALE_MS = 5 * 60 * 1000L
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
         /** How long a paused profile's "ready" toast stays expected after the tap. */

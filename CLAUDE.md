@@ -113,7 +113,7 @@ com.github.reygnn.verso_launcher/
 
 Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile broadcast
 → `MainActivity.appsMaybeChanged` (refresh now while in front, else mark dirty);
-`onResume` refreshes when dirty, when `LauncherState.needsRefresh`, or after 5 min →
+`onResume` refreshes when dirty or when `LauncherState.needsRefresh` →
 `LauncherState.refresh()` → IO thread (load config once,
 enumerate apps of every profile) → main-thread hand-off guarded by the load generation
 (newest wins) → `applyFilter` re-renders. An enumeration carries no config: it lists system
