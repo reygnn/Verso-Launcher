@@ -516,7 +516,7 @@ class LauncherStateTest {
         cleanup()
         runIo()                                            // check + undo point done
         val restored = VersoConfig(favorites = linkedSetOf(key("Bravo"), "gone/A"), names = linkedMapOf("gone/A" to "Old"))
-        mainQueue.addFirst(Runnable { state.adopt(restored) })  // a restore lands first
+        mainQueue.addFirst(Runnable { assertTrue(state.adopt(restored)) })  // a restore lands first
         runAll()
         assertEquals(setOf(key("Bravo"), "gone/A"), state.config.favorites)
         assertEquals("Old", state.config.names["gone/A"])
@@ -627,7 +627,7 @@ class LauncherStateTest {
     @Test fun `a restore shows its names at once, and drops the names it does not have`() {
         disk = VersoConfig(names = linkedMapOf(key("Bravo") to "Mine"))
         started()
-        state.adopt(VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu")))
+        assertTrue(state.adopt(VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))))
         assertEquals("before any refresh lands", listOf("Bravo", "Charlie", "Zulu"), labels())
     }
 
