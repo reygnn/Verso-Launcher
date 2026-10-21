@@ -77,7 +77,7 @@ class MainActivity : Activity() {
             setAsideUnreadable = {
                 store.setAsideUnreadable { text -> backupStore.write(BackupFiles.UNREADABLE_BASE, text) != null }
             },
-            enumerateApps = { apps.loadApps() },
+            enumerateApps = { apps.enumerate() },
             serialize = ConfigJson::serialize,
             writeConfig = { payload -> store.write(payload) },
             onSaveFailed = { toast(getString(R.string.toast_save_failed)) },

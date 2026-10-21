@@ -31,6 +31,7 @@ class LauncherStateTest {
     /** Reported without custom names and NOT sorted (reversed below), so the tests see LauncherState apply both. */
     private var installed = listOf(app("Alpha"), app("Bravo"), app("Charlie"))
     private var enumerationFails = false
+    private var enumerationComplete = true
     private var enumerations = 0
 
     private val written = mutableListOf<String>()
@@ -53,6 +54,8 @@ class LauncherStateTest {
     /** Process-wide like VersoApp's: it outlives a LauncherState. */
     private val startedOverFlag = java.util.concurrent.atomic.AtomicBoolean()
     private val listChanges = mutableListOf<Boolean>()
+    /** Runs in onRefreshed: what the Activity sees when it re-renders. */
+    private var onReport: () -> Unit = {}
 
     private val state = LauncherState(
         io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
@@ -67,7 +70,8 @@ class LauncherStateTest {
         enumerateApps = {
             enumerations++
             // Sorted, as Apps.enumerate hands it over.
-            if (enumerationFails) null else LauncherLogic.sortedForDrawer(installed.reversed())
+            if (enumerationFails) null
+            else Enumeration(LauncherLogic.sortedForDrawer(installed.reversed()), enumerationComplete)
         },
         serialize = { c ->
             "fav=${c.favorites.joinToString(",")};hid=${c.hidden.joinToString(",")};" +
@@ -76,7 +80,7 @@ class LauncherStateTest {
         },
         writeConfig = { payload -> written += payload; writeSucceeds },
         onSaveFailed = { saveFailures++ },
-        onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed },
+        onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed; onReport() },
         isFreshInstall = { fresh },
         startedOverFlag = startedOverFlag,
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
@@ -122,7 +126,7 @@ class LauncherStateTest {
         onUsageChanged: (Map<String, Usage>, Boolean) -> Unit = { _, _ -> },
     ) = LauncherState(
         io = { q.io.addLast(it); true }, main = { q.main.addLast(it) },
-        loadConfig = { VersoConfig() }, enumerateApps = { emptyList() },
+        loadConfig = { VersoConfig() }, enumerateApps = { Enumeration(emptyList(), true) },
         serialize = { "" }, writeConfig = { true }, onRefreshed = { _, changed -> listChanged += changed },
         initialRecents = initialRecents,
         initialRecentsLoaded = initialRecentsLoaded,
@@ -262,7 +266,7 @@ class LauncherStateTest {
             io = { task -> ioQueue.addLast(task); true },
             main = { task -> mainQueue.addLast(task) },
             loadConfig = { disk.snapshot() },
-            enumerateApps = { installed },
+            enumerateApps = { Enumeration(installed, true) },
             serialize = { "" },
             writeConfig = { true },
             onRefreshed = { _, _ -> },
@@ -605,6 +609,20 @@ class LauncherStateTest {
         assertFalse(state.needsRefresh)
     }
 
+    @Test fun `an incomplete enumeration is shown but leaves the launcher needing a refresh`() {
+        started()
+        installed = installed + app("Delta")
+        enumerationComplete = false
+        state.refresh()
+        runAll()
+        assertTrue("shown", "Delta" in labels())
+        assertTrue(state.needsRefresh)
+        enumerationComplete = true
+        state.refresh()
+        runAll()
+        assertFalse(state.needsRefresh)
+    }
+
     @Test fun `clearing a name during a load shows the system label once the load lands`() {
         disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
         started()
@@ -931,6 +949,25 @@ class LauncherStateTest {
         assertEquals(emptyList<String>(), written)
         assertEquals(1, loadConfigCalls)
         assertEquals(before, enumerations)
+    }
+
+    @Test fun `adopt reports only once the restored config is in place`() {
+        started()
+        val seen = mutableListOf<Set<String>>()
+        onReport = { seen += state.config.favorites.toSet() }
+        assertTrue(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
+        assertEquals(listOf(setOf(key("Bravo"))), seen)
+    }
+
+    @Test fun `a refresh requested before a restore still lands after it`() {
+        started()
+        installed = installed + app("Delta")  // installed while the restore runs
+        state.refresh()
+        runIo()                               // its hand-off is queued
+        assertTrue(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
+        runAll()
+        assertTrue("Delta" in labels())
+        assertEquals(setOf(key("Bravo")), state.config.favorites)
     }
 
     // ---- default favorites -------------------------------------------------------

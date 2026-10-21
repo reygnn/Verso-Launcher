@@ -53,7 +53,9 @@ from. Under the feature freeze (see `CLAUDE.md`) only the bugs here are fair gam
   callbacks and profile broadcasts (registered onCreate–onDestroy, so also while behind) flag
   every known change, a locale change recreates, `~restart` repairs by hand. It guarded only
   against a lost event (freezer, OEM quirk, archiving if it fires none) — never observed. If a
-  list ever goes stale without an event, bring it back (an hour would do).
+  list ever goes stale without an event, bring it back (an hour would do). It also retried an
+  incomplete enumeration (a profile or an app skipped); `needsRefresh` does that now, on every
+  resume until one is complete.
 
 ## Seen on the A17
 

@@ -24,7 +24,7 @@ class AppDrawerTest {
         io = { task -> task.run(); true },
         main = { task -> task.run() },
         loadConfig = { VersoConfig(favorites = linkedSetOf(installed[1].key)) },
-        enumerateApps = { installed },
+        enumerateApps = { Enumeration(installed, true) },
         serialize = { "" },
         writeConfig = { true },
         onRefreshed = { _, _ -> },

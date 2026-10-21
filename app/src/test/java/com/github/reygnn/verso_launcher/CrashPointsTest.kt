@@ -189,7 +189,7 @@ class CrashPointsTest {
                 io = { ioQueue.addLast(it); true },
                 main = { mainQueue.addLast(it) },
                 loadConfig = { store.load() },
-                enumerateApps = { listOf(alpha) },
+                enumerateApps = { Enumeration(listOf(alpha), true) },
                 serialize = ConfigJson::serialize,
                 writeConfig = { payload -> reaper.step("write verso.json.new"); store.write(payload) },
                 onRefreshed = { _, _ -> },

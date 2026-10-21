@@ -16,16 +16,18 @@ import java.util.concurrent.atomic.AtomicBoolean
  * the live config ([relabel]), so no edit can make an enumeration stale.
  *
  * @param loadConfig null when verso.json is there but unreadable.
- * @param enumerateApps null if the enumeration failed — the last good list is kept.
+ * @param enumerateApps null if the enumeration failed — the last good list is kept; an
+ *   incomplete one is shown but retried on the next resume ([needsRefresh]).
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
- *   listChanged false: nothing to re-render (a re-render would void a tap in flight).
+ *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
+ *   called by [adopt], always (true, true).
  */
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
     private val loadConfig: () -> VersoConfig?,
     private val setAsideUnreadable: () -> Boolean = { false },
-    private val enumerateApps: () -> List<AppEntry>?,
+    private val enumerateApps: () -> Enumeration?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
     private val onSaveFailed: () -> Unit = {},
@@ -59,7 +61,7 @@ internal class LauncherState(
     var appsLoaded = false
         private set
 
-    /** Refresh on resume even without a package change: else a failed load waits for the stale timer. */
+    /** Refresh on resume even without a package change: no package event retries a failed or incomplete load. */
     val needsRefresh: Boolean
         get() = !configLoaded || !lastLoadCommitted
 
@@ -108,7 +110,8 @@ internal class LauncherState(
             val fresh = freshBefore || setAside
             val diskUsage = if (loadUsageNow) loadUsage() else null
             val diskRecents = if (loadRecentsNow) loadRecents() else null
-            val loaded = enumerateApps()
+            val enumeration = enumerateApps()
+            val loaded = enumeration?.apps
             val seeds = if (fresh && loaded != null) {
                 LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
             } else emptyList()
@@ -140,7 +143,7 @@ internal class LauncherState(
                     onRecentsChanged(recentKeys, true)
                     if (launched.isNotEmpty()) persistRecents()
                 }
-                lastLoadCommitted = loaded != null
+                lastLoadCommitted = enumeration?.complete == true
                 // Most refreshes bring the same list; AppEntry ==, status included, sees any change.
                 val changed = replaced || recentsChanged || (loaded != null && (!appsLoaded || loaded != enumerated))
                 if (loaded != null) {

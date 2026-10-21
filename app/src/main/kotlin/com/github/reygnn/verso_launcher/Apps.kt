@@ -90,8 +90,6 @@ internal class Apps(
     }
 
     /** System labels only; custom names are applied on the main thread (LauncherLogic.named). */
-    fun loadApps(): List<AppEntry>? = enumerate()?.apps
-
     fun enumerate(): Enumeration? {
         // The badge is localized and the cache outlives a language change: part of the key.
         val locale = locale()
