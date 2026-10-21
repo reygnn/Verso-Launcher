@@ -918,15 +918,19 @@ class LauncherStateTest {
     // ---- restore ------------------------------------------------------------------
 
     /** The restore wrote verso.json itself (RestoreSteps); adopt must not write it again. */
-    @Test fun `adopt replaces the config and re-renders without writing or re-reading the file`() {
+    @Test fun `adopt replaces the config and re-renders at once, without writing, reading or enumerating`() {
         started()
+        listChanges.clear()
+        val before = enumerations
         val restored = VersoConfig(favorites = linkedSetOf(key("Bravo")))
         assertTrue(state.adopt(restored))
         assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals("config replaced", listOf(true), refreshed)
+        assertEquals("re-render", listOf(true), listChanges)
         runAll()
         assertEquals(emptyList<String>(), written)
         assertEquals(1, loadConfigCalls)
-        assertEquals(listOf(false), refreshed)
+        assertEquals(before, enumerations)
     }
 
     // ---- default favorites -------------------------------------------------------

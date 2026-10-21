@@ -833,10 +833,6 @@ class MainActivity : Activity() {
                 RestoreSteps.Outcome.WriteFailed -> toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
                 null, RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
                 is RestoreSteps.Outcome.Done -> if (state.adopt(restored)) {
-                    // Same apps, so the refresh in adopt reports no change: re-render here.
-                    appDrawer.refilter()
-                    // A dialog opened against the pre-restore config would write stale fields over it.
-                    dismissDialogs()
                     toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
                 }
             }

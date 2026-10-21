@@ -295,12 +295,12 @@ internal class LauncherState(
     }
 
     /** False, nothing adopted, before the first load: it would land over the restore. No save —
-     *  the restore has written verso.json already. */
+     *  the restore has written verso.json already — and no re-enumeration: the apps are the same. */
     fun adopt(restored: VersoConfig): Boolean {
         if (!configLoaded) return false
         cfg = restored
         relabel()
-        refresh()
+        onRefreshed(true, true)
         return true
     }
 
