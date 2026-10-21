@@ -131,12 +131,12 @@ main, written on the IO thread.
    favorites, config and backup I/O) catches broadly and degrades; an uncaught
    exception on the executor kills the process on every start. Crash-only beyond that:
    a catch is armour only where it breaks a crash loop (`Guard` around every IO-thread
-   and SAF-thread task, setting an unreadable `verso.json` aside) or protects `verso.json` (the atomic
-   write); disposable work that is rebuilt on the next start may crash. The other catches
-   are correctness or UX, not armour: the enumeration's (`Apps`) decide what `~cleanup`
-   may trust and keep the last good list, the backup ones turn a failure into its own
-   message. Main-thread catches always log, and where the user acted say what failed —
-   never swallowed, no catch-all net.
+   and SAF-thread task, setting an unreadable `verso.json` aside) or protects
+   `verso.json` (the atomic write); disposable work that is rebuilt on the next start may
+   crash. The other catches are correctness or UX, not armour: the enumeration's (`Apps`)
+   decide what `~cleanup` may trust and keep the last good list, the backup ones turn a
+   failure into its own message. Main-thread catches always log, and where the user acted
+   say what failed — never swallowed, no catch-all net.
 3. **One IO thread, process-wide** (`VersoApp.io`). Never create another executor,
    never shut it down. Main-thread state is mutated only on the main thread; hand-backs
    go through `onUi`, which drops them for a destroyed instance. The one exception: the
