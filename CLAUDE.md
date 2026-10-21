@@ -19,14 +19,15 @@ This file only holds what is specific to this project.
 
 ## Scope
 
-A launcher reduced to text. Front page ("recto"): clock, date and battery
-(each a double-tap target), the favorites as large text, swipe up for the drawer,
-pull down for the recently used apps (a HUD from the top). Back page ("verso"): Sigil Launcher's list
+A launcher reduced to text. Front page ("recto"): clock, date and battery (each a
+double-tap target), the favorites as large text, swipe up for the drawer, pull down for
+the recently used apps (a HUD from the top). Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
-`#`/`##` tags, `?` recents, `%` drawer order A–Z ↔ most used) and the `~` commands (`~restart`, `~backup`, `~restore`,
-`~restore-saf`, `~cleanup`). Every change is saved at once — there is no `~save`; `~restart`
-recreates the activity, which reads the config afresh. Default
-favorites (phone, messenger, email, browser, camera) are seeded once, on a fresh install.
+`#`/`##` tags, `?` recents, `%` drawer order A–Z ↔ most used) and the `~` commands
+(`~restart`, `~backup`, `~restore`, `~restore-saf`, `~cleanup`). Every change is saved at
+once — there is no `~save`; `~restart` recreates the activity, which reads the config
+afresh. Default favorites (phone, messenger, email, browser, camera) are seeded once, on a
+fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look
 is constants in `HomeStyle.kt`), left/right swipe actions, any runtime permission.
@@ -58,11 +59,12 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   (`VersoApp.io`) does all disk and PackageManager work; results come back via
   `runOnUiThread` (`MainActivity.onUi`). `LauncherState` plays the ViewModel role
   as plain Kotlin.
-- **Persistence:** one JSON file, `filesDir/verso.json`, via
-  `ConfigStore` — not SharedPreferences, not DataStore. Beside it only
-  `home-cache.txt` (`HomeCache`), a disposable copy of the favorites for the cold-start
-  frame, `usage.txt` (`UsageLog`), the launch counts behind the `%` order, and `recents.txt`
-  (`RecentsLog`), the `?` list — disposable too, never in a backup. Off-device backups in `Download/Verso/` via MediaStore (`BackupStore`).
+- **Persistence:** one JSON file, `filesDir/verso.json`, via `ConfigStore` — not
+  SharedPreferences, not DataStore. Beside it only `home-cache.txt` (`HomeCache`), a
+  disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
+  launch counts behind the `%` order, and `recents.txt` (`RecentsLog`), the `?` list —
+  disposable too, never in a backup. Off-device backups in `Download/Verso/` via
+  MediaStore (`BackupStore`).
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath (android.jar's is a
   stub), Robolectric where a real widget is needed, **no MockK / no mocks** (fakes
   and manual queues). An `androidTest` set (androidx.test, test APK only) covers
@@ -111,15 +113,15 @@ com.github.reygnn.verso_launcher/
   Cleanup             pure "~cleanup" decisions: what may be offered (CleanupPlan)
 ```
 
-Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile broadcast
-→ `MainActivity.appsMaybeChanged` (refresh now while in front, else mark dirty);
-`onResume` refreshes when dirty or when `LauncherState.needsRefresh` →
-`LauncherState.refresh()` → IO thread (load config once,
-enumerate apps of every profile) → main-thread hand-off guarded by the load generation
-(newest wins) → `applyFilter` re-renders. An enumeration carries no config: it lists system
-labels only, and the custom names are applied on the main thread from the live config
-(`LauncherLogic.named`, at the hand-off and after every change to the names). Every mutation → `LauncherState.mutated()` → serialized on
-main, written on the IO thread.
+Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile broadcast →
+`MainActivity.appsMaybeChanged` (refresh now while in front, else mark dirty); `onResume`
+refreshes when dirty or when `LauncherState.needsRefresh` → `LauncherState.refresh()` → IO
+thread (load config once, enumerate apps of every profile) → main-thread hand-off guarded
+by the load generation (newest wins) → `applyFilter` re-renders. An enumeration carries no
+config: it lists system labels only, and the custom names are applied on the main thread
+from the live config (`LauncherLogic.named`, at the hand-off and after every change to the
+names). Every mutation → `LauncherState.mutated()` → serialized on main, written on the IO
+thread.
 
 ---
 
@@ -144,33 +146,35 @@ main, written on the IO thread.
    content provider (an offline cloud drive) can block that read indefinitely, and it
    touches no file of the app's own; the undo point and the adoption still go through
    `VersoApp.io`.
-4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync → rename
-   over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net is the
-   user's `~backup`. `load()` is null — never an empty config — when `verso.json` is torn or
-   cannot be read; then the FIRST LOAD (only it, never `load()` itself) moves it out of the
-   way — published to `Download/Verso/verso-unreadable-…` and only then deleted; if its bytes
-   cannot be read or the export fails, renamed to `verso.json.unreadable` (replacing an earlier
-   one) — and starts over as a fresh install, with one toast (a process-wide flag, so a dropped
-   hand-off does not lose it); `~restore` brings the last backup back. Only with no
-   `verso.json` is the empty config real.
+4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync →
+   rename over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net
+   is the user's `~backup`. `load()` is null — never an empty config — when `verso.json`
+   is torn or cannot be read; then the FIRST LOAD (only it, never `load()` itself) moves
+   it out of the way — published to `Download/Verso/verso-unreadable-…` and only then
+   deleted; if its bytes cannot be read or the export fails, renamed to
+   `verso.json.unreadable` (replacing an earlier one) — and starts over as a fresh
+   install, with one toast (a process-wide flag, so a dropped hand-off does not lose it);
+   `~restore` brings the last backup back. Only with no `verso.json` is the empty config
+   real.
 5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
    empty default must never be written over the real file or a backup. `LauncherState`
-   refuses edits and saves until then; the Activity says why (`editable()`). Backups and undo
-   points come from memory only (`loadedSnapshot`). If the files cannot even be set aside, the
-   config stays not loaded and every resume tries again. Home is drawn and its cache written
-   only from a loaded config.
-6. **Backups: never delete the old one before the new one is published.** MediaStore
-   owns the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
-   recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed
-   name. Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
-   `verso-pre-cleanup-…`), and one set-aside unreadable config (`verso-unreadable-…`). A restore's undo point is written without the sweep; the old
-   one goes only once the restored config is saved (it may be the very file restored).
-7. **Restore order:** read + `parseForeign` off the main thread (never the lenient
-   `parse` for outside files) → if it equals the current config, stop (an undo point
-   would replace the real one) → write the undo point → write the restored config to
-   `verso.json` in the same IO task (the restore must survive a lost hand-back; a failed
-   write adopts nothing) → sweep the old undo point → `adopt` (memory only, no second write). No
-   undo point, no restore.
+   refuses edits and saves until then; the Activity says why (`editable()`). Backups and
+   undo points come from memory only (`loadedSnapshot`). If the files cannot even be set
+   aside, the config stays not loaded and every resume tries again. Home is drawn and its
+   cache written only from a loaded config.
+6. **Backups: never delete the old one before the new one is published.** MediaStore owns
+   the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
+   recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed name.
+   Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
+   `verso-pre-cleanup-…`), and one set-aside unreadable config (`verso-unreadable-…`). A
+   restore's undo point is written without the sweep; the old one goes only once the
+   restored config is saved (it may be the very file restored).
+7. **Restore order:** read + `parseForeign` off the main thread (never the lenient `parse`
+   for outside files) → if it equals the current config, stop (an undo point would replace
+   the real one) → write the undo point → write the restored config to `verso.json` in the
+   same IO task (the restore must survive a lost hand-back; a failed write adopts nothing)
+   → sweep the old undo point → `adopt` (memory only, no second write). No undo point, no
+   restore.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`
@@ -183,21 +187,21 @@ main, written on the IO thread.
 10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`: no `verso.json`)
     and only into a config with no favorites. An existing config with no favorites is the
     user's choice.
-11. **Page turn = Unity-Kolibri's.** Closing the drawer is a drag that follows the
-    finger (Unity's `DragToDismissCore`: starts once the list is at its top, 28 % of the
-    height or a 3× min-fling release commits, a flick back cancels, 220 ms settle);
-    opening is the same drag upward from home (an extension — Unity only flicks it
-    open). The recents (`?`) are the same drawer from the other side, a HUD: dragged down
-    from home (not from the 48 dp top band), closed by a drag up once the list is at its
-    end; the drawer remembers its side (`drawerFromTop`) and closes toward it — until the prompt
-    leaves `?` (×, typing): then it is the plain drawer and goes back down. The flick
-    (4× touch slop, 1.2 px/ms average, 1.5× dominance, 48 dp top band) remains as the open
-    fallback. All of it lives in
-    `SwipeFrame.dispatchTouchEvent`, never `onInterceptTouchEvent` (a scrolling list
-    disables intercept mid-gesture); the decisions are pure in `SwipeGesture`. Details that
-    are easy to break: a second finger cancels a drag; a drag can grab a page still moving and continues from
-    there; an open dialog (rename, `~cleanup`) blocks both drag and flick; a page turned some other way
-    (HOME, Back, screen off) aborts a running drag without a release decision (`abortDrag`).
+11. **Page turn = Unity-Kolibri's.** Closing the drawer is a drag that follows the finger
+    (Unity's `DragToDismissCore`: starts once the list is at its top, 28 % of the height
+    or a 3× min-fling release commits, a flick back cancels, 220 ms settle); opening is
+    the same drag upward from home (an extension — Unity only flicks it open). The recents
+    (`?`) are the same drawer from the other side, a HUD: dragged down from home (not from
+    the 48 dp top band), closed by a drag up once the list is at its end; the drawer
+    remembers its side (`drawerFromTop`) and closes toward it — until the prompt leaves
+    `?` (×, typing): then it is the plain drawer and goes back down. The flick (4× touch
+    slop, 1.2 px/ms average, 1.5× dominance, 48 dp top band) remains as the open fallback.
+    All of it lives in `SwipeFrame.dispatchTouchEvent`, never `onInterceptTouchEvent` (a
+    scrolling list disables intercept mid-gesture); the decisions are pure in
+    `SwipeGesture`. Details that are easy to break: a second finger cancels a drag; a drag
+    can grab a page still moving and continues from there; an open dialog (rename,
+    `~cleanup`) blocks both drag and flick; a page turned some other way (HOME, Back,
+    screen off) aborts a running drag without a release decision (`abortDrag`).
 12. **Status bar hidden on the home page only**, shown in the drawer. The home page
     pads for it regardless of visibility (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate
@@ -213,15 +217,16 @@ main, written on the IO thread.
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
 15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused
-    with a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take a `CommandGate.Idle` permit
-    (`editPermit`), so an edit path without the check does not compile — a save queued
-    behind a restore's IO step would write the old config back over it. Nothing else is
-    held back — no layer, no cancel; launching, typing and page turns go on. A run ends with its last step, never by a "done" call:
-    every step holds it and releases it on every path (`CommandGate.io` catches what its
-    work throws; `LauncherState.cleanup` reports from a `finally`). No run
-    spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
-    before a run starts, only its adoption is one (`~restart` is refused while it is read);
-    the cleanup dialog ends its run, its OK starts a new one.
+    with a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take
+    a `CommandGate.Idle` permit (`editPermit`), so an edit path without the check does not
+    compile — a save queued behind a restore's IO step would write the old config back
+    over it. Nothing else is held back — no layer, no cancel; launching, typing and page
+    turns go on. A run ends with its last step, never by a "done" call: every step holds
+    it and releases it on every path (`CommandGate.io` catches what its work throws;
+    `LauncherState.cleanup` reports from a `finally`). No run spans another activity or a
+    dialog waiting on the user: the `~restore-saf` file is read before a run starts, only
+    its adoption is one (`~restart` is refused while it is read); the cleanup dialog ends
+    its run, its OK starts a new one.
 
 ---
 
