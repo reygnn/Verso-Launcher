@@ -944,7 +944,8 @@ class MainActivity : Activity() {
         appDrawer.refilter()  // re-render in the (new) order
     }
 
-    private fun promptRename(entry: AppEntry) {
+    /** Internal for MainActivityFlowsTest. */
+    internal fun promptRename(entry: AppEntry) {
         // Home can show cached favorites before the config is loaded; the dialog would open
         // on the empty default and its edit could not be saved.
         if (!state.configLoaded) return

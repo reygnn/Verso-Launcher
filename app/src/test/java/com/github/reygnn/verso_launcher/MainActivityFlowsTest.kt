@@ -8,6 +8,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.TextView
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +19,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowDialog
 import org.robolectric.shadows.ShadowToast
 import java.io.File
 import java.io.InputStream
@@ -36,11 +38,28 @@ class MainActivityFlowsTest {
     private val activity: MainActivity get() = controller.get()
     private val hold = CountDownLatch(1)
 
-    @After fun release() = hold.countDown()
+    @After fun release() {
+        hold.countDown()
+        // Else a read's hand-back lands on the main looper after the test, in the next one.
+        joinReads()
+    }
 
     private fun settle() = repeat(4) {
         app.io.submit {}.get(5, TimeUnit.SECONDS)
         shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    /** The "~restore-saf" reads run on threads of their own. */
+    private fun joinReads() =
+        Thread.getAllStackTraces().keys.filter { it.name == "verso-restore-read" }.forEach { it.join(5000) }
+
+    /** A "~restore-saf" whose picker answered with [content]. */
+    private fun pick(name: String, content: InputStream) {
+        val picked = Uri.parse("content://cloud/$name")
+        shadowOf(activity.contentResolver).registerInputStream(picked, content)
+        enter("~restore-saf")
+        val request = shadowOf(activity).nextStartedActivityForResult
+        shadowOf(activity).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(picked))
     }
 
     /** Whatever is queued after this waits, so a command stays running. */
@@ -104,17 +123,44 @@ class MainActivityFlowsTest {
 
     @Test fun `~restart while a picked file is read is refused and stays in the prompt`() {
         started()
-        val picked = Uri.parse("content://cloud/verso.json")
         // A provider that hangs, like an offline cloud drive: the read waits for the hold.
-        shadowOf(activity.contentResolver).registerInputStream(picked, object : InputStream() {
+        pick("verso.json", object : InputStream() {
             override fun read(): Int = -1.also { hold.await(5, TimeUnit.SECONDS) }
         })
-        enter("~restore-saf")
-        val pick = shadowOf(activity).nextStartedActivityForResult
-        shadowOf(activity).receiveResult(pick.intent, Activity.RESULT_OK, Intent().setData(picked))
         enter("~restart")
         assertEquals(activity.getString(R.string.toast_busy), ShadowToast.getTextOfLatestToast())
         assertEquals("~restart", prompt.text.toString())
+        enter("~backup")
+        assertEquals("only ~restart waits for the read", "", prompt.text.toString())
+    }
+
+    @Test fun `~restart is taken again once the picked file was read`() {
+        started()
+        pick("verso.json", "not json".byteInputStream())
+        joinReads()
+        settle()
+        assertEquals(activity.getString(R.string.toast_restore_failed), ShadowToast.getTextOfLatestToast())
+        enter("~restart")
+        assertEquals("", prompt.text.toString())
+    }
+
+    @Test fun `a restore closes an open rename dialog`() {
+        started()
+        activity.promptRename(someApp)
+        val dialog = ShadowDialog.getLatestDialog()
+        assertTrue(dialog.isShowing)
+        pick("verso.json", ConfigJson.serialize(VersoConfig(favorites = linkedSetOf(someApp.key))).byteInputStream())
+        joinReads()
+        settle()
+        assertTrue("restored", someApp.key in savedFavorites())
+        assertFalse(dialog.isShowing)
+    }
+
+    @Test fun `the first load renders both pages`() {
+        started()
+        val texts = activity.window.decorView.collect<TextView>().map { it.text.toString() }
+        assertTrue(activity.getString(R.string.home_hint) in texts)
+        assertTrue(activity.getString(R.string.empty_no_apps) in texts)
     }
 
     private fun startSwipeUp() {

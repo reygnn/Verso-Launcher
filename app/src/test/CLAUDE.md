@@ -13,17 +13,19 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 536 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 542 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           74  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           77  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
-                                refused before the first load), seeding,
-                                save-before-load, a failed save reported, needsRefresh,
+                                refused before the first load, reports once in place, a
+                                refresh still lands after it), seeding,
+                                save-before-load, a failed save reported, needsRefresh
+                                (also after an incomplete enumeration),
                                 recents (recents.txt read once, never written over
                                 unread, the read handed to a recreated instance), reports that
                                 come even when a step throws (a "~cleanup" waits for it),
@@ -48,10 +50,12 @@ SwipeFrameTest              14  Robolectric: real MotionEvents through the frame
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 AppDrawerTest                8  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on
-MainActivityFlowsTest        6  Robolectric, the real Activity: a second command and an edit
+MainActivityFlowsTest        9  Robolectric, the real Activity: a second command and an edit
                                 refused while one runs (prompt kept), ~restart while a picked
-                                file is read (prompt kept), no edit and no command but ~restart
-                                before the first load, HOME ending a running swipe
+                                file is read (prompt kept, other commands run) and after it, a
+                                ~restore-saf closing the rename dialog, the first load rendering
+                                both pages, no edit and no command but ~restart before the first
+                                load, HOME ending a running swipe
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
 VersoConfigTest             10  snapshot deep copy, sameContent
 GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
