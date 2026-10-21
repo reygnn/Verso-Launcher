@@ -624,7 +624,7 @@ class MainActivity : Activity() {
     /** Run a "~" command, one at a time (hard rule 15); each reports its real result with a toast. */
     private fun runCommand(command: Command) {
         // Refused while one runs — and the typed command stays in the prompt, to send again.
-        if (gate.busy || (command == Command.RESTART && safReading)) {
+        if (gate.busy) {
             toast(getString(R.string.toast_busy))
             return
         }
@@ -634,7 +634,15 @@ class MainActivity : Activity() {
         appDrawer.prompt.setText("")
         gate.start { t ->
             when (command) {
-                Command.RESTART -> recreate()
+                Command.RESTART -> {
+                    // A pick still being read is dropped, and said so: a hung provider must not
+                    // block ~restart. The bump also drops a hand-back already queued.
+                    if (safReading) {
+                        restorePick++
+                        toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
+                    }
+                    recreate()
+                }
                 Command.BACKUP -> backup(t)
                 Command.RESTORE -> restoreConfig(t)
                 // Only the picker: it is another activity, so no run spans it (onActivityResult starts one).
@@ -774,7 +782,7 @@ class MainActivity : Activity() {
 
     /** Counts "~restore-saf" picks, so only the newest one's read is adopted. */
     private var restorePick = 0
-    // A picked file is being read: no run yet, but ~restart would drop its result.
+    // A picked file is being read: no run yet; ~restart drops it.
     private var safReading = false
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

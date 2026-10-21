@@ -51,9 +51,10 @@ SwipeFrameTest              14  Robolectric: real MotionEvents through the frame
 AppDrawerTest                8  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on
 MainActivityFlowsTest        9  Robolectric, the real Activity: a second command and an edit
-                                refused while one runs (prompt kept), ~restart while a picked
-                                file is read (prompt kept, other commands run) and after it, a
-                                ~restore-saf closing the rename dialog, the first load rendering
+                                refused while one runs (prompt kept), ~restart dropping a pick
+                                still being read (said; the late read not adopted; other commands
+                                ran meanwhile) and dropping nothing after it, a ~restore-saf
+                                closing the rename dialog, the first load rendering
                                 both pages, no edit and no command but ~restart before the first
                                 load, HOME ending a running swipe
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget

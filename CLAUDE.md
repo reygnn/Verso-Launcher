@@ -225,8 +225,8 @@ thread.
     it and releases it on every path (`CommandGate.io` catches what its work throws;
     `LauncherState.cleanup` reports from a `finally`). No run spans another activity or a
     dialog waiting on the user: the `~restore-saf` file is read before a run starts, only
-    its adoption is one (`~restart` is refused while it is read); the cleanup dialog ends
-    its run, its OK starts a new one.
+    its adoption is one (`~restart` while it is read drops the pick, with a toast); the
+    cleanup dialog ends its run, its OK starts a new one.
 
 ---
 

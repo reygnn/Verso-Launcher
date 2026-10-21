@@ -150,8 +150,8 @@ keyboard, no prompt:
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
-      it; this is the way in for those. One dialog, no permission. While the picked
-      file is still being read, `~restart` is refused
+      it; this is the way in for those. One dialog, no permission. A `~restart` while
+      the picked file is still being read drops the pick (a toast says so)
     - `~cleanup` — remove what the config still keeps for apps that are no longer
       installed (their favorite slot, hidden mark, custom name and tags; kept on
       purpose until then, so a reinstalled app gets them back). A dialog shows how

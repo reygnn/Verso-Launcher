@@ -121,26 +121,39 @@ class MainActivityFlowsTest {
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
     }
 
-    @Test fun `~restart while a picked file is read is refused and stays in the prompt`() {
+    @Test fun `~restart while a picked file is read drops the pick and says so`() {
         started()
         // A provider that hangs, like an offline cloud drive: the read waits for the hold.
+        val config = ConfigJson.serialize(VersoConfig(favorites = linkedSetOf(someApp.key))).byteInputStream()
         pick("verso.json", object : InputStream() {
-            override fun read(): Int = -1.also { hold.await(5, TimeUnit.SECONDS) }
+            override fun read(): Int {
+                hold.await(5, TimeUnit.SECONDS)
+                return config.read()
+            }
         })
-        enter("~restart")
-        assertEquals(activity.getString(R.string.toast_busy), ShadowToast.getTextOfLatestToast())
-        assertEquals("~restart", prompt.text.toString())
         enter("~backup")
-        assertEquals("only ~restart waits for the read", "", prompt.text.toString())
+        assertEquals("other commands run meanwhile", "", prompt.text.toString())
+        settle()
+        enter("~restart")
+        val dropped = activity.getString(R.string.toast_restore_saf_dropped)
+        assertEquals(dropped, ShadowToast.getTextOfLatestToast())
+        assertEquals("", prompt.text.toString())
+        hold.countDown()
+        joinReads()
+        settle()
+        assertEquals("the late read is not adopted", dropped, ShadowToast.getTextOfLatestToast())
+        assertFalse(someApp.key in savedFavorites())
     }
 
-    @Test fun `~restart is taken again once the picked file was read`() {
+    @Test fun `~restart drops nothing once the picked file was read`() {
         started()
         pick("verso.json", "not json".byteInputStream())
         joinReads()
         settle()
-        assertEquals(activity.getString(R.string.toast_restore_failed), ShadowToast.getTextOfLatestToast())
+        val failed = activity.getString(R.string.toast_restore_failed)
+        assertEquals(failed, ShadowToast.getTextOfLatestToast())
         enter("~restart")
+        assertEquals(failed, ShadowToast.getTextOfLatestToast())
         assertEquals("", prompt.text.toString())
     }
 
