@@ -252,4 +252,4 @@ androidx.test is `androidTestImplementation`, so the release stays dependency-fr
 ```
 
 Stack matches the family baseline: AGP 9 built-in Kotlin, Gradle 9, JDK 21,
-`minSdk = compileSdk = targetSdk = 36` (Android 16, no compat shims).
+`minSdk = targetSdk = 36` (Android 16, no compat shims), `compileSdk = 37`.
