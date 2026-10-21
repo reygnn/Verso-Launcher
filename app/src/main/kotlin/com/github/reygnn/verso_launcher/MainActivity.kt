@@ -628,7 +628,7 @@ class MainActivity : Activity() {
     /** Run a "~" command, one at a time (hard rule 15); each reports its real result with a toast. */
     private fun runCommand(command: Command) {
         // Refused while one runs — and the typed command stays in the prompt, to send again.
-        if (gate.busy) {
+        if (gate.busy || (command == Command.RESTART && safReading)) {
             toast(getString(R.string.toast_busy))
             return
         }
@@ -638,7 +638,7 @@ class MainActivity : Activity() {
         appDrawer.prompt.setText("")
         gate.start { t ->
             when (command) {
-                Command.RESTART -> if (safReading) toast(getString(R.string.toast_busy)) else recreate()
+                Command.RESTART -> recreate()
                 Command.BACKUP -> backup(t)
                 Command.RESTORE -> restoreConfig(t)
                 // Only the picker: it is another activity, so no run spans it (onActivityResult starts one).

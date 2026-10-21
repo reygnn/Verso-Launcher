@@ -1,6 +1,8 @@
 package com.github.reygnn.verso_launcher
 
+import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -18,6 +20,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowToast
 import java.io.File
+import java.io.InputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -97,6 +100,21 @@ class MainActivityFlowsTest {
         controller.setup()
         enter("~backup")
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test fun `~restart while a picked file is read is refused and stays in the prompt`() {
+        started()
+        val picked = Uri.parse("content://cloud/verso.json")
+        // A provider that hangs, like an offline cloud drive: the read waits for the hold.
+        shadowOf(activity.contentResolver).registerInputStream(picked, object : InputStream() {
+            override fun read(): Int = -1.also { hold.await(5, TimeUnit.SECONDS) }
+        })
+        enter("~restore-saf")
+        val pick = shadowOf(activity).nextStartedActivityForResult
+        shadowOf(activity).receiveResult(pick.intent, Activity.RESULT_OK, Intent().setData(picked))
+        enter("~restart")
+        assertEquals(activity.getString(R.string.toast_busy), ShadowToast.getTextOfLatestToast())
+        assertEquals("~restart", prompt.text.toString())
     }
 
     private fun startSwipeUp() {

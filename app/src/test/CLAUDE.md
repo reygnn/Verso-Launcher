@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 535 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 536 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -48,9 +48,10 @@ SwipeFrameTest              14  Robolectric: real MotionEvents through the frame
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
 AppDrawerTest                8  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on
-MainActivityFlowsTest        5  Robolectric, the real Activity: a second command and an edit
-                                refused while one runs (prompt kept), no edit and no command
-                                but ~restart before the first load, HOME ending a running swipe
+MainActivityFlowsTest        6  Robolectric, the real Activity: a second command and an edit
+                                refused while one runs (prompt kept), ~restart while a picked
+                                file is read (prompt kept), no edit and no command but ~restart
+                                before the first load, HOME ending a running swipe
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
 VersoConfigTest             10  snapshot deep copy, sameContent
 GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
