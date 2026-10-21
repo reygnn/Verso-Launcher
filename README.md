@@ -130,7 +130,8 @@ keyboard, no prompt:
     one sent meanwhile is refused with a toast and stays on the line, to send again, and
     so is any edit until it is done:
     - `~restart` — read the config again and rebuild the list (after editing
-      `verso.json` by hand, or when something looks stale)
+      `verso.json` by hand, or when something looks stale). It also retries
+      `recents.txt` and `usage.txt` if they could not be read
     - `~backup` — export the config to `Download/Verso/`, named after the moment it
       was taken (`verso-2026-10-13_120745.json`). It replaces the previous one, but
       only after the new one is safely written: a failed or interrupted backup never

@@ -11,6 +11,11 @@ the launcher's process being killed; a lost or torn file only means the
 list starts over — the same as `usage.txt` behind `%`. It keeps the last 32 apps launched,
 so up to 24 of them can be gone before `?` shows fewer than 8.
 
+A file that is there but cannot be read is left alone, never written over: `?` and `%` work
+from this process's launches only until a later read succeeds. Verso retries with the next
+refresh a package or profile change brings, or at once with `~restart`; launches meanwhile
+are merged in, not lost (unless the process ends first).
+
 ## An unreadable config starts over
 
 If `verso.json` cannot be read when Verso starts — torn, or a read error the system reports —
