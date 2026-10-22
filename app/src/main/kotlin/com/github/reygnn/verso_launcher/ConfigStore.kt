@@ -21,11 +21,10 @@ internal class ConfigStore(
     private val setAside get() = File(dir, "$CONFIG_FILE.unreadable")
 
     /** Null, never an empty config, when verso.json is there but torn or unreadable. */
-    // hard rule 4: unreadable = null, never a throw
-    @Suppress("TooGenericExceptionCaught")
     fun load(): VersoConfig? {
         if (!primary.isFile) return VersoConfig()
-        val text = try {
+        // hard rule 4: unreadable = null, never a throw
+        val text = @Suppress("TooGenericExceptionCaught") try {
             readText(primary)
         } catch (e: Exception) {
             log("config unreadable", e)

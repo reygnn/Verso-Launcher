@@ -89,11 +89,10 @@ internal class BackupStore(
         remove(BackupFiles.replacedBy(base, newest.id, own))
     }
 
-    // hard rule 2: the new backup stands
-    @Suppress("TooGenericExceptionCaught")
     private fun remove(rows: List<BackupFiles.Entry>) {
         for (old in rows) {
-            try {
+            // hard rule 2: the new backup stands
+            @Suppress("TooGenericExceptionCaught") try {
                 resolver.delete(uriOf(old.id), null, null)
             } catch (e: Exception) {
                 log("backup: could not remove the replaced ${old.name}", e)

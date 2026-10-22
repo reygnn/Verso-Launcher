@@ -35,13 +35,12 @@ internal class Apps(
         CleanupPlan.Incomplete
     }
 
-    // hard rule 14: unreadable profiles, incomplete check
-    @Suppress("TooGenericExceptionCaught")
     fun cleanupCheck(cfg: VersoConfig): CleanupPlan {
         val found = enumerate()
         val listed: Set<Long>
         val ownSerial: Long?
-        try {
+        // hard rule 14: unreadable profiles, incomplete check
+        @Suppress("TooGenericExceptionCaught") try {
             listed = launcherApps.profiles.mapTo(HashSet()) { userManager.getSerialNumberForUser(it) }
             ownSerial = userManager.getSerialNumberForUser(Process.myUserHandle()).takeIf { it >= 0 }
         } catch (e: RuntimeException) {
@@ -171,8 +170,6 @@ internal class RawApp(val packageName: String, val className: String?, val label
  * personal one is missing or empty (never real), so the last list and the home cache stay (hard
  * rule 2); a skipped profile or app makes it incomplete (hard rule 14).
  */
-// hard rule 2: decides what the enumeration may trust
-@Suppress("TooGenericExceptionCaught")
 internal fun <P> enumerate(
     profiles: () -> List<P>,
     personal: P,
@@ -185,7 +182,8 @@ internal fun <P> enumerate(
 ): Enumeration? {
     var complete = true
     val emptyProfiles = HashSet<Long>()
-    val all = try {
+    // hard rule 2: unreadable profiles = no list, the last one stays
+    val all = @Suppress("TooGenericExceptionCaught") try {
         profiles()
     } catch (e: RuntimeException) {
         log("app enumeration failed: profiles", e)
@@ -200,7 +198,8 @@ internal fun <P> enumerate(
         val isPersonal = user == personal
         var serial: Long? = null
         var isPaused = false
-        val found = try {
+        // hard rule 14: an unreadable profile makes the list incomplete
+        val found = @Suppress("TooGenericExceptionCaught") try {
             if (!isPersonal) {
                 serial = serialOf(user).takeIf { it >= 0 } ?: run { complete = false; continue }
                 isPaused = paused(user)
@@ -223,7 +222,8 @@ internal fun <P> enumerate(
             serial?.let { emptyProfiles += it }
         }
         for (read in found) {
-            try {
+            // hard rule 14: an unreadable app makes the list incomplete
+            @Suppress("TooGenericExceptionCaught") try {
                 val app = read()
                 if (app.className.isNullOrEmpty()) continue
                 if (app.packageName == ownPackage) continue

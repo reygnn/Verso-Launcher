@@ -581,8 +581,6 @@ class MainActivity : Activity() {
      * fsync a directory so a preceding rename() survives power loss, not merely is visible.
      * Best-effort: a failure only weakens durability, so it is logged, not thrown.
      */
-    // see the close below
-    @Suppress("SwallowedException")
     private fun fsyncDir(dir: File) {
         var fd: FileDescriptor? = null
         try {
@@ -592,7 +590,7 @@ class MainActivity : Activity() {
             Log.w("Verso", "dir fsync failed (non-fatal): ${dir.path}", e)
         } finally {
             if (fd != null) {
-                try {
+                @Suppress("SwallowedException") try {
                     Os.close(fd)
                 } catch (e: ErrnoException) {
                     // Nothing actionable at close time; the publish already happened.
@@ -787,12 +785,11 @@ class MainActivity : Activity() {
         }
     }
 
-    // any app may refuse the launch: say so, never crash
-    @Suppress("TooGenericExceptionCaught")
     private fun launch(entry: AppEntry) {
         val user = apps.userOf(entry)
         val component = ComponentName(entry.packageName, entry.className)
-        try {
+        // any app may refuse the launch: say so, never crash
+        @Suppress("TooGenericExceptionCaught") try {
             when {
                 // The entry's profile is gone (a work profile removed since the list loaded).
                 user == null -> notFound(entry)
@@ -874,11 +871,10 @@ class MainActivity : Activity() {
         toast(getString(R.string.toast_not_found, entry.label))
 
     /** The system "App info" screen, in the entry's profile; guarded like [launch]. */
-    // the settings app may refuse: say so, never crash
-    @Suppress("TooGenericExceptionCaught")
     private fun openAppInfo(entry: AppEntry) {
         val user = apps.userOf(entry) ?: return notFound(entry)
-        try {
+        // the settings app may refuse: say so, never crash
+        @Suppress("TooGenericExceptionCaught") try {
             launcherApps.startAppDetailsActivity(ComponentName(entry.packageName, entry.className), user, null, null)
         } catch (e: SecurityException) {
             Log.w("Verso", "app info denied: ${entry.key}", e)
