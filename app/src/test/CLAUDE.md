@@ -13,14 +13,14 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 579 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 580 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           89  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           90  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an
@@ -32,7 +32,8 @@ LauncherStateTest           89  the concurrency rules: refresh/rename/adopt
                                 (also after an incomplete enumeration, which a complete one
                                 then fills in),
                                 recents (recents.txt read once, never written over
-                                unread, the read handed to a recreated instance), reports that
+                                unread, the read handed to a recreated instance, two instances
+                                merging the files in once), reports that
                                 come even when a step throws (a "~cleanup" waits for it),
                                 an unreadable config (set aside, a fresh start, said once — also after a
                                 dropped hand-off or a recreation;

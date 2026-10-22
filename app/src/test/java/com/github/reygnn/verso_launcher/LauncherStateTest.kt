@@ -749,17 +749,22 @@ class LauncherStateTest {
 
     // ---- toggles ----------------------------------------------------------------
 
+    /** Every edit, not only some: each one checks the permit itself (audit 2026-10-22, #10). */
     @Test fun `an edit with a permit from before a command started is ignored`() {
+        // Two favorites, so a move would succeed if it ignored the permit.
+        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), key("Bravo")))
         started()
         val stale = permit
         gate.start {
-            state.toggleFavorite(stale, key("Alpha"))
+            state.toggleFavorite(stale, key("Charlie"))
+            state.toggleHidden(stale, key("Alpha"))
+            state.toggleTag(stale, key("Alpha"), "work")
             state.rename(stale, key("Alpha"), "Alpha", "Mine", emptyList())
-            assertFalse(state.moveFavorite(stale, key("Alpha"), key("Bravo")))
+            assertFalse(state.moveFavorite(stale, key("Bravo"), key("Alpha")))
+            assertNull(state.toggleOrder(stale))
         }
         runAll()
-        assertTrue(state.config.favorites.isEmpty())
-        assertTrue(state.config.names.isEmpty())
+        assertEquals(disk, state.config)
         assertTrue(written.isEmpty())
     }
 
@@ -890,6 +895,30 @@ class LauncherStateTest {
         assertEquals(listOf("b", "a"), s.recentKeys)
         assertEquals(listOf(listOf("b", "a")), writes)
         assertEquals("same apps, but the ? list changed", true, listChanged.last())
+    }
+
+    /**
+     * Two instances on one ProcessState whose hand-offs both land (in production onUi drops the
+     * destroyed one's): the files are merged in once, not twice (audit 2026-10-22, #17).
+     */
+    @Test fun `two instances reading the same files merge them in once`() {
+        val q = Queues()
+        val kept = ProcessState()
+        val recentWrites = mutableListOf<List<String>>()
+        fun instance() = standalone(
+            q, process = kept,
+            loadRecents = { listOf("a") }, writeRecents = { recentWrites += it },
+            loadUsage = { mapOf("a" to Usage(1.0, 1000L)) },
+        )
+        val first = instance()
+        val second = instance()
+        first.recordLaunch("a")
+        first.refresh()
+        second.refresh()  // asked before either read landed: both read the files
+        q.drain()
+        assertEquals("one launch plus the file's one", Usage(2.0, 1000L), kept.usage.value["a"])
+        assertEquals(listOf("a"), kept.recents.value)
+        assertEquals("written once", 1, recentWrites.size)
     }
 
     // ---- "%" order and usage -----------------------------------------------------
