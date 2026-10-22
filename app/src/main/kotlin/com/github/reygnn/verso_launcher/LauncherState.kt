@@ -4,8 +4,9 @@ package com.github.reygnn.verso_launcher
  * The launcher's data — config, enumerated apps, recents — and the rules that keep it consistent
  * while a background load and the user's taps overlap. Plays the ViewModel role, in plain Kotlin.
  *
- * Threading: every public member is main-thread only; disk and LauncherApps work runs on [io],
- * results come back through [main]. The IO side reads only the @Volatile counters:
+ * Threading: every public member but [writeRestored] (an IO step of a restore) is main-thread
+ * only; disk and LauncherApps work runs on [io], results come back through [main]. The IO side
+ * reads only the @Volatile counters, and writes only the atomic process.seedPending:
  *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
  *   saveSeq        — bumped by [save]: a newer queued save carries this state, an older one skips.
  * Nothing changes the config before it is loaded (no [EditPermit] is issued, [adopt] and [cleanup]

@@ -123,7 +123,7 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 ## What this set deliberately does NOT have
 
 - **No MockK, no mocks at all.** Everything Android-bound is injected as a
-  function (`LauncherState`'s `io`/`main`/`loadConfig`…, `ConfigStore`'s
+  function (`LauncherState`'s `io`/`main`/`configFile`…, `ConfigStore`'s
   `syncDir`/`rename`, `BackupStore`'s `beforePublish`/`now`), so tests pass plain
   lambdas and fakes. Add MockK only if a real need appears — and then MockK, never
   Mockito.

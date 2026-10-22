@@ -204,8 +204,8 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no Navigation / Fragments — one `Activity` (rename is a bare platform dialog)
 - no DataStore / Room / SharedPreferences — the small amount of state (hidden
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
-  `filesDir` (beside it only `home-cache.txt`, a throwaway copy of the favorites for an
-  instant first frame), written atomically (a `.new` file + fsync + rename, then a
+  `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
+  instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`), written atomically (a `.new` file + fsync + rename, then a
   directory fsync so the rename itself survives power-loss); no `.bak` — your own
   `~backup` is the copy to fall back on; and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`
@@ -231,6 +231,8 @@ and unit-tested on the JVM or a thin view class:
 - `LauncherLogic.kt` — mode parsing, filtering, favorite ordering and reordering, what
   Enter and a tap do.
 - `TapGuard.kt` — the staleness check that keeps a click acting on the row it aimed at.
+- `Guard.kt` — the backstop around every IO-thread task: an escaped exception is logged, not
+  a crash on every start.
 - `SwipeGesture.kt` + `SwipeFrame.kt` — the page-turn swipe: pure decisions and their
   thin touch wrapper.
 - `HomePage.kt` — the front page (Kolibri's home layout); `HomeStyle.kt` holds its pure

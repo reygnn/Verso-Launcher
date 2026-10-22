@@ -34,7 +34,9 @@ on the device — `~backup` is that copy.
 On a fresh install Verso seeds the default favorites from the first app list it gets. If the
 very first enumeration brings no list at all (the system answered nothing for your own
 profile), it waits for the next one — also across a recreation such as `~restart` or a
-language change. The wait lives in memory: if the process itself ends before any list arrived
+language change. A `~` command running when that list arrives holds the seeding back until the
+next return to the launcher; a restore written meanwhile ends the wait, since the restored
+favorites (or none) are yours. The wait lives in memory: if the process itself ends before any list arrived
 *and* an edit (say `%`) had already written `verso.json`, the next start is no fresh install
 and the defaults are not seeded. Pick your favorites with `!` then.
 
