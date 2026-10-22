@@ -173,7 +173,8 @@ thread.
 5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
    empty default must never be written over the real file or a backup. `LauncherState`
    issues no `EditPermit` (every edit takes one, so an edit path without the check does not
-   compile) and refuses saves until then; the Activity says why (`editPermit()`,
+   compile, and only `LauncherState.editPermit` builds one — `SourceGuardTest`) and refuses
+   saves until then; the Activity says why (`editPermit()`,
    `editable()` for the commands). Backups and undo points come from memory only
    (`loadedSnapshot`). If the files cannot even be set aside, the config stays not loaded
    and every resume tries again. Home is drawn and its cache written only from a loaded

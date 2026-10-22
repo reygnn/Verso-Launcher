@@ -43,6 +43,20 @@ class SourceGuardTest {
         assertEquals(emptyList<String>(), params.lines().filter { " = " in it.substringBefore("//") })
     }
 
+    /**
+     * Rules 5 and 15: the permit's constructor is module-internal, so the type alone would let any
+     * class build one past the load check. Only LauncherState.editPermit may.
+     */
+    @Test fun `an EditPermit is built only by LauncherState's editPermit`() {
+        val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+        val built = Regex("""\bEditPermit\s*\(""")
+        val sites = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
+            f.readLines().mapIndexedNotNull { i, line -> "${f.name}:${i + 1}".takeIf { built.containsMatchIn(line) } }
+        }.toList()
+        assertEquals(1, sites.size)
+        assertTrue(sites.single(), sites.single().startsWith("LauncherState.kt:"))
+    }
+
     // Rule 13.
     @Test fun `density stays out of configChanges`() {
 

@@ -13,19 +13,20 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 575 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 579 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           86  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           89  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an
                                 incomplete list; a first load without a list waits — past
-                                an edit and a recreation, ended by a favorite or a restore),
+                                an edit and a recreation, held back by a running command,
+                                ended by a favorite or a restore written),
                                 save-before-load, no edit permit before the load nor
                                 past a command, a failed save reported, needsRefresh
                                 (also after an incomplete enumeration, which a complete one
@@ -95,9 +96,10 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest              4  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              5  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no brace-less object templates, no density in configChanges,
-                                no default in LauncherState's constructor
+                                no default in LauncherState's constructor, no EditPermit built
+                                outside LauncherState
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
