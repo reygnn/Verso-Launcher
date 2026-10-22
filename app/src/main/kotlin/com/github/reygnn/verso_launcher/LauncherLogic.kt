@@ -63,6 +63,16 @@ internal enum class EnterEdge {
     PASS,
 }
 
+/** What a tap on a row does in "!!" ([LauncherLogic.reorderStep]); the Activity performs it. */
+internal sealed interface ReorderStep {
+    /** Nothing held: this favorite is picked up. */
+    data class PickUp(val key: String) : ReorderStep
+    /** The held favorite tapped again: let go, nothing moves. */
+    data object PutDown : ReorderStep
+    /** Another row: the held favorite moves to its slot. */
+    data class Move(val picked: String, val target: String) : ReorderStep
+}
+
 /** What a tap on a list row does ([LauncherLogic.tapAction]); the Activity performs it. */
 internal sealed interface TapAction<out T : Ordered> {
     data class Launch<out T : Ordered>(val entry: T) : TapAction<T>
@@ -256,6 +266,13 @@ internal object LauncherLogic {
         val rank = favorites.withIndex().associate { (i, p) -> p to i }
         val (favs, rest) = apps.partition { it.key in rank }
         return rest + favs.sortedBy { rank[it.key] }
+    }
+
+    /** "!!": a tap picks a row up, the held row again lets it go, any other row drops it there. */
+    fun reorderStep(picked: String?, tapped: String): ReorderStep = when (picked) {
+        null -> ReorderStep.PickUp(tapped)
+        tapped -> ReorderStep.PutDown
+        else -> ReorderStep.Move(picked, tapped)
     }
 
     /** [pickedKey] moved onto [targetKey]'s slot, or null when either is absent or both are the same. */

@@ -218,4 +218,19 @@ class LauncherActionsTest {
         // "%abc" shows no row: Enter does nothing.
         assertEquals(EnterAction.None, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = null))
     }
+
+    // ---- reorderStep ("!!") --------------------------------------------------
+
+    @Test fun `with nothing held a tap picks the row up`() {
+        assertEquals(ReorderStep.PickUp("a/A"), LauncherLogic.reorderStep(picked = null, tapped = "a/A"))
+    }
+
+    /** Audit 2026-10-22, #16: the held row again lets go instead of moving it onto itself. */
+    @Test fun `the held row tapped again lets it go`() {
+        assertEquals(ReorderStep.PutDown, LauncherLogic.reorderStep(picked = "a/A", tapped = "a/A"))
+    }
+
+    @Test fun `another row takes the held one to its slot`() {
+        assertEquals(ReorderStep.Move("a/A", "b/B"), LauncherLogic.reorderStep(picked = "a/A", tapped = "b/B"))
+    }
 }

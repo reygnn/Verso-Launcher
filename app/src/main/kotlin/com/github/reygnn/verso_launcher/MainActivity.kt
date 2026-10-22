@@ -651,13 +651,12 @@ class MainActivity : Activity() {
         renderHome()
     }
 
-    /** "!!": tap picks a row up, the held row again cancels, any other row drops it there. */
+    /** "!!": the decision is [LauncherLogic.reorderStep]'s; a move takes an edit permit. */
     private fun reorderTap(key: String) {
-        val picked = appDrawer.reorderPick
-        when {
-            picked == null -> appDrawer.pickUp(key)
-            picked == key  -> appDrawer.dropPick()
-            else -> editPermit()?.let { moveFavorite(it, picked, key) }
+        when (val step = LauncherLogic.reorderStep(appDrawer.reorderPick, key)) {
+            is ReorderStep.PickUp -> appDrawer.pickUp(step.key)
+            ReorderStep.PutDown -> appDrawer.dropPick()
+            is ReorderStep.Move -> editPermit()?.let { moveFavorite(it, step.picked, step.target) }
         }
     }
 
