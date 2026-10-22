@@ -2,61 +2,6 @@
 <issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.4.1)" variant="all" version="9.4.1">
 
     <issue
-        id="OldTargetApi"
-        message="Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details."
-        errorLine1="        targetSdk = 36"
-        errorLine2="        ~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="26"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.test:runner than 1.6.2 is available: 1.7.0"
-        errorLine1="androidxTestRunner = &quot;1.6.2&quot;"
-        errorLine2="                     ~~~~~~~">
-        <location
-            file="$HOME/AndroidStudio_Projects/Verso-Launcher/gradle/libs.versions.toml"
-            line="22"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="LockedOrientationActivity"
-        message="Expecting `android:screenOrientation=&quot;unspecified&quot;` or `&quot;fullSensor&quot;` for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices"
-        errorLine1="            android:screenOrientation=&quot;portrait&quot;"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="49"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.robolectric:robolectric than 4.16.1 is available: 4.17"
-        errorLine1="robolectric = &quot;4.16.1&quot;"
-        errorLine2="              ~~~~~~~~">
-        <location
-            file="$HOME/AndroidStudio_Projects/Verso-Launcher/gradle/libs.versions.toml"
-            line="18"
-            column="15"/>
-    </issue>
-
-    <issue
-        id="DiscouragedApi"
-        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
-        errorLine1="            android:screenOrientation=&quot;portrait&quot;"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="49"
-            column="13"/>
-    </issue>
-
-    <issue
         id="SetTextI18n"
         message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
         errorLine1="            tv.text = marker + entry.label"

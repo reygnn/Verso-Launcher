@@ -110,6 +110,10 @@ android {
         warningsAsErrors = true
         abortOnError = true
         baseline = file("lint-baseline.xml")
+        // Not findings: the two version checks quote the newest upstream release, so a release
+        // would fail the build without a change here (and offline they report nothing); bumps
+        // are deliberate. targetSdk stays 36 until lifted and tested on a device.
+        disable += setOf("GradleDependency", "NewerVersionAvailable", "OldTargetApi")
     }
 
     // Every buildFeature stays OFF (BuildConfig, Compose, viewBinding, …).
