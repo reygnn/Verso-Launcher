@@ -60,13 +60,27 @@ class MainActivity : Activity() {
         LauncherState(
             io = ::submitIo,
             main = { task -> onUi { task.run() } },
-            loadConfig = { store.load() },
-            setAsideUnreadable = {
-                store.setAsideUnreadable { text -> backupStore.write(BackupFiles.UNREADABLE_BASE, text) != null }
-            },
+            configFile = ConfigFile(
+                load = { store.load() },
+                setAsideUnreadable = {
+                    store.setAsideUnreadable { text -> backupStore.write(BackupFiles.UNREADABLE_BASE, text) != null }
+                },
+                isFresh = { store.isFresh() },
+                serialize = ConfigJson::serialize,
+                write = { payload -> store.write(payload) },
+            ),
             enumerateApps = { apps.enumerate() },
-            serialize = ConfigJson::serialize,
-            writeConfig = { payload -> store.write(payload) },
+            defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
+            recentsFile = RecentsFile(
+                read = { RecentsLog.read(filesDir, LauncherState.RECENTS_KEPT) },
+                write = { keys -> RecentsLog.write(filesDir, keys) },
+            ),
+            usageFile = UsageFile(
+                read = { UsageLog.read(filesDir) },
+                write = { log, at -> UsageLog.write(filesDir, log, at) },
+            ),
+            process = app.process,
+            now = System::currentTimeMillis,
             onSaveFailed = { toast(getString(R.string.toast_save_failed)) },
             onRefreshed = { configReplaced, listChanged ->
                 // An open rename dialog holds the OLD config and would write stale fields over
@@ -74,27 +88,6 @@ class MainActivity : Activity() {
                 if (configReplaced) dismissDialogs()
                 if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
                 if (listChanged) appDrawer.refilter()
-            },
-            isFreshInstall = { store.isFresh() },
-            startedOverFlag = app.startedOver,
-            defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
-            seedPendingFlag = app.seedPending,
-            initialRecents = app.recentKeys,
-            initialRecentsLoaded = app.recentsLoaded,
-            onRecentsChanged = { keys, loaded ->
-                app.recentKeys = keys
-                app.recentsLoaded = loaded
-            },
-            loadRecents = { RecentsLog.read(filesDir, LauncherState.RECENTS_KEPT) },
-            writeRecents = { keys -> RecentsLog.write(filesDir, keys) },
-            loadUsage = { UsageLog.read(filesDir) },
-            writeUsage = { log, now -> UsageLog.write(filesDir, log, now) },
-            now = System::currentTimeMillis,
-            initialUsage = app.usage,
-            initialUsageLoaded = app.usageLoaded,
-            onUsageChanged = { log, loaded ->
-                app.usage = log
-                app.usageLoaded = loaded
             },
         )
     }

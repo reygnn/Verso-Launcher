@@ -1,14 +1,15 @@
 package com.github.reygnn.verso_launcher
 
-import java.util.concurrent.atomic.AtomicBoolean
-
 /**
  * A [LauncherState] whose collaborators the test does not name are inert: no file, no profile,
  * no clock that moves. The production constructor has no defaults on purpose (a wire
  * MainActivity forgot must not compile into a no-op), so the defaults live here, in test code.
- * The seven without one are the ones every test of the class has to decide on.
+ * The parameters stay flat — a test names the one function it fakes — and are bundled here into
+ * the [ConfigFile], [RecentsFile] and [UsageFile] the constructor takes. The seven without a
+ * default are the ones every test of the class has to decide on. Pass the same [process] to two
+ * instances to model a recreation.
  */
-@Suppress("LongParameterList")  // mirrors LauncherState's constructor, one parameter each
+@Suppress("LongParameterList")  // one parameter per faked function, flat on purpose
 internal fun testLauncherState(
     io: (Runnable) -> Boolean,
     main: (Runnable) -> Unit,
@@ -20,43 +21,29 @@ internal fun testLauncherState(
     onSaveFailed: () -> Unit = {},
     onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
     isFreshInstall: () -> Boolean = { false },
-    startedOverFlag: AtomicBoolean = AtomicBoolean(),
     defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
-    seedPendingFlag: AtomicBoolean = AtomicBoolean(),
-    initialRecents: List<String> = emptyList(),
-    initialRecentsLoaded: Boolean = false,
-    onRecentsChanged: (List<String>, Boolean) -> Unit = { _, _ -> },
+    process: ProcessState = ProcessState(),
     loadRecents: () -> List<String>? = { emptyList() },
     writeRecents: (List<String>) -> Unit = {},
     loadUsage: () -> Map<String, Usage>? = { emptyMap() },
     writeUsage: (Map<String, Usage>, Long) -> Unit = { _, _ -> },
     now: () -> Long = System::currentTimeMillis,
-    initialUsage: Map<String, Usage> = emptyMap(),
-    initialUsageLoaded: Boolean = false,
-    onUsageChanged: (Map<String, Usage>, Boolean) -> Unit = { _, _ -> },
 ) = LauncherState(
     io = io,
     main = main,
-    loadConfig = loadConfig,
-    setAsideUnreadable = setAsideUnreadable,
+    configFile = ConfigFile(
+        load = loadConfig,
+        setAsideUnreadable = setAsideUnreadable,
+        isFresh = isFreshInstall,
+        serialize = serialize,
+        write = writeConfig,
+    ),
     enumerateApps = enumerateApps,
-    serialize = serialize,
-    writeConfig = writeConfig,
+    defaultFavoriteCandidates = defaultFavoriteCandidates,
+    recentsFile = RecentsFile(read = loadRecents, write = writeRecents),
+    usageFile = UsageFile(read = loadUsage, write = writeUsage),
+    process = process,
+    now = now,
     onSaveFailed = onSaveFailed,
     onRefreshed = onRefreshed,
-    isFreshInstall = isFreshInstall,
-    startedOverFlag = startedOverFlag,
-    defaultFavoriteCandidates = defaultFavoriteCandidates,
-    seedPendingFlag = seedPendingFlag,
-    initialRecents = initialRecents,
-    initialRecentsLoaded = initialRecentsLoaded,
-    onRecentsChanged = onRecentsChanged,
-    loadRecents = loadRecents,
-    writeRecents = writeRecents,
-    loadUsage = loadUsage,
-    writeUsage = writeUsage,
-    now = now,
-    initialUsage = initialUsage,
-    initialUsageLoaded = initialUsageLoaded,
-    onUsageChanged = onUsageChanged,
 )

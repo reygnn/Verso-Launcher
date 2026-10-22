@@ -52,9 +52,7 @@ class LauncherStateTest {
     private val permit get() = state.editPermit(gate.idle()!!)!!
     private var saveFailures = 0
     /** Process-wide like VersoApp's: it outlives a LauncherState. */
-    private val startedOverFlag = java.util.concurrent.atomic.AtomicBoolean()
-    /** Process-wide like VersoApp's: a recreated instance still waits to seed. */
-    private val seedPendingFlag = java.util.concurrent.atomic.AtomicBoolean()
+    private val process = ProcessState()
     private val listChanges = mutableListOf<Boolean>()
     /** Runs in onRefreshed: what the Activity sees when it re-renders. */
     private var onReport: () -> Unit = {}
@@ -83,9 +81,8 @@ class LauncherStateTest {
         onSaveFailed = { saveFailures++ },
         onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed; onReport() },
         isFreshInstall = { fresh },
-        startedOverFlag = startedOverFlag,
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
-        seedPendingFlag = seedPendingFlag,
+        process = process,
     )
 
     private var fresh = false
@@ -118,27 +115,21 @@ class LauncherStateTest {
     private fun standalone(
         q: Queues = Queues(),
         listChanged: MutableList<Boolean> = mutableListOf(),
-        initialRecents: List<String> = emptyList(),
-        initialRecentsLoaded: Boolean = false,
-        onRecentsChanged: (List<String>, Boolean) -> Unit = { _, _ -> },
+        process: ProcessState = ProcessState(),
         loadRecents: () -> List<String>? = { emptyList() },
         writeRecents: (List<String>) -> Unit = {},
         loadUsage: () -> Map<String, Usage>? = { emptyMap() },
         writeUsage: (Map<String, Usage>) -> Unit = {},
-        onUsageChanged: (Map<String, Usage>, Boolean) -> Unit = { _, _ -> },
     ) = testLauncherState(
         io = { q.io.addLast(it); true }, main = { q.main.addLast(it) },
         loadConfig = { VersoConfig() }, enumerateApps = { Enumeration(emptyList(), true) },
         serialize = { "" }, writeConfig = { true }, onRefreshed = { _, changed -> listChanged += changed },
-        initialRecents = initialRecents,
-        initialRecentsLoaded = initialRecentsLoaded,
-        onRecentsChanged = onRecentsChanged,
+        process = process,
         loadRecents = loadRecents,
         writeRecents = writeRecents,
         loadUsage = loadUsage,
         writeUsage = { log, _ -> writeUsage(log) },
         now = { 1000L },
-        onUsageChanged = onUsageChanged,
     )
 
     private fun labels() = state.apps.map { it.label }
@@ -268,7 +259,7 @@ class LauncherStateTest {
             serialize = { "" },
             writeConfig = { true },
             onRefreshed = { _, _ -> },
-            startedOverFlag = startedOverFlag,
+            process = process,
         )
         next.refresh()
         runAll()
@@ -810,12 +801,12 @@ class LauncherStateTest {
 
     // ---- recents ----------------------------------------------------------------
 
-    @Test fun `recents start from the process-wide list and report every change`() {
-        val reported = mutableListOf<List<String>>()
-        val s = standalone(initialRecents = listOf("a", "b"), onRecentsChanged = { keys, _ -> reported += keys })
+    @Test fun `recents start from the process-wide list and every launch goes back to it`() {
+        val kept = ProcessState(recents = Kept(listOf("a", "b")))
+        val s = standalone(process = kept)
         assertEquals(listOf("a", "b"), s.recentKeys)
         s.recordLaunch("c")
-        assertEquals(listOf(listOf("c", "a", "b")), reported)
+        assertEquals(listOf("c", "a", "b"), kept.recents.value)
     }
 
     @Test fun `recents are newest first, de-duplicated and capped`() {
@@ -859,23 +850,18 @@ class LauncherStateTest {
     @Test fun `a recreated instance takes over whether recents_txt was read`() {
         val q = Queues()
         val writes = mutableListOf<List<String>>()
-        val reported = mutableListOf<Pair<List<String>, Boolean>>()
-        val first = standalone(
-            q, loadRecents = { listOf("a") }, writeRecents = { writes += it },
-            onRecentsChanged = { keys, loaded -> reported += keys to loaded },
-        )
+        val kept = ProcessState()
+        val first = standalone(q, process = kept, loadRecents = { listOf("a") }, writeRecents = { writes += it })
         first.recordLaunch("b")
-        assertEquals(listOf("b") to false, reported.last())
+        assertEquals(listOf("b"), kept.recents.value)
+        assertFalse(kept.recents.loaded)
         first.refresh()
         q.drain()
-        assertEquals(listOf("b", "a") to true, reported.last())
+        assertEquals(listOf("b", "a"), kept.recents.value)
+        assertTrue(kept.recents.loaded)
 
         var reads = 0
-        val (keys, loaded) = reported.last()
-        val second = standalone(
-            q, initialRecents = keys, initialRecentsLoaded = loaded,
-            loadRecents = { reads++; null }, writeRecents = { writes += it },
-        )
+        val second = standalone(q, process = kept, loadRecents = { reads++; null }, writeRecents = { writes += it })
         second.refresh()
         q.drain()
         assertEquals(0, reads)
@@ -937,19 +923,17 @@ class LauncherStateTest {
     @Test fun `launches before usage_txt is read are added to it, then every launch is written`() {
         val q = Queues()
         val writes = mutableListOf<Map<String, Usage>>()
-        val reported = mutableListOf<Pair<Map<String, Usage>, Boolean>>()
-        val s = standalone(
-            q, loadUsage = { mapOf("a" to Usage(1.0, 1000L)) }, writeUsage = { writes += it },
-            onUsageChanged = { log, loaded -> reported += log to loaded },
-        )
+        val kept = ProcessState()
+        val s = standalone(q, process = kept, loadUsage = { mapOf("a" to Usage(1.0, 1000L)) }, writeUsage = { writes += it })
         s.recordLaunch("a")
         assertTrue("not written over a file not read yet", q.io.isEmpty())
-        assertEquals(false, reported.last().second)
+        assertFalse(kept.usage.loaded)
         s.refresh()
         q.drain()
         assertEquals(Usage(2.0, 1000L), s.usage["a"])
         assertEquals(listOf(mapOf("a" to Usage(2.0, 1000L))), writes)
-        assertEquals(true, reported.last().second)
+        assertTrue(kept.usage.loaded)
+        assertEquals(s.usage, kept.usage.value)
         s.recordLaunch("b")
         q.runIo()
         assertEquals(setOf("a", "b"), writes.last().keys)
@@ -1100,7 +1084,7 @@ class LauncherStateTest {
             onRefreshed = { _, _ -> },
             isFreshInstall = { fresh },
             defaultFavoriteCandidates = { candidates },
-            seedPendingFlag = seedPendingFlag,
+            process = process,
         )
         next.refresh()
         runAll()

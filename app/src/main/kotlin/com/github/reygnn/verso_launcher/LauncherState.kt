@@ -1,7 +1,5 @@
 package com.github.reygnn.verso_launcher
 
-import java.util.concurrent.atomic.AtomicBoolean
-
 /**
  * The launcher's data — config, enumerated apps, recents — and the rules that keep it consistent
  * while a background load and the user's taps overlap. Plays the ViewModel role, in plain Kotlin.
@@ -15,45 +13,30 @@ import java.util.concurrent.atomic.AtomicBoolean
  * An enumeration carries no config (system labels only); custom names are applied on main from
  * the live config ([relabel]), so no edit can make an enumeration stale.
  *
- * @param loadConfig null when verso.json is there but unreadable.
- * @param enumerateApps null if the enumeration failed — the last good list is kept; an
- *   incomplete one is shown but retried on the next resume ([needsRefresh]).
- * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
- *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
- *   called by [adopt], always (true, true).
  * Every collaborator is passed, none defaulted: a wire MainActivity forgot would otherwise be
  * a silent no-op. Tests build it through testLauncherState, which supplies inert ones.
  *
- * @param seedPendingFlag a fresh install whose default favorites wait for an enumeration with a
- *   list (hard rule 10). Process-wide, so the wait outlives a recreated instance; ended by the
- *   seeding itself, [toggleFavorite] and [adopt]. While it is set the favorites are empty (a
- *   fresh config has none, the first toggle ends it), so no other edit can touch them.
+ * @param enumerateApps null if the enumeration failed — the last good list is kept; an
+ *   incomplete one is shown but retried on the next resume ([needsRefresh]).
+ * @param process what outlives this instance. Its seedPending ends with the seeding itself,
+ *   [toggleFavorite] and [adopt]; while it is set the favorites are empty (a fresh config has
+ *   none, the first toggle ends it), so no other edit can touch them.
+ * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
+ *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
+ *   called by [adopt], always (true, true).
  */
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
-    private val loadConfig: () -> VersoConfig?,
-    private val setAsideUnreadable: () -> Boolean,
+    private val configFile: ConfigFile,
     private val enumerateApps: () -> Enumeration?,
-    private val serialize: (VersoConfig) -> String,
-    private val writeConfig: (String) -> Boolean,
+    private val defaultFavoriteCandidates: () -> List<List<String>>,
+    private val recentsFile: RecentsFile,
+    private val usageFile: UsageFile,
+    private val process: ProcessState,
+    private val now: () -> Long,
     private val onSaveFailed: () -> Unit,
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
-    private val isFreshInstall: () -> Boolean,
-    private val startedOverFlag: AtomicBoolean,
-    private val defaultFavoriteCandidates: () -> List<List<String>>,
-    private val seedPendingFlag: AtomicBoolean,
-    initialRecents: List<String>,
-    initialRecentsLoaded: Boolean,
-    private val onRecentsChanged: (List<String>, Boolean) -> Unit,
-    private val loadRecents: () -> List<String>?,
-    private val writeRecents: (List<String>) -> Unit,
-    private val loadUsage: () -> Map<String, Usage>?,
-    private val writeUsage: (Map<String, Usage>, Long) -> Unit,
-    private val now: () -> Long,
-    initialUsage: Map<String, Usage>,
-    initialUsageLoaded: Boolean,
-    private val onUsageChanged: (Map<String, Usage>, Boolean) -> Unit,
 ) {
     /** Immutable: every change goes through this class (and its save) as a new config. */
     val config: VersoConfig get() = cfg
@@ -79,23 +62,17 @@ internal class LauncherState(
 
     private var lastLoadCommitted = false
 
-    var recentKeys: List<String> = initialRecents
-        private set
-
-    /** Written only once recents.txt was read, like [usage]. */
-    private var recentsLoaded = initialRecentsLoaded
+    /** The "?" list, newest first. recents.txt is written only once it was read, like usage.txt. */
+    val recentKeys: List<String> get() = process.recents.value
 
     /** The launches behind the "%" order. Written only once the file was read (or it was lost). */
-    var usage: Map<String, Usage> = initialUsage
-        private set
-
-    private var usageLoaded = initialUsageLoaded
+    val usage: Map<String, Usage> get() = process.usage.value
 
     /** Read from disk once; after that [config] is the truth. */
     var configLoaded = false
         private set
 
-    fun takeStartedOver(): Boolean = configLoaded && startedOverFlag.getAndSet(false)
+    fun takeStartedOver(): Boolean = configLoaded && process.startedOver.getAndSet(false)
 
     /**
      * Proof an edit may run: the config was loaded when it was issued (hard rule 5; it never
@@ -121,20 +98,20 @@ internal class LauncherState(
     fun refresh() {
         val generation = ++loadGeneration
         val loadConfigNow = !configLoaded
-        val loadUsageNow = !usageLoaded
-        val loadRecentsNow = !recentsLoaded
-        val seedStillPending = seedPendingFlag.get()
+        val loadUsageNow = !process.usage.loaded
+        val loadRecentsNow = !process.recents.loaded
+        val seedStillPending = process.seedPending.get()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
-            val freshBefore = loadConfigNow && isFreshInstall()
-            val read = if (loadConfigNow) loadConfig() else null
+            val freshBefore = loadConfigNow && configFile.isFresh()
+            val read = if (loadConfigNow) configFile.load() else null
             // Unreadable: set aside and start fresh; if it can't be moved, stay unloaded (hard rule 4).
-            val setAside = loadConfigNow && read == null && setAsideUnreadable()
-            if (setAside) startedOverFlag.set(true)
+            val setAside = loadConfigNow && read == null && configFile.setAsideUnreadable()
+            if (setAside) process.startedOver.set(true)
             val diskConfig = read ?: if (setAside) VersoConfig() else null
             val fresh = freshBefore || setAside
-            val diskUsage = if (loadUsageNow) loadUsage() else null
-            val diskRecents = if (loadRecentsNow) loadRecents() else null
+            val diskUsage = if (loadUsageNow) usageFile.read() else null
+            val diskRecents = if (loadRecentsNow) recentsFile.read() else null
             val enumeration = enumerateApps()
             val loaded = enumeration?.apps
             // From any enumeration with a list, complete or not: one that never completes (a
@@ -149,29 +126,29 @@ internal class LauncherState(
                     cfg = diskConfig
                     configLoaded = true
                     replaced = true
-                    if (fresh) seedPendingFlag.set(true)
+                    if (fresh) process.seedPending.set(true)
                 }
                 // Still pending here means nothing touched the favorites since the request.
-                if (configLoaded && loaded != null && seedPendingFlag.getAndSet(false) &&
+                if (configLoaded && loaded != null && process.seedPending.getAndSet(false) &&
                     seeds.isNotEmpty() && cfg.favorites.isEmpty()
                 ) {
                     cfg = cfg.copy(favorites = cfg.favorites + seeds)
                     mutated()
                 }
-                if (diskUsage != null && !usageLoaded) {
-                    val counted = usage
-                    usage = UsageLog.merged(diskUsage, counted, now())
-                    usageLoaded = true
-                    onUsageChanged(usage, true)
+                val kept = process.usage
+                if (diskUsage != null && !kept.loaded) {
+                    val counted = kept.value
+                    kept.value = UsageLog.merged(diskUsage, counted, now())
+                    kept.loaded = true
                     if (counted.isNotEmpty()) persistUsage()
                 }
                 var recentsChanged = false
-                if (diskRecents != null && !recentsLoaded) {
-                    val launched = recentKeys
-                    recentKeys = RecentsLog.merged(diskRecents, launched, RECENTS_KEPT)
-                    recentsLoaded = true
-                    recentsChanged = recentKeys != launched
-                    onRecentsChanged(recentKeys, true)
+                val recents = process.recents
+                if (diskRecents != null && !recents.loaded) {
+                    val launched = recents.value
+                    recents.value = RecentsLog.merged(diskRecents, launched, RECENTS_KEPT)
+                    recents.loaded = true
+                    recentsChanged = recents.value != launched
                     if (launched.isNotEmpty()) persistRecents()
                 }
                 lastLoadCommitted = enumeration?.complete == true
@@ -191,12 +168,12 @@ internal class LauncherState(
     fun save() {
         // Last line of hard rule 5: the empty default must never overwrite verso.json.
         if (!configLoaded) return
-        val payload = serialize(cfg)
+        val payload = configFile.serialize(cfg)
         val seq = ++saveSeq
         val accepted = io(Runnable {
             // A newer save queued behind this one carries this state too.
             if (seq != saveSeq) return@Runnable
-            if (!writeConfig(payload)) main(Runnable { onSaveFailed() })
+            if (!configFile.write(payload)) main(Runnable { onSaveFailed() })
         })
         if (!accepted) {
             // Take the number back, or a save queued ahead would skip itself for one that never runs.
@@ -215,7 +192,7 @@ internal class LauncherState(
     fun toggleFavorite(permit: EditPermit, key: String) {
         if (!permit.current) return
         cfg = cfg.copy(favorites = cfg.favorites.toggled(key))
-        seedPendingFlag.set(false)
+        process.seedPending.set(false)
         mutated()
     }
 
@@ -275,7 +252,7 @@ internal class LauncherState(
         }
         val base = adoptions
         val snapshot = cfg
-        val payload = serialize(cfg)
+        val payload = configFile.serialize(cfg)
         val accepted = io(Runnable {
             // Reported from finally: the "~" command run ends only with it (hard rule 15).
             var outcome: CleanupOutcome = CleanupOutcome.Refused
@@ -307,23 +284,21 @@ internal class LauncherState(
     }
 
     fun recordLaunch(key: String) {
-        recentKeys = LauncherLogic.pushRecent(recentKeys, key, RECENTS_KEPT)
-        onRecentsChanged(recentKeys, recentsLoaded)
-        if (recentsLoaded) persistRecents()
-        usage = UsageLog.recorded(usage, key, now())
-        onUsageChanged(usage, usageLoaded)
-        if (usageLoaded) persistUsage()
+        process.recents.value = LauncherLogic.pushRecent(recentKeys, key, RECENTS_KEPT)
+        if (process.recents.loaded) persistRecents()
+        process.usage.value = UsageLog.recorded(usage, key, now())
+        if (process.usage.loaded) persistUsage()
     }
 
     private fun persistRecents() {
         val keys = recentKeys
-        io(Runnable { writeRecents(keys) })
+        io(Runnable { recentsFile.write(keys) })
     }
 
     private fun persistUsage() {
         val log = usage
         val at = now()
-        io(Runnable { writeUsage(log, at) })
+        io(Runnable { usageFile.write(log, at) })
     }
 
     /** "%": the plain drawer by usage, or back to A to Z. Null, nothing saved, when refused. */
@@ -341,7 +316,7 @@ internal class LauncherState(
         cfg = restored
         adoptions++
         // The restored favorites, or none, are the user's.
-        seedPendingFlag.set(false)
+        process.seedPending.set(false)
         relabel()
         onRefreshed(true, true)
         return true

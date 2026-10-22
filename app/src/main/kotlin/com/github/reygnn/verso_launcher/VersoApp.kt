@@ -6,7 +6,7 @@ import java.util.concurrent.Executors
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
- * write verso.json concurrently), the recents and the label/palette caches.
+ * write verso.json concurrently), the [ProcessState] and the label/palette caches.
  */
 class VersoApp : Application() {
 
@@ -19,21 +19,8 @@ class VersoApp : Application() {
     /** Last applied wallpaper palette, so a recreated activity starts in the right colours. Main thread only. */
     internal var palette: Palette? = null
 
-    /** The "?" list, newest first, and whether recents.txt was read into it yet. Main thread only. */
-    internal var recentKeys: List<String> = emptyList()
-    internal var recentsLoaded = false
-
-    /** The "%" launches, and whether usage.txt was read into them yet. Main thread only. */
-    internal var usage: Map<String, Usage> = emptyMap()
-    internal var usageLoaded = false
-
-    /** Set on [io] when an unreadable config was set aside; taken by whichever instance's
-     *  hand-off lands first, so the toast is never lost. */
-    internal val startedOver = java.util.concurrent.atomic.AtomicBoolean()
-
-    /** A fresh install still waiting for an enumeration with a list to seed the default favorites
-     *  from (hard rule 10). Main thread only; a holder so a recreated instance keeps waiting. */
-    internal val seedPending = java.util.concurrent.atomic.AtomicBoolean()
+    /** What a recreated LauncherState takes over: the recents, the launches, the two flags. */
+    internal val process = ProcessState()
 
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 

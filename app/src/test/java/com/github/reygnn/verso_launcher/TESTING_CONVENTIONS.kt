@@ -21,10 +21,12 @@ package com.github.reygnn.verso_launcher
  * a test passes a lambda — no mocking framework (no MockK, no Mockito), only
  * fakes and manual queues:
  *
- *   LauncherState(io, main, loadConfig, setAsideUnreadable, enumerateApps,
- *                 serialize, writeConfig, onSaveFailed, onRefreshed, …)
- *     — built in tests through testLauncherState (TestLauncherState.kt): the
- *       production constructor has no defaults, the factory supplies inert ones
+ *   LauncherState(io, main, configFile, enumerateApps, defaultFavoriteCandidates,
+ *                 recentsFile, usageFile, process, now, onSaveFailed, onRefreshed)
+ *     — built in tests through testLauncherState (TestLauncherState.kt): flat
+ *       parameters (loadConfig, writeConfig, loadRecents, …) with inert defaults,
+ *       bundled there; the production constructor has no defaults. One shared
+ *       ProcessState between two instances models a recreation.
  *   ConfigStore(dir, log, syncDir, rename, readText)  // rename/readText: force a failure
  *   BackupStore(resolver, subDir, log, beforePublish, now, owner)
  *
