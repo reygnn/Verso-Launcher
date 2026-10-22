@@ -3,8 +3,10 @@ package com.github.reygnn.verso_launcher
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextClock
+import android.widget.TextView
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,27 +30,42 @@ class HomePageStartGuardTest {
     private val activity = Robolectric.buildActivity(RefusingActivity::class.java).setup().get()
     private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = {})
 
-    private fun tapClock(refusal: RuntimeException) {
+    private val clock: View get() = page.view.collect<TextClock>().first()
+    private val date: View get() = page.view.collect<TextClock>()[1]
+    private val battery: View get() = page.view.collect<TextView>().first { it.text.toString() == BatteryInfo.UNKNOWN_LABEL }
+
+    /** One accessibility click acts at once (no double-tap gate). */
+    private fun tap(target: View, refusal: RuntimeException) {
         activity.refusal = refusal
-        // One accessibility click acts at once (no double-tap gate).
-        page.view.collect<TextClock>().first().performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
+        target.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
     }
 
-    private fun assertNoAppSaid() =
+    private fun assertNoAppSaid(toasts: Int = 1) {
+        assertEquals(toasts, ShadowToast.shownToastCount())
         assertEquals(activity.getString(R.string.toast_no_app), ShadowToast.getTextOfLatestToast())
+    }
 
-    @Test fun `no app for the intent says so`() {
-        tapClock(ActivityNotFoundException("no alarms app"))
+    // Each target goes through the guard: a handler starting its intent unguarded would crash here.
+
+    @Test fun `the clock's refused alarms say so`() {
+        tap(clock, SecurityException("not exported"))
         assertNoAppSaid()
     }
 
-    @Test fun `an app that denies the start says so`() {
-        tapClock(SecurityException("not exported"))
+    @Test fun `the date's refused calendar says so`() {
+        tap(date, SecurityException("not exported"))
         assertNoAppSaid()
     }
 
-    @Test fun `any other refusal says so too`() {
-        tapClock(IllegalStateException("system_server gone"))
+    @Test fun `the battery's refused usage screen says so`() {
+        tap(battery, SecurityException("not exported"))
         assertNoAppSaid()
+    }
+
+    @Test fun `no app, a denial and any other failure each say so`() {
+        tap(clock, ActivityNotFoundException("no alarms app"))
+        tap(clock, SecurityException("not exported"))
+        tap(clock, IllegalStateException("system_server gone"))
+        assertNoAppSaid(toasts = 3)
     }
 }

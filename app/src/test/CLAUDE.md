@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 596 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 599 tests):
 
 ```
 LauncherLogicTest          151  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -58,14 +58,16 @@ SwipeGestureTest            19  the page drag (direction, offset, release, home 
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
-PageTurnTest                26  Robolectric: the page turn on real views — open/close (animated or
+PageTurnTest                27  Robolectric: the page turn on real views — open/close (animated or
                                 not), the side it comes from and returns to (also caught
                                 mid-close), leaving "?", who may drag or flick (dialog, top band),
-                                drag commit/cancel both ways, Back (home, prompt, recents,
-                                preview, cancel — also after HOME closed the drawer)
-AppDrawerTest               11  Robolectric: the back page — rows per prompt, edit-mode markers,
+                                drag commit/cancel both ways, open ending a held drag, Back
+                                (home, prompt, recents, preview, cancel — also after HOME closed
+                                the drawer)
+AppDrawerTest               12  Robolectric: the back page — rows per prompt, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on,
-                                the reorder pick (held, dropped, let go), clearing the prompt
+                                the reorder pick (held, dropped, let go, its row gone), clearing
+                                the prompt
 MainActivityFlowsTest       12  Robolectric, the real Activity: a second command and an edit
                                 refused while one runs (prompt kept; the rename OK says why),
                                 ~restart dropping a pick still being read (said; other
@@ -94,8 +96,8 @@ CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed be
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
-HomePageStartGuardTest       3  Robolectric: clock/date/battery intent refused (no app, denied, any
-                                other) is a toast, never a crash
+HomePageStartGuardTest       4  Robolectric: clock, date and battery each guarded; a refused intent
+                                (no app, denied, any other) is a toast, never a crash
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
 EnumerationTest             13  the enumeration with faked profiles: null when the profiles or

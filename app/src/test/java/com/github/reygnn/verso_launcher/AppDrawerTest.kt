@@ -8,7 +8,6 @@ import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -121,15 +120,28 @@ class AppDrawerTest {
         assertEquals(listOf<TapAction<AppEntry>>(TapAction.Launch(installed[1])), taps)
     }
 
+    private val permit: LauncherState.EditPermit get() = checkNotNull(state.editPermit(checkNotNull(CommandGate().idle())))
+
     @Test fun `a picked favorite is marked until it is dropped`() {
+        state.toggleFavorite(permit, installed[0].key)  // two favorites: the other row must not change
         drawer.setPrompt("!!")
         val before = rows()
+        assertEquals(2, before.size)
         drawer.pickUp(installed[1].key)
         assertEquals(installed[1].key, drawer.reorderPick)
-        assertNotEquals(before, rows())
+        assertEquals(before.map { if (it.endsWith("Bravo")) "\u00BB Bravo" else it }, rows())
         drawer.dropPick()
         assertNull(drawer.reorderPick)
         assertEquals(before, rows())
+    }
+
+    /** The next tap would otherwise move a favorite no longer on screen. */
+    @Test fun `a pick whose row is gone is let go`() {
+        drawer.setPrompt("!!")
+        drawer.pickUp(installed[1].key)
+        state.toggleFavorite(permit, installed[1].key)  // no longer a favorite, so no longer a row
+        drawer.refilter()
+        assertNull(drawer.reorderPick)
     }
 
     @Test fun `leaving the reorder mode lets the pick go`() {

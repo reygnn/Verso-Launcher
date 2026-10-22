@@ -2,6 +2,8 @@ package com.github.reygnn.verso_launcher
 
 import android.app.Activity
 import android.os.Looper
+import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.View
 import android.window.BackEvent
 import org.junit.Assert.assertEquals
@@ -155,7 +157,10 @@ class PageTurnTest {
     /** Caught mid-close on the other side: it must not slide on from up there. */
     @Test fun `the plain drawer opened while the recents still slide up comes from below`() {
         openSettled("?", fromTop = true)
-        pageTurn.close()  // still sliding up
+        pageTurn.close()
+        // Halfway up, where the slide would be now: Robolectric runs a view animation to its end
+        // in the first idle (even 10 ms), so the looper cannot stop it midway.
+        drawer.view.translationY = -height / 2
         pageTurn.open()
         assertEquals(height, drawer.view.translationY, 0.5f)
         settle()
@@ -267,6 +272,24 @@ class PageTurnTest {
         pageTurn.close()  // still sliding, the prompt still "al"
         root.onDragStart(SwipeDir.DOWN)
         assertEquals("?", prompt)
+    }
+
+    /** A finger pulling home up, as SwipeFrame sees it: the drag starts, the finger stays down. */
+    private fun startSwipeUp() {
+        val t = SystemClock.uptimeMillis()
+        val from = height * 0.8f
+        root.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, 100f, from, 0))
+        for (i in 1..10) {
+            root.dispatchTouchEvent(MotionEvent.obtain(t, t + i * 16, MotionEvent.ACTION_MOVE, 100f, from - i * height * 0.03f, 0))
+        }
+    }
+
+    /** Opened some other way (the a11y action, a flick) while a finger holds the page. */
+    @Test fun `open ends a drag still holding the page`() {
+        startSwipeUp()
+        assertTrue("the drag has started", root.isDragging)
+        pageTurn.open()
+        assertFalse(root.isDragging)
     }
 
     // ---- Back --------------------------------------------------------------------------
