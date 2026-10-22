@@ -10,8 +10,10 @@ config:
 
 style:
   MagicNumber:
-    # HomeStyle.kt is where the look lives as constants (CLAUDE.md: no settings screen); its
-    # numbers are the design, not magic. The rest is detekt's default list, which this replaces.
+    # HomeStyle.kt, the whole file: the look lives there as constants (CLAUDE.md: no settings
+    # screen), and those numbers are the design, not magic. The exclusion also covers what sits
+    # beside them (BatteryInfo, DoubleTapGate, Context.dp) — keep new logic out of that file, or
+    # its numbers go unchecked. The rest is detekt's default list, which this replaces.
     excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**',
                '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/*.kts', '**/HomeStyle.kt']
   MaxLineLength:

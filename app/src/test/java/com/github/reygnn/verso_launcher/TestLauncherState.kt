@@ -30,7 +30,7 @@ internal fun testLauncherState(
     writeRecents: (List<String>) -> Unit = {},
     loadUsage: () -> Map<String, Usage>? = { emptyMap() },
     writeUsage: (Map<String, Usage>, Long) -> Unit = { _, _ -> },
-    now: () -> Long = System::currentTimeMillis,
+    now: () -> Long = { 0L },
 ) = LauncherState(
     io = io,
     main = main,

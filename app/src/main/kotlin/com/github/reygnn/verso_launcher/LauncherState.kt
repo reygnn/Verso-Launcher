@@ -232,7 +232,10 @@ internal class LauncherState(
     /** A blank name, or one equal to [systemLabel], clears the override; [tags] arrive canonical. */
     fun rename(permit: EditPermit, key: String, systemLabel: String, name: String, tags: List<String>) {
         if (!permit.current) return
-        val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), systemLabel)
+        // Both sides cleaned: the dialog starts from the label cut to 100 chars, and another
+        // profile's badged label is built from the cleaned one, so it can be longer (and may carry
+        // bidi isolates) — an untouched OK must not turn it into a custom name.
+        val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), LauncherLogic.cleanName(systemLabel))
         cfg = cfg.copy(
             names = if (override == null) cfg.names - key else cfg.names + (key to override),
             tags = cfg.tags.withList(key, tags),

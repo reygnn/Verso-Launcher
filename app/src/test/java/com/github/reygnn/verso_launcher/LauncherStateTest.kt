@@ -558,6 +558,25 @@ class LauncherStateTest {
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
     }
 
+    /**
+     * The dialog starts from the label cut to 100 chars (its LengthFilter), and a work app's label
+     * is the badged one, which can be longer. An OK without a change is no custom name.
+     */
+    @Test fun `an untouched OK on a label too long for a name keeps no custom name`() {
+        started()
+        val label = "Work " + "x".repeat(LauncherLogic.MAX_NAME_LENGTH)
+        state.rename(permit, key("Alpha"), label, label.take(LauncherLogic.MAX_NAME_LENGTH), listOf("work"))
+        assertNull(state.config.names[key("Alpha")])
+        assertEquals(listOf("work"), state.config.tags[key("Alpha")])
+    }
+
+    @Test fun `an untouched OK on a label with bidi isolates keeps no custom name`() {
+        started()
+        val label = "\u2068Alpha\u2069"
+        state.rename(permit, key("Alpha"), label, label, emptyList())
+        assertNull(state.config.names[key("Alpha")])
+    }
+
     @Test fun `a rename with no tags removes the tag key`() {
         started()
         state.rename(permit, key("Alpha"), "Alpha", "", listOf("work"))

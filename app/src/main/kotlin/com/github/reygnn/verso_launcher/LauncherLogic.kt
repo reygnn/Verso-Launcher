@@ -313,7 +313,7 @@ internal object LauncherLogic {
     fun canonicalTag(raw: String): String =
         // NFC again (a dropped character can let its neighbours combine), cut, and only then
         // trimmed: a cut can expose a space, and "##" prompts are trimmed.
-        truncate(nfc(foldLabel(raw).filter { it != '#' && it != ',' && !it.isISOControl() && !isSpoofChar(it) }), MAX_TAG_LENGTH)
+        truncate(nfc(pairedOnly(foldLabel(raw).filter { it != '#' && it != ',' && !it.isISOControl() && !isSpoofChar(it) })), MAX_TAG_LENGTH)
             .trim()
 
     const val MAX_NAME_LENGTH = 100
@@ -332,7 +332,16 @@ internal object LauncherLogic {
 
     /** A custom name as it may be stored (cut, then trimmed — see [canonicalTag]). */
     fun cleanName(raw: String): String =
-        truncate(nfc(raw.filter { !it.isISOControl() && !isSpoofChar(it) }), MAX_NAME_LENGTH).trim()
+        truncate(nfc(pairedOnly(raw.filter { !it.isISOControl() && !isSpoofChar(it) })), MAX_NAME_LENGTH).trim()
+
+    /**
+     * [s] without a lone UTF-16 surrogate. Memory would hold it, but UTF-8 has no form for it:
+     * verso.json and every backup would say "?", so the file would differ from the config it saves.
+     * After the other filters, so a pair they separated is whole again.
+     */
+    private fun pairedOnly(s: String): String = buildString(s.length) {
+        s.codePoints().forEach { if (Character.getType(it) != Character.SURROGATE.toInt()) appendCodePoint(it) }
+    }
 
     /**
      * [tag] (canonicalised) added at the end or removed. May return an empty list, which the

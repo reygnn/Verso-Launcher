@@ -427,6 +427,19 @@ class LauncherLogicTest {
         assertEquals(persian, LauncherLogic.cleanName(persian))
     }
 
+    /** UTF-8 has no form for a lone surrogate: the file would say "?" where memory holds the half. */
+    @Test fun `cleanName and canonicalTag drop a lone surrogate, keep a pair`() {
+        assertEquals("x", LauncherLogic.cleanName("x\uD800"))
+        assertEquals("xy", LauncherLogic.cleanName("x\uDC00y"))
+        assertEquals("x", LauncherLogic.canonicalTag("x\uD800"))
+        assertEquals("xy", LauncherLogic.canonicalTag("\uDFFFxy"))
+        val pair = "\uD83D\uDE00"  // one emoji, two chars
+        assertEquals("a$pair", LauncherLogic.cleanName("a$pair"))
+        assertEquals("a$pair", LauncherLogic.canonicalTag("a$pair"))
+        // Halves a dropped character held apart are a pair again, not two lone halves.
+        assertEquals(pair, LauncherLogic.cleanName("\uD83D\u200B\uDE00"))
+    }
+
     @Test fun `cleanName caps the length`() {
         assertEquals(LauncherLogic.MAX_NAME_LENGTH, LauncherLogic.cleanName("x".repeat(500)).length)
     }

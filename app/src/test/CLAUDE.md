@@ -13,14 +13,14 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 592 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 596 tests):
 
 ```
-LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          151  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           91  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an
@@ -28,6 +28,8 @@ LauncherStateTest           91  the concurrency rules: refresh/rename/adopt
                                 an edit and a recreation, held back by a running command and
                                 then re-rendered, ended by a favorite, a restore written or
                                 no candidate app),
+                                a rename's untouched OK (a label longer than a name may be,
+                                bidi isolates) is no custom name,
                                 save-before-load, no edit permit before the load nor
                                 past a command, a failed save reported, needsRefresh
                                 (also after an incomplete enumeration, which a complete one
@@ -45,8 +47,8 @@ LauncherRowsTest            41  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
                                 (exported to Downloads, else renamed: one copy), a crash's .new ignored
-ConfigJsonTest              31  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
-                                hostile nesting, look-alike characters, size limits
+ConfigJsonTest              32  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
+                                hostile nesting, look-alike characters, lone surrogates, size limits
 LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, the "!!" tap
                                 (pick up, let go, move)
 HomeStyleTest               23  sizes, luminance, outline-colour thresholds, battery,

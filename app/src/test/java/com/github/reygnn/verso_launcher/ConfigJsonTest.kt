@@ -140,6 +140,16 @@ class ConfigJsonTest {
     }
     // ---- hostile restore files -----------------------------------------------
 
+    /** What parseForeign adopts must be what verso.json and every backup say once written as UTF-8. */
+    @Test fun `a lone surrogate in a restored file does not survive into memory`() {
+        val raw = """{"favorites":["a/b"],"names":{"a/b":"N\ud800"},"tags":{"a/b":["x\udc00"]}}"""
+        val adopted = ConfigJson.parseForeign(raw)!!
+        assertEquals("N", adopted.names["a/b"])
+        assertEquals(listOf("x"), adopted.tags["a/b"])
+        val onDisk = String(ConfigJson.serialize(adopted).toByteArray(Charsets.UTF_8), Charsets.UTF_8)
+        assertEquals(adopted, ConfigJson.parse(onDisk))
+    }
+
     @Test fun `a restored name loses its look-alike characters`() {
         val c = ConfigJson.parseForeign("""{"names":{"a/A":"Sig\u200Bnal\u202E"}}""")!!
         assertEquals("Signal", c.names["a/A"])
