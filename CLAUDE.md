@@ -71,10 +71,12 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   stub), Robolectric where a real widget is needed, **no MockK / no mocks** (fakes
   and manual queues). An `androidTest` set (androidx.test, test APK only) covers
   MediaStore and Android's own `org.json`.
-- **Warnings are errors** — Kotlin (`allWarningsAsErrors`, main and test) and lint
-  (`warningsAsErrors`). A deliberate warning gets a `@Suppress` at the narrowest scope with
-  its reason; `app/lint-baseline.xml` holds only the lint debt found at switch-on and only
-  ever shrinks.
+- **Warnings are errors** — Kotlin (`allWarningsAsErrors`, main and test), lint
+  (`warningsAsErrors`) and detekt (default rules, adjusted with reasons in
+  `config/detekt/detekt.yml`; part of `check`). A deliberate finding gets a `@Suppress` at the
+  narrowest scope with its reason — e.g. an IO path's broad catch (hard rule 2):
+  `@Suppress("TooGenericExceptionCaught")`. `app/lint-baseline.xml` and
+  `app/detekt-baseline.xml` hold only the debt found at switch-on and only ever shrink.
 - **Debug build** has `applicationIdSuffix = ".debug"`, so `connectedAndroidTest`
   installs beside the family-signed release on the device.
 
@@ -136,7 +138,8 @@ thread.
 ## Hard rules
 
 1. **No production dependencies.** Anything added to `dependencies {}` must be
-   `testImplementation` or `androidTestImplementation`. New deps need the user's OK.
+   `testImplementation` or `androidTestImplementation`. New deps need the user's OK — so do
+   new build plugins (detekt was approved), though they never reach the APK.
 2. **A HOME app must never throw.** Every IO-thread path (enumeration, default
    favorites, config and backup I/O) catches broadly and degrades; an uncaught
    exception on the executor kills the process on every start. Crash-only beyond that:

@@ -2,8 +2,9 @@
 # The whole point of this project is: NO dependencies IN THE APK. Not Compose,
 # not AndroidX, not Hilt, not DataStore — nothing but the Kotlin stdlib (added
 # automatically by AGP 9's built-in Kotlin) and the Android platform APIs.
-# The only entries below the core ones are test-only (testImplementation), so
-# they never enter the shipped release — the zero-dependency APK is untouched.
+# The only entries below the core ones are test-only (testImplementation) or build-only
+# (a Gradle plugin), so they never enter the shipped release — the zero-dependency APK is
+# untouched.
 # Core versions mirror the family (~/AndroidStudio_Projects/_skeleton).
 [versions]
 agp    = "9.4.1"
@@ -19,6 +20,11 @@ robolectric = "4.16.1"
 # Downloads backup that no JVM test can reproduce. Same versions as darkroom.
 androidxTestExt    = "1.3.0"
 androidxTestRunner = "1.6.2"
+# Build-only — static analysis (./gradlew detekt, part of check); a Gradle plugin, never in
+# the APK. 2.0 because 1.23 predates AGP 9's built-in Kotlin (supported since 2.0.0-alpha.3).
+# Still alpha: pinned exactly, and an upgrade is its own commit — the rule names and their
+# config keys may change between alphas (see config/detekt/detekt.yml).
+detekt = "2.0.0-alpha.6"
 
 [libraries]
 # Test-only — JVM unit tests for the pure logic in LauncherLogic.kt.
@@ -36,3 +42,5 @@ androidx-test-runner    = { group = "androidx.test",     name = "runner", versio
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+# Build-only — never in the APK.
+detekt = { id = "dev.detekt", version.ref = "detekt" }

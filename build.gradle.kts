@@ -3,4 +3,5 @@
 // at all (no Compose, no serialization): built-in Kotlin is enough.
 plugins {
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.detekt) apply false
 }

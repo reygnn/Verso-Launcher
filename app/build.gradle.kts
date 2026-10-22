@@ -1,7 +1,19 @@
 plugins {
     alias(libs.plugins.android.application)
+    // Static analysis only: a build plugin, nothing of it reaches the APK.
+    alias(libs.plugins.detekt)
     // No Kotlin plugin: AGP 9 built-in Kotlin compiles the sources.
     // No Compose, no serialization, no KSP, no Hilt — by design.
+}
+
+// detekt's default rules, adjusted (with reasons) in config/detekt/detekt.yml. A finding fails
+// `check` like a compiler warning; what was there at switch-on is recorded in
+// detekt-baseline.xml (create it once: ./gradlew detektBaseline), which only ever shrinks.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    source.setFrom("src/main/kotlin", "src/test/java", "src/androidTest/java")
+    baseline = file("detekt-baseline.xml")
 }
 
 android {
