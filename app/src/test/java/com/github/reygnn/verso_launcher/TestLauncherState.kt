@@ -23,6 +23,8 @@ internal fun testLauncherState(
     isFreshInstall: () -> Boolean = { false },
     defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
     process: ProcessState = ProcessState(),
+    // A gate of its own that never runs a command: always a permit.
+    idle: () -> CommandGate.Idle? = { CommandGate().idle() },
     loadRecents: () -> List<String>? = { emptyList() },
     writeRecents: (List<String>) -> Unit = {},
     loadUsage: () -> Map<String, Usage>? = { emptyMap() },
@@ -43,6 +45,7 @@ internal fun testLauncherState(
     recentsFile = RecentsFile(read = loadRecents, write = writeRecents),
     usageFile = UsageFile(read = loadUsage, write = writeUsage),
     process = process,
+    idle = idle,
     now = now,
     onSaveFailed = onSaveFailed,
     onRefreshed = onRefreshed,

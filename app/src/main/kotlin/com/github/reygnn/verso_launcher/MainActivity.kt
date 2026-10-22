@@ -80,6 +80,7 @@ class MainActivity : Activity() {
                 write = { log, at -> UsageLog.write(filesDir, log, at) },
             ),
             process = app.process,
+            idle = { gate.idle() },
             now = System::currentTimeMillis,
             onSaveFailed = { toast(getString(R.string.toast_save_failed)) },
             onRefreshed = { configReplaced, listChanged ->
@@ -538,7 +539,7 @@ class MainActivity : Activity() {
                 current = outgoing,
                 restored = restored,
                 writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
-                writeConfig = { payload -> store.write(payload) },
+                writeConfig = state::writeRestored,
                 sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
             )
         }) { outcome ->

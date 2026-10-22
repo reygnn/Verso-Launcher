@@ -204,7 +204,9 @@ thread.
     and only into a config with no favorites. An existing config with no favorites is the
     user's choice. A fresh install whose first enumeration has no list waits for the first one
     that has (complete or not), process-wide (`ProcessState.seedPending`), so a recreation after
-    an edit still seeds; a favorite toggled or a restore ends the wait.
+    an edit still seeds. The seeding is an edit: it takes an `EditPermit`, so while a `~` command
+    runs it waits (a resume retries, `needsRefresh`). A favorite toggled or a restore written
+    (`writeRestored`, in the restore's IO step) ends the wait.
 11. **Page turn = Unity-Kolibri's.** Closing the drawer is a drag that follows the finger
     (Unity's `DragToDismissCore`: starts once the list is at its top, 28 % of the height
     or a 3× min-fling release commits, a flick back cancels, 220 ms settle); opening is

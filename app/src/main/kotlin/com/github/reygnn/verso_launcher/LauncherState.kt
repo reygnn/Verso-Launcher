@@ -19,8 +19,11 @@ package com.github.reygnn.verso_launcher
  * @param enumerateApps null if the enumeration failed — the last good list is kept; an
  *   incomplete one is shown but retried on the next resume ([needsRefresh]).
  * @param process what outlives this instance. Its seedPending ends with the seeding itself,
- *   [toggleFavorite] and [adopt]; while it is set the favorites are empty (a fresh config has
- *   none, the first toggle ends it), so no other edit can touch them.
+ *   [toggleFavorite], [adopt] and [writeRestored]; while it is set the favorites are empty (a
+ *   fresh config has none, the first toggle ends it), so no other edit can touch them.
+ * @param idle the command gate's permit, null while a "~" command runs: seeding the default
+ *   favorites is an edit like any other (hard rule 15) — a restore's write must not be
+ *   overwritten by it.
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
  *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
  *   called by [adopt], always (true, true).
@@ -34,6 +37,7 @@ internal class LauncherState(
     private val recentsFile: RecentsFile,
     private val usageFile: UsageFile,
     private val process: ProcessState,
+    private val idle: () -> CommandGate.Idle?,
     private val now: () -> Long,
     private val onSaveFailed: () -> Unit,
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
@@ -56,9 +60,12 @@ internal class LauncherState(
     var appsLoaded = false
         private set
 
-    /** Refresh on resume even without a package change: no package event retries a failed or incomplete load. */
+    /**
+     * Refresh on resume even without a package change: no package event retries a failed or
+     * incomplete load, nor a seeding a running "~" command held back.
+     */
     val needsRefresh: Boolean
-        get() = !configLoaded || !lastLoadCommitted
+        get() = !configLoaded || !lastLoadCommitted || process.seedPending.get()
 
     private var lastLoadCommitted = false
 
@@ -128,12 +135,17 @@ internal class LauncherState(
                     replaced = true
                     if (fresh) process.seedPending.set(true)
                 }
-                // Still pending here means nothing touched the favorites since the request.
-                if (configLoaded && loaded != null && process.seedPending.getAndSet(false) &&
-                    seeds.isNotEmpty() && cfg.favorites.isEmpty()
-                ) {
-                    cfg = cfg.copy(favorites = cfg.favorites + seeds)
-                    mutated()
+                // Still pending here means nothing touched the favorites since the request. While a
+                // "~" command runs there is no permit: the wait stays, a later refresh seeds.
+                val seedPermit = if (configLoaded && loaded != null && process.seedPending.get()) {
+                    idle()?.let(::editPermit)
+                } else null
+                if (seedPermit != null) {
+                    process.seedPending.set(false)
+                    if (seeds.isNotEmpty() && cfg.favorites.isEmpty()) {
+                        cfg = cfg.copy(favorites = cfg.favorites + seeds)
+                        mutated()
+                    }
                 }
                 val kept = process.usage
                 if (diskUsage != null && !kept.loaded) {
@@ -308,6 +320,14 @@ internal class LauncherState(
         mutated()
         return cfg.byUsage
     }
+
+    /**
+     * IO thread: writes a restored config to verso.json (hard rule 7) and, once it is written,
+     * ends any wait to seed the default favorites — the restored favorites, or none, are the
+     * user's (hard rule 10), even when the hand-back to [adopt] is lost to a recreation.
+     */
+    fun writeRestored(payload: String): Boolean =
+        configFile.write(payload).also { written -> if (written) process.seedPending.set(false) }
 
     /** False, nothing adopted, before the first load: it would land over the restore. No save —
      *  the restore has written verso.json already — and no re-enumeration: the apps are the same. */

@@ -83,6 +83,7 @@ class LauncherStateTest {
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
         process = process,
+        idle = { gate.idle() },
     )
 
     private var fresh = false
@@ -1037,10 +1038,60 @@ class LauncherStateTest {
 
     @Test fun `a first enumeration without a list leaves the seeding to the next one that has one`() {
         freshStartWithoutAList()
+        assertTrue("a resume tries again", state.needsRefresh)
         state.refresh()
         runAll()
         assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
         assertEquals(1, written.size)
+        // Ended by the seeding: a "~cleanup" that later removes every default must not bring them back.
+        assertFalse(process.seedPending.get())
+        assertFalse(state.needsRefresh)
+    }
+
+    /** A restore's write could be overwritten by the seeding's save (audit 2026-10-22, #1). */
+    @Test fun `while a command runs nothing is seeded, and a later refresh seeds`() {
+        freshStartWithoutAList()
+        var running: CommandGate.Ticket? = null
+        gate.start { t -> gate.hold(t); running = t }
+        state.refresh()
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+        assertEquals(emptyList<String>(), written)
+        assertTrue("the wait stays", process.seedPending.get())
+        assertTrue("a resume tries again", state.needsRefresh)
+        gate.finish(checkNotNull(running)) {}
+        state.refresh()
+        runAll()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+    }
+
+    /** Audit 2026-10-22, #2: a recreation drops the hand-back, so adopt never ends the wait. */
+    @Test fun `a restore written ends the wait, even when its hand-back is lost`() {
+        freshStartWithoutAList()
+        assertTrue(state.writeRestored("restored"))
+        assertFalse(process.seedPending.get())
+        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))  // the restored file: no favorites
+        val next = testLauncherState(
+            io = { task -> ioQueue.addLast(task); true },
+            main = { task -> mainQueue.addLast(task) },
+            loadConfig = { disk },
+            enumerateApps = { Enumeration(installed, true) },
+            serialize = { "" },
+            writeConfig = { true },
+            onRefreshed = { _, _ -> },
+            defaultFavoriteCandidates = { candidates },
+            process = process,
+        )
+        next.refresh()
+        runAll()
+        assertTrue(next.config.favorites.isEmpty())
+    }
+
+    @Test fun `a restore that failed to write keeps the wait`() {
+        freshStartWithoutAList()
+        writeSucceeds = false
+        assertFalse(state.writeRestored("restored"))
+        assertTrue(process.seedPending.get())
     }
 
     @Test fun `an edit meanwhile does not end the wait`() {

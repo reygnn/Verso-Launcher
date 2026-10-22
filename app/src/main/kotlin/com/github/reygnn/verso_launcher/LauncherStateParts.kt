@@ -11,8 +11,9 @@ internal class Kept<T>(var value: T, var loaded: Boolean = false)
  *
  * @param startedOver an unreadable config was set aside; set on the IO thread, taken by whichever
  *   instance's hand-off lands first, so the toast is never lost (hard rule 4).
- * @param seedPending a fresh install still waiting for an enumeration with a list to seed the
- *   default favorites from (hard rule 10).
+ * @param seedPending a fresh install still waiting for an enumeration with a list (and no running
+ *   "~" command) to seed the default favorites (hard rule 10). Ended on the IO thread by a
+ *   restore's write, hence atomic.
  * @param recents the "?" list, newest first, and whether recents.txt was read into it.
  * @param usage the "%" launches, and whether usage.txt was read into them.
  */
