@@ -168,8 +168,7 @@ class MainActivity : Activity() {
                 if (renameDialog != null || commandDialog != null) return@claims false
                 // A flick down on favorites scrolled down scrolls them back, not to the recents.
                 if (dir == SwipeDir.DOWN && !drawerOpen && homePage.scroller.canScrollVertically(-1)) return@claims false
-                val topExclusion = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
-                SwipeGesture.claims(drawerOpen, dir, downY, topExclusion)
+                SwipeGesture.claims(drawerOpen, dir, downY, topExclusionPx())
             }
             // Up is normally a drag; the flick opens the drawer when the favorites could still
             // scroll and no drag started.
@@ -187,8 +186,7 @@ class MainActivity : Activity() {
                     drawerOpen -> !appDrawer.listView.canScrollVertically(-1)
                     dir == SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
                     // A pull from the very top is the notification shade's.
-                    else -> downY >= SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density &&
-                        !homePage.scroller.canScrollVertically(-1)
+                    else -> downY >= topExclusionPx() && !homePage.scroller.canScrollVertically(-1)
                 }
             }
             pageHeight = ::pageHeight
@@ -335,9 +333,8 @@ class MainActivity : Activity() {
             return
         }
         drawerOpen = false
-        cleanupTicket++
+        turnAway()
         root.abortDrag()
-        dismissDialogs()
         showStatusBar(false)
         appDrawer.hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -465,6 +462,9 @@ class MainActivity : Activity() {
             }.start()
     }
 
+    /** The top band left to the notification shade, in px: neither a drag nor a flick starts there. */
+    private fun topExclusionPx(): Float = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
+
     /** The window root's height, falling back to the display's before the first layout. */
     private fun pageHeight(): Float =
         ((drawer.parent as? View)?.height?.takeIf { it > 0 }
@@ -533,12 +533,17 @@ class MainActivity : Activity() {
     /** Leaving the launcher turns the page home instantly, so a return lands on home, not a half-typed search. */
     override fun onStop() {
         started = false
-        cleanupTicket++
-        // Also a dialog opened from the home page, which closeDrawer does not touch.
-        dismissDialogs()
+        // Also from the home page, where closeDrawer does nothing.
+        turnAway()
         closeDrawer(animate = false)
         homePage.stopBattery()
         super.onStop()
+    }
+
+    /** The user left the page they acted on: a dialog opened there and a pending "~cleanup" offer are void. */
+    private fun turnAway() {
+        cleanupTicket++
+        dismissDialogs()
     }
 
     private fun dismissDialogs() {
@@ -593,8 +598,7 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)  // keep getIntent() in sync with the latest launch intent
         // A dialog confirmed after HOME would apply an edit the user has visually left behind.
-        dismissDialogs()
-        cleanupTicket++
+        turnAway()
         closeDrawer()
         homePage.scrollToTop()
     }
@@ -940,10 +944,11 @@ class MainActivity : Activity() {
 
     /** "!!": tap picks a row up, the held row again cancels, any other row drops it there. */
     private fun reorderTap(key: String) {
-        when (appDrawer.reorderPick) {
-            null -> { appDrawer.reorderPick = key; appDrawer.notifyChanged() }
-            key  -> { appDrawer.reorderPick = null; appDrawer.notifyChanged() }
-            else -> editPermit()?.let { moveFavorite(it, appDrawer.reorderPick!!, key) }
+        val picked = appDrawer.reorderPick
+        when {
+            picked == null -> { appDrawer.reorderPick = key; appDrawer.notifyChanged() }
+            picked == key  -> { appDrawer.reorderPick = null; appDrawer.notifyChanged() }
+            else -> editPermit()?.let { moveFavorite(it, picked, key) }
         }
     }
 
@@ -1046,7 +1051,12 @@ class MainActivity : Activity() {
 
     private fun unwatchApps() {
         launcherApps.unregisterCallback(appsChanged)
-        runCatching { unregisterReceiver(profilesChanged) }
+        // Registered in onCreate, so this never throws today; if it ever does, say so (hard rule 2).
+        try {
+            unregisterReceiver(profilesChanged)
+        } catch (e: IllegalArgumentException) {
+            Log.w("Verso", "profile receiver was not registered", e)
+        }
     }
 
     /** The favorites the cache file holds, as last written or read (see HomeCache). */
@@ -1163,11 +1173,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun Int.dp(): Int = dp(this)
-
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
-        const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         const val REQ_RESTORE = 1
         const val DRAWER_SLIDE_MS = 180L
         const val HOME_FADE_MS = 200L
