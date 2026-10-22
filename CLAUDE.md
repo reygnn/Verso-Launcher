@@ -75,8 +75,11 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   (`warningsAsErrors`) and detekt (default rules, adjusted with reasons in
   `config/detekt/detekt.yml`; part of `check`). A deliberate finding gets a `@Suppress` at the
   narrowest scope with its reason — e.g. an IO path's broad catch (hard rule 2):
-  `@Suppress("TooGenericExceptionCaught")`. `app/lint-baseline.xml` and
-  `app/detekt-baseline.xml` hold only the debt found at switch-on and only ever shrink.
+  `@Suppress("TooGenericExceptionCaught")`, the reason as a comment on the line above (a
+  comment behind the annotation becomes part of detekt's baseline IDs). A deliberate setting
+  is configured, not baselined (detekt.yml; lint's `disable` and `tools:ignore`).
+  `app/lint-baseline.xml` and `app/detekt-baseline.xml` hold only the debt found at switch-on
+  and only ever shrink.
 - **Debug build** has `applicationIdSuffix = ".debug"`, so `connectedAndroidTest`
   installs beside the family-signed release on the device.
 

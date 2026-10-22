@@ -24,6 +24,8 @@ internal object HomeCache {
         AppEntry.of(label, pkg, cls, label, profile)
     }.toList()
 
+    // a disposable cache: unreadable = none
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
     fun read(dir: File): List<AppEntry> = try {
         File(dir, FILE).takeIf { it.isFile }?.readText()?.let(::parse).orEmpty()
     } catch (e: Exception) {

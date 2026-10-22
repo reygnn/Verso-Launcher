@@ -60,6 +60,8 @@ internal class CommandGate {
      * [work] on the IO thread, [then] with its result back on main. A refused task or a [work]
      * that throws gives [then] null — a bug must not leave the gate shut for good.
      */
+    // a throwing step must still release the gate
+    @Suppress("TooGenericExceptionCaught")
     fun <T : Any> io(
         ticket: Ticket,
         submit: (Runnable) -> Boolean,

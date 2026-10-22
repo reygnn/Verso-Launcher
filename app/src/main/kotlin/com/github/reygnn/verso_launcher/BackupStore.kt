@@ -35,6 +35,8 @@ internal class BackupStore(
      * the old copies swept; a crash leaves the temp for the next sweep. [sweep] false: for a
      * restore's undo point, whose predecessor may be the very file being restored.
      */
+    // hard rule 2: a failed backup is a message
+    @Suppress("TooGenericExceptionCaught")
     fun write(base: String, payload: String, sweep: Boolean = true): String? {
         var tmp: Uri? = null
         val wanted = BackupFiles.publishedName(base, now())
@@ -87,6 +89,8 @@ internal class BackupStore(
         remove(BackupFiles.replacedBy(base, newest.id, own))
     }
 
+    // hard rule 2: the new backup stands
+    @Suppress("TooGenericExceptionCaught")
     private fun remove(rows: List<BackupFiles.Entry>) {
         for (old in rows) {
             try {
@@ -112,6 +116,8 @@ internal class BackupStore(
 
     /** Null if the query failed. MATCH_INCLUDE: MediaStore hides pending rows even from their
      *  owner, and a stranded temp is what the sweep and the restore fallback need to see. */
+    // hard rule 2: unlistable = null
+    @Suppress("TooGenericExceptionCaught")
     private fun listOwn(): List<BackupFiles.Entry>? = try {
         val query = Bundle().apply {
             putString(
@@ -142,6 +148,8 @@ internal class BackupStore(
     private fun uriOf(id: Long): Uri =
         ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
 
+    // hard rule 2: an unreadable file is a message
+    @Suppress("TooGenericExceptionCaught")
     fun readText(uri: Uri): String? = try {
         resolver.openInputStream(uri)?.use { readCapped(it) }
     } catch (e: Exception) {

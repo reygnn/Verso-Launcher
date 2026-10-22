@@ -74,6 +74,8 @@ internal object UsageLog {
 
     /** Null when the file is there but could not be read: not loaded, the next refresh retries
      *  (writing over it would wipe the counts). No file, or a file too large, is an empty log. */
+    // null is the answer (see above)
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
     fun read(dir: File): Map<String, Usage>? = try {
         val file = File(dir, FILE)
         if (!file.isFile || file.length() > MAX_BYTES) emptyMap() else parse(file.readText())

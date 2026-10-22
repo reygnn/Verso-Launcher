@@ -21,6 +21,8 @@ internal class ConfigStore(
     private val setAside get() = File(dir, "$CONFIG_FILE.unreadable")
 
     /** Null, never an empty config, when verso.json is there but torn or unreadable. */
+    // hard rule 4: unreadable = null, never a throw
+    @Suppress("TooGenericExceptionCaught")
     fun load(): VersoConfig? {
         if (!primary.isFile) return VersoConfig()
         val text = try {
@@ -35,6 +37,8 @@ internal class ConfigStore(
     fun isFresh(): Boolean = !primary.exists()
 
     /** False if nothing was published (the old file stands). */
+    // hard rule 4: the old file stands
+    @Suppress("TooGenericExceptionCaught")
     fun write(payload: String): Boolean = try {
         FileOutputStream(pending).use { out ->
             out.write(payload.toByteArray(Charsets.UTF_8))
@@ -52,8 +56,15 @@ internal class ConfigStore(
 
     /** Exports the text (to Download/Verso) before deleting; failing that, renames it to
      *  verso.json.unreadable. True when verso.json is gone. */
+    // hard rule 4: breaks the crash loop
+    @Suppress("TooGenericExceptionCaught")
     fun setAsideUnreadable(export: (String) -> Boolean = { false }): Boolean = try {
-        val text = try { readText(primary) } catch (e: Exception) { null }
+        val text = try {
+            readText(primary)
+        } catch (e: Exception) {
+            log("config unreadable for export, renaming instead", e)
+            null
+        }
         if (text != null && export(text)) {
             primary.delete().also { if (it) syncDir(dir) else log("could not remove the exported config", null) }
         } else {

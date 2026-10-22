@@ -219,6 +219,8 @@ internal class HomePage(
     }
     private var batteryRegistered = false
 
+    // no battery line beats a home page that cannot start
+    @Suppress("TooGenericExceptionCaught")
     fun startBattery() {
         if (batteryRegistered) return
         // NOT_EXPORTED still receives this system broadcast.
@@ -275,12 +277,16 @@ internal class HomePage(
 
     private fun openBatteryUsage() = startGuarded(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
 
+    // any app may refuse the intent: say so, never crash
+    @Suppress("TooGenericExceptionCaught")
     private fun startGuarded(intent: Intent) {
         try {
             activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: ActivityNotFoundException) {
+            Log.w("Verso", "no app for: $intent", e)
             noApp()
         } catch (e: SecurityException) {
+            Log.w("Verso", "start denied: $intent", e)
             noApp()
         } catch (e: RuntimeException) {
             Log.w("Verso", "start failed: $intent", e)

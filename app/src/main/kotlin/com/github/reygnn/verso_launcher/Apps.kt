@@ -26,6 +26,8 @@ internal class Apps(
 ) {
 
     /** Never throws: the hand-back must always come, or "~cleanup" would stay "checking". */
+    // hard rule 14: a throw is an incomplete check
+    @Suppress("TooGenericExceptionCaught")
     fun safeCleanupCheck(cfg: VersoConfig): CleanupPlan = try {
         cleanupCheck(cfg)
     } catch (e: RuntimeException) {
@@ -33,6 +35,8 @@ internal class Apps(
         CleanupPlan.Incomplete
     }
 
+    // hard rule 14: unreadable profiles, incomplete check
+    @Suppress("TooGenericExceptionCaught")
     fun cleanupCheck(cfg: VersoConfig): CleanupPlan {
         val found = enumerate()
         val listed: Set<Long>
@@ -48,6 +52,8 @@ internal class Apps(
     }
 
     /** Another profile only allows a package lookup. Unsure counts as there. */
+    // not found = gone; anything else = kept (rule 14)
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
     fun stillThere(key: KeyParts, listed: Set<Long>): Boolean = try {
         val serial = key.profile
         if (serial == null) {
@@ -122,6 +128,7 @@ internal class Apps(
             pm.getLaunchIntentForPackage(pkg)?.component?.let { AppEntry.keyOf(it.packageName, it.className, null) }
         // [preferred] is a lambda so it runs inside the try: the SMS role lookup can throw
         // (no telephony), and evaluated as an argument it would escape onto the IO thread.
+        @Suppress("TooGenericExceptionCaught")
         fun handlers(intent: Intent, preferred: () -> String? = { null }): List<String> = try {
             // With no default set this is the ResolverActivity ("android"); launcherKey drops it.
             val default = preferred()
@@ -164,6 +171,8 @@ internal class RawApp(val packageName: String, val className: String?, val label
  * personal one is missing or empty (never real), so the last list and the home cache stay (hard
  * rule 2); a skipped profile or app makes it incomplete (hard rule 14).
  */
+// hard rule 2: decides what the enumeration may trust
+@Suppress("TooGenericExceptionCaught")
 internal fun <P> enumerate(
     profiles: () -> List<P>,
     personal: P,

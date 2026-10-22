@@ -581,6 +581,8 @@ class MainActivity : Activity() {
      * fsync a directory so a preceding rename() survives power loss, not merely is visible.
      * Best-effort: a failure only weakens durability, so it is logged, not thrown.
      */
+    // see the close below
+    @Suppress("SwallowedException")
     private fun fsyncDir(dir: File) {
         var fd: FileDescriptor? = null
         try {
@@ -785,6 +787,8 @@ class MainActivity : Activity() {
         }
     }
 
+    // any app may refuse the launch: say so, never crash
+    @Suppress("TooGenericExceptionCaught")
     private fun launch(entry: AppEntry) {
         val user = apps.userOf(entry)
         val component = ComponentName(entry.packageName, entry.className)
@@ -830,6 +834,8 @@ class MainActivity : Activity() {
     }
 
     /** Android's own judgement (HINT_SUPPORTS_DARK_TEXT); unknown counts as a dark wallpaper. */
+    // no colours = the default palette
+    @Suppress("TooGenericExceptionCaught")
     private fun wallpaperIsLight(): Boolean = try {
         val colors = WallpaperManager.getInstance(this).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
         colors.wantsDarkText()
@@ -868,6 +874,8 @@ class MainActivity : Activity() {
         toast(getString(R.string.toast_not_found, entry.label))
 
     /** The system "App info" screen, in the entry's profile; guarded like [launch]. */
+    // the settings app may refuse: say so, never crash
+    @Suppress("TooGenericExceptionCaught")
     private fun openAppInfo(entry: AppEntry) {
         val user = apps.userOf(entry) ?: return notFound(entry)
         try {

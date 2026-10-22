@@ -801,7 +801,7 @@ class LauncherLogicTest {
         try {
             LauncherLogic.pushRecent(listOf("a", "b"), "c", -1)
             throw AssertionError("expected an exception for a negative limit")
-        } catch (e: IllegalArgumentException) {
+        } catch (expected: IllegalArgumentException) {
             // expected
         }
     }

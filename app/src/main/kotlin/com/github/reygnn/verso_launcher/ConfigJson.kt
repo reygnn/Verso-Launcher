@@ -21,6 +21,8 @@ internal object ConfigJson {
     }
 
     /** Lenient (a missing section is empty): only for our own file — outside files use [parseForeign]. */
+    // null is the answer: unparseable
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
     fun parse(text: String): VersoConfig? = try {
         parseObject(JSONObject(text))
     } catch (e: Exception) {
@@ -36,6 +38,8 @@ internal object ConfigJson {
      * would become an empty config and wipe everything on adoption. So at least one known
      * section must be present with the right type (empty sections are fine).
      */
+    // null is the answer: not a config
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
     fun parseForeign(text: String): VersoConfig? = try {
         val j = JSONObject(text)
         val looksLikeConfig = j.optJSONArray("hidden") != null ||

@@ -108,7 +108,7 @@ class CommandGateTest {
         try {
             runAll()
             fail("the exception must not be swallowed")
-        } catch (e: IllegalStateException) {
+        } catch (expected: IllegalStateException) {
             // expected
         }
         assertFalse(gate.busy)
@@ -118,7 +118,7 @@ class CommandGateTest {
         try {
             gate.start { throw IllegalStateException("bug") }
             fail("the exception must not be swallowed")
-        } catch (e: IllegalStateException) {
+        } catch (expected: IllegalStateException) {
             // expected
         }
         assertFalse(gate.busy)

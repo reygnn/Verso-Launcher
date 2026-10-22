@@ -41,7 +41,7 @@ class LauncherStateTest {
         try {
             ioQueue.removeFirst().run()
             throw AssertionError("expected the IO task to throw")
-        } catch (e: IllegalStateException) {
+        } catch (expected: IllegalStateException) {
             // expected
         }
     }

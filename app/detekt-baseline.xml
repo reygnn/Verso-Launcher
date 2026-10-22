@@ -2,10 +2,9 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ComplexCondition:LauncherState.kt:LauncherState$configLoaded &amp;&amp; loaded != null &amp;&amp; process.seedPending.getAndSet(false) &amp;&amp; seeds.isNotEmpty() &amp;&amp; cfg.favorites.isEmpty()</ID>
     <ID>ComplexCondition:PageTurn.kt:PageTurn$isOpen &amp;&amp; drawerFromTop &amp;&amp; mode != Mode.RECENTS &amp;&amp; !root.isDragging</ID>
     <ID>CyclomaticComplexMethod:AppDrawer.kt:AppDrawer$private fun applyFilter</ID>
-    <ID>CyclomaticComplexMethod:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
+    <ID>CyclomaticComplexMethod:Apps.kt:@Suppress("TooGenericExceptionCaught") internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>CyclomaticComplexMethod:ConfigJson.kt:ConfigJson$private fun parseObject: VersoConfig</ID>
     <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; enterAction: EnterAction&lt;T&gt;</ID>
     <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; rowsFor: List&lt;Row&lt;T&gt;&gt;</ID>
@@ -15,7 +14,7 @@
     <ID>LargeClass:LauncherLogicTest.kt:LauncherLogicTest</ID>
     <ID>LargeClass:LauncherStateTest.kt:LauncherStateTest</ID>
     <ID>LargeClass:MainActivity.kt:MainActivity : Activity</ID>
-    <ID>LongMethod:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
+    <ID>LongMethod:Apps.kt:@Suppress("TooGenericExceptionCaught") internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>LongMethod:LauncherState.kt:LauncherState$fun refresh</ID>
     <ID>LongMethod:SwipeFrame.kt:SwipeFrame$override fun dispatchTouchEvent: Boolean</ID>
     <ID>LoopWithTooManyJumpStatements:Apps.kt:for</ID>
@@ -51,101 +50,11 @@
     <ID>MagicNumber:OutlinedViews.kt:OutlinedImageView$255</ID>
     <ID>MagicNumber:SwipeFrame.kt:SwipeFrame$1000</ID>
     <ID>MagicNumber:UsageLog.kt:UsageLog$3</ID>
-    <ID>PackageNaming:AppDrawer.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:AppDrawerTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:AppEntry.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:Apps.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:BackupFiles.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:BackupFilesTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:BackupStore.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:BackupStoreInstrumentedTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:BackupStoreTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:Cleanup.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:CleanupTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:CommandGate.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:CommandGateTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:ConfigJson.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:ConfigJsonInstrumentedTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:ConfigJsonTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:ConfigStore.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:ConfigStoreTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:CrashPointsTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:DefaultLocaleRule.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:EnumerationTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:Guard.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:GuardTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:HomeCache.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:HomeCacheTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:HomePage.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:HomePageAccessibilityTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:HomePageLocaleTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:HomeStyle.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:HomeStyleTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:LauncherActionsTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:LauncherLogic.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:LauncherLogicTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:LauncherRowsTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:LauncherState.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:LauncherStateParts.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:LauncherStateTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:MainActivity.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:MainActivityFlowsTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:OrderedFake.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:OutlinedViews.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:PageTurn.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:PageTurnTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:RecentsLog.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:RecentsLogTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:RenameDialog.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:RenameDialogFilterTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:RestoreSteps.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:RestoreStepsTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:SourceGuardTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:SwipeFrame.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:SwipeFrameTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:SwipeGesture.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:SwipeGestureTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:TESTING_CONVENTIONS.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:TapGuard.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:TapGuardTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:TestConfigs.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:TestLauncherState.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:UsageLog.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:UsageLogTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:VersoApp.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:VersoConfig.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:VersoConfigTest.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>PackageNaming:ViewTrees.kt:package com.github.reygnn.verso_launcher</ID>
-    <ID>ReturnCount:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
+    <ID>ReturnCount:Apps.kt:@Suppress("TooGenericExceptionCaught") internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>ReturnCount:HomePage.kt:HomePage$fun render</ID>
     <ID>ReturnCount:MainActivity.kt:MainActivity.&lt;no name provided&gt;$override fun onReceive</ID>
     <ID>ReturnCount:SwipeFrame.kt:SwipeFrame$override fun dispatchTouchEvent: Boolean</ID>
-    <ID>SwallowedException:Apps.kt:Apps$e: PackageManager.NameNotFoundException</ID>
-    <ID>SwallowedException:CommandGateTest.kt:CommandGateTest$e: IllegalStateException</ID>
-    <ID>SwallowedException:ConfigJson.kt:ConfigJson$e: Exception</ID>
-    <ID>SwallowedException:ConfigJson.kt:ConfigJson$e: StackOverflowError</ID>
-    <ID>SwallowedException:ConfigStore.kt:ConfigStore$e: Exception</ID>
-    <ID>SwallowedException:HomeCache.kt:HomeCache$e: Exception</ID>
-    <ID>SwallowedException:HomePage.kt:HomePage$e: ActivityNotFoundException</ID>
-    <ID>SwallowedException:HomePage.kt:HomePage$e: SecurityException</ID>
-    <ID>SwallowedException:LauncherLogicTest.kt:LauncherLogicTest$e: IllegalArgumentException</ID>
-    <ID>SwallowedException:LauncherStateTest.kt:LauncherStateTest$e: IllegalStateException</ID>
-    <ID>SwallowedException:MainActivity.kt:MainActivity$e: ErrnoException</ID>
-    <ID>SwallowedException:RecentsLog.kt:RecentsLog$e: Exception</ID>
-    <ID>SwallowedException:UsageLog.kt:UsageLog$e: Exception</ID>
-    <ID>ThrowsCount:BackupStore.kt:BackupStore$fun write: String?</ID>
-    <ID>TooGenericExceptionCaught:Apps.kt:Apps$e: RuntimeException</ID>
-    <ID>TooGenericExceptionCaught:Apps.kt:e: RuntimeException</ID>
-    <ID>TooGenericExceptionCaught:BackupStore.kt:BackupStore$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:CommandGate.kt:CommandGate$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:ConfigJson.kt:ConfigJson$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:ConfigStore.kt:ConfigStore$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:Guard.kt:Guard$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:HomeCache.kt:HomeCache$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:HomePage.kt:HomePage$e: RuntimeException</ID>
-    <ID>TooGenericExceptionCaught:MainActivity.kt:MainActivity$e: RuntimeException</ID>
-    <ID>TooGenericExceptionCaught:RecentsLog.kt:RecentsLog$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:UsageLog.kt:UsageLog$e: Exception</ID>
+    <ID>ThrowsCount:BackupStore.kt:BackupStore$@Suppress("TooGenericExceptionCaught") fun write: String?</ID>
     <ID>TooManyFunctions:AppDrawer.kt:AppDrawer</ID>
     <ID>TooManyFunctions:HomePage.kt:HomePage</ID>
     <ID>TooManyFunctions:LauncherLogic.kt:LauncherLogic</ID>

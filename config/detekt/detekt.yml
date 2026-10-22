@@ -17,3 +17,9 @@ style:
     # The hard rules are guard clauses ("not loaded: return", "no permit: return"); a function
     # that checks them first is the point, not a smell.
     excludeGuardClauses: true
+
+naming:
+  PackageNaming:
+    # The package is the applicationId's, com.github.reygnn.verso_launcher, fixed for good:
+    # the underscore is allowed, or every file is a finding.
+    packagePattern: '[a-z]+(\.[a-z][A-Za-z0-9_]*)*'
