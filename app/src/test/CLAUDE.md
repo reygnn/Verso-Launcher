@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 578 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 572 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -68,7 +68,8 @@ MainActivityFlowsTest       12  Robolectric, the real Activity: a second command
                                 command but ~restart before the first load; HOME ending a
                                 running swipe
 RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
-VersoConfigTest             10  snapshot deep copy, sameContent
+VersoConfigTest              4  equality as file content: the favorites' and a tag list's order
+                                count, other order does not, every field counts
 GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
 TapGuardTest                 4  stale-click guard
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file

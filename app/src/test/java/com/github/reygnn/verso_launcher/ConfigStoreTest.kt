@@ -136,7 +136,7 @@ class ConfigStoreTest {
         )
         store.write(ConfigJson.serialize(original))
         val loaded = store.load()!!
-        assertTrue(original.sameContent(loaded))
+        assertEquals(original, loaded)
     }
 
     // ---- setAsideUnreadable ----------------------------------------------------

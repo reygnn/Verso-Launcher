@@ -62,8 +62,7 @@ class LauncherStateTest {
     private val state = testLauncherState(
         io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
         main = { task -> mainQueue.addLast(task) },
-        // A copy: otherwise a test could pass only because a mutation also "changed the disk".
-        loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk.snapshot() },
+        loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk },
         setAsideUnreadable = {
             setAsideCalls++
             if (setAsideWorks) { diskUnreadable = false; disk = VersoConfig(); fresh = true }
@@ -264,7 +263,7 @@ class LauncherStateTest {
         val next = testLauncherState(
             io = { task -> ioQueue.addLast(task); true },
             main = { task -> mainQueue.addLast(task) },
-            loadConfig = { disk.snapshot() },
+            loadConfig = { disk },
             enumerateApps = { Enumeration(installed, true) },
             serialize = { "" },
             writeConfig = { true },
@@ -332,7 +331,7 @@ class LauncherStateTest {
         state.refresh()
         state.refresh()
         runAll()
-        assertTrue(disk.sameContent(state.loadedSnapshot()!!))
+        assertEquals(disk, state.loadedSnapshot())
         assertEquals(listOf(true), refreshed)
         assertEquals(emptyList<String>(), written)
     }
@@ -665,7 +664,7 @@ class LauncherStateTest {
 
     /** Home can show cached favorites before the load lands; a long-press there gets no permit. */
     @Test fun `no edit permit until the first load has landed, and it lands as read`() {
-        disk = VersoConfig().apply { names[key("Bravo")] = "Mine" }
+        disk = VersoConfig(names = mapOf(key("Bravo") to "Mine"))
         state.refresh()
         runIo()
         assertNull(state.editPermit(gate.idle()!!))
@@ -1094,7 +1093,7 @@ class LauncherStateTest {
         val next = testLauncherState(
             io = { task -> ioQueue.addLast(task); true },
             main = { task -> mainQueue.addLast(task) },
-            loadConfig = { disk.snapshot() },
+            loadConfig = { disk },
             enumerateApps = { Enumeration(installed, true) },
             serialize = { "" },
             writeConfig = { true },

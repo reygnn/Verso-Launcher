@@ -114,7 +114,7 @@ com.github.reygnn.verso_launcher/
   CommandGate         the "~" commands one at a time: a run ends with its last step (pure)
   LauncherLogic       all pure decisions: modes, commands, search/fold, sort, rows,
                       Enter/tap actions, tags, default favorites
-  AppEntry, VersoConfig   the data
+  AppEntry, VersoConfig   the data; a VersoConfig is immutable (an edit is a new one)
   ConfigJson          verso.json <-> VersoConfig (parse / parseForeign / serialize)
   ConfigStore         verso.json on disk: atomic write (.new + sync + rename), set-aside
   BackupStore         Download/Verso via MediaStore
@@ -231,17 +231,17 @@ thread.
     (`verso-pre-cleanup-…`), and — unless the config was replaced meanwhile — the removal
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
-15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused
-    with a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take
-    an `EditPermit`, made only from a `CommandGate.Idle` and void once a run has started
-    since, so an edit path without the check does not compile — a save queued behind a
-    restore's IO step would write the old config back over it. Nothing else is held back —
-    no layer, no cancel; launching, typing and page turns go on. A run ends with its last step, never by a "done" call: every step holds
-    it and releases it on every path (`CommandGate.io` catches what its work throws;
-    `LauncherState.cleanup` reports from a `finally`). No run spans another activity or a
-    dialog waiting on the user: the `~restore-saf` file is read before a run starts, only
-    its adoption is one (`~restart` while it is read drops the pick, with a toast); the
-    cleanup dialog ends its run, its OK starts a new one.
+15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused with
+    a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take an
+    `EditPermit`, made only from a `CommandGate.Idle` and void once a run has started since,
+    so an edit path without the check does not compile — a save queued behind a restore's IO
+    step would write the old config back over it. Nothing else is held back — no layer, no
+    cancel; launching, typing and page turns go on. A run ends with its last step, never by
+    a "done" call: every step holds it and releases it on every path (`CommandGate.io`
+    catches what its work throws; `LauncherState.cleanup` reports from a `finally`). No run
+    spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
+    before a run starts, only its adoption is one (`~restart` while it is read drops the
+    pick, with a toast); the cleanup dialog ends its run, its OK starts a new one.
 
 ---
 

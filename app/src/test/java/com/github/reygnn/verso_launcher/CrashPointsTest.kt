@@ -75,7 +75,7 @@ class CrashPointsTest {
         return loaded!!
     }
 
-    private fun List<VersoConfig>.holds(config: VersoConfig) = any { it.sameContent(config) }
+    private fun List<VersoConfig>.holds(config: VersoConfig) = any { it == config }
 
     // ---- restore (hard rule 7) ------------------------------------------------
 
@@ -126,8 +126,8 @@ class CrashPointsTest {
 
     @Test fun `a restore killed at any step leaves either config whole, and the replaced one undoable`() {
         val points = restoreAtEveryCrashPoint(backup) { point, onDisk, undoPoints, _ ->
-            assertTrue("$point: verso.json is neither config", onDisk.sameContent(outgoing) || onDisk.sameContent(backup))
-            assertTrue("$point: the replaced config is gone", onDisk.sameContent(outgoing) || undoPoints.holds(outgoing))
+            assertTrue("$point: verso.json is neither config", onDisk == outgoing || onDisk == backup)
+            assertTrue("$point: the replaced config is gone", onDisk == outgoing || undoPoints.holds(outgoing))
         }
         assertEquals(
             listOf(
@@ -141,18 +141,18 @@ class CrashPointsTest {
     /** "~restore-saf" of the last undo point: the file being restored is the one the sweep removes. */
     @Test fun `a restore of the previous undo point killed at any step never loses that config`() {
         restoreAtEveryCrashPoint(previousUndo) { point, onDisk, undoPoints, _ ->
-            assertTrue("$point: the restored config is gone", onDisk.sameContent(previousUndo) || undoPoints.holds(previousUndo))
-            assertTrue("$point: the replaced config is gone", onDisk.sameContent(outgoing) || undoPoints.holds(outgoing))
+            assertTrue("$point: the restored config is gone", onDisk == previousUndo || undoPoints.holds(previousUndo))
+            assertTrue("$point: the replaced config is gone", onDisk == outgoing || undoPoints.holds(outgoing))
         }
     }
 
     @Test fun `a restore that gets through keeps exactly one undo point, the replaced config`() {
         restoreAtEveryCrashPoint(backup) { point, onDisk, undoPoints, backups ->
             if (point != "no death") return@restoreAtEveryCrashPoint
-            assertTrue(onDisk.sameContent(backup))
+            assertEquals(backup, onDisk)
             assertEquals(1, undoPoints.size)
-            assertTrue(undoPoints.single().sameContent(outgoing))
-            assertTrue("the backup itself is never touched", backups.single().sameContent(backup))
+            assertEquals(outgoing, undoPoints.single())
+            assertEquals("the backup itself is never touched", backup, backups.single())
         }
     }
 
@@ -226,14 +226,14 @@ class CrashPointsTest {
     }
 
     @Test fun `a cleanup killed at any step leaves either config whole, and the removed entries undoable`() {
-        val cleaned = beforeCleanup.snapshot().apply {
-            favorites.remove("gone/A")
-            hidden.remove("gone/A")
-            names.remove("gone/A")
-        }
+        val cleaned = beforeCleanup.copy(
+            favorites = beforeCleanup.favorites - "gone/A",
+            hidden = beforeCleanup.hidden - "gone/A",
+            names = beforeCleanup.names - "gone/A",
+        )
         val points = cleanupAtEveryCrashPoint { point, onDisk, undoPoints ->
-            assertTrue("$point: verso.json is neither config", onDisk.sameContent(beforeCleanup) || onDisk.sameContent(cleaned))
-            assertTrue("$point: the removed entries are gone", onDisk.sameContent(beforeCleanup) || undoPoints.holds(beforeCleanup))
+            assertTrue("$point: verso.json is neither config", onDisk == beforeCleanup || onDisk == cleaned)
+            assertTrue("$point: the removed entries are gone", onDisk == beforeCleanup || undoPoints.holds(beforeCleanup))
         }
         assertEquals(
             listOf(
@@ -250,7 +250,7 @@ class CrashPointsTest {
             assertEquals(listOf(alpha.key), onDisk.favorites.toList())
             assertEquals(mapOf(alpha.key to "Mine"), onDisk.names)
             assertEquals(1, undoPoints.size)
-            assertTrue(undoPoints.single().sameContent(beforeCleanup))
+            assertEquals(beforeCleanup, undoPoints.single())
         }
     }
 }

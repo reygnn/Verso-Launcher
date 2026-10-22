@@ -55,9 +55,13 @@ internal class LauncherState(
     initialUsageLoaded: Boolean,
     private val onUsageChanged: (Map<String, Usage>, Boolean) -> Unit,
 ) {
-    /** Read-only from outside: every change goes through this class (and its save). */
-    val config: ConfigView get() = cfg
+    /** Immutable: every change goes through this class (and its save) as a new config. */
+    val config: VersoConfig get() = cfg
     private var cfg: VersoConfig = VersoConfig()
+
+    // Counts restores (adopt): a restore replaces the config, an edit only changes it — a
+    // "~cleanup" still lands on top of an edit, never on top of a restore.
+    private var adoptions = 0
 
     /** [enumerated] under the live custom names, in drawer order. */
     var apps: List<AppEntry> = emptyList()
@@ -111,7 +115,7 @@ internal class LauncherState(
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, cfg.favorites)
 
     /** Null until loaded — never the empty default (hard rule 5). */
-    fun loadedSnapshot(): VersoConfig? = if (configLoaded) cfg.snapshot() else null
+    fun loadedSnapshot(): VersoConfig? = if (configLoaded) cfg else null
 
     /** Re-enumerate the apps (and, until loaded, read the config first) off the main thread. */
     fun refresh() {
@@ -151,7 +155,7 @@ internal class LauncherState(
                 if (configLoaded && loaded != null && seedPendingFlag.getAndSet(false) &&
                     seeds.isNotEmpty() && cfg.favorites.isEmpty()
                 ) {
-                    cfg.favorites.addAll(seeds)
+                    cfg = cfg.copy(favorites = cfg.favorites + seeds)
                     mutated()
                 }
                 if (diskUsage != null && !usageLoaded) {
@@ -202,27 +206,23 @@ internal class LauncherState(
     }
 
     fun toggleHidden(permit: EditPermit, key: String) {
-        toggleIn(permit, cfg.hidden, key)
+        if (!permit.current) return
+        cfg = cfg.copy(hidden = cfg.hidden.toggled(key))
+        mutated()
     }
 
     /** The user's own favorites, even none after a toggle back: no default is seeded over them. */
     fun toggleFavorite(permit: EditPermit, key: String) {
-        if (toggleIn(permit, cfg.favorites, key)) seedPendingFlag.set(false)
-    }
-
-    /** False, nothing changed, when refused. */
-    private fun toggleIn(permit: EditPermit, set: MutableSet<String>, key: String): Boolean {
-        if (!permit.current) return false
-        if (!set.remove(key)) set.add(key)
+        if (!permit.current) return
+        cfg = cfg.copy(favorites = cfg.favorites.toggled(key))
+        seedPendingFlag.set(false)
         mutated()
-        return true
     }
 
     /** An app left with no tags loses its key: the file drops empty lists, memory must match. */
     fun toggleTag(permit: EditPermit, key: String, tag: String) {
         if (!permit.current) return
-        val next = LauncherLogic.toggleTag(cfg.tags[key], tag)
-        if (next.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = next.toMutableList()
+        cfg = cfg.copy(tags = cfg.tags.withList(key, LauncherLogic.toggleTag(cfg.tags[key], tag)))
         mutated()
     }
 
@@ -231,8 +231,7 @@ internal class LauncherState(
         if (!permit.current) return false
         val newOrder = LauncherLogic.reorder(cfg.favorites.toList(), pickedKey, targetKey)
             ?: return false
-        cfg.favorites.clear()
-        cfg.favorites.addAll(newOrder)  // LinkedHashSet: insertion order is the rank
+        cfg = cfg.copy(favorites = newOrder.toSet())  // insertion order is the rank
         mutated()
         return true
     }
@@ -241,8 +240,10 @@ internal class LauncherState(
     fun rename(permit: EditPermit, key: String, systemLabel: String, name: String, tags: List<String>) {
         if (!permit.current) return
         val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), systemLabel)
-        if (override == null) cfg.names.remove(key) else cfg.names[key] = override
-        if (tags.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = tags.toMutableList()
+        cfg = cfg.copy(
+            names = if (override == null) cfg.names - key else cfg.names + (key to override),
+            tags = cfg.tags.withList(key, tags),
+        )
         mutated()
         relabel()
     }
@@ -251,10 +252,12 @@ internal class LauncherState(
      *  accepted [cleanup], which refuses before the load. */
     private fun forget(keys: Set<String>) {
         if (keys.isEmpty()) return
-        cfg.favorites.removeAll(keys)
-        cfg.hidden.removeAll(keys)
-        cfg.names.keys.removeAll(keys)
-        cfg.tags.keys.removeAll(keys)
+        cfg = cfg.copy(
+            favorites = cfg.favorites - keys,
+            hidden = cfg.hidden - keys,
+            names = cfg.names - keys,
+            tags = cfg.tags - keys,
+        )
         mutated()
         relabel()
     }
@@ -270,9 +273,8 @@ internal class LauncherState(
             onDone(CleanupOutcome.Refused)
             return
         }
-        // Identity, not content: a restore swaps the object, an edit mutates it in place.
-        val base = cfg
-        val snapshot = cfg.snapshot()
+        val base = adoptions
+        val snapshot = cfg
         val payload = serialize(cfg)
         val accepted = io(Runnable {
             // Reported from finally: the "~" command run ends only with it (hard rule 15).
@@ -292,7 +294,7 @@ internal class LauncherState(
                 main(Runnable {
                     when {
                         result !is CleanupOutcome.Done -> onDone(result)
-                        cfg !== base -> onDone(CleanupOutcome.Superseded)
+                        adoptions != base -> onDone(CleanupOutcome.Superseded)
                         else -> {
                             forget(result.keys)
                             onDone(result)
@@ -327,7 +329,7 @@ internal class LauncherState(
     /** "%": the plain drawer by usage, or back to A to Z. Null, nothing saved, when refused. */
     fun toggleOrder(permit: EditPermit): Boolean? {
         if (!permit.current) return null
-        cfg.byUsage = !cfg.byUsage
+        cfg = cfg.copy(byUsage = !cfg.byUsage)
         mutated()
         return cfg.byUsage
     }
@@ -337,12 +339,19 @@ internal class LauncherState(
     fun adopt(restored: VersoConfig): Boolean {
         if (!configLoaded) return false
         cfg = restored
+        adoptions++
         // The restored favorites, or none, are the user's.
         seedPendingFlag.set(false)
         relabel()
         onRefreshed(true, true)
         return true
     }
+
+    private fun Set<String>.toggled(key: String): Set<String> = if (key in this) this - key else this + key
+
+    /** An empty list removes the key: the file drops empty lists, memory must match. */
+    private fun Map<String, List<String>>.withList(key: String, list: List<String>): Map<String, List<String>> =
+        if (list.isEmpty()) this - key else this + (key to list.toList())
 
     private fun relabel() {
         apps = LauncherLogic.named(enumerated, cfg.names)

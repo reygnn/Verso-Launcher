@@ -15,12 +15,7 @@ class ConfigJsonTest {
         favorites: List<String> = emptyList(),
         names: Map<String, String> = emptyMap(),
         tags: Map<String, List<String>> = emptyMap(),
-    ) = VersoConfig().apply {
-        this.hidden += hidden
-        this.favorites += favorites
-        this.names.putAll(names)
-        for ((k, v) in tags) this.tags[k] = v.toMutableList()
-    }
+    ) = VersoConfig(hidden.toSet(), favorites.toSet(), names, tags)
 
     @Test fun `round-trips a full config`() {
         val original = config(

@@ -385,7 +385,7 @@ class MainActivity : Activity() {
     /** "~cleanup": check on the IO thread, then offer what is confirmed gone (hard rule 14). */
     private fun cleanup(t: CommandGate.Ticket) {
         val ticket = cleanupTicket
-        val snapshot = state.config.snapshot()
+        val snapshot = state.config
         commandIo(t, work = { apps.safeCleanupCheck(snapshot) }) { plan ->
             // Left meanwhile: no dialog over a page that moved on, no toast over another app.
             if (started && ticket == cleanupTicket) when (plan) {

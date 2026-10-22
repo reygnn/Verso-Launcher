@@ -73,20 +73,21 @@ internal object ConfigJson {
     }
 
     private fun parseObject(j: JSONObject): VersoConfig {
-        val loaded = VersoConfig()
-        // Absent (an older file) or unknown: A to Z.
-        loaded.byUsage = j.opt("order") == ORDER_USAGE
+        val hidden = LinkedHashSet<String>()
+        val favorites = LinkedHashSet<String>()
+        val names = LinkedHashMap<String, String>()
+        val tags = LinkedHashMap<String, List<String>>()
         // opt() as? String, not getString(): Android's getString coerces 123 to "123".
         j.optJSONArray("hidden")?.let {
-            for (i in 0 until it.length()) (it.opt(i) as? String)?.let { s -> loaded.hidden += s }
+            for (i in 0 until it.length()) (it.opt(i) as? String)?.let { s -> hidden += s }
         }
         j.optJSONArray("favorites")?.let {
-            for (i in 0 until it.length()) (it.opt(i) as? String)?.let { s -> loaded.favorites += s }
+            for (i in 0 until it.length()) (it.opt(i) as? String)?.let { s -> favorites += s }
         }
         j.optJSONObject("names")?.let { o ->
             for (k in o.keys()) {
                 val name = (o.opt(k) as? String)?.let(LauncherLogic::cleanName) ?: continue
-                if (name.isNotEmpty()) loaded.names[k] = name
+                if (name.isNotEmpty()) names[k] = name
             }
         }
         j.optJSONObject("tags")?.let { o ->
@@ -100,9 +101,10 @@ internal object ConfigJson {
                     val tag = LauncherLogic.canonicalTag(raw)
                     if (tag.isNotEmpty()) list += tag
                 }
-                if (list.isNotEmpty()) loaded.tags[k] = list.toMutableList()
+                if (list.isNotEmpty()) tags[k] = list.toList()
             }
         }
-        return loaded
+        // Absent (an older file) or unknown order: A to Z.
+        return VersoConfig(hidden, favorites, names, tags, byUsage = j.opt("order") == ORDER_USAGE)
     }
 }

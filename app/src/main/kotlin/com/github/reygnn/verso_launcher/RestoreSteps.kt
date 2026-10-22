@@ -22,7 +22,7 @@ internal object RestoreSteps {
         writeConfig: (String) -> Boolean,
         sweepUndo: () -> Unit,
     ): Outcome {
-        if (current.sameContent(restored)) return Outcome.Unchanged
+        if (current == restored) return Outcome.Unchanged
         val undo = writeUndo(ConfigJson.serialize(current)) ?: return Outcome.UndoFailed
         if (!writeConfig(ConfigJson.serialize(restored))) return Outcome.WriteFailed
         sweepUndo()
