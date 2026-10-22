@@ -9,7 +9,8 @@ package com.github.reygnn.verso_launcher
  * default are the ones every test of the class has to decide on. Pass the same [process] to two
  * instances to model a recreation.
  */
-@Suppress("LongParameterList")  // one parameter per faked function, flat on purpose
+// one parameter per faked function, flat on purpose
+@Suppress("LongParameterList")
 internal fun testLauncherState(
     io: (Runnable) -> Boolean,
     main: (Runnable) -> Unit,

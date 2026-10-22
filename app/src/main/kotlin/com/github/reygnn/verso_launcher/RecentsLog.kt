@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import android.util.Log
 import java.io.File
 
 /**
@@ -25,11 +26,12 @@ internal object RecentsLog {
     /** Null when the file is there but could not be read: not loaded, the next refresh retries
      *  (writing over it would lose the list). No file, or a file too large, is an empty list. */
     // null is the answer (see above)
-    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    @Suppress("TooGenericExceptionCaught")
     fun read(dir: File, limit: Int): List<String>? = try {
         val file = File(dir, FILE)
         if (!file.isFile || file.length() > MAX_BYTES) emptyList() else parse(file.readText(), limit)
     } catch (e: Exception) {
+        Log.w("Verso", "$FILE unreadable, not loaded", e)
         null
     }
 

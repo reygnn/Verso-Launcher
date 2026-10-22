@@ -35,12 +35,11 @@ internal class BackupStore(
      * the old copies swept; a crash leaves the temp for the next sweep. [sweep] false: for a
      * restore's undo point, whose predecessor may be the very file being restored.
      */
-    // hard rule 2: a failed backup is a message
-    @Suppress("TooGenericExceptionCaught")
     fun write(base: String, payload: String, sweep: Boolean = true): String? {
         var tmp: Uri? = null
         val wanted = BackupFiles.publishedName(base, now())
-        return try {
+        // hard rule 2: a failed backup is a message (on a val: detekt ignores it behind `return`)
+        val name = @Suppress("TooGenericExceptionCaught") try {
             tmp = resolver.insert(
                 MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                 ContentValues().apply {
@@ -80,6 +79,7 @@ internal class BackupStore(
             tmp?.let { runCatching { resolver.delete(it, null, null) } }
             null
         }
+        return name
     }
 
     /** [write]'s deferred sweep: remove what the newest backup of [base] replaces. */

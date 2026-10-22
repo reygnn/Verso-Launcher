@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 589 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 592 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -92,6 +92,8 @@ CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed be
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the "open all apps" action, the empty-favorites hint
+HomePageStartGuardTest       3  Robolectric: clock/date/battery intent refused (no app, denied, any
+                                other) is a toast, never a crash
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
                                 own digits
 EnumerationTest             13  the enumeration with faked profiles: null when the profiles or

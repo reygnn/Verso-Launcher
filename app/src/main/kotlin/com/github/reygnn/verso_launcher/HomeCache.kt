@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import android.util.Log
 import java.io.File
 
 /**
@@ -25,10 +26,11 @@ internal object HomeCache {
     }.toList()
 
     // a disposable cache: unreadable = none
-    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    @Suppress("TooGenericExceptionCaught")
     fun read(dir: File): List<AppEntry> = try {
         File(dir, FILE).takeIf { it.isFile }?.readText()?.let(::parse).orEmpty()
     } catch (e: Exception) {
+        Log.w("Verso", "$FILE unreadable", e)
         emptyList()
     }
 

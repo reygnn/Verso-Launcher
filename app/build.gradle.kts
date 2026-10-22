@@ -76,7 +76,7 @@ android {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
             // A warning is a finding, not noise: main and test sources alike. A deliberate one
-            // gets a @Suppress at the narrowest scope, with the reason beside it.
+            // gets a @Suppress at the narrowest scope, with the reason on the line above.
             allWarningsAsErrors.set(true)
         }
     }
@@ -110,10 +110,11 @@ android {
         warningsAsErrors = true
         abortOnError = true
         baseline = file("lint-baseline.xml")
-        // Not findings: the two version checks quote the newest upstream release, so a release
-        // would fail the build without a change here (and offline they report nothing); bumps
-        // are deliberate. targetSdk stays 36 until lifted and tested on a device.
-        disable += setOf("GradleDependency", "NewerVersionAvailable", "OldTargetApi")
+        // Not findings: the version checks quote the newest upstream release (of a dependency,
+        // of Gradle), so a release would fail the build without a change here (and offline they
+        // report nothing); bumps are deliberate. targetSdk stays 36 until lifted and tested on a
+        // device.
+        disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion", "OldTargetApi")
     }
 
     // Every buildFeature stays OFF (BuildConfig, Compose, viewBinding, …).

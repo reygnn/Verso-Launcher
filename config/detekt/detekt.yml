@@ -9,6 +9,11 @@ config:
   warningsAsErrors: true
 
 style:
+  MagicNumber:
+    # HomeStyle.kt is where the look lives as constants (CLAUDE.md: no settings screen); its
+    # numbers are the design, not magic. The rest is detekt's default list, which this replaces.
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**',
+               '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/*.kts', '**/HomeStyle.kt']
   MaxLineLength:
     # The code wraps at about 150 columns; 120 would flag two files in five and no reader
     # would gain from it.

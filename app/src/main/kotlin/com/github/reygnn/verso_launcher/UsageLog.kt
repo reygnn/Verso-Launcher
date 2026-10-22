@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import android.util.Log
 import java.io.File
 import kotlin.math.exp
 
@@ -75,11 +76,12 @@ internal object UsageLog {
     /** Null when the file is there but could not be read: not loaded, the next refresh retries
      *  (writing over it would wipe the counts). No file, or a file too large, is an empty log. */
     // null is the answer (see above)
-    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    @Suppress("TooGenericExceptionCaught")
     fun read(dir: File): Map<String, Usage>? = try {
         val file = File(dir, FILE)
         if (!file.isFile || file.length() > MAX_BYTES) emptyMap() else parse(file.readText())
     } catch (e: Exception) {
+        Log.w("Verso", "$FILE unreadable, not loaded", e)
         null
     }
 
