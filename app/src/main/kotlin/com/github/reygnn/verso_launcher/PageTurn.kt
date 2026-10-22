@@ -70,8 +70,8 @@ internal class PageTurn(
         canDrag = canDrag@{ dir, downY ->
             if (dialogOpen()) return@canDrag false
             when {
-                isOpen && drawerFromTop -> !appDrawer.listView.canScrollVertically(1)
-                isOpen -> !appDrawer.listView.canScrollVertically(-1)
+                isOpen && drawerFromTop -> appDrawer.listAtBottom
+                isOpen -> appDrawer.listAtTop
                 dir == SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
                 // A pull from the very top is the notification shade's.
                 else -> downY >= topExclusionPx() && !homePage.scroller.canScrollVertically(-1)
@@ -94,7 +94,7 @@ internal class PageTurn(
 
         // The bare recents view ("?") came from a swipe down, so Back leaves it straight home.
         private fun closes(): Boolean {
-            val text = appDrawer.prompt.text?.toString().orEmpty()
+            val text = appDrawer.promptText
             return isOpen && (text.isEmpty() || text == RECENTS_PROMPT)
         }
 
@@ -124,7 +124,7 @@ internal class PageTurn(
             else {
                 // The prompt changed during the gesture (a hardware key): undo the preview.
                 if (previewed) settle(open = true)
-                appDrawer.prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
+                appDrawer.clearPrompt()
             }
         }
     }
@@ -153,11 +153,11 @@ internal class PageTurn(
             drawer.translationY = hiddenY()
         }
         drawer.requestApplyInsets()
-        if (appDrawer.prompt.text?.toString() != initialPrompt) appDrawer.setPrompt(initialPrompt)
+        if (appDrawer.promptText != initialPrompt) appDrawer.setPrompt(initialPrompt)
         else if (initialPrompt.isEmpty()) {
             // A drag re-sorted it before showing it (beginDrag).
             if (fromHidden) resortByUsage()
-            if (appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
+            appDrawer.scrollToTop()
         }
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
         drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS).withLayer()
@@ -187,7 +187,7 @@ internal class PageTurn(
         showStatusBar(false)
         appDrawer.hideKeyboard()
         drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-        appDrawer.prompt.clearFocus()
+        appDrawer.releasePromptFocus()
         home.animate().cancel()
         drawer.animate().cancel()
         home.visibility = View.VISIBLE
@@ -214,7 +214,7 @@ internal class PageTurn(
      */
     fun resumed() {
         showStatusBar(isOpen)
-        if (isOpen && appDrawer.prompt.text?.toString() != RECENTS_PROMPT) appDrawer.showKeyboard()
+        if (isOpen && appDrawer.promptText != RECENTS_PROMPT) appDrawer.showKeyboard()
     }
 
     /** Out of the recents (× or typing) it is the plain drawer: it goes back down like one. */
@@ -223,12 +223,12 @@ internal class PageTurn(
     }
 
     private fun clearPromptIfClosed() {
-        if (!isOpen && appDrawer.prompt.text?.isNotEmpty() == true) appDrawer.prompt.setText("")
+        if (!isOpen && appDrawer.promptText.isNotEmpty()) appDrawer.clearPrompt()
     }
 
     /** Most used first changes with every launch, and none re-sorts a drawer out of sight. */
     private fun resortByUsage() {
-        if (byUsage()) appDrawer.applyFilter("")
+        if (byUsage()) appDrawer.rebuildRows()
     }
 
     /** Where the closed drawer waits: above the page for the recents, below it otherwise. */
@@ -276,11 +276,10 @@ internal class PageTurn(
         // The recents must be what the pull reveals; a settle back clears the prompt again.
         val prompt = if (fromTop) RECENTS_PROMPT else ""
         if (drawer.visibility != View.VISIBLE) {
-            if (appDrawer.prompt.text?.toString() != prompt) appDrawer.setPrompt(prompt)
+            if (appDrawer.promptText != prompt) appDrawer.setPrompt(prompt)
             else if (prompt.isEmpty()) resortByUsage()
-            // The A-to-Z list rises from its top, not where it was last left.
-            if (prompt.isEmpty() && appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
-        } else if (appDrawer.prompt.text?.toString() != prompt) {
+            if (prompt.isEmpty()) appDrawer.scrollToTop()
+        } else if (appDrawer.promptText != prompt) {
             appDrawer.setPrompt(prompt)
         }
         drawer.visibility = View.VISIBLE

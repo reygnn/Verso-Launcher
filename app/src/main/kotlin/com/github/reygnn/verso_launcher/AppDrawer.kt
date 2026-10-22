@@ -28,6 +28,10 @@ import android.widget.TextView
 /**
  * The back page: the list above the command line, what the list shows, and the stale-tap guard.
  * Decisions are LauncherLogic's; side effects go back to the Activity through the lambdas.
+ *
+ * The widgets stay inside: callers say what they want done (clear the prompt, scroll to the top),
+ * so the rows, the reorder pick and the stale-tap generations change only here. Tests reach a
+ * widget through the view tree (ViewTrees.collect).
  */
 internal class AppDrawer(
     private val activity: Activity,
@@ -37,7 +41,7 @@ internal class AppDrawer(
     private val onLongPress: (AppEntry) -> Unit,
     private val onEnter: (EnterAction<AppEntry>) -> Unit,
     private val onFiltered: () -> Unit,
-    private val onModeChanged: (Mode) -> Unit = {},
+    private val onModeChanged: (Mode) -> Unit,
 ) {
     val view: LinearLayout
 
@@ -48,6 +52,7 @@ internal class AppDrawer(
 
     // FAV_REORDER: the favorite picked up, or null.
     var reorderPick: String? = null
+        private set
 
     // TAG_EDIT: the folded tag after "##"; null while the bare "##" overview is up.
     var tagEditTag: String? = null
@@ -62,18 +67,15 @@ internal class AppDrawer(
     // touchDownGeneration — sharing one field silently disables one of the two guards.
     private var clickDownGeneration = TapGuard.NO_TOUCH
 
-    var shown: List<Row<AppEntry>> = emptyList()
-        private set
+    private var shown: List<Row<AppEntry>> = emptyList()
 
     private lateinit var clearButton: OutlinedTextView
     private lateinit var promptRow: LinearLayout
     // Recoloured in place: the Editor loads its cursor drawable once and ignores a new one.
     private val cursorDrawable = GradientDrawable()
     private lateinit var emptyView: OutlinedTextView
-    lateinit var listView: ListView
-        private set
-    lateinit var prompt: OutlinedEditText
-        private set
+    private lateinit var listView: ListView
+    private lateinit var prompt: OutlinedEditText
     private lateinit var adapter: AppListAdapter
 
     private val listTypeface: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
@@ -203,9 +205,7 @@ internal class AppDrawer(
                     EnterEdge.CONSUME -> return@setOnEditorActionListener true
                     EnterEdge.ACT -> Unit
                 }
-                val command = LauncherLogic.resolveCommand(
-                    prompt.text?.toString()?.trim().orEmpty()
-                )
+                val command = LauncherLogic.resolveCommand(promptText.trim())
                 // The last row sits right above the prompt: it is Enter's target.
                 onEnter(
                     LauncherLogic.enterAction(
@@ -267,7 +267,40 @@ internal class AppDrawer(
     /** The rows' markers changed, the row set did not. */
     fun notifyChanged() = adapter.notifyDataSetChanged()
 
-    fun applyFilter(raw: String) {
+    val promptText: String get() = prompt.text?.toString().orEmpty()
+
+    /** Synchronous: the TextWatcher has re-filtered (mode back to NORMAL) before this returns. */
+    fun clearPrompt() = setPrompt("")
+
+    /** The drawer is turning away: its prompt must not keep the focus (and with it the IME). */
+    fun releasePromptFocus() = prompt.clearFocus()
+
+    /** The list's visual top is showing: a drag down there is the page's, not the list's. */
+    val listAtTop: Boolean get() = !listView.canScrollVertically(-1)
+
+    /** The list's visual bottom is showing (the recents close upward from there). */
+    val listAtBottom: Boolean get() = !listView.canScrollVertically(1)
+
+    /** The A-to-Z list rises from its top, not where it was last left. */
+    fun scrollToTop() {
+        if (shown.isNotEmpty()) listView.setSelection(0)
+    }
+
+    /** The same prompt, the rows built anew: the "%" order changes with every launch. */
+    fun rebuildRows() = applyFilter(promptText)
+
+    /** "!!": the favorite [key] is held until it is dropped onto another row or tapped again. */
+    fun pickUp(key: String) {
+        reorderPick = key
+        adapter.notifyDataSetChanged()
+    }
+
+    fun dropPick() {
+        reorderPick = null
+        adapter.notifyDataSetChanged()
+    }
+
+    private fun applyFilter(raw: String) {
         val q = raw.trim()
         val previous = mode
         mode = LauncherLogic.parseMode(q)
@@ -324,7 +357,7 @@ internal class AppDrawer(
 
     /** After a change to the apps or the config; typing alone never changes the favorites. */
     fun refilter() {
-        applyFilter(prompt.text?.toString().orEmpty())
+        applyFilter(promptText)
         onFiltered()
     }
 

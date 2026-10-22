@@ -98,7 +98,8 @@ com.github.reygnn.verso_launcher/
                       ~cleanup's "still there?", default favorites
   HomePage            the front page (clock/date/battery, favorites, a11y actions)
   AppDrawer           the back page: list, empty-list hint, command line and its bar;
-                      what the list shows (mode, rows) and the stale-tap guard
+                      what the list shows (mode, rows) and the stale-tap guard; its widgets
+                      are private, callers ask by intent (clearPrompt, scrollToTop, pickUp)
   HomeStyle           pure look constants + outline colour, palette, BatteryInfo,
                       DoubleTapGate
   OutlinedViews       the outlined text/icon views home and drawer draw with

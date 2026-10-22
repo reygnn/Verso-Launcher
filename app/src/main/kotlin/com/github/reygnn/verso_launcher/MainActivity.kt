@@ -346,9 +346,9 @@ class MainActivity : Activity() {
             return
         }
         if (command != Command.RESTART && !editable()) return
-        // Cleared BEFORE running: setText fires the TextWatcher synchronously, so the mode is
+        // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
-        appDrawer.prompt.setText("")
+        appDrawer.clearPrompt()
         gate.start { t ->
             when (command) {
                 Command.RESTART -> {
@@ -661,14 +661,14 @@ class MainActivity : Activity() {
     private fun reorderTap(key: String) {
         val picked = appDrawer.reorderPick
         when {
-            picked == null -> { appDrawer.reorderPick = key; appDrawer.notifyChanged() }
-            picked == key  -> { appDrawer.reorderPick = null; appDrawer.notifyChanged() }
+            picked == null -> appDrawer.pickUp(key)
+            picked == key  -> appDrawer.dropPick()
             else -> editPermit()?.let { moveFavorite(it, picked, key) }
         }
     }
 
     private fun moveFavorite(permit: LauncherState.EditPermit, pickedKey: String, targetKey: String) {
-        appDrawer.reorderPick = null
+        appDrawer.dropPick()
         state.moveFavorite(permit, pickedKey, targetKey)
         appDrawer.refilter()  // re-render in the (new) order
     }

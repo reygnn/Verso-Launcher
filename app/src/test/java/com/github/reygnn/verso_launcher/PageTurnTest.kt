@@ -76,7 +76,7 @@ class PageTurnTest {
 
     private val root: SwipeFrame get() = pageTurn.root
     private val height: Float get() = root.pageHeight()
-    private val prompt: String get() = drawer.prompt.text.toString()
+    private val prompt: String get() = drawer.promptText
 
     private fun back(progress: Float) = BackEvent(0f, 0f, progress, BackEvent.EDGE_LEFT)
 

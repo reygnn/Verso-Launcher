@@ -4,8 +4,12 @@ import android.app.Activity
 import android.graphics.Typeface
 import android.text.Spanned
 import android.text.style.StyleSpan
+import android.widget.EditText
+import android.widget.ListView
 import android.widget.TextView
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -44,12 +48,16 @@ class AppDrawerTest {
         onModeChanged = { modes += it },
     )
 
+    // The widgets are the drawer's own: reached through the view tree, like any built in code.
+    private val list: ListView get() = drawer.view.collect<ListView>().single()
+    private val prompt: EditText get() = drawer.view.collect<EditText>().single()
+
     private fun rows(): List<String> {
-        val adapter = drawer.listView.adapter
-        return (0 until adapter.count).map { (adapter.getView(it, null, drawer.listView) as TextView).text.toString() }
+        val adapter = list.adapter
+        return (0 until adapter.count).map { (adapter.getView(it, null, list) as TextView).text.toString() }
     }
 
-    private val emptyHint: TextView get() = drawer.listView.emptyView as TextView
+    private val emptyHint: TextView get() = list.emptyView as TextView
 
     @Test fun `the plain drawer lists every app A to Z, a search narrows it`() {
         drawer.setPrompt("")
@@ -85,16 +93,16 @@ class AppDrawerTest {
     @Test fun `a palette switch recolours the prompt, the hint and the rows`() {
         val light = HomeStyle.palette(lightWallpaper = true)
         drawer.applyPalette(light)
-        assertEquals(light.listText, drawer.prompt.currentTextColor)
-        assertEquals(light.listText, drawer.prompt.currentHintTextColor)
+        assertEquals(light.listText, prompt.currentTextColor)
+        assertEquals(light.listText, prompt.currentHintTextColor)
         assertEquals(light.listText, emptyHint.currentTextColor)
         drawer.setPrompt("")
-        val row = drawer.listView.adapter.getView(0, null, drawer.listView) as TextView
+        val row = list.adapter.getView(0, null, list) as TextView
         assertEquals(light.listText, row.currentTextColor)
     }
 
     @Test fun `the prompt's hint and the empty-list hint are italic`() {
-        val hint = drawer.prompt.hint as Spanned
+        val hint = prompt.hint as Spanned
         val span = hint.getSpans(0, hint.length, StyleSpan::class.java).single()
         assertEquals(Typeface.ITALIC, span.style)
         assertEquals(Typeface.ITALIC, emptyHint.typeface.style)
@@ -109,7 +117,33 @@ class AppDrawerTest {
 
     @Test fun `a tap on a row goes to the Activity as the tap's decision`() {
         drawer.setPrompt("br")
-        drawer.listView.performItemClick(null, 0, 0)
+        list.performItemClick(null, 0, 0)
         assertEquals(listOf<TapAction<AppEntry>>(TapAction.Launch(installed[1])), taps)
+    }
+
+    @Test fun `a picked favorite is marked until it is dropped`() {
+        drawer.setPrompt("!!")
+        val before = rows()
+        drawer.pickUp(installed[1].key)
+        assertEquals(installed[1].key, drawer.reorderPick)
+        assertNotEquals(before, rows())
+        drawer.dropPick()
+        assertNull(drawer.reorderPick)
+        assertEquals(before, rows())
+    }
+
+    @Test fun `leaving the reorder mode lets the pick go`() {
+        drawer.setPrompt("!!")
+        drawer.pickUp(installed[1].key)
+        drawer.setPrompt("")
+        assertNull(drawer.reorderPick)
+    }
+
+    /** runCommand and Back rely on it: the mode is NORMAL again before the call returns. */
+    @Test fun `clearing the prompt is the plain drawer at once`() {
+        drawer.setPrompt("!")
+        drawer.clearPrompt()
+        assertEquals("", drawer.promptText)
+        assertEquals(Mode.NORMAL, drawer.mode)
     }
 }
