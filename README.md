@@ -212,7 +212,7 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no ViewBinding / XML layouts — UI built in code
 
 The launcher is a handful of small files. `MainActivity.kt` is the framework wiring
-(the page turn, commands, backup and restore, edits, dialogs, launching); everything beside it is either pure
+(commands, backup and restore, edits, dialogs, launching); everything beside it is either pure
 and unit-tested on the JVM or a thin view class:
 
 - `LauncherState.kt` — the data: config, app list and recents, plus the rules that keep
@@ -220,6 +220,10 @@ and unit-tested on the JVM or a thin view class:
   (see the class comment). Plain Kotlin taking its threads as functions —
   the role a ViewModel would play, without the AndroidX dependency.
   `LauncherStateTest` replays every overlap deterministically with two manual queues.
+  `LauncherStateParts.kt` holds what it is built from: the process-wide `ProcessState`
+  (recents, launches, two flags) and the three files it reads and writes.
+- `PageTurn.kt` — the page turn between home and drawer: the drag that follows the finger,
+  the settle, the Back preview and the status bar per page.
 - `AppDrawer.kt` — the back page: list, command line and what the list shows for a prompt.
 - `Apps.kt` — the apps on the device: enumeration of every profile, `~cleanup`'s "still
   there?", the default favorites; `Cleanup.kt` the pure decision what `~cleanup` may offer.

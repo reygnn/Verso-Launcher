@@ -9,7 +9,7 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <!-- The jobs a fresh install's default favorites are picked by (phone, messenger,
-             email, browser, camera) — see MainActivity.defaultFavoriteCandidates. -->
+             email, browser, camera) — see Apps.defaultFavoriteCandidates. -->
         <intent>
             <action android:name="android.intent.action.DIAL" />
         </intent>
