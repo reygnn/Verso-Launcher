@@ -88,8 +88,10 @@ Single `:app` module, one package:
 com.github.reygnn.verso_launcher/
   VersoApp            process-wide: the IO executor, the recents, palette and
                       badge-label caches
-  MainActivity        the window: the page turn, commands, backup/restore orchestration,
-                      edits, dialogs, launching
+  MainActivity        the window: commands, backup/restore orchestration, edits, dialogs,
+                      launching
+  PageTurn            the page turn (hard rule 11): window root, drag, settle, Back
+                      preview, the status bar per page
   Apps                the apps on the device (IO side): enumeration of every profile,
                       ~cleanup's "still there?", default favorites
   HomePage            the front page (clock/date/battery, favorites, a11y actions)

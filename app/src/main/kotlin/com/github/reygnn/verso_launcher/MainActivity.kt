@@ -25,27 +25,16 @@ import android.system.Os
 import android.system.OsConstants
 import android.util.Log
 import android.view.KeyEvent
-import android.view.View
-import android.view.ViewGroup
-import android.view.WindowInsets
 import android.view.WindowInsetsController
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.view.animation.AccelerateInterpolator
-import android.view.animation.DecelerateInterpolator
-import android.widget.FrameLayout
-import android.widget.LinearLayout
 import android.widget.Toast
-import android.window.BackEvent
-import android.window.OnBackAnimationCallback
 import android.window.OnBackInvokedDispatcher
 import java.io.File
 import java.io.FileDescriptor
 import java.util.concurrent.RejectedExecutionException
-import kotlin.math.abs
 
 /**
  * The launcher's single window: the home page (recto) in front, the drawer with Sigil's command
- * line (verso) behind it, the page turn between them, and the side effects of taps, edits and
+ * line (verso) behind it ([PageTurn] turns between them), and the side effects of taps, edits and
  * the "~" commands. The decisions themselves are pure, in [LauncherLogic] and [LauncherState].
  */
 class MainActivity : Activity() {
@@ -65,8 +54,6 @@ class MainActivity : Activity() {
     // The process's IO thread, not this instance's: a recreated activity queues behind whatever
     // its predecessor left in flight instead of racing it (hard rule 3).
     private val ioExecutor get() = app.io
-
-    private lateinit var root: SwipeFrame
 
     // ---- the data ---------------------------------------------------------------
     private val state: LauncherState by lazy {
@@ -112,17 +99,8 @@ class MainActivity : Activity() {
 
     // ---- the two pages ------------------------------------------------------
     private lateinit var homePage: HomePage
-    private lateinit var home: View
-    // GONE while closed and blocking descendant focus, so the prompt can never raise the IME on home.
-    private lateinit var drawer: LinearLayout
     private lateinit var appDrawer: AppDrawer
-    // THE source of truth for which page is up. The views' visibility trails it by the
-    // length of the page-turn animation, so nothing may read visibility instead.
-    private var drawerOpen = false
-    // The recents come down from the top like a HUD and go back up; the drawer rises from below.
-    private var drawerFromTop = false
-    // Whether the running drag (or Back preview) set out to open the drawer.
-    private var dragOpens = false
+    private lateinit var pageTurn: PageTurn
 
     // Tracked so they can be dismissed on teardown: an undismissed dialog leaks its window.
     private var renameDialog: AlertDialog? = null
@@ -145,102 +123,30 @@ class MainActivity : Activity() {
             onLongPress = { entry -> if (editPermit() != null) promptRename(entry) },
             onEnter = ::onDrawerEnter,
             onFiltered = ::renderHome,
-            onModeChanged = { mode ->
-                // Out of the recents (× or typing) it is the plain drawer: it goes back down like one.
-                if (drawerOpen && drawerFromTop && mode != Mode.RECENTS && !root.isDragging) drawerFromTop = false
-            },
+            // Called only by a filter, never while AppDrawer is built: pageTurn is set by then.
+            onModeChanged = { mode -> pageTurn.modeChanged(mode) },
         )
-        drawer = appDrawer.view
 
         homePage = HomePage(
             activity = this,
             onLaunch = ::launch,
             onEdit = { if (editPermit() != null) promptRename(it) },
-            onOpenDrawer = { openDrawer() },
+            onOpenDrawer = { pageTurn.open() },
         )
-        home = homePage.view
 
-        root = SwipeFrame(this).apply {
-            addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
-            addView(drawer, FrameLayout.LayoutParams(MATCH, MATCH))
-            claims = claims@{ dir, downY ->
-                // A long-press that opened a dialog can carry on into a drag with the finger still down.
-                if (renameDialog != null || commandDialog != null) return@claims false
-                // A flick down on favorites scrolled down scrolls them back, not to the recents.
-                if (dir == SwipeDir.DOWN && !drawerOpen && homePage.scroller.canScrollVertically(-1)) return@claims false
-                SwipeGesture.claims(drawerOpen, dir, downY, topExclusionPx())
-            }
-            // Up is normally a drag; the flick opens the drawer when the favorites could still
-            // scroll and no drag started.
-            onSwipe = { dir ->
-                when {
-                    dir == SwipeDir.UP && !drawerOpen -> openDrawer()
-                    dir == SwipeDir.DOWN && !drawerOpen -> openDrawer(RECENTS_PROMPT, fromTop = true)
-                }
-            }
-            closeDirection = { if (drawerOpen) closeDir() else null }
-            canDrag = canDrag@{ dir, downY ->
-                if (renameDialog != null || commandDialog != null) return@canDrag false
-                when {
-                    drawerOpen && drawerFromTop -> !appDrawer.listView.canScrollVertically(1)
-                    drawerOpen -> !appDrawer.listView.canScrollVertically(-1)
-                    dir == SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
-                    // A pull from the very top is the notification shade's.
-                    else -> downY >= topExclusionPx() && !homePage.scroller.canScrollVertically(-1)
-                }
-            }
-            pageHeight = ::pageHeight
-            onDragStart = ::beginPageDrag
-            onDrag = ::dragPage
-            onDragEnd = ::endPageDrag
-        }
-        setContentView(root)
-
-        // Back must never finish a HOME activity (the default callback would, on targetSdk 36).
-        // Home: no-op. Drawer: a non-empty prompt clears first, an empty one turns the page home.
-        // A back gesture that will close the drawer previews it, like a short drag.
+        pageTurn = PageTurn(
+            activity = this,
+            homePage = homePage,
+            appDrawer = appDrawer,
+            byUsage = { state.config.byUsage },
+            dialogOpen = { renameDialog != null || commandDialog != null },
+            onOpen = ::dismissDialogs,
+            onClose = ::turnAway,
+        )
+        setContentView(pageTurn.root)
         onBackInvokedDispatcher.registerOnBackInvokedCallback(
             OnBackInvokedDispatcher.PRIORITY_DEFAULT,
-            object : OnBackAnimationCallback {
-                // The drawer offset the preview started from; null while no preview runs.
-                private var previewFrom: Float? = null
-
-                // The bare recents view ("?") came from a swipe down, so Back leaves it straight home.
-                private fun closes(): Boolean {
-                    val text = appDrawer.prompt.text?.toString().orEmpty()
-                    return drawerOpen && (text.isEmpty() || text == RECENTS_PROMPT)
-                }
-
-                override fun onBackStarted(backEvent: BackEvent) {
-                    previewFrom = if (closes()) beginPageDrag(closeDir()) else null
-                }
-
-                override fun onBackProgressed(backEvent: BackEvent) {
-                    val from = previewFrom ?: return
-                    if (!drawerOpen) return
-                    dragPage(closeDir(), from + backEvent.progress * pageHeight() * BACK_PREVIEW_FRACTION)
-                    // The drag's own fade starts far past the preview; let home show through faintly.
-                    home.alpha = backEvent.progress * BACK_PREVIEW_HOME_ALPHA
-                }
-
-                override fun onBackCancelled() {
-                    // HOME or the screen going off may have closed the drawer meanwhile.
-                    if (previewFrom != null && drawerOpen) settle(open = true)
-                    previewFrom = null
-                }
-
-                override fun onBackInvoked() {
-                    val previewed = previewFrom != null
-                    previewFrom = null
-                    if (!drawerOpen) return
-                    if (closes()) closeDrawer()
-                    else {
-                        // The prompt changed during the gesture (a hardware key): undo the preview.
-                        if (previewed) settle(open = true)
-                        appDrawer.prompt.setText("")   // TextWatcher -> applyFilter resets mode to NORMAL
-                    }
-                }
-            },
+            pageTurn.backCallback,
         )
 
         watchApps()
@@ -278,198 +184,6 @@ class MainActivity : Activity() {
         homePage.startBattery()
     }
 
-    // ---- turning the page ---------------------------------------------------
-
-    /**
-     * Turn to the drawer with [initialPrompt]: "?" opens the recents WITHOUT the keyboard, "" with
-     * it. Set even when it looks unneeded: [closeDrawer] clears the old one only once the page is gone.
-     */
-    private fun openDrawer(initialPrompt: String = "", fromTop: Boolean = false) {
-        if (drawerOpen) return
-        drawerOpen = true
-        // A drag still holding the page must not act on it after this turn.
-        root.abortDrag()
-        showStatusBar(true)
-        dismissDialogs()
-        home.animate().cancel()
-        drawer.animate().cancel()
-        drawer.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
-        val fromHidden = drawer.visibility != View.VISIBLE
-        drawer.visibility = View.VISIBLE
-        drawer.alpha = 1f
-        // The parent's height, not the drawer's: a drawer that was GONE has not been measured yet.
-        // One already showing on this side (dragged, or caught mid-close) slides on from where it is.
-        if (fromHidden || fromTop != drawerFromTop) {
-            drawerFromTop = fromTop
-            drawer.translationY = hiddenY()
-        }
-        drawer.requestApplyInsets()
-        if (appDrawer.prompt.text?.toString() != initialPrompt) appDrawer.setPrompt(initialPrompt)
-        else if (initialPrompt.isEmpty()) {
-            // A drag re-sorted it before showing it (beginPageDrag).
-            if (fromHidden) resortByUsage()
-            if (appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
-        }
-        home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
-        drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS).withLayer()
-            .setInterpolator(AccelerateDecelerateInterpolator()).start()
-        home.animate().alpha(0f).setDuration(HOME_FADE_MS).withLayer()
-            .setInterpolator(AccelerateInterpolator()).withEndAction {
-                if (drawerOpen) home.visibility = View.INVISIBLE
-            }.start()
-        // Posted: let the just-shown drawer be laid out once before the prompt asks for the IME.
-        if (initialPrompt.isEmpty()) drawer.post { if (drawerOpen) appDrawer.showKeyboard() }
-    }
-
-    /** Turn back to home, clearing the prompt; [animate] = false when going to the background anyway. */
-    private fun closeDrawer(animate: Boolean = true) {
-        if (!drawerOpen) {
-            // A finger may be pulling the drawer up: end that drag here, or its release would
-            // still open the drawer.
-            if (root.isDragging) {
-                root.abortDrag()
-                if (animate) settle(open = false) else showHomeNow()
-            }
-            return
-        }
-        drawerOpen = false
-        turnAway()
-        root.abortDrag()
-        showStatusBar(false)
-        appDrawer.hideKeyboard()
-        drawer.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-        appDrawer.prompt.clearFocus()
-        home.animate().cancel()
-        drawer.animate().cancel()
-        home.visibility = View.VISIBLE
-        if (!animate) {
-            clearPromptIfClosed()
-            showHomeNow()
-            return
-        }
-        home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
-        home.animate().alpha(1f).setDuration(HOME_FADE_MS).withLayer()
-            .setInterpolator(AccelerateInterpolator()).start()
-        // The prompt goes with the page: cleared before the slide, the list would switch mid-way.
-        drawer.animate().translationY(hiddenY()).setDuration(DRAWER_SLIDE_MS).withLayer()
-            .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
-                if (!drawerOpen) drawer.visibility = View.GONE
-                clearPromptIfClosed()
-            }.start()
-    }
-
-    private fun clearPromptIfClosed() {
-        if (!drawerOpen && appDrawer.prompt.text?.isNotEmpty() == true) appDrawer.prompt.setText("")
-    }
-
-    /** Most used first changes with every launch, and none re-sorts a drawer out of sight. */
-    private fun resortByUsage() {
-        if (state.config.byUsage) appDrawer.applyFilter("")
-    }
-
-    /** Where the closed drawer waits: above the page for the recents, below it otherwise. */
-    private fun hiddenY(): Float = if (drawerFromTop) -pageHeight() else pageHeight()
-
-    /** Back toward the side the drawer came from. */
-    private fun closeDir(): SwipeDir = if (drawerFromTop) SwipeDir.UP else SwipeDir.DOWN
-
-    private fun showHomeNow() {
-        home.animate().cancel()
-        drawer.animate().cancel()
-        home.setLayerType(View.LAYER_TYPE_NONE, null)
-        home.visibility = View.VISIBLE
-        home.alpha = 1f
-        drawer.translationY = 0f
-        drawer.visibility = View.GONE
-    }
-
-    private fun showStatusBar(show: Boolean) {
-        val controller = window.insetsController ?: return
-        controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        if (show) controller.show(WindowInsets.Type.statusBars())
-        else controller.hide(WindowInsets.Type.statusBars())
-    }
-
-    /**
-     * A page drag takes over: stop any running turn and return the offset already travelled —
-     * non-zero when the drawer is caught mid-turn, so it continues from where it is.
-     */
-    private fun beginPageDrag(dir: SwipeDir): Float {
-        home.animate().cancel()
-        drawer.animate().cancel()
-        home.visibility = View.VISIBLE
-        // A full-screen view group at partial alpha is composed offscreen every frame without a layer.
-        home.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        val height = pageHeight()
-        dragOpens = !drawerOpen
-        if (!dragOpens) return abs(drawer.translationY)
-        val fromTop = dir == SwipeDir.DOWN
-        // Focus stays blocked: the drawer is not the page in front until the drag commits.
-        if (drawer.visibility != View.VISIBLE || fromTop != drawerFromTop) {
-            drawerFromTop = fromTop
-            drawer.translationY = hiddenY()
-        }
-        // The recents must be what the pull reveals; a settle back clears the prompt again.
-        val prompt = if (fromTop) RECENTS_PROMPT else ""
-        if (drawer.visibility != View.VISIBLE) {
-            if (appDrawer.prompt.text?.toString() != prompt) appDrawer.setPrompt(prompt)
-            else if (prompt.isEmpty()) resortByUsage()
-            // The A-to-Z list rises from its top, not where it was last left.
-            if (prompt.isEmpty() && appDrawer.shown.isNotEmpty()) appDrawer.listView.setSelection(0)
-        } else if (appDrawer.prompt.text?.toString() != prompt) {
-            appDrawer.setPrompt(prompt)
-        }
-        drawer.visibility = View.VISIBLE
-        drawer.alpha = 1f
-        return height - abs(drawer.translationY)
-    }
-
-    /** [offset] runs along the drag: how far it opened, or how far it closed. */
-    private fun dragPage(@Suppress("UNUSED_PARAMETER") dir: SwipeDir, offset: Float) {
-        if (dragOpens == drawerOpen) return
-        val height = pageHeight()
-        val open = if (dragOpens) offset else height - offset  // how much of the drawer shows
-        drawer.translationY = if (drawerFromTop) open - height else height - open
-        home.alpha = SwipeGesture.homeAlpha(open, height)
-    }
-
-    private fun endPageDrag(@Suppress("UNUSED_PARAMETER") dir: SwipeDir, end: DragEnd) {
-        // Belt and braces next to abortDrag: a drag only ever ends on the page it grabbed.
-        if (dragOpens == drawerOpen) return
-        when {
-            dragOpens && end == DragEnd.COMMIT ->
-                openDrawer(if (drawerFromTop) RECENTS_PROMPT else "", fromTop = drawerFromTop)
-            end == DragEnd.COMMIT -> closeDrawer()
-            dragOpens -> settle(open = false)
-            else -> settle(open = true)
-        }
-    }
-
-    /** A drag that did not commit falls back to the page it started on; nothing else changes. */
-    private fun settle(open: Boolean) {
-        home.setLayerType(View.LAYER_TYPE_NONE, null)  // the drag's layer; withLayer takes over
-        drawer.animate().translationY(if (open) 0f else hiddenY()).setDuration(DRAG_SETTLE_MS).withLayer()
-            .setInterpolator(DecelerateInterpolator()).withEndAction {
-                if (!drawerOpen) {
-                    drawer.visibility = View.GONE
-                    // A recents pull that fell back left its "?" behind.
-                    clearPromptIfClosed()
-                }
-            }.start()
-        home.animate().alpha(if (open) 0f else 1f).setDuration(DRAG_SETTLE_MS).withLayer()
-            .setInterpolator(DecelerateInterpolator()).withEndAction {
-                if (drawerOpen) home.visibility = View.INVISIBLE
-            }.start()
-    }
-
-    /** The top band left to the notification shade, in px: neither a drag nor a flick starts there. */
-    private fun topExclusionPx(): Float = SwipeGesture.TOP_EXCLUSION_DP * resources.displayMetrics.density
-
-    /** The window root's height, falling back to the display's before the first layout. */
-    private fun pageHeight(): Float =
-        ((drawer.parent as? View)?.height?.takeIf { it > 0 }
-            ?: resources.displayMetrics.heightPixels).toFloat()
-
     override fun onResume() {
         super.onResume()
         resumed = true
@@ -480,11 +194,7 @@ class MainActivity : Activity() {
             appsDirty = false
             state.refresh()
         }
-        // Re-asserted: an app that showed the bar must not leave it up on the home page.
-        showStatusBar(drawerOpen)
-        // A resume without a stop (a dialog or translucent activity on top) returns to an open
-        // drawer; the recents view deliberately stays without the keyboard.
-        if (drawerOpen && appDrawer.prompt.text?.toString() != RECENTS_PROMPT) appDrawer.showKeyboard()
+        pageTurn.resumed()
     }
 
     /** The page stays as it is — a dialog or the shade on top pauses without leaving; [onStop] turns it home. */
@@ -494,12 +204,12 @@ class MainActivity : Activity() {
         // (or the recents) would stay open under it, and re-sort in view on the next refresh.
         if (launchedApp) {
             launchedApp = false
-            closeDrawer(animate = false)
+            pageTurn.close(animate = false)
         }
         // A change still waiting to be collected is picked up by the next resume instead.
         // (View.removeCallbacks always answers true, so the flag says whether one waits.)
         if (refreshSoonPending) {
-            root.removeCallbacks(refreshSoon)
+            pageTurn.root.removeCallbacks(refreshSoon)
             refreshSoonPending = false
             appsDirty = true
         }
@@ -512,8 +222,8 @@ class MainActivity : Activity() {
      */
     private fun appsMaybeChanged() {
         if (resumed) {
-            root.removeCallbacks(refreshSoon)
-            root.postDelayed(refreshSoon, CHANGE_SETTLE_MS)
+            pageTurn.root.removeCallbacks(refreshSoon)
+            pageTurn.root.postDelayed(refreshSoon, CHANGE_SETTLE_MS)
             refreshSoonPending = true
         } else {
             appsDirty = true
@@ -533,9 +243,9 @@ class MainActivity : Activity() {
     /** Leaving the launcher turns the page home instantly, so a return lands on home, not a half-typed search. */
     override fun onStop() {
         started = false
-        // Also from the home page, where closeDrawer does nothing.
+        // Also from the home page, where closing the drawer does nothing.
         turnAway()
-        closeDrawer(animate = false)
+        pageTurn.close(animate = false)
         homePage.stopBattery()
         super.onStop()
     }
@@ -582,10 +292,10 @@ class MainActivity : Activity() {
 
     /** A hardware keyboard on home: typing (or Search) opens the drawer with that character in the prompt. */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (!drawerOpen) {
+        if (!pageTurn.isOpen) {
             val c = printable(event)
             if (c != null || keyCode == KeyEvent.KEYCODE_SEARCH) {
-                openDrawer()
+                pageTurn.open()
                 if (c != null) appDrawer.typeIntoPrompt(c)
                 return true
             }
@@ -599,7 +309,7 @@ class MainActivity : Activity() {
         setIntent(intent)  // keep getIntent() in sync with the latest launch intent
         // A dialog confirmed after HOME would apply an edit the user has visually left behind.
         turnAway()
-        closeDrawer()
+        pageTurn.close()
         homePage.scrollToTop()
     }
 
@@ -1174,19 +884,11 @@ class MainActivity : Activity() {
     }
 
     private companion object {
-        const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val REQ_RESTORE = 1
-        const val DRAWER_SLIDE_MS = 180L
-        const val HOME_FADE_MS = 200L
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
         /** How long a paused profile's "ready" toast stays expected after the tap. */
         const val PROFILE_WAIT_MS = 2 * 60 * 1000L
-        const val DRAG_SETTLE_MS = 220L
-        /** How far a back gesture's preview pulls the drawer down, as a fraction of the page. */
-        const val BACK_PREVIEW_FRACTION = 0.25f
-        const val BACK_PREVIEW_HOME_ALPHA = 0.5f
-        const val RECENTS_PROMPT = "?"
     }
 }
