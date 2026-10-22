@@ -1092,6 +1092,20 @@ class LauncherStateTest {
         state.refresh()
         runAll()
         assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        // The same list as last time, but home must show the seeds (audit 2026-10-22 (2), #1).
+        assertEquals("re-rendered", true, listChanges.last())
+    }
+
+    /** No candidate app installed: nothing to seed, and the wait ends (audit 2026-10-22 (2), #9). */
+    @Test fun `a fresh install with no candidate app ends the wait without seeding`() {
+        fresh = true
+        candidates = emptyList()
+        state.refresh()
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+        assertEquals(emptyList<String>(), written)
+        assertFalse(process.seedPending.get())
+        assertFalse("no recount on every resume", state.needsRefresh)
     }
 
     /** Audit 2026-10-22, #2: a recreation drops the hand-back, so adopt never ends the wait. */

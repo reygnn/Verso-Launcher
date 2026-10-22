@@ -140,11 +140,13 @@ internal class LauncherState(
                 val seedPermit = if (configLoaded && loaded != null && process.seedPending.get()) {
                     idle()?.let(::editPermit)
                 } else null
+                var seeded = false
                 if (seedPermit != null) {
                     process.seedPending.set(false)
                     if (seeds.isNotEmpty() && cfg.favorites.isEmpty()) {
                         cfg = cfg.copy(favorites = cfg.favorites + seeds)
                         mutated()
+                        seeded = true
                     }
                 }
                 val kept = process.usage
@@ -164,8 +166,9 @@ internal class LauncherState(
                     if (launched.isNotEmpty()) persistRecents()
                 }
                 lastLoadCommitted = enumeration?.complete == true
-                // Most refreshes bring the same list; AppEntry ==, status included, sees any change.
-                val changed = replaced || recentsChanged || (loaded != null && (!appsLoaded || loaded != enumerated))
+                // Most refreshes bring the same list; AppEntry ==, status included, sees any change. A
+                // seeding held back by a command lands with the same list: home must still show it.
+                val changed = replaced || seeded || recentsChanged || (loaded != null && (!appsLoaded || loaded != enumerated))
                 if (loaded != null) {
                     enumerated = loaded
                     appsLoaded = true
