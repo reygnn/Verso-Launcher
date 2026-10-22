@@ -29,6 +29,15 @@ moved bytes in Download/Verso — a torn file, to repair by hand if at all; only
 is kept. There is no `.bak`: a write is atomic, but a file that goes bad later has no second copy
 on the device — `~backup` is that copy.
 
+## Default favorites can still be missed in one corner
+
+On a fresh install Verso seeds the default favorites from the first app list it gets. If the
+very first enumeration brings no list at all (the system answered nothing for your own
+profile), it waits for the next one — also across a recreation such as `~restart` or a
+language change. The wait lives in memory: if the process itself ends before any list arrived
+*and* an edit (say `%`) had already written `verso.json`, the next start is no fresh install
+and the defaults are not seeded. Pick your favorites with `!` then.
+
 ## Private space is not reachable
 
 Apps are listed through `LauncherApps` across every profile the launcher is shown:

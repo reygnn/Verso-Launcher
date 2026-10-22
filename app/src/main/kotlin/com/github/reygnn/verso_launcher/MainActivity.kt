@@ -78,6 +78,7 @@ class MainActivity : Activity() {
             isFreshInstall = { store.isFresh() },
             startedOverFlag = app.startedOver,
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
+            seedPendingFlag = app.seedPending,
             initialRecents = app.recentKeys,
             initialRecentsLoaded = app.recentsLoaded,
             onRecentsChanged = { keys, loaded ->

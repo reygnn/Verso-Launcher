@@ -21,6 +21,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
  *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
  *   called by [adopt], always (true, true).
+ * @param seedPendingFlag a fresh install whose default favorites wait for an enumeration with a
+ *   list (hard rule 10). Process-wide, so the wait outlives a recreated instance; ended by the
+ *   seeding itself, [toggleFavorite] and [adopt]. While it is set the favorites are empty (a
+ *   fresh config has none, the first toggle ends it), so no other edit can touch them.
  */
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
@@ -35,6 +39,7 @@ internal class LauncherState(
     private val isFreshInstall: () -> Boolean = { false },
     private val startedOverFlag: AtomicBoolean = AtomicBoolean(),
     private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
+    private val seedPendingFlag: AtomicBoolean = AtomicBoolean(),
     initialRecents: List<String> = emptyList(),
     initialRecentsLoaded: Boolean = false,
     private val onRecentsChanged: (List<String>, Boolean) -> Unit = { _, _ -> },
@@ -99,6 +104,7 @@ internal class LauncherState(
         val loadConfigNow = !configLoaded
         val loadUsageNow = !usageLoaded
         val loadRecentsNow = !recentsLoaded
+        val seedStillPending = seedPendingFlag.get()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             val freshBefore = loadConfigNow && isFreshInstall()
@@ -112,7 +118,9 @@ internal class LauncherState(
             val diskRecents = if (loadRecentsNow) loadRecents() else null
             val enumeration = enumerateApps()
             val loaded = enumeration?.apps
-            val seeds = if (fresh && loaded != null) {
+            // From any enumeration with a list, complete or not: one that never completes (a
+            // profile that stays unreadable) must not starve the defaults.
+            val seeds = if ((fresh || seedStillPending) && loaded != null) {
                 LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
             } else emptyList()
             main(Runnable {
@@ -122,10 +130,14 @@ internal class LauncherState(
                     cfg = diskConfig
                     configLoaded = true
                     replaced = true
-                    if (seeds.isNotEmpty() && cfg.favorites.isEmpty()) {
-                        cfg.favorites.addAll(seeds)
-                        mutated()
-                    }
+                    if (fresh) seedPendingFlag.set(true)
+                }
+                // Still pending here means nothing touched the favorites since the request.
+                if (configLoaded && loaded != null && seedPendingFlag.getAndSet(false) &&
+                    seeds.isNotEmpty() && cfg.favorites.isEmpty()
+                ) {
+                    cfg.favorites.addAll(seeds)
+                    mutated()
                 }
                 if (diskUsage != null && !usageLoaded) {
                     val counted = usage
@@ -174,14 +186,21 @@ internal class LauncherState(
         }
     }
 
-    fun toggleHidden(idle: CommandGate.Idle, key: String) = toggleIn(idle, cfg.hidden, key)
+    fun toggleHidden(idle: CommandGate.Idle, key: String) {
+        toggleIn(idle, cfg.hidden, key)
+    }
 
-    fun toggleFavorite(idle: CommandGate.Idle, key: String) = toggleIn(idle, cfg.favorites, key)
+    /** The user's own favorites, even none after a toggle back: no default is seeded over them. */
+    fun toggleFavorite(idle: CommandGate.Idle, key: String) {
+        if (toggleIn(idle, cfg.favorites, key)) seedPendingFlag.set(false)
+    }
 
-    private fun toggleIn(idle: CommandGate.Idle, set: MutableSet<String>, key: String) {
-        if (!configLoaded || !idle.current) return
+    /** False, nothing changed, when refused. */
+    private fun toggleIn(idle: CommandGate.Idle, set: MutableSet<String>, key: String): Boolean {
+        if (!configLoaded || !idle.current) return false
         if (!set.remove(key)) set.add(key)
         mutated()
+        return true
     }
 
     /** An app left with no tags loses its key: the file drops empty lists, memory must match. */
@@ -302,6 +321,8 @@ internal class LauncherState(
     fun adopt(restored: VersoConfig): Boolean {
         if (!configLoaded) return false
         cfg = restored
+        // The restored favorites, or none, are the user's.
+        seedPendingFlag.set(false)
         relabel()
         onRefreshed(true, true)
         return true

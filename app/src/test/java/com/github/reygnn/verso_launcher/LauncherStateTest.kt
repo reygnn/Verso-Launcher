@@ -53,6 +53,8 @@ class LauncherStateTest {
     private var saveFailures = 0
     /** Process-wide like VersoApp's: it outlives a LauncherState. */
     private val startedOverFlag = java.util.concurrent.atomic.AtomicBoolean()
+    /** Process-wide like VersoApp's: a recreated instance still waits to seed. */
+    private val seedPendingFlag = java.util.concurrent.atomic.AtomicBoolean()
     private val listChanges = mutableListOf<Boolean>()
     /** Runs in onRefreshed: what the Activity sees when it re-renders. */
     private var onReport: () -> Unit = {}
@@ -84,6 +86,7 @@ class LauncherStateTest {
         isFreshInstall = { fresh },
         startedOverFlag = startedOverFlag,
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
+        seedPendingFlag = seedPendingFlag,
     )
 
     private var fresh = false
@@ -1032,6 +1035,94 @@ class LauncherStateTest {
         runAll()
         assertTrue(state.config.favorites.isEmpty())
         assertEquals(emptyList<String>(), written)
+    }
+
+    /** The first load counts as fresh only once; the wait carries the seeding to a later refresh. */
+    private fun freshStartWithoutAList() {
+        fresh = true
+        enumerationFails = true
+        state.refresh()
+        runAll()
+        fresh = false
+        enumerationFails = false
+    }
+
+    @Test fun `a first enumeration without a list leaves the seeding to the next one that has one`() {
+        freshStartWithoutAList()
+        state.refresh()
+        runAll()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(1, written.size)
+    }
+
+    @Test fun `an edit meanwhile does not end the wait`() {
+        freshStartWithoutAList()
+        state.toggleOrder(idle)
+        state.refresh()
+        runAll()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+    }
+
+    @Test fun `a favorite chosen meanwhile ends the wait, even one toggled off again`() {
+        freshStartWithoutAList()
+        state.toggleFavorite(idle, key("Bravo"))
+        state.toggleFavorite(idle, key("Bravo"))
+        state.refresh()
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+        assertEquals(0, candidatesCalls)
+    }
+
+    @Test fun `a restore meanwhile ends the wait`() {
+        freshStartWithoutAList()
+        assertTrue(state.adopt(VersoConfig(hidden = linkedSetOf(key("Bravo")))))
+        state.refresh()
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+    }
+
+    /** ~restart or a language change recreates the activity after an edit wrote verso.json. */
+    @Test fun `the wait outlives a recreated instance that finds verso json already there`() {
+        freshStartWithoutAList()
+        state.toggleOrder(idle)
+        disk = VersoConfig(byUsage = true)
+        val next = LauncherState(
+            io = { task -> ioQueue.addLast(task); true },
+            main = { task -> mainQueue.addLast(task) },
+            loadConfig = { disk.snapshot() },
+            enumerateApps = { Enumeration(installed, true) },
+            serialize = { "" },
+            writeConfig = { true },
+            onRefreshed = { _, _ -> },
+            isFreshInstall = { fresh },
+            defaultFavoriteCandidates = { candidates },
+            seedPendingFlag = seedPendingFlag,
+        )
+        next.refresh()
+        runAll()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), next.config.favorites.toList())
+        assertTrue("the file's own settings stay", next.config.byUsage)
+    }
+
+    /** An enumeration that never completes (a profile that stays unreadable) must not starve the defaults. */
+    @Test fun `an incomplete first enumeration still seeds`() {
+        fresh = true
+        enumerationComplete = false
+        state.refresh()
+        runAll()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+    }
+
+    @Test fun `an existing config whose first enumeration failed is not seeded later either`() {
+        fresh = false
+        enumerationFails = true
+        state.refresh()
+        runAll()
+        enumerationFails = false
+        state.refresh()
+        runAll()
+        assertTrue(state.config.favorites.isEmpty())
+        assertEquals(0, candidatesCalls)
     }
 
     // ---- AppEntry --------------------------------------------------------------

@@ -31,6 +31,10 @@ class VersoApp : Application() {
      *  hand-off lands first, so the toast is never lost. */
     internal val startedOver = java.util.concurrent.atomic.AtomicBoolean()
 
+    /** A fresh install still waiting for an enumeration with a list to seed the default favorites
+     *  from (hard rule 10). Main thread only; a holder so a recreated instance keeps waiting. */
+    internal val seedPending = java.util.concurrent.atomic.AtomicBoolean()
+
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 
     companion object {
