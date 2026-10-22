@@ -8,7 +8,7 @@
 
 "I admire its purity. A launcher unclouded by widgets, legacy code, or delusions of necessity. A structural perfection matched only by its efficiency."
 
-**Rating:** ★★★★★
+**Rating:** ★★★★☆
 
 **Pros:**
 - Structural perfection
