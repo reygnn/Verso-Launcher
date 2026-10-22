@@ -1,7 +1,8 @@
 # Ideas
 
 Not a plan — things seen and deliberately not built (yet). One line each, with where it came
-from. Under the feature freeze (see `CLAUDE.md`) only the bugs here are fair game.
+from. The feature freeze (see `CLAUDE.md`) holds back only the new user-facing features here;
+bugs and code improvements are fair game.
 
 ## Review round 4 (2026-10-17), left open on purpose
 

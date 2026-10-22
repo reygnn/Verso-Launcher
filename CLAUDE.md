@@ -36,9 +36,11 @@ profile and archived apps stay listed, dimmed (`AppStatus`), and a first tap bri
 them back; private space is not reachable (no `ACCESS_HIDDEN_PROFILES`). See
 `CAVEATS.md`.
 
-**Feature freeze since 0.2.12 (2026-10-18): bugfixes only.** No new feature, sigil, command
-or setting — not even a small one — unless the user lifts the freeze. A fix may change
-behaviour only to make it do what it already claims to do.
+**Feature freeze since 0.2.12 (2026-10-18), for user-facing additions only.** No new
+user-facing feature, sigil, command or setting — not even a small one — unless the user lifts
+the freeze. Bugfixes, code improvements (simplification, refactoring, performance) and tests
+are not frozen; they must not regress anything, and a change may alter behaviour only to make
+it do what it already claims to do.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,
