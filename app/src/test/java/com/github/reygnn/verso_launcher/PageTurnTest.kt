@@ -152,6 +152,16 @@ class PageTurnTest {
         assertEquals(height, drawer.view.translationY, 0.5f)
     }
 
+    /** Caught mid-close on the other side: it must not slide on from up there. */
+    @Test fun `the plain drawer opened while the recents still slide up comes from below`() {
+        openSettled("?", fromTop = true)
+        pageTurn.close()  // still sliding up
+        pageTurn.open()
+        assertEquals(height, drawer.view.translationY, 0.5f)
+        settle()
+        assertEquals(SwipeDir.DOWN, root.closeDirection())
+    }
+
     @Test fun `home has no way back to close`() {
         assertNull(root.closeDirection())
     }
@@ -250,6 +260,15 @@ class PageTurnTest {
         assertEquals(0, closed)
     }
 
+    /** The prompt is cleared only once the closing slide ends: a pull caught before must reset it. */
+    @Test fun `a pull down caught during the closing slide shows the recents`() {
+        openSettled()
+        drawer.setPrompt("al")
+        pageTurn.close()  // still sliding, the prompt still "al"
+        root.onDragStart(SwipeDir.DOWN)
+        assertEquals("?", prompt)
+    }
+
     // ---- Back --------------------------------------------------------------------------
 
     @Test fun `Back on home does nothing`() {
@@ -302,6 +321,29 @@ class PageTurnTest {
         assertFalse(pageTurn.isOpen)
         assertEquals(View.GONE, drawer.view.visibility)
         assertEquals(1, closed)
+    }
+
+    @Test fun `a Back that closes slides the drawer away`() {
+        openSettled()
+        pageTurn.backCallback.onBackStarted(back(0f))
+        pageTurn.backCallback.onBackInvoked()
+        assertFalse(pageTurn.isOpen)
+        assertEquals("still sliding", View.VISIBLE, drawer.view.visibility)
+        settle()
+        assertEquals(View.GONE, drawer.view.visibility)
+    }
+
+    /** HOME (onStop's close) during the preview, then the gesture cancelled: home stays home. */
+    @Test fun `a Back preview cancelled after the drawer was closed leaves home showing`() {
+        openSettled()
+        pageTurn.backCallback.onBackStarted(back(0f))
+        pageTurn.backCallback.onBackProgressed(back(0.5f))
+        pageTurn.close(animate = false)
+        pageTurn.backCallback.onBackCancelled()
+        settle()
+        assertFalse(pageTurn.isOpen)
+        assertEquals(1f, home.view.alpha, 0.01f)
+        assertEquals(View.GONE, drawer.view.visibility)
     }
 
     /** A hardware key typed during the gesture: Back clears the prompt instead, the preview is undone. */
