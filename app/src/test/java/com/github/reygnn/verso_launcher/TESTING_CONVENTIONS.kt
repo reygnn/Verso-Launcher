@@ -23,6 +23,8 @@ package com.github.reygnn.verso_launcher
  *
  *   LauncherState(io, main, loadConfig, setAsideUnreadable, enumerateApps,
  *                 serialize, writeConfig, onSaveFailed, onRefreshed, …)
+ *     — built in tests through testLauncherState (TestLauncherState.kt): the
+ *       production constructor has no defaults, the factory supplies inert ones
  *   ConfigStore(dir, log, syncDir, rename, readText)  // rename/readText: force a failure
  *   BackupStore(resolver, subDir, log, beforePublish, now, owner)
  *

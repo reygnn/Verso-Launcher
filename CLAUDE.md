@@ -235,9 +235,8 @@ thread.
     with a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take
     an `EditPermit`, made only from a `CommandGate.Idle` and void once a run has started
     since, so an edit path without the check does not compile — a save queued behind a
-    restore's IO step would write the old config back
-    over it. Nothing else is held back — no layer, no cancel; launching, typing and page
-    turns go on. A run ends with its last step, never by a "done" call: every step holds
+    restore's IO step would write the old config back over it. Nothing else is held back —
+    no layer, no cancel; launching, typing and page turns go on. A run ends with its last step, never by a "done" call: every step holds
     it and releases it on every path (`CommandGate.io` catches what its work throws;
     `LauncherState.cleanup` reports from a `finally`). No run spans another activity or a
     dialog waiting on the user: the `~restore-saf` file is read before a run starts, only

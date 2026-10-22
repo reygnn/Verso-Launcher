@@ -21,6 +21,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
  *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
  *   called by [adopt], always (true, true).
+ * Every collaborator is passed, none defaulted: a wire MainActivity forgot would otherwise be
+ * a silent no-op. Tests build it through testLauncherState, which supplies inert ones.
+ *
  * @param seedPendingFlag a fresh install whose default favorites wait for an enumeration with a
  *   list (hard rule 10). Process-wide, so the wait outlives a recreated instance; ended by the
  *   seeding itself, [toggleFavorite] and [adopt]. While it is set the favorites are empty (a
@@ -30,27 +33,27 @@ internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
     private val loadConfig: () -> VersoConfig?,
-    private val setAsideUnreadable: () -> Boolean = { false },
+    private val setAsideUnreadable: () -> Boolean,
     private val enumerateApps: () -> Enumeration?,
     private val serialize: (VersoConfig) -> String,
     private val writeConfig: (String) -> Boolean,
-    private val onSaveFailed: () -> Unit = {},
+    private val onSaveFailed: () -> Unit,
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
-    private val isFreshInstall: () -> Boolean = { false },
-    private val startedOverFlag: AtomicBoolean = AtomicBoolean(),
-    private val defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
-    private val seedPendingFlag: AtomicBoolean = AtomicBoolean(),
-    initialRecents: List<String> = emptyList(),
-    initialRecentsLoaded: Boolean = false,
-    private val onRecentsChanged: (List<String>, Boolean) -> Unit = { _, _ -> },
-    private val loadRecents: () -> List<String>? = { emptyList() },
-    private val writeRecents: (List<String>) -> Unit = {},
-    private val loadUsage: () -> Map<String, Usage>? = { emptyMap() },
-    private val writeUsage: (Map<String, Usage>, Long) -> Unit = { _, _ -> },
-    private val now: () -> Long = System::currentTimeMillis,
-    initialUsage: Map<String, Usage> = emptyMap(),
-    initialUsageLoaded: Boolean = false,
-    private val onUsageChanged: (Map<String, Usage>, Boolean) -> Unit = { _, _ -> },
+    private val isFreshInstall: () -> Boolean,
+    private val startedOverFlag: AtomicBoolean,
+    private val defaultFavoriteCandidates: () -> List<List<String>>,
+    private val seedPendingFlag: AtomicBoolean,
+    initialRecents: List<String>,
+    initialRecentsLoaded: Boolean,
+    private val onRecentsChanged: (List<String>, Boolean) -> Unit,
+    private val loadRecents: () -> List<String>?,
+    private val writeRecents: (List<String>) -> Unit,
+    private val loadUsage: () -> Map<String, Usage>?,
+    private val writeUsage: (Map<String, Usage>, Long) -> Unit,
+    private val now: () -> Long,
+    initialUsage: Map<String, Usage>,
+    initialUsageLoaded: Boolean,
+    private val onUsageChanged: (Map<String, Usage>, Boolean) -> Unit,
 ) {
     /** Read-only from outside: every change goes through this class (and its save). */
     val config: ConfigView get() = cfg

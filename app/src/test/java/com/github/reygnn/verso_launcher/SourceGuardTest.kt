@@ -35,6 +35,14 @@ class SourceGuardTest {
         assertEquals(emptyList<String>(), offenders)
     }
 
+    /** A default would turn a wire MainActivity forgot into a silent no-op; tests use testLauncherState. */
+    @Test fun `LauncherState's constructor defaults nothing`() {
+        val state = source("src/main/kotlin/com/github/reygnn/verso_launcher/LauncherState.kt")
+        val params = state.substringAfter("internal class LauncherState(").substringBefore("\n) {")
+        assertTrue("constructor not found", params.contains("private val io:"))
+        assertEquals(emptyList<String>(), params.lines().filter { " = " in it.substringBefore("//") })
+    }
+
     // Rule 13.
     @Test fun `density stays out of configChanges`() {
 

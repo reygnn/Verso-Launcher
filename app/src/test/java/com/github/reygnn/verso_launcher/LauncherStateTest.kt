@@ -59,7 +59,7 @@ class LauncherStateTest {
     /** Runs in onRefreshed: what the Activity sees when it re-renders. */
     private var onReport: () -> Unit = {}
 
-    private val state = LauncherState(
+    private val state = testLauncherState(
         io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
         main = { task -> mainQueue.addLast(task) },
         // A copy: otherwise a test could pass only because a mutation also "changed the disk".
@@ -127,7 +127,7 @@ class LauncherStateTest {
         loadUsage: () -> Map<String, Usage>? = { emptyMap() },
         writeUsage: (Map<String, Usage>) -> Unit = {},
         onUsageChanged: (Map<String, Usage>, Boolean) -> Unit = { _, _ -> },
-    ) = LauncherState(
+    ) = testLauncherState(
         io = { q.io.addLast(it); true }, main = { q.main.addLast(it) },
         loadConfig = { VersoConfig() }, enumerateApps = { Enumeration(emptyList(), true) },
         serialize = { "" }, writeConfig = { true }, onRefreshed = { _, changed -> listChanged += changed },
@@ -261,7 +261,7 @@ class LauncherStateTest {
         runIo()
         mainQueue.clear()       // onUi drops the hand-off for the destroyed instance
         assertFalse("not loaded: not yet", state.takeStartedOver())
-        val next = LauncherState(
+        val next = testLauncherState(
             io = { task -> ioQueue.addLast(task); true },
             main = { task -> mainQueue.addLast(task) },
             loadConfig = { disk.snapshot() },
@@ -1091,7 +1091,7 @@ class LauncherStateTest {
         freshStartWithoutAList()
         state.toggleOrder(permit)
         disk = VersoConfig(byUsage = true)
-        val next = LauncherState(
+        val next = testLauncherState(
             io = { task -> ioQueue.addLast(task); true },
             main = { task -> mainQueue.addLast(task) },
             loadConfig = { disk.snapshot() },

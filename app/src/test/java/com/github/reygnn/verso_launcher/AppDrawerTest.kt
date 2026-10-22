@@ -20,7 +20,7 @@ class AppDrawerTest {
     private fun app(label: String) = AppEntry.of(label, "com.${label.lowercase()}", "com.${label.lowercase()}.Main", label)
     private val installed = listOf(app("Alpha"), app("Bravo"), app("Charlie"))
 
-    private val state = LauncherState(
+    private val state = testLauncherState(
         io = { task -> task.run(); true },
         main = { task -> task.run() },
         loadConfig = { VersoConfig(favorites = linkedSetOf(installed[1].key)) },

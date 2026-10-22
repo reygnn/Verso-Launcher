@@ -26,7 +26,7 @@ class PageTurnTest {
 
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
 
-    private val state = LauncherState(
+    private val state = testLauncherState(
         io = { task -> task.run(); true },
         main = { task -> task.run() },
         loadConfig = { VersoConfig() },

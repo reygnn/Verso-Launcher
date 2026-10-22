@@ -185,7 +185,7 @@ class CrashPointsTest {
             val store = storeIn(dir, reaper)
             val ioQueue = ArrayDeque<Runnable>()
             val mainQueue = ArrayDeque<Runnable>()
-            val state = LauncherState(
+            val state = testLauncherState(
                 io = { ioQueue.addLast(it); true },
                 main = { mainQueue.addLast(it) },
                 loadConfig = { store.load() },

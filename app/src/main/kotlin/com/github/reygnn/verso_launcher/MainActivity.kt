@@ -89,6 +89,7 @@ class MainActivity : Activity() {
             writeRecents = { keys -> RecentsLog.write(filesDir, keys) },
             loadUsage = { UsageLog.read(filesDir) },
             writeUsage = { log, now -> UsageLog.write(filesDir, log, now) },
+            now = System::currentTimeMillis,
             initialUsage = app.usage,
             initialUsageLoaded = app.usageLoaded,
             onUsageChanged = { log, loaded ->

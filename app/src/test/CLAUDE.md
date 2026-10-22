@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 577 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 578 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -93,8 +93,9 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest              3  source scans: no lenient ConfigJson.parse in MainActivity,
-                                no brace-less object templates, no density in configChanges
+SourceGuardTest              4  source scans: no lenient ConfigJson.parse in MainActivity,
+                                no brace-less object templates, no density in configChanges,
+                                no default in LauncherState's constructor
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
@@ -142,7 +143,9 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
    - Pure decision logic: `LauncherLogicTest` (the shared `OrderedFake`).
    - Anything that sets the default locale: hold a `DefaultLocaleRule`.
    - Reaching a widget built in code: `collect<T>()` from `ViewTrees.kt`.
-   - Threading / state rules: `LauncherStateTest` (the queue harness at the top).
+   - Threading / state rules: `LauncherStateTest` (the queue harness at the top);
+     build a `LauncherState` with `testLauncherState` (`TestLauncherState.kt`), which
+     supplies the inert collaborators the production constructor deliberately does not.
    - File I/O: `ConfigStoreTest` (`TemporaryFolder`, injected `rename` seam).
    - A real widget: `RenameDialogFilterTest` / `HomePageAccessibilityTest`.
    - MediaStore / Android-only library behaviour: `androidTest/…InstrumentedTest`.
