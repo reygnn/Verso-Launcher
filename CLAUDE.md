@@ -71,6 +71,10 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   stub), Robolectric where a real widget is needed, **no MockK / no mocks** (fakes
   and manual queues). An `androidTest` set (androidx.test, test APK only) covers
   MediaStore and Android's own `org.json`.
+- **Warnings are errors** — Kotlin (`allWarningsAsErrors`, main and test) and lint
+  (`warningsAsErrors`). A deliberate warning gets a `@Suppress` at the narrowest scope with
+  its reason; `app/lint-baseline.xml` holds only the lint debt found at switch-on and only
+  ever shrinks.
 - **Debug build** has `applicationIdSuffix = ".debug"`, so `connectedAndroidTest`
   installs beside the family-signed release on the device.
 

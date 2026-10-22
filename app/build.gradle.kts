@@ -91,6 +91,15 @@ android {
         }
     }
 
+    // Lint findings fail the build like compiler warnings. What was there when this was switched
+    // on is recorded in lint-baseline.xml (create it once: ./gradlew updateLintBaseline); that
+    // file only ever shrinks — a new finding is fixed, not added to it.
+    lint {
+        warningsAsErrors = true
+        abortOnError = true
+        baseline = file("lint-baseline.xml")
+    }
+
     // Every buildFeature stays OFF (BuildConfig, Compose, viewBinding, …).
     // Verso Launcher has no generated code and no resource-backed binding.
 }
