@@ -160,6 +160,7 @@ class ConfigStoreTest {
         assertEquals(listOf("{ torn"), exported)
         assertEquals(emptyList<String>(), files())
         assertTrue(store.isFresh())
+        assertEquals("the removal survives power loss", 1, dirSyncs)
     }
 
     @Test
@@ -168,6 +169,7 @@ class ConfigStoreTest {
         assertTrue(store.setAsideUnreadable { false })
         assertEquals("{ torn", setAside.readText())
         assertFalse(primary.exists())
+        assertEquals("the rename survives power loss", 1, dirSyncs)
     }
 
     @Test

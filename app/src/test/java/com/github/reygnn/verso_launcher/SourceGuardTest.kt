@@ -49,12 +49,21 @@ class SourceGuardTest {
      */
     @Test fun `an EditPermit is built only by LauncherState's editPermit`() {
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
-        val built = Regex("""\bEditPermit\s*\(""")
+        // A call (also split over lines) or a constructor reference (LauncherState::EditPermit).
+        val built = Regex("""\bEditPermit\s*\(|::\s*EditPermit\b""")
         val sites = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
-            f.readLines().mapIndexedNotNull { i, line -> "${f.name}:${i + 1}".takeIf { built.containsMatchIn(line) } }
+            built.findAll(f.readText()).map { f.name }
         }.toList()
-        assertEquals(1, sites.size)
-        assertTrue(sites.single(), sites.single().startsWith("LauncherState.kt:"))
+        assertEquals(listOf("LauncherState.kt"), sites)
+    }
+
+    /** What no JVM test reaches: the Activity's wiring of two rules into LauncherState. */
+    @Test fun `MainActivity wires the restore write and the command gate into LauncherState`() {
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        // Hard rule 10: a restore's write ends the wait to seed, even with its hand-back lost.
+        assertTrue(activity.contains("writeConfig = state::writeRestored"))
+        // Hard rules 10 and 15: the seeding takes a permit from the real gate.
+        assertTrue(activity.contains("idle = { gate.idle() }"))
     }
 
     // Rule 13.

@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 588 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 589 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -100,10 +100,11 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest              5  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              6  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no brace-less object templates, no density in configChanges,
                                 no default in LauncherState's constructor, no EditPermit built
-                                outside LauncherState
+                                outside LauncherState (call or reference), MainActivity's
+                                writeRestored and gate wiring
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
