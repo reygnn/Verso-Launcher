@@ -53,7 +53,7 @@ class HomePageAccessibilityTest {
         assertEquals(AlarmClock.ACTION_SHOW_ALARMS, shadowOf(activity).nextStartedActivity?.action)
     }
 
-    @Test fun `the page offers "open all apps" as an accessibility action, and it works`() {
+    @Test fun `the page offers 'open all apps' as an accessibility action, and it works`() {
         val info = AccessibilityNodeInfo()
         page.view.onInitializeAccessibilityNodeInfo(info)
         val action = info.actionList.single { it.id == R.id.action_open_drawer }

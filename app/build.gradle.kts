@@ -63,6 +63,9 @@ android {
         jvmToolchain(21)
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+            // A warning is a finding, not noise: main and test sources alike. A deliberate one
+            // gets a @Suppress at the narrowest scope, with the reason beside it.
+            allWarningsAsErrors.set(true)
         }
     }
 
