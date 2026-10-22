@@ -559,21 +559,24 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Not before the config is loaded (hard rule 5); the toast says why. */
+    /** No "~" command but ~restart before the config is loaded (hard rule 5); the toast says why. */
     private fun editable(): Boolean {
         if (state.configLoaded) return true
         toast(getString(R.string.toast_not_loaded))
         return false
     }
 
-    /** Not while a "~" command runs (hard rule 15), and only once the config is loaded. */
-    private fun editPermit(): CommandGate.Idle? {
+    /** Not while a "~" command runs (hard rule 15), nor before the config is loaded (hard rule 5); a toast says which. */
+    private fun editPermit(): LauncherState.EditPermit? {
         val idle = gate.idle()
         if (idle == null) {
             toast(getString(R.string.toast_busy))
             return null
         }
-        return idle.takeIf { editable() }
+        return state.editPermit(idle) ?: run {
+            toast(getString(R.string.toast_not_loaded))
+            null
+        }
     }
 
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
@@ -643,8 +646,8 @@ class MainActivity : Activity() {
 
     private fun toggleTagOn(key: String) {
         val tag = appDrawer.tagEditTag ?: return
-        val idle = editPermit() ?: return
-        state.toggleTag(idle, key, tag)
+        val permit = editPermit() ?: return
+        state.toggleTag(permit, key, tag)
         appDrawer.notifyChanged()
     }
 
@@ -663,9 +666,9 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun moveFavorite(idle: CommandGate.Idle, pickedKey: String, targetKey: String) {
+    private fun moveFavorite(permit: LauncherState.EditPermit, pickedKey: String, targetKey: String) {
         appDrawer.reorderPick = null
-        state.moveFavorite(idle, pickedKey, targetKey)
+        state.moveFavorite(permit, pickedKey, targetKey)
         appDrawer.refilter()  // re-render in the (new) order
     }
 
@@ -687,8 +690,8 @@ class MainActivity : Activity() {
             onAppInfo = { openAppInfo(entry) },
         ) { name, tags ->
             // A run may have started while the dialog was up (a ~restore-saf read ending).
-            val idle = editPermit() ?: return@show
-            state.rename(idle, key, entry.systemLabel, name, tags)
+            val permit = editPermit() ?: return@show
+            state.rename(permit, key, entry.systemLabel, name, tags)
             appDrawer.refilter()
         }
         renameDialog = dialog

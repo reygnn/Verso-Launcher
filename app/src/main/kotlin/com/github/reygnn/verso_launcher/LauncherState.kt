@@ -10,8 +10,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * results come back through [main]. The IO side reads only the @Volatile counters:
  *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
  *   saveSeq        — bumped by [save]: a newer queued save carries this state, an older one skips.
- * Nothing changes the config before it is loaded (every edit, [adopt] and [cleanup] refuse), so a
- * first load lands as read.
+ * Nothing changes the config before it is loaded (no [EditPermit] is issued, [adopt] and [cleanup]
+ * refuse), so a first load lands as read.
  * An enumeration carries no config (system labels only); custom names are applied on main from
  * the live config ([relabel]), so no edit can make an enumeration stale.
  *
@@ -89,6 +89,18 @@ internal class LauncherState(
         private set
 
     fun takeStartedOver(): Boolean = configLoaded && startedOverFlag.getAndSet(false)
+
+    /**
+     * Proof an edit may run: the config was loaded when it was issued (hard rule 5; it never
+     * unloads) and no "~" command runs (hard rule 15) — [current] is false once one has started
+     * since. Every edit takes one, so an edit path that skips either check does not compile.
+     */
+    class EditPermit internal constructor(private val idle: CommandGate.Idle) {
+        val current: Boolean get() = idle.current
+    }
+
+    /** Null before the config is loaded: an edit then would land on the empty default. */
+    fun editPermit(idle: CommandGate.Idle): EditPermit? = if (configLoaded) EditPermit(idle) else null
 
     @Volatile private var loadGeneration = 0
     @Volatile private var saveSeq = 0
@@ -186,34 +198,34 @@ internal class LauncherState(
         }
     }
 
-    fun toggleHidden(idle: CommandGate.Idle, key: String) {
-        toggleIn(idle, cfg.hidden, key)
+    fun toggleHidden(permit: EditPermit, key: String) {
+        toggleIn(permit, cfg.hidden, key)
     }
 
     /** The user's own favorites, even none after a toggle back: no default is seeded over them. */
-    fun toggleFavorite(idle: CommandGate.Idle, key: String) {
-        if (toggleIn(idle, cfg.favorites, key)) seedPendingFlag.set(false)
+    fun toggleFavorite(permit: EditPermit, key: String) {
+        if (toggleIn(permit, cfg.favorites, key)) seedPendingFlag.set(false)
     }
 
     /** False, nothing changed, when refused. */
-    private fun toggleIn(idle: CommandGate.Idle, set: MutableSet<String>, key: String): Boolean {
-        if (!configLoaded || !idle.current) return false
+    private fun toggleIn(permit: EditPermit, set: MutableSet<String>, key: String): Boolean {
+        if (!permit.current) return false
         if (!set.remove(key)) set.add(key)
         mutated()
         return true
     }
 
     /** An app left with no tags loses its key: the file drops empty lists, memory must match. */
-    fun toggleTag(idle: CommandGate.Idle, key: String, tag: String) {
-        if (!configLoaded || !idle.current) return
+    fun toggleTag(permit: EditPermit, key: String, tag: String) {
+        if (!permit.current) return
         val next = LauncherLogic.toggleTag(cfg.tags[key], tag)
         if (next.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = next.toMutableList()
         mutated()
     }
 
     /** False, nothing saved, when the move is impossible or a no-op. */
-    fun moveFavorite(idle: CommandGate.Idle, pickedKey: String, targetKey: String): Boolean {
-        if (!configLoaded || !idle.current) return false
+    fun moveFavorite(permit: EditPermit, pickedKey: String, targetKey: String): Boolean {
+        if (!permit.current) return false
         val newOrder = LauncherLogic.reorder(cfg.favorites.toList(), pickedKey, targetKey)
             ?: return false
         cfg.favorites.clear()
@@ -223,8 +235,8 @@ internal class LauncherState(
     }
 
     /** A blank name, or one equal to [systemLabel], clears the override; [tags] arrive canonical. */
-    fun rename(idle: CommandGate.Idle, key: String, systemLabel: String, name: String, tags: List<String>) {
-        if (!configLoaded || !idle.current) return
+    fun rename(permit: EditPermit, key: String, systemLabel: String, name: String, tags: List<String>) {
+        if (!permit.current) return
         val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), systemLabel)
         if (override == null) cfg.names.remove(key) else cfg.names[key] = override
         if (tags.isEmpty()) cfg.tags.remove(key) else cfg.tags[key] = tags.toMutableList()
@@ -232,9 +244,10 @@ internal class LauncherState(
         relabel()
     }
 
-    /** Drop every entry (favorite, hidden, name, tags) for [keys] in one save. */
+    /** Drop every entry (favorite, hidden, name, tags) for [keys] in one save. Only behind an
+     *  accepted [cleanup], which refuses before the load. */
     private fun forget(keys: Set<String>) {
-        if (!configLoaded || keys.isEmpty()) return
+        if (keys.isEmpty()) return
         cfg.favorites.removeAll(keys)
         cfg.hidden.removeAll(keys)
         cfg.names.keys.removeAll(keys)
@@ -309,8 +322,8 @@ internal class LauncherState(
     }
 
     /** "%": the plain drawer by usage, or back to A to Z. Null, nothing saved, when refused. */
-    fun toggleOrder(idle: CommandGate.Idle): Boolean? {
-        if (!configLoaded || !idle.current) return null
+    fun toggleOrder(permit: EditPermit): Boolean? {
+        if (!permit.current) return null
         cfg.byUsage = !cfg.byUsage
         mutated()
         return cfg.byUsage

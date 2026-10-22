@@ -169,10 +169,12 @@ thread.
    real.
 5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
    empty default must never be written over the real file or a backup. `LauncherState`
-   refuses edits and saves until then; the Activity says why (`editable()`). Backups and
-   undo points come from memory only (`loadedSnapshot`). If the files cannot even be set
-   aside, the config stays not loaded and every resume tries again. Home is drawn and its
-   cache written only from a loaded config.
+   issues no `EditPermit` (every edit takes one, so an edit path without the check does not
+   compile) and refuses saves until then; the Activity says why (`editPermit()`,
+   `editable()` for the commands). Backups and undo points come from memory only
+   (`loadedSnapshot`). If the files cannot even be set aside, the config stays not loaded
+   and every resume tries again. Home is drawn and its cache written only from a loaded
+   config.
 6. **Backups: never delete the old one before the new one is published.** MediaStore owns
    the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
    recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed name.
@@ -231,8 +233,9 @@ thread.
     cleanup.
 15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused
     with a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take
-    a `CommandGate.Idle` permit (`editPermit`), so an edit path without the check does not
-    compile — a save queued behind a restore's IO step would write the old config back
+    an `EditPermit`, made only from a `CommandGate.Idle` and void once a run has started
+    since, so an edit path without the check does not compile — a save queued behind a
+    restore's IO step would write the old config back
     over it. Nothing else is held back — no layer, no cancel; launching, typing and page
     turns go on. A run ends with its last step, never by a "done" call: every step holds
     it and releases it on every path (`CommandGate.io` catches what its work throws;

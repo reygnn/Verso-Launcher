@@ -13,20 +13,21 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 576 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 577 tests):
 
 ```
 LauncherLogicTest          150  modes, commands, search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           85  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           86  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an
                                 incomplete list; a first load without a list waits — past
                                 an edit and a recreation, ended by a favorite or a restore),
-                                save-before-load, a failed save reported, needsRefresh
+                                save-before-load, no edit permit before the load nor
+                                past a command, a failed save reported, needsRefresh
                                 (also after an incomplete enumeration, which a complete one
                                 then fills in),
                                 recents (recents.txt read once, never written over
@@ -123,7 +124,7 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
   `LauncherLogic` / `LauncherState`. `MainActivityFlowsTest` covers only flows that need
   no LauncherApps or MediaStore fake (Robolectric models both too thinly to test anything
   but the fake). The rest is checked on a device; rules an edit could silently break are
-  types where possible (the gate's `Ticket` and `Idle` permit), `SourceGuardTest` scans
+  types where possible (the gate's `Ticket`, the `EditPermit`), `SourceGuardTest` scans
   only what neither a type nor a test reaches.
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the

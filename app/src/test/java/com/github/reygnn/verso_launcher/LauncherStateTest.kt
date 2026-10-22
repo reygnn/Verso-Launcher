@@ -49,7 +49,7 @@ class LauncherStateTest {
     private val refreshed = mutableListOf<Boolean>()
     /** An edit permit, as MainActivity takes one from its gate before every edit. */
     private val gate = CommandGate()
-    private val idle get() = gate.idle()!!
+    private val permit get() = state.editPermit(gate.idle()!!)!!
     private var saveFailures = 0
     /** Process-wide like VersoApp's: it outlives a LauncherState. */
     private val startedOverFlag = java.util.concurrent.atomic.AtomicBoolean()
@@ -225,11 +225,7 @@ class LauncherStateTest {
         assertTrue(state.appsLoaded)
         assertTrue(state.needsRefresh)
         assertNull(state.loadedSnapshot())
-        state.toggleFavorite(idle, key("Alpha"))
-        state.toggleHidden(idle, key("Bravo"))
-        state.toggleTag(idle, key("Alpha"), "work")
-        state.rename(idle, key("Alpha"), "Alpha", "Mine", emptyList())
-        assertFalse(state.moveFavorite(idle, key("Alpha"), key("Bravo")))
+        assertNull("no edit", state.editPermit(gate.idle()!!))
         state.save()
         runAll()
         assertTrue(written.isEmpty())
@@ -293,7 +289,7 @@ class LauncherStateTest {
         assertNull("not before the first load", state.loadedSnapshot())
         started()
         val snap = state.loadedSnapshot()!!
-        state.toggleFavorite(idle, key("Bravo"))
+        state.toggleFavorite(permit, key("Bravo"))
         assertEquals(setOf(key("Alpha")), snap.favorites)
     }
 
@@ -381,7 +377,7 @@ class LauncherStateTest {
         installed = installed + app("Delta")
         state.refresh()
         runIo()
-        state.toggleHidden(idle, key("Alpha"))
+        state.toggleHidden(permit, key("Alpha"))
         runAll()
         assertTrue("Delta" in labels())
     }
@@ -393,7 +389,7 @@ class LauncherStateTest {
         installed = installed + app("Delta")
         state.refresh()
         runIo()                                            // enumerated before the rename
-        state.rename(idle, key("Alpha"), "Alpha", "Zulu", emptyList())
+        state.rename(permit, key("Alpha"), "Alpha", "Zulu", emptyList())
         runAll()
         assertEquals(listOf("Bravo", "Charlie", "Delta", "Zulu"), labels())
         assertFalse(state.needsRefresh)
@@ -402,7 +398,7 @@ class LauncherStateTest {
     @Test fun `rename relabels and re-sorts in memory without re-enumerating`() {
         started()
         val before = enumerations
-        state.rename(idle, key("Alpha"), "Alpha", "Zulu", listOf("work"))
+        state.rename(permit, key("Alpha"), "Alpha", "Zulu", listOf("work"))
         assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
         assertEquals("Zulu", state.config.names[key("Alpha")])
         assertEquals(listOf("work"), state.config.tags[key("Alpha")])
@@ -412,7 +408,7 @@ class LauncherStateTest {
     @Test fun `a rename re-sorts in the device language's alphabet`() {
         java.util.Locale.setDefault(java.util.Locale.GERMANY)
         started()
-        state.rename(idle, key("Charlie"), "Charlie", "Ärzte", emptyList())
+        state.rename(permit, key("Charlie"), "Charlie", "Ärzte", emptyList())
         assertEquals(listOf("Alpha", "Ärzte", "Bravo"), labels())
     }
 
@@ -420,7 +416,7 @@ class LauncherStateTest {
         // Swedish files Ä after Z; German alone could not tell a locale-blind sort apart.
         java.util.Locale.setDefault(java.util.Locale.of("sv", "SE"))
         started()
-        state.rename(idle, key("Alpha"), "Alpha", "Ärzte", emptyList())
+        state.rename(permit, key("Alpha"), "Alpha", "Ärzte", emptyList())
         assertEquals(listOf("Bravo", "Charlie", "Ärzte"), labels())
     }
 
@@ -534,7 +530,7 @@ class LauncherStateTest {
         startedWithOrphan()
         cleanup()
         runIo()
-        mainQueue.addFirst(Runnable { state.toggleFavorite(idle, key("Bravo")) })
+        mainQueue.addFirst(Runnable { state.toggleFavorite(permit, key("Bravo")) })
         runAll()
         assertEquals(setOf(key("Alpha"), key("Bravo")), state.config.favorites)
         assertTrue(cleanupLog.last().startsWith("done:Done"))
@@ -559,22 +555,22 @@ class LauncherStateTest {
 
     @Test fun `a rename stores the name cleaned, whoever commits it`() {
         started()
-        state.rename(idle, key("Alpha"), "Alpha", " Zu\u202Elu\u200B ", emptyList())
+        state.rename(permit, key("Alpha"), "Alpha", " Zu\u202Elu\u200B ", emptyList())
         assertEquals("Zulu", state.config.names[key("Alpha")])
     }
 
     @Test fun `renaming back to the system label clears the override`() {
         started()
-        state.rename(idle, key("Alpha"), "Alpha", "Zulu", emptyList())
-        state.rename(idle, key("Alpha"), "Alpha", "Alpha", emptyList())
+        state.rename(permit, key("Alpha"), "Alpha", "Zulu", emptyList())
+        state.rename(permit, key("Alpha"), "Alpha", "Alpha", emptyList())
         assertNull(state.config.names[key("Alpha")])
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
     }
 
     @Test fun `a rename with no tags removes the tag key`() {
         started()
-        state.rename(idle, key("Alpha"), "Alpha", "", listOf("work"))
-        state.rename(idle, key("Alpha"), "Alpha", "", emptyList())
+        state.rename(permit, key("Alpha"), "Alpha", "", listOf("work"))
+        state.rename(permit, key("Alpha"), "Alpha", "", emptyList())
         assertFalse(key("Alpha") in state.config.tags)
     }
 
@@ -646,7 +642,7 @@ class LauncherStateTest {
         started()
         state.refresh()
         runIo()
-        state.rename(idle, key("Alpha"), "Alpha", "", emptyList())   // blank: back to the app's own
+        state.rename(permit, key("Alpha"), "Alpha", "", emptyList())   // blank: back to the app's own
         runAll()
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
     }
@@ -667,11 +663,12 @@ class LauncherStateTest {
         assertEquals("before any refresh lands", listOf("Bravo", "Charlie", "Zulu"), labels())
     }
 
-    @Test fun `a rename before the config is loaded is ignored and the first load still lands`() {
+    /** Home can show cached favorites before the load lands; a long-press there gets no permit. */
+    @Test fun `no edit permit until the first load has landed, and it lands as read`() {
         disk = VersoConfig().apply { names[key("Bravo")] = "Mine" }
         state.refresh()
         runIo()
-        state.rename(idle, key("Alpha"), "Alpha", "Zulu", listOf("work"))  // a cached favorite
+        assertNull(state.editPermit(gate.idle()!!))
         runAll()
         assertTrue(state.configLoaded)
         assertTrue(state.appsLoaded)
@@ -680,13 +677,23 @@ class LauncherStateTest {
         assertEquals(emptyList<String>(), written)
     }
 
+    @Test fun `a permit from before a command is void even once it ended, a fresh one edits`() {
+        started()
+        val before = permit
+        gate.start { }
+        state.toggleFavorite(before, key("Alpha"))
+        assertTrue(state.config.favorites.isEmpty())
+        state.toggleFavorite(permit, key("Alpha"))
+        assertEquals(setOf(key("Alpha")), state.config.favorites)
+    }
+
     // ---- saving ---------------------------------------------------------------
 
     @Test fun `every mutation saves a snapshot taken at the moment of the change`() {
         started()
-        state.toggleFavorite(idle, key("Alpha"))
+        state.toggleFavorite(permit, key("Alpha"))
         runAll()
-        state.toggleFavorite(idle, key("Bravo"))
+        state.toggleFavorite(permit, key("Bravo"))
         runAll()
         assertEquals(
             listOf(
@@ -699,9 +706,9 @@ class LauncherStateTest {
 
     @Test fun `saves queued faster than they are written collapse to the newest`() {
         started()
-        state.toggleFavorite(idle, key("Alpha"))
-        state.toggleFavorite(idle, key("Bravo"))
-        state.toggleFavorite(idle, key("Charlie"))
+        state.toggleFavorite(permit, key("Alpha"))
+        state.toggleFavorite(permit, key("Bravo"))
+        state.toggleFavorite(permit, key("Charlie"))
         runAll()
         // Only the last payload hits the disk — and it carries all three changes.
         assertEquals(listOf("fav=${key("Alpha")},${key("Bravo")},${key("Charlie")};hid=;names=;tags="), written)
@@ -719,13 +726,13 @@ class LauncherStateTest {
 
     @Test fun `every failed save is reported, a working one is not`() {
         started()
-        state.toggleFavorite(idle, key("Alpha"))
+        state.toggleFavorite(permit, key("Alpha"))
         runAll()
         assertEquals(0, saveFailures)
         writeSucceeds = false
-        state.toggleFavorite(idle, key("Bravo"))
+        state.toggleFavorite(permit, key("Bravo"))
         runAll()
-        state.toggleFavorite(idle, key("Charlie"))
+        state.toggleFavorite(permit, key("Charlie"))
         runAll()
         assertEquals("each one", 2, saveFailures)
     }
@@ -733,8 +740,8 @@ class LauncherStateTest {
     @Test fun `a save skipped for a newer one is no failure`() {
         started()
         val before = written.size
-        state.toggleFavorite(idle, key("Alpha"))
-        state.toggleFavorite(idle, key("Bravo"))   // the first write is skipped: latest wins
+        state.toggleFavorite(permit, key("Alpha"))
+        state.toggleFavorite(permit, key("Bravo"))   // the first write is skipped: latest wins
         runAll()
         assertEquals(before + 1, written.size)
         assertEquals(0, saveFailures)
@@ -742,9 +749,9 @@ class LauncherStateTest {
 
     @Test fun `a refused save does not make the save queued ahead of it skip its write`() {
         started()
-        state.toggleFavorite(idle, key("Alpha"))   // queued
+        state.toggleFavorite(permit, key("Alpha"))   // queued
         ioOpen = false
-        state.toggleFavorite(idle, key("Bravo"))   // refused: it will never run
+        state.toggleFavorite(permit, key("Bravo"))   // refused: it will never run
         runAll()
         assertEquals(listOf("fav=${key("Alpha")};hid=;names=;tags="), written)
     }
@@ -753,7 +760,7 @@ class LauncherStateTest {
 
     @Test fun `an edit with a permit from before a command started is ignored`() {
         started()
-        val stale = idle
+        val stale = permit
         gate.start {
             state.toggleFavorite(stale, key("Alpha"))
             state.rename(stale, key("Alpha"), "Alpha", "Mine", emptyList())
@@ -767,10 +774,10 @@ class LauncherStateTest {
 
     @Test fun `toggling twice restores the set, and a new favorite goes last`() {
         started()
-        state.toggleFavorite(idle, key("Charlie"))
-        state.toggleFavorite(idle, key("Alpha"))
+        state.toggleFavorite(permit, key("Charlie"))
+        state.toggleFavorite(permit, key("Alpha"))
         assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
-        state.toggleFavorite(idle, key("Charlie"))
+        state.toggleFavorite(permit, key("Charlie"))
         assertEquals(listOf(key("Alpha")), state.config.favorites.toList())
     }
 
@@ -782,22 +789,22 @@ class LauncherStateTest {
 
     @Test fun `toggleTag adds, removes, and drops an emptied key`() {
         started()
-        state.toggleTag(idle, key("Alpha"), "Work")
+        state.toggleTag(permit, key("Alpha"), "Work")
         assertEquals(listOf("work"), state.config.tags[key("Alpha")])
-        state.toggleTag(idle, key("Alpha"), "work")
+        state.toggleTag(permit, key("Alpha"), "work")
         assertFalse(key("Alpha") in state.config.tags)
     }
 
     @Test fun `moveFavorite reorders and saves, an impossible move does neither`() {
         disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), key("Bravo"), key("Charlie")))
         started()
-        assertTrue(state.moveFavorite(idle, key("Alpha"), key("Charlie")))
+        assertTrue(state.moveFavorite(permit, key("Alpha"), key("Charlie")))
         assertEquals(listOf(key("Bravo"), key("Charlie"), key("Alpha")), state.config.favorites.toList())
         runAll()
         assertEquals(1, written.size)
 
-        assertFalse(state.moveFavorite(idle, key("Alpha"), "gone/Gone"))
-        assertFalse(state.moveFavorite(idle, key("Alpha"), key("Alpha")))
+        assertFalse(state.moveFavorite(permit, key("Alpha"), "gone/Gone"))
+        assertFalse(state.moveFavorite(permit, key("Alpha"), key("Alpha")))
         runAll()
         assertEquals(1, written.size)
     }
@@ -901,15 +908,13 @@ class LauncherStateTest {
 
     // ---- "%" order and usage -----------------------------------------------------
 
-    @Test fun `the order toggle is refused before the load and saved after it`() {
-        assertNull(state.toggleOrder(idle))
-        assertTrue(written.isEmpty())
+    @Test fun `the order toggle is saved once the load has landed`() {
         started()
-        assertEquals(true, state.toggleOrder(idle))
+        assertEquals(true, state.toggleOrder(permit))
         assertTrue(state.config.byUsage)
         runAll()
         assertEquals(1, written.size)
-        assertEquals(false, state.toggleOrder(idle))
+        assertEquals(false, state.toggleOrder(permit))
     }
 
     @Test fun `an unreadable usage_txt is not written over, a later read still merges`() {
@@ -1057,7 +1062,7 @@ class LauncherStateTest {
 
     @Test fun `an edit meanwhile does not end the wait`() {
         freshStartWithoutAList()
-        state.toggleOrder(idle)
+        state.toggleOrder(permit)
         state.refresh()
         runAll()
         assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
@@ -1065,8 +1070,8 @@ class LauncherStateTest {
 
     @Test fun `a favorite chosen meanwhile ends the wait, even one toggled off again`() {
         freshStartWithoutAList()
-        state.toggleFavorite(idle, key("Bravo"))
-        state.toggleFavorite(idle, key("Bravo"))
+        state.toggleFavorite(permit, key("Bravo"))
+        state.toggleFavorite(permit, key("Bravo"))
         state.refresh()
         runAll()
         assertTrue(state.config.favorites.isEmpty())
@@ -1084,7 +1089,7 @@ class LauncherStateTest {
     /** ~restart or a language change recreates the activity after an edit wrote verso.json. */
     @Test fun `the wait outlives a recreated instance that finds verso json already there`() {
         freshStartWithoutAList()
-        state.toggleOrder(idle)
+        state.toggleOrder(permit)
         disk = VersoConfig(byUsage = true)
         val next = LauncherState(
             io = { task -> ioQueue.addLast(task); true },
@@ -1150,7 +1155,7 @@ class LauncherStateTest {
         disk = VersoConfig(favorites = linkedSetOf(key("Charlie")))
         started()
         assertEquals(listOf("Charlie"), state.favorites().map { it.label })
-        state.toggleFavorite(idle, work.key)
+        state.toggleFavorite(permit, work.key)
         assertEquals(listOf("Charlie", "Charlie (Work)"), state.favorites().map { it.label })
     }
 
