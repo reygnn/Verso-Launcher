@@ -205,10 +205,12 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no DataStore / Room / SharedPreferences — the small amount of state (hidden
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
   `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
-  instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`), written atomically (a `.new` file + fsync + rename, then a
+  instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`; and Guru's crash
+  reports in `guru/`, see "Crash reports"), written atomically (a `.new` file + fsync + rename, then a
   directory fsync so the rename itself survives power-loss); no `.bak` — your own
   `~backup` is the copy to fall back on; and edited only through the in-app modes above
-- no ACRA / Timber — `android.util.Log`
+- no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
+  (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code
 
 The launcher is a handful of small files. `MainActivity.kt` is the framework wiring

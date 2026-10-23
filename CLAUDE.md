@@ -70,7 +70,9 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   SharedPreferences, not DataStore. Beside it only `home-cache.txt` (`HomeCache`), a
   disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
   launch counts behind the `%` order, and `recents.txt` (`RecentsLog`), the `?` list —
-  disposable too, never in a backup. Off-device backups in `Download/Verso/` via
+  disposable too, never in a backup — and `filesDir/guru/`, Guru's: at most 8 crash
+  reports, `installation-id` and `exits-seen`, never in a backup and excluded from a
+  device transfer (`data_extraction_rules.xml`). Off-device backups in `Download/Verso/` via
   MediaStore (`BackupStore`).
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath (android.jar's is a
   stub), Robolectric where a real widget is needed, **no MockK / no mocks** (fakes
@@ -183,7 +185,11 @@ thread.
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
    content provider (an offline cloud drive) can block that read indefinitely, and it
    touches no file of the app's own; the undo point and the adoption still go through
-   `VersoApp.io`.
+   `VersoApp.io`. The second exception: Guru's uncaught-exception handler writes its crash
+   report on the dying thread itself — the process is going down, nothing queued on
+   `VersoApp.io` would run. That write touches only `filesDir/guru/`; everything else Guru
+   does (the exit records, loading, removing) goes through `VersoApp.io`. Not a breach to
+   "fix".
 4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync →
    rename over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net
    is the user's `~backup`. `load()` is null — never an empty config — when `verso.json`

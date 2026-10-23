@@ -2,7 +2,9 @@
 <!-- Cloud backup stays off: allowBackup="false" says so, and every domain is excluded here
      too, so it holds whichever of the two the platform reads. A device-to-device transfer moves verso.json
      (the config) but not a half-written verso.json.new, nor an unreadable config set aside,
-     nor the home-cache, which is rebuilt on the first load. -->
+     nor the home-cache, which is rebuilt on the first load, nor guru/ (Guru's crash reports):
+     an old device's reports would show on the new one, and its installation-id would make
+     the two one installation on the crash server. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" path="." />
@@ -20,5 +22,6 @@
         <exclude domain="file" path="verso.json.unreadable" />
         <exclude domain="file" path="home-cache.txt" />
         <exclude domain="file" path="home-cache.txt.tmp" />
+        <exclude domain="file" path="guru/" />
     </device-transfer>
 </data-extraction-rules>
