@@ -110,6 +110,8 @@ com.github.reygnn.verso_launcher/
   HomeStyle           pure look constants + outline colour, palette, BatteryInfo,
                       DoubleTapGate
   OutlinedViews       the outlined text/icon views home and drawer draw with
+  WallpaperPalette    the palette for the wallpaper: asked once on the IO thread, then the
+                      colour listener (Wallpaper.watch); the newer of the two wins
   HomeCache           the favorites cached for an instant home page on a cold start
   UsageLog            the "%" order's launch counts (Kolibri's decay) and usage.txt
   RecentsLog          the "?" list's recents.txt

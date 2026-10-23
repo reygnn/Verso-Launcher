@@ -236,7 +236,8 @@ and unit-tested on the JVM or a thin view class:
 - `SwipeGesture.kt` + `SwipeFrame.kt` — the page-turn swipe: pure decisions and their
   thin touch wrapper.
 - `HomePage.kt` — the front page (Kolibri's home layout); `HomeStyle.kt` holds its pure
-  numbers, `OutlinedViews.kt` the outlined text/icon views.
+  numbers, `OutlinedViews.kt` the outlined text/icon views, `WallpaperPalette.kt` the text
+  colours for the wallpaper behind them (asked once, then kept current by the system's listener).
 - `VersoConfig.kt`, `ConfigJson.kt`, `ConfigStore.kt`, `BackupStore.kt` — the config
   model, the `verso.json` round-trip, the durable file layer and the Downloads backup;
   `BackupFiles.kt` the backup naming rules, `RestoreSteps.kt` a restore's IO in its

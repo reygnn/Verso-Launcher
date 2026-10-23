@@ -2,8 +2,6 @@ package com.github.reygnn.verso_launcher
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.WallpaperColors
-import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -20,16 +18,11 @@ import android.os.UserHandle
 import android.os.UserManager
 import android.provider.DocumentsContract
 import android.provider.Telephony
-import android.system.ErrnoException
-import android.system.Os
-import android.system.OsConstants
 import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
-import java.io.File
-import java.io.FileDescriptor
 import java.util.concurrent.RejectedExecutionException
 
 /**
@@ -39,7 +32,6 @@ import java.util.concurrent.RejectedExecutionException
  */
 class MainActivity : Activity() {
 
-    private var palette = HomeStyle.palette(lightWallpaper = false)
     // Whether the next onResume must re-enumerate the apps.
     private var appsDirty = true
     private var resumed = false
@@ -97,6 +89,8 @@ class MainActivity : Activity() {
     private lateinit var homePage: HomePage
     private lateinit var appDrawer: AppDrawer
     private lateinit var pageTurn: PageTurn
+    private lateinit var wallpaper: WallpaperPalette
+    private var unwatchWallpaper: () -> Unit = {}
 
     // Tracked so they can be dismissed on teardown: an undismissed dialog leaks its window.
     private var renameDialog: AlertDialog? = null
@@ -111,10 +105,19 @@ class MainActivity : Activity() {
         // ourselves. No scrim behind 3-button navigation: the wallpaper runs to the bottom edge.
         window.isNavigationBarContrastEnforced = false
 
+        // Asked on the IO thread below (ask); until then, the process's last palette.
+        wallpaper = WallpaperPalette(
+            initial = app.palette ?: HomeStyle.palette(lightWallpaper = false),
+            io = ::submitIo,
+            main = ::onUi,
+            isLight = { Wallpaper.isLight(this, ::logWarning) },
+            onChange = ::applyPalette,
+        )
+
         appDrawer = AppDrawer(
             activity = this,
             state = state,
-            palette = palette,
+            palette = wallpaper.current,
             onTap = ::onDrawerTap,
             onLongPress = { entry -> if (editPermit() != null) promptRename(entry) },
             onEnter = ::onDrawerEnter,
@@ -159,19 +162,9 @@ class MainActivity : Activity() {
             }
         }
 
-        // Asking for the wallpaper colours is a binder call that may extract them from the bitmap
-        // right then, so it runs on the IO thread; until then, the process's last palette.
-        applyPalette(app.palette ?: HomeStyle.palette(lightWallpaper = false))
-        val asked = ++paletteGeneration
-        submitIo {
-            val light = wallpaperIsLight()
-            onUi {
-                // A listener call since the question is newer than this answer.
-                val answer = HomeStyle.palette(light)
-                if (asked == paletteGeneration && answer != palette) applyPalette(answer)
-            }
-        }
-        WallpaperManager.getInstance(this).addOnColorsChangedListener(wallpaperColors, Handler(Looper.getMainLooper()))
+        applyPalette(wallpaper.current)
+        wallpaper.ask()
+        unwatchWallpaper = Wallpaper.watch(this, wallpaper)
     }
 
     override fun onStart() {
@@ -264,7 +257,7 @@ class MainActivity : Activity() {
         // No executor shutdown: work this instance queued (a save above all) must still run;
         // its hand-back is dropped by onUi.
         unwatchApps()
-        WallpaperManager.getInstance(this).removeOnColorsChangedListener(wallpaperColors)
+        unwatchWallpaper()
         super.onDestroy()
     }
 
@@ -319,7 +312,7 @@ class MainActivity : Activity() {
         ConfigStore(
             dir = filesDir,
             log = ::logWarning,
-            syncDir = ::fsyncDir,
+            syncDir = { dir -> ConfigStore.fsyncDir(dir, ::logWarning) },
         )
     }
 
@@ -577,28 +570,6 @@ class MainActivity : Activity() {
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
         Toast.makeText(this, text, duration).show()
 
-    /**
-     * fsync a directory so a preceding rename() survives power loss, not merely is visible.
-     * Best-effort: a failure only weakens durability, so it is logged, not thrown.
-     */
-    private fun fsyncDir(dir: File) {
-        var fd: FileDescriptor? = null
-        try {
-            fd = Os.open(dir.path, OsConstants.O_RDONLY, 0)
-            Os.fsync(fd)
-        } catch (e: ErrnoException) {
-            Log.w("Verso", "dir fsync failed (non-fatal): ${dir.path}", e)
-        } finally {
-            if (fd != null) {
-                @Suppress("SwallowedException") try {
-                    Os.close(fd)
-                } catch (e: ErrnoException) {
-                    // Nothing actionable at close time; the publish already happened.
-                }
-            }
-        }
-    }
-
     /** "%": saved at once like every edit; the prompt clears onto the drawer in its new order. */
     private fun toggleOrder() {
         val permit = editPermit() ?: return
@@ -830,35 +801,7 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Android's own judgement (HINT_SUPPORTS_DARK_TEXT); unknown counts as a dark wallpaper. */
-    // no colours = the default palette
-    @Suppress("TooGenericExceptionCaught")
-    private fun wallpaperIsLight(): Boolean = try {
-        val colors = WallpaperManager.getInstance(this).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
-        colors.wantsDarkText()
-    } catch (e: RuntimeException) {
-        Log.w("Verso", "wallpaper colours unavailable", e)
-        false
-    }
-
-    private fun WallpaperColors?.wantsDarkText(): Boolean =
-        this != null && (colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
-
-    private val wallpaperColors = WallpaperManager.OnColorsChangedListener { colors, which ->
-        if (which and WallpaperManager.FLAG_SYSTEM == 0) return@OnColorsChangedListener
-        val light = colors.wantsDarkText()
-        ++paletteGeneration
-        // Live and time-of-day wallpapers report colours often; repaint only on a real change.
-        val p = HomeStyle.palette(light)
-        if (p != palette) applyPalette(p)
-    }
-
-    // Bumped by every palette decision, so the IO thread's first answer cannot overwrite a
-    // newer one from the listener.
-    private var paletteGeneration = 0
-
     private fun applyPalette(p: Palette) {
-        palette = p
         app.palette = p
         homePage.applyTextColor(p.homeText)
         appDrawer.applyPalette(p)
