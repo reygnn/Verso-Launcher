@@ -36,9 +36,10 @@ internal class PageTurn(
 ) {
     private val home: View = homePage.view
     // GONE while closed and blocking descendant focus, so the prompt can never raise the IME on home.
-    // Its animations take no layer (unlike home's fades): it only moves, at alpha 1, and
-    // translationY is a render-node property — a layer would only re-draw every row into a
-    // screen-sized texture on the first frame.
+    // Its animations take no layer, like the drag that moves it by hand (only home's fades take
+    // one): it only moves, at alpha 1, and translationY is a render-node property, so each frame
+    // replays the rows as they are. A layer would cost a screen-sized texture per turn and be
+    // redrawn whenever the content changes mid-slide, as the keyboard's padding can.
     private val drawer: ViewGroup = appDrawer.view
 
     // THE source of truth for which page is up. The views' visibility trails it by the
