@@ -74,4 +74,34 @@ class SourceGuardTest {
         assertTrue("no configChanges found", changes.isNotEmpty())
         for (c in changes) assertFalse("density in configChanges: $c", "density" in c.split('|'))
     }
+
+    /**
+     * Guru (guru/): installed once, from the Application, with no permission (Share) and Verso's
+     * words; its disk work on the one IO thread (hard rule 3), behind Guard (hard rule 2). A
+     * second install elsewhere would replace this setup.
+     */
+    @Test fun `Guru is installed once, from VersoApp, on the IO thread behind Guard`() {
+        val app = source("src/main/kotlin/com/github/reygnn/verso_launcher/VersoApp.kt")
+        assertTrue(app.contains("GuruSink.Share()"))
+        assertTrue(app.contains("io.execute(Guard.wrap("))
+        assertTrue(app.contains("texts = VersoGuruTexts(this)"))
+        val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+        val sites = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
+            Regex("""\bGuru\s*\.\s*install\s*\(""").findAll(f.readText()).map { f.name }
+        }.toList()
+        assertEquals(listOf("VersoApp.kt"), sites)
+    }
+
+    /** The alert on the next start, handed back through onUi, which drops it for a destroyed instance. */
+    @Test fun `MainActivity shows pending Guru reports through onUi`() {
+        val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        assertTrue(activity.contains("Guru.showPending(this, ::onUi)"))
+    }
+
+    /** Renamed classes or lost line numbers would change a crash's Guru number with every release. */
+    @Test fun `R8 keeps names and line numbers for Guru's reports`() {
+        val rules = source("proguard-rules.pro").lines().map { it.trim() }
+        assertTrue(rules.contains("-dontobfuscate"))
+        assertTrue(rules.contains("-keepattributes SourceFile,LineNumberTable"))
+    }
 }

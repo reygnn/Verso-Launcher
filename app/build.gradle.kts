@@ -12,7 +12,8 @@ plugins {
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.file("config/detekt/detekt.yml"))
-    source.setFrom("src/main/kotlin", "src/test/java", "src/androidTest/java")
+    // guru/: Guru's sources (git subtree), checked with Verso's rules like Verso's own.
+    source.setFrom("src/main/kotlin", "src/test/java", "src/androidTest/java", "../guru/library/src/main/kotlin")
     baseline = file("detekt-baseline.xml")
 }
 
@@ -31,6 +32,15 @@ android {
         // Downloads backup (its renaming of taken names, pending rows, ownership) and Android's
         // own org.json. Everything else stays a JVM test.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Guru, the crash reporter, is vendored as source (git subtree in guru/, never edited
+    // here) and compiled into this module: still no dependency in the APK (hard rule 1),
+    // and its `internal` stays internal. Its tests run in its own repo.
+    sourceSets {
+        named("main") {
+            kotlin.directories += "../guru/library/src/main/kotlin"
+        }
     }
 
     buildTypes {

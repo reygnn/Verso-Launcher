@@ -83,4 +83,21 @@
     <string name="order_to_name" formatted="false">% von A bis Z sortieren</string>
     <string name="toast_order_usage">Drawer: meistgenutzte zuerst</string>
     <string name="toast_order_name">Drawer: von A bis Z</string>
+    <!-- Guru, der Absturz-Alarm (guru/, GuruTexts). Die Amiga-Zeilen bleiben englisch. -->
+    <string name="guru_hint">doppeltippen: weiter · halten: senden · zurück: später</string>
+    <string name="guru_action_continue">weiter, Bericht verwerfen</string>
+    <string name="guru_action_send">Bericht senden</string>
+    <plurals name="guru_more">
+        <item quantity="one">+%d weiterer</item>
+        <item quantity="other">+%d weitere</item>
+    </plurals>
+    <plurals name="guru_sent_all">
+        <item quantity="one">Guru: %d Bericht gesendet</item>
+        <item quantity="other">Guru: %d Berichte gesendet</item>
+    </plurals>
+    <string name="guru_sent_none">Guru: nicht gesendet, bleibt für den nächsten Start</string>
+    <plurals name="guru_sent_some">
+        <item quantity="one">Guru: %1$d von %2$d gesendet, der Rest bleibt</item>
+        <item quantity="other">Guru: %1$d von %2$d gesendet, der Rest bleibt</item>
+    </plurals>
 </resources>

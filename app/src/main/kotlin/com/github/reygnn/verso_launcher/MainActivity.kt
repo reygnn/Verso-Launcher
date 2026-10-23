@@ -23,6 +23,7 @@ import android.view.KeyEvent
 import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
+import com.github.reygnn.guru.Guru
 import java.util.concurrent.RejectedExecutionException
 
 /**
@@ -165,6 +166,11 @@ class MainActivity : Activity() {
         applyPalette(wallpaper.current)
         wallpaper.ask()
         unwatchWallpaper = WallpaperSystem.watch(this, wallpaper)
+
+        // A crash report from an earlier run: Guru's alert, once the window is up. Queued on
+        // the IO thread behind Guru's look at the exit records; onUi drops it for a destroyed
+        // instance, and the alert dismisses itself with this activity.
+        Guru.showPending(this, ::onUi)
     }
 
     override fun onStart() {
