@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 609 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 605 tests):
 
 ```
 LauncherLogicTest          151  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -85,8 +85,6 @@ WallpaperPaletteTest         6  the palette's question and the colour listener a
                                 or than a newer question is dropped, one repaint per change
 GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
 TapGuardTest                 4  stale-click guard
-TextOutlineTest              4  Robolectric: the outline reports a change, and only a change (a row bind
-                                with the same colour does not redraw); transparent switches it off
 HomeCacheTest                5  the cold-start favorites cache: format, parse, file
 UsageLogTest                12  the "%" order: decay, a launch, merge, sort, a clock ahead, usage.txt (junk,
                                 unreadable: not loaded, too large)

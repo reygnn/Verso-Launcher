@@ -403,8 +403,6 @@ internal class AppDrawer(
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
             val tv = (convertView as? TextView) ?: OutlinedTextView(activity).apply {
-                setTextColor(palette.listText)
-                setOutline(outlinePx, palette.listOutline)
                 textSize = 20f
                 gravity = Gravity.CENTER_VERTICAL
                 isSingleLine = true

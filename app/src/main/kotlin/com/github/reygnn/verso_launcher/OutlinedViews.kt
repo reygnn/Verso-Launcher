@@ -23,22 +23,15 @@ import android.widget.TextView
  */
 internal class TextOutline {
     private var widthPx = 0f
-    private var color = Color.TRANSPARENT
     private var strokeColors: ColorStateList? = null
     private var savedFill: ColorStateList? = null
 
     val isActive: Boolean get() = widthPx > 0f && strokeColors != null
 
-    /**
-     * [Color.TRANSPARENT] switches the outline off. False when nothing changed: drawer rows set
-     * it on every bind (a recycled row may predate a palette switch), and only a change redraws.
-     */
-    fun set(widthPx: Float, color: Int): Boolean {
-        if (widthPx == this.widthPx && color == this.color) return false
+    /** [Color.TRANSPARENT] switches the outline off. */
+    fun set(widthPx: Float, color: Int) {
         this.widthPx = widthPx
-        this.color = color
         strokeColors = if (color == Color.TRANSPARENT) null else ColorStateList.valueOf(color)
-        return true
     }
 
     fun beginStroke(view: TextView) {
@@ -61,7 +54,8 @@ internal class OutlinedTextView(context: Context) : TextView(context) {
     private var drawingOutline = false
 
     fun setOutline(widthPx: Float, color: Int) {
-        if (outline.set(widthPx, color)) invalidate()
+        outline.set(widthPx, color)
+        invalidate()
     }
 
     override fun invalidate() {
@@ -97,7 +91,7 @@ internal class OutlinedEditText(context: Context) : EditText(context) {
     private var outlineColors: ColorStateList? = null
 
     fun setOutline(widthPx: Float, color: Int) {
-        if (!outline.set(widthPx, color)) return
+        outline.set(widthPx, color)
         outlineColors = ColorStateList.valueOf(color)
         invalidate()
     }
@@ -133,7 +127,8 @@ internal class OutlinedTextClock(context: Context) : TextClock(context) {
     private var drawingOutline = false
 
     fun setOutline(widthPx: Float, color: Int) {
-        if (outline.set(widthPx, color)) invalidate()
+        outline.set(widthPx, color)
+        invalidate()
     }
 
     override fun invalidate() {
