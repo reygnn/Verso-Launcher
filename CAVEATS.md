@@ -98,6 +98,13 @@ The home page uses Kolibri's DEFAULT look (text size, spacing, start alignment, 
 with a tonal outline — white on a dark wallpaper, black on a light one). There is no
 settings screen to change it; the values are constants in `HomeStyle.kt`.
 
+Light or dark is Android's own verdict on the wallpaper (`WallpaperColors`' dark-text hint);
+with no verdict the text stays white. Samsung gives none for the home screen: One UI shows
+even a still image from the gallery through its own live wallpaper service, which reports no
+colours to other apps (seen on One UI 8 and 8.5, Android 16, October 2026). On a Samsung
+phone the text is therefore always white with its dark outline, readable on a light
+wallpaper too, but not black.
+
 The home text sizes are fixed in dp, so they ignore the system font size (the drawer's
 rows do follow it). Chosen for a stable layout like Kolibri's; someone who needs larger
 text gets it in the drawer, or through the display size setting, which scales both.
