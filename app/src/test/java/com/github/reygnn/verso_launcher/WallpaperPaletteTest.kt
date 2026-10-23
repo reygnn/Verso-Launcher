@@ -19,7 +19,7 @@ class WallpaperPaletteTest {
 
     private val palette: WallpaperPalette = WallpaperPalette(
         initial = dark,
-        io = { io.addLast(it); true },
+        io = { io.addLast(it) },
         main = { main.addLast(it) },
         isLight = { systemSaysLight },
         onChange = { shown += it },

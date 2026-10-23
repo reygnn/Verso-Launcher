@@ -108,7 +108,7 @@ class MainActivity : Activity() {
         // Asked on the IO thread below (ask); until then, the process's last palette.
         wallpaper = WallpaperPalette(
             initial = app.palette ?: HomeStyle.palette(lightWallpaper = false),
-            io = ::submitIo,
+            io = { submitIo(it) },
             main = ::onUi,
             isLight = { WallpaperSystem.isLight(this, ::logWarning) },
             onChange = ::applyPalette,

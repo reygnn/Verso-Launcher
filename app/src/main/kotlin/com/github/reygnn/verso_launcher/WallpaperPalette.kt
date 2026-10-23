@@ -16,7 +16,7 @@ import android.os.Looper
  */
 internal class WallpaperPalette(
     initial: Palette,
-    private val io: (Runnable) -> Boolean,
+    private val io: (Runnable) -> Unit,
     private val main: (() -> Unit) -> Unit,
     /** The system's verdict; a binder call that may extract the colours from the bitmap right then. */
     private val isLight: () -> Boolean,
