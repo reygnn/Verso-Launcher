@@ -42,6 +42,11 @@ the freeze. Bugfixes, code improvements (simplification, refactoring, performanc
 are not frozen; they must not regress anything, and a change may alter behaviour only to make
 it do what it already claims to do.
 
+**Freeze exception (2026-10-23, lifted by the user): Guru**, the crash reporter. After a
+crash, the next start shows Guru's alert (double-tap: discard, hold: share the report with
+an app the user picks, Back: later). It needs no permission and sends nothing on its own
+(`GuruSink.Share`). The exception covers Guru and its updates, nothing else.
+
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,
 and there is no Sigil compatibility to keep: its only user has moved over. Kolibri
@@ -84,6 +89,14 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   and only ever shrink.
 - **Debug build** has `applicationIdSuffix = ".debug"`, so `connectedAndroidTest`
   installs beside the family-signed release on the device.
+- **Guru (`guru/`)** is a `git subtree` of [reygnn/guru](https://github.com/reygnn/guru),
+  pinned to a tag, compiled into `:app` as an extra Kotlin source directory and checked by
+  detekt like Verso's own code. **Never edit `guru/` here**: a fix goes upstream, gets a
+  tag, and comes back with
+  `git subtree pull --prefix=guru https://github.com/reygnn/guru <tag> --squash`; the
+  commit names the tag. Its own rules are in `guru/CLAUDE.md`; its tests run in its repo,
+  not here. Release builds keep names and line numbers (`-dontobfuscate`, `proguard-rules.pro`)
+  so a report's trace is readable and its Guru number stable from release to release.
 
 ---
 
@@ -94,7 +107,9 @@ Single `:app` module, one package:
 ```
 com.github.reygnn.verso_launcher/
   VersoApp            process-wide: the IO executor, the ProcessState (recents, launches,
-                      the start-over and seed flags), palette and badge-label caches
+                      the start-over and seed flags), palette and badge-label caches;
+                      installs Guru (onCreate)
+  VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
   LauncherStateParts  what LauncherState is built from: ProcessState, ConfigFile,
                       RecentsFile, UsageFile
   MainActivity        the window: commands, backup/restore orchestration, edits, dialogs,

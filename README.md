@@ -248,8 +248,19 @@ and unit-tested on the JVM or a thin view class:
   (recents, palette, badge labels).
 - `RenameDialog.kt` — the long-press dialog.
 - `CommandGate.kt` — the `~` commands one at a time (pure, JVM-tested).
+- `VersoGuruTexts.kt` — Guru's words (see "Crash reports").
 
-The only
+## Crash reports
+
+Verso carries [Guru](https://github.com/reygnn/guru), a crash reporter vendored as source in
+`guru/` (a `git subtree`, never edited here). A crash is written to disk while the process
+dies; on the next start Verso shows the Amiga alert. **Double-tap** discards the report,
+**hold** hands it to an app you pick (mail, a messenger, a note), **Back** keeps it for the
+next start. Nothing is sent on its own, and no permission is needed. A single tap or a swipe
+on the alert does nothing, so waking a dimmed screen cannot discard a report.
+
+Guru adds about 30 KB of code and keeping class names (`-dontobfuscate`, for readable crash
+traces) about 18 KB: the release APK went from about 180 to 229 KB. The only
 *shipped* dependencies are the Kotlin stdlib (added automatically by AGP's
 built-in Kotlin); JUnit, org.json and Robolectric are `testImplementation`,
 androidx.test is `androidTestImplementation`, so the release stays dependency-free.

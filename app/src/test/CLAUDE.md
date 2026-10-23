@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 605 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 610 tests):
 
 ```
 LauncherLogicTest          151  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -109,11 +109,13 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest              6  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest              9  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no brace-less object templates, no density in configChanges,
                                 no default in LauncherState's constructor, no EditPermit built
                                 outside LauncherState (call or reference), MainActivity's
-                                writeRestored and gate wiring
+                                writeRestored and gate wiring; Guru installed once from VersoApp
+                                behind Guard, showPending through onUi, R8 keeping names
+VersoGuruTextsTest           2  Robolectric: Guru's words from values and values-de
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
