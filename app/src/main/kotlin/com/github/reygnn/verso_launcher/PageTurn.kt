@@ -36,6 +36,9 @@ internal class PageTurn(
 ) {
     private val home: View = homePage.view
     // GONE while closed and blocking descendant focus, so the prompt can never raise the IME on home.
+    // Its animations take no layer (unlike home's fades): it only moves, at alpha 1, and
+    // translationY is a render-node property — a layer would only re-draw every row into a
+    // screen-sized texture on the first frame.
     private val drawer: ViewGroup = appDrawer.view
 
     // THE source of truth for which page is up. The views' visibility trails it by the
@@ -160,7 +163,7 @@ internal class PageTurn(
             appDrawer.scrollToTop()
         }
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // a drag's layer; withLayer takes over
-        drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS).withLayer()
+        drawer.animate().translationY(0f).setDuration(DRAWER_SLIDE_MS)
             .setInterpolator(AccelerateDecelerateInterpolator()).start()
         home.animate().alpha(0f).setDuration(HOME_FADE_MS).withLayer()
             .setInterpolator(AccelerateInterpolator()).withEndAction {
@@ -200,7 +203,7 @@ internal class PageTurn(
         home.animate().alpha(1f).setDuration(HOME_FADE_MS).withLayer()
             .setInterpolator(AccelerateInterpolator()).start()
         // The prompt goes with the page: cleared before the slide, the list would switch mid-way.
-        drawer.animate().translationY(hiddenY()).setDuration(DRAWER_SLIDE_MS).withLayer()
+        drawer.animate().translationY(hiddenY()).setDuration(DRAWER_SLIDE_MS)
             .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
                 if (!isOpen) drawer.visibility = View.GONE
                 clearPromptIfClosed()
@@ -311,7 +314,7 @@ internal class PageTurn(
     /** A drag that did not commit falls back to the page it started on; nothing else changes. */
     private fun settle(open: Boolean) {
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // the drag's layer; withLayer takes over
-        drawer.animate().translationY(if (open) 0f else hiddenY()).setDuration(DRAG_SETTLE_MS).withLayer()
+        drawer.animate().translationY(if (open) 0f else hiddenY()).setDuration(DRAG_SETTLE_MS)
             .setInterpolator(DecelerateInterpolator()).withEndAction {
                 if (!isOpen) {
                     drawer.visibility = View.GONE

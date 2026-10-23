@@ -109,8 +109,21 @@ internal object BatteryInfo {
     fun percent(level: Int, scale: Int): Int? =
         if (level < 0 || scale <= 0) null else (level.toLong() * 100 / scale).toInt().coerceAtMost(100)
 
+    /** Main thread only (the format is not thread-safe, and is cached: see [percentFormat]). */
     fun label(percent: Int?, locale: Locale = Locale.getDefault()): String =
-        percent?.let { NumberFormat.getPercentInstance(locale).format(it / 100.0) } ?: UNKNOWN_LABEL
+        percent?.let { percentFormat(locale).format(it / 100.0) } ?: UNKNOWN_LABEL
+
+    // ACTION_BATTERY_CHANGED repeats every few seconds while charging; building an ICU format for
+    // each one is the costly part of the label. Keyed by locale: the object outlives a language change.
+    private var formatLocale: Locale? = null
+    private var format: NumberFormat? = null
+
+    private fun percentFormat(locale: Locale): NumberFormat =
+        format?.takeIf { locale == formatLocale }
+            ?: NumberFormat.getPercentInstance(locale).also {
+                format = it
+                formatLocale = locale
+            }
 
     /** Plugged in but not charging: the system holds the charge back (battery protection). */
     fun chargeState(status: Int, plugged: Int): ChargeState = when {
@@ -140,7 +153,9 @@ internal data class Palette(
     val listText: Int,
     val darkBarIcons: Boolean,
 ) {
-    val listOutline: Int get() = HomeStyle.tonalOutlineColor(listText)
+    // Computed once, not a getter: every drawer row asks for it on each bind. A body val, so it
+    // stays out of equals/hashCode/copy (it follows from listText anyway).
+    val listOutline: Int = HomeStyle.tonalOutlineColor(listText)
     val selection: Int get() = (listText and 0xFFFFFF) or 0x66000000
 }
 

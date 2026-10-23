@@ -135,6 +135,12 @@ class HomeStyleTest {
         assertEquals("---%", BatteryInfo.label(null))
     }
 
+    @Test fun `the cached format follows a language change both ways`() {
+        assertEquals("42%", BatteryInfo.label(42, java.util.Locale.US))
+        assertEquals("42\u00A0%", BatteryInfo.label(42, java.util.Locale.GERMANY))
+        assertEquals("42%", BatteryInfo.label(42, java.util.Locale.US))
+    }
+
     @Test fun `charging or full is a bolt, plugged but held is a shield`() {
         assertEquals(ChargeState.CHARGING, BatteryInfo.chargeState(BatteryInfo.STATUS_CHARGING, 1))
         assertEquals(ChargeState.CHARGING, BatteryInfo.chargeState(BatteryInfo.STATUS_FULL, 1))
