@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Guru Sample</string>
+    <string name="sample_intro">Crash this app, then start it again: Guru shows what it caught.</string>
+    <string name="sample_crash">Crash</string>
+    <string name="sample_anr">ANR (blocks the main thread)</string>
+
+    <!-- Guru's words (GuruTexts). The Amiga lines themselves stay English. -->
+    <string name="guru_hint">double-tap: continue · hold: send · back: later</string>
+    <string name="guru_action_continue">continue, discard the report</string>
+    <string name="guru_action_send">send the report</string>
+    <plurals name="guru_more">
+        <item quantity="one">+%d more</item>
+        <item quantity="other">+%d more</item>
+    </plurals>
+    <plurals name="guru_sent_all">
+        <item quantity="one">Guru: %d report sent</item>
+        <item quantity="other">Guru: %d reports sent</item>
+    </plurals>
+    <string name="guru_sent_none">Guru: not sent, kept for the next start</string>
+    <plurals name="guru_sent_some">
+        <item quantity="one">Guru: %1$d of %2$d sent, the rest kept</item>
+        <item quantity="other">Guru: %1$d of %2$d sent, the rest kept</item>
+    </plurals>
+</resources>

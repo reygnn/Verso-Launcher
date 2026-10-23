@@ -1,0 +1,29 @@
+# Guru version catalog. Hosts compile Guru's sources with their own rules, so every
+# version here mirrors Verso's (gradle/libs.versions.toml there). An upgrade of AGP,
+# Gradle or detekt happens in both repos in the same step — Guru first.
+#
+# No implementation dependency, ever (CLAUDE.md, hard rule 1): Kotlin stdlib (added by
+# AGP 9's built-in Kotlin) and platform APIs only. Everything below is test- or build-only.
+[versions]
+agp    = "9.4.1"
+# No kotlin entry: no Kotlin plugin is applied, so AGP's built-in Kotlin sets the version.
+# Test-only.
+junit  = "4.13.2"
+json   = "20260814"
+# Test-only — 4.16.1 ships an SDK 36 android-all jar and supports JDK 21.
+robolectric = "4.16.1"
+# Build-only — static analysis, part of check. 2.0 because 1.23 predates AGP 9's built-in
+# Kotlin. Still alpha: pinned exactly, an upgrade is its own commit.
+detekt = "2.0.0-alpha.6"
+
+[libraries]
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+# The real desktop org.json — android.jar's is a throwing stub.
+json = { group = "org.json", name = "json", version.ref = "json" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }
+# sample/ only — the device-test host, never part of what a host pulls in.
+android-application = { id = "com.android.application", version.ref = "agp" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
