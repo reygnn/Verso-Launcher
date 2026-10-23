@@ -8,7 +8,7 @@ import android.os.Looper
 
 /**
  * The palette for the wallpaper behind the window (Unity Kolibri's smart contrast): asked once on
- * the IO thread, then kept current by the system's colour listener ([Wallpaper.watch]). [onChange]
+ * the IO thread, then kept current by the system's colour listener ([WallpaperSystem.watch]). [onChange]
  * gets each new palette on the main thread, never the one already shown.
  *
  * The question and the listener race: the answer to a question asked before a listener report is
@@ -53,7 +53,7 @@ internal class WallpaperPalette(
 }
 
 /** The system side of [WallpaperPalette]: its question and its listener. */
-internal object Wallpaper {
+internal object WallpaperSystem {
 
     /** Android's own judgement (HINT_SUPPORTS_DARK_TEXT); unknown counts as a dark wallpaper. */
     // no colours = the default palette

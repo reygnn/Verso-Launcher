@@ -240,8 +240,8 @@ and unit-tested on the JVM or a thin view class:
   colours for the wallpaper behind them (asked once, then kept current by the system's listener).
 - `VersoConfig.kt`, `ConfigJson.kt`, `ConfigStore.kt`, `BackupStore.kt` — the config
   model, the `verso.json` round-trip, the durable file layer and the Downloads backup;
-  `BackupFiles.kt` the backup naming rules, `RestoreSteps.kt` a restore's IO in its
-  load-bearing order.
+  `DirSync.kt` the directory fsync after a rename, `BackupFiles.kt` the backup naming rules,
+  `RestoreSteps.kt` a restore's IO in its load-bearing order.
 - `HomeCache.kt` — the favorites cached for an instant home page on a cold start;
   `UsageLog.kt` and `RecentsLog.kt` the `%` counts and the `?` list, disposable files too.
 - `VersoApp.kt` — the process: the one IO thread and what outlives an activity

@@ -110,7 +110,7 @@ class MainActivity : Activity() {
             initial = app.palette ?: HomeStyle.palette(lightWallpaper = false),
             io = ::submitIo,
             main = ::onUi,
-            isLight = { Wallpaper.isLight(this, ::logWarning) },
+            isLight = { WallpaperSystem.isLight(this, ::logWarning) },
             onChange = ::applyPalette,
         )
 
@@ -164,7 +164,7 @@ class MainActivity : Activity() {
 
         applyPalette(wallpaper.current)
         wallpaper.ask()
-        unwatchWallpaper = Wallpaper.watch(this, wallpaper)
+        unwatchWallpaper = WallpaperSystem.watch(this, wallpaper)
     }
 
     override fun onStart() {
@@ -312,7 +312,7 @@ class MainActivity : Activity() {
         ConfigStore(
             dir = filesDir,
             log = ::logWarning,
-            syncDir = { dir -> ConfigStore.fsyncDir(dir, ::logWarning) },
+            syncDir = { dir -> fsyncDir(dir, ::logWarning) },
         )
     }
 
