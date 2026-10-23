@@ -25,8 +25,8 @@ android {
         applicationId = "com.github.reygnn.verso_launcher"
         minSdk = 36                 // Android 16 only — no compat shims
         targetSdk = 36
-        versionCode = 21
-        versionName = "0.3.2"
+        versionCode = 22
+        versionName = "0.4.0"
 
         // On-device tests only for what a JVM can't reproduce: the real MediaStore behind the
         // Downloads backup (its renaming of taken names, pending rows, ownership) and Android's
