@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 610 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 615 tests):
 
 ```
 LauncherLogicTest          151  modes, commands, search + foldLabel (Turkish, İ, NFC),
@@ -109,13 +109,18 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest              9  source scans: no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest             10  source scans: no lenient ConfigJson.parse in MainActivity,
                                 no brace-less object templates, no density in configChanges,
                                 no default in LauncherState's constructor, no EditPermit built
                                 outside LauncherState (call or reference), MainActivity's
                                 writeRestored and gate wiring; Guru installed once from VersoApp
-                                behind Guard, showPending through onUi, R8 keeping names
-VersoGuruTextsTest           2  Robolectric: Guru's words from values and values-de
+                                behind Guard, showPending in onCreate (not through onUi),
+                                guru/ out of backup and transfer, R8 keeping names
+VersoGuruTextsTest           4  Robolectric: Guru's words from values and values-de, read each
+                                time (a language change), every member Verso's own
+GuruWiringTest               2  Robolectric: Guru runs in Verso — a report left behind saved on
+                                the IO thread (a minimal MediaStore provider) and shown; an
+                                alert a recreation took away comes back with the next instance
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
@@ -149,7 +154,8 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
   only what neither a type nor a test reaches.
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the
-  backup layer is tested on a device instead.
+  backup layer is tested on a device instead. The one provider here, `GuruWiringTest`'s, models
+  no MediaStore rule: it only takes Guru's save, so the test can see that Guru runs at all.
 
 ---
 

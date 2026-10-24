@@ -92,10 +92,26 @@ class SourceGuardTest {
         assertEquals(listOf("VersoApp.kt"), sites)
     }
 
-    /** The alert on the next start, handed back through onUi, which drops it for a destroyed instance. */
-    @Test fun `MainActivity shows pending Guru reports through onUi`() {
+    /**
+     * The alert on the next start: asked for in every onCreate, unconditionally — an alert a
+     * recreation took away comes back only with the next call. Handed back with a plain
+     * runOnUiThread, never onUi: Guru puts its list back only when its own check sees the
+     * destroyed activity, and onUi would drop the hand-back first (GuruWiringTest).
+     */
+    @Test fun `MainActivity asks for pending Guru reports in onCreate, not through onUi`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        assertTrue(activity.contains("Guru.showPending(this, ::onUi)"))
+        val onCreate = activity.substringAfter("override fun onCreate(").substringBefore("\n    override fun ")
+        assertTrue(onCreate.contains("\n        Guru.showPending(this) { show -> runOnUiThread(show) }\n"))
+        assertEquals(1, Regex("""\bGuru\s*\.\s*showPending\s*\(""").findAll(activity).count())
+    }
+
+    /** Guru's store (crash reports, the installation id) never goes to the cloud nor to a new device. */
+    @Test fun `Guru's files stay out of cloud backup and device transfer`() {
+        val rules = source("src/main/res/xml/data_extraction_rules.xml")
+        val cloud = rules.substringAfter("<cloud-backup>").substringBefore("</cloud-backup>")
+        val transfer = rules.substringAfter("<device-transfer>").substringBefore("</device-transfer>")
+        assertTrue(cloud.contains("""<exclude domain="file" path="." />"""))
+        assertTrue(transfer.contains("""<exclude domain="file" path="guru/" />"""))
     }
 
     /** Renamed classes or lost line numbers would change a crash's Guru number with every release. */

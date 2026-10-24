@@ -168,10 +168,10 @@ class MainActivity : Activity() {
         unwatchWallpaper = WallpaperSystem.watch(this, wallpaper)
 
         // Crash reports from an earlier run: Guru's alert, once the window is up. Queued on
-        // the IO thread behind Guru's look at the exit records and its save to Download/Guru;
-        // onUi drops it for a destroyed instance, and the alert dismisses itself with this
-        // activity (it comes back with the next call).
-        Guru.showPending(this, ::onUi)
+        // the IO thread behind Guru's look at the exit records and its save to Download/Guru.
+        // Not through onUi: Guru takes its list before the hand-back, and only its own check of
+        // a destroyed activity puts the list back for the next call — onUi would drop it.
+        Guru.showPending(this) { show -> runOnUiThread(show) }
     }
 
     override fun onStart() {
