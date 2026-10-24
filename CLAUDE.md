@@ -72,7 +72,7 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
   launch counts behind the `%` order, and `recents.txt` (`RecentsLog`), the `?` list —
   disposable too, never in a backup — and `filesDir/guru/`, Guru's: at most 8 crash
-  reports waiting for the next start, `installation-id` and `exits-seen`, never in a backup
+  reports waiting for the next start, `installation-id`, `exits-seen` and `crashes-saved`, never in a backup
   and excluded from a device transfer (`data_extraction_rules.xml`). Off-device backups in
   `Download/Verso/` via MediaStore (`BackupStore`); Guru saves its reports to
   `Download/Guru/` the same way (its own newest 32 kept).
@@ -183,7 +183,9 @@ thread.
    say what failed — never swallowed, no catch-all net.
 3. **One IO thread, process-wide** (`VersoApp.io`). Never create another executor,
    never shut it down. Main-thread state is mutated only on the main thread; hand-backs
-   go through `onUi`, which drops them for a destroyed instance. The one exception: the
+   go through `onUi`, which drops them for a destroyed instance — except Guru's alert
+   (`showPending`), handed back with a plain `runOnUiThread`: Guru checks the destroyed
+   activity itself and keeps the alert for the next call, which a dropped hand-back would lose. The one exception: the
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
    content provider (an offline cloud drive) can block that read indefinitely, and it
    touches no file of the app's own; the undo point and the adoption still go through
@@ -191,8 +193,8 @@ thread.
    report on the dying thread itself — the process is going down, nothing queued on
    `VersoApp.io` would run. That write touches only `filesDir/guru/`; everything else Guru
    does (the exit records, saving each report to `Download/Guru` — a MediaStore insert and an
-   fsync per report, queued at `install` and so ahead of Verso's first load —, the alert's
-   list) goes through `VersoApp.io`. Not a breach to
+   fsync per report and the prune to its newest 32, queued at `install` and so ahead of Verso's
+   first load —, the alert's list) goes through `VersoApp.io`. Not a breach to
    "fix".
 4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync →
    rename over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net

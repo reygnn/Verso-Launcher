@@ -256,15 +256,16 @@ and unit-tested on the JVM or a thin view class:
 
 Verso carries [Guru](https://github.com/reygnn/guru), a crash reporter vendored as source in
 `guru/` (a `git subtree`, never edited here). A crash is written to disk while the process
-dies; at the next start, before anything is shown, Guru saves it without asking as a `.json`
-file in `Download/Guru/` (MediaStore, no permission; Guru keeps its newest 32 there) and Verso
-shows the Amiga alert saying so. **Hold** hands the saved files to an app you pick (mail, a
-messenger, guru2acra), **double-tap** or **Back** closes the alert; once seen it does not come
-again. To be rid of a report, delete its file. Nothing is sent on its own; the files are
-readable by anything that reads `Download` — see `CAVEATS.md`.
+dies; at the next start, before the alert, Guru saves it without asking as a `.json` file in
+`Download/Guru/` (MediaStore, no permission; Guru keeps its newest 32 there) and Verso shows
+the Amiga alert saying so — unless the alert itself was what crashed: then the file is saved
+and the alert left out. **Hold** hands the saved files to an app you pick (mail, a messenger,
+guru2acra), **double-tap** or **Back** closes the alert; once seen it does not come again. To be
+rid of a report, delete its file. Guru itself sends nothing; the files are readable by anything
+that reads `Download` — see `CAVEATS.md`.
 
 Guru adds about 30 KB of code and keeping class names (`-dontobfuscate`, for readable crash
-traces) about 18 KB: the release APK went from about 180 to 229 KB. The only
+traces) about 18 KB: the release APK went from about 180 to 231 KB. The only
 *shipped* dependencies are the Kotlin stdlib (added automatically by AGP's
 built-in Kotlin); JUnit, org.json and Robolectric are `testImplementation`,
 androidx.test is `androidTestImplementation`, so the release stays dependency-free.

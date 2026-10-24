@@ -3,8 +3,9 @@
      too, so it holds whichever of the two the platform reads. A device-to-device transfer moves verso.json
      (the config) but not a half-written verso.json.new, nor an unreadable config set aside,
      nor the home-cache, which is rebuilt on the first load, nor guru/ (Guru's crash reports):
-     an old device's reports would show on the new one, and its installation-id would make
-     the two one installation on the crash server. -->
+     an old device's reports would be saved to the new one's Download/Guru, its installation-id
+     would make the two one installation on the crash server, and exits-seen/crashes-saved
+     are the old device's times. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" path="." />

@@ -90,11 +90,12 @@ intact, and the default favorites are not seeded there (the install is not fresh
 After a crash, the next start saves the report to `Download/Guru/` without asking, before the
 alert says so. A report holds the full trace (exception messages can carry names, paths or
 other apps' package names), an ANR's dump of every thread, the device's brand, model and
-Android version, and an installation ID that stays the same until Verso is reinstalled. Like
+Android version, and an installation ID that stays the same until Verso is reinstalled or its
+storage cleared (a move to a new phone starts a new one; the debug build has its own). Like
 the backups, the files can be read by a file manager, a cloud-sync app that scans Download, a
 PC over USB or an app with access to all files, and they outlive an uninstall; after a
 reinstall Verso can no longer see or remove them. Every app with Guru shares the one folder.
-Nothing leaves the phone unless you share a file; to be rid of a report, delete its file.
+Guru itself sends nothing; to be rid of a report, delete its file.
 
 ## Gestures on the front page
 
