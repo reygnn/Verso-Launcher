@@ -16,18 +16,12 @@ class HomeStyleTest {
         assertEquals(34.2f, HomeStyle.favoriteTextSizePx(18f, 45f), 0.001f)
     }
 
-    @Test fun `scale is clamped to Kolibri's 0 to 2 slider`() {
-        assertEquals(18f, HomeStyle.favoriteTextSizePx(18f, 45f, scale = -1f), 0.001f)
-        assertEquals(72f, HomeStyle.favoriteTextSizePx(18f, 45f, scale = 5f), 0.001f)
-    }
-
     @Test fun `a max below the min is lifted to the min`() {
         assertEquals(18f, HomeStyle.favoriteTextSizePx(18f, 10f), 0.001f)
     }
 
     @Test fun `vertical padding is 0_6 of the text size, truncated`() {
         assertEquals(20, HomeStyle.favoriteVerticalPaddingPx(34.2f))
-        assertEquals(0, HomeStyle.favoriteVerticalPaddingPx(34.2f, factor = 0f))
     }
 
     // ---- outline colour -------------------------------------------------------

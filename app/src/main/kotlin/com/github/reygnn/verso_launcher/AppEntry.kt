@@ -25,15 +25,6 @@ internal data class AppEntry(
         copy(label = newLabel)
 
     companion object {
-        fun of(
-            label: String,
-            packageName: String,
-            className: String,
-            systemLabel: String,
-            profile: Long? = null,
-            status: AppStatus = AppStatus.READY,
-        ) = AppEntry(label, packageName, className, systemLabel, profile, status)
-
         /**
          * "package/class" (ComponentName.flattenToString()) for the personal profile,
          * "package/class#<serial>" for another one (hard rule 8). "#" cannot occur in either name.

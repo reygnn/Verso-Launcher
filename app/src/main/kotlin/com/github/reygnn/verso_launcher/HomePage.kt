@@ -1,7 +1,6 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.ContentUris
 import android.content.Context
@@ -191,7 +190,8 @@ internal class HomePage(
         )
         val padV = HomeStyle.favoriteVerticalPaddingPx(textPx)
         val padH = HomeStyle.FAVORITE_PADDING_H_DP.dp()
-        val face = if (HomeStyle.FAVORITES_BOLD) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        // Bold, as Kolibri's favorites are by default.
+        val face = Typeface.DEFAULT_BOLD
         for (entry in favs) {
             favorites.addView(OutlinedTextView(activity).apply {
                 text = entry.label
@@ -277,15 +277,9 @@ internal class HomePage(
     private fun openBatteryUsage() = startGuarded(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
 
     private fun startGuarded(intent: Intent) {
-        // any app may refuse the intent: say so, never crash
+        // any app may refuse the intent (none there, denied, anything else): say so, never crash
         @Suppress("TooGenericExceptionCaught") try {
             activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (e: ActivityNotFoundException) {
-            Log.w("Verso", "no app for: $intent", e)
-            noApp()
-        } catch (e: SecurityException) {
-            Log.w("Verso", "start denied: $intent", e)
-            noApp()
         } catch (e: RuntimeException) {
             Log.w("Verso", "start failed: $intent", e)
             noApp()

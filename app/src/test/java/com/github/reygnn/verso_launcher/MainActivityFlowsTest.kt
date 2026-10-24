@@ -98,8 +98,8 @@ class MainActivityFlowsTest {
     /** No LauncherApps, so no rows to tap: the tap as AppDrawer hands it on. */
     private fun tap(action: DrawerAction<AppEntry>) = activity.onDrawerAction(action)
 
-    private val someApp = AppEntry.of("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
-    private val otherApp = AppEntry.of("Yankee", "com.yankee", "com.yankee.Main", "Yankee")
+    private val someApp = AppEntry("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
+    private val otherApp = AppEntry("Yankee", "com.yankee", "com.yankee.Main", "Yankee")
     private fun savedFavorites(): List<String> =
         File(activity.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText())?.favorites }.orEmpty()
 

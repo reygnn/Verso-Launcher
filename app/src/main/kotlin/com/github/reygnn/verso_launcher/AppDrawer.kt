@@ -69,7 +69,6 @@ internal class AppDrawer(
     private var shown: List<Row<AppEntry>> = emptyList()
 
     private lateinit var clearButton: OutlinedTextView
-    private lateinit var promptRow: LinearLayout
     // Recoloured in place: the Editor loads its cursor drawable once and ignores a new one.
     private val cursorDrawable = GradientDrawable()
     private lateinit var emptyView: OutlinedTextView
@@ -216,7 +215,7 @@ internal class AppDrawer(
                 true
             }
         }
-        promptRow = LinearLayout(activity).apply {
+        val promptRow = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(8.dp(), 0, 8.dp(), 0)
             gravity = Gravity.CENTER_VERTICAL
@@ -412,28 +411,23 @@ internal class AppDrawer(
             tv.setTextColor(palette.text)
             (tv as? OutlinedTextView)?.setOutline(outlinePx, palette.outline)
             when (val row = shown[position]) {
-                // Clear a recycled row's edit-mode description.
-                is TagRow -> {
-                    tv.typeface = listTypeface
-                    tv.text = row.name
-                    tv.contentDescription = null
-                    tv.alpha = 1f
-                }
-                is OrderRow -> {
-                    tv.typeface = Typeface.MONOSPACE
-                    tv.text = activity.getString(if (row.toUsage) R.string.order_to_usage else R.string.order_to_name)
-                    tv.contentDescription = null
-                    tv.alpha = 1f
-                }
-                is CommandRow -> {
-                    tv.typeface = Typeface.MONOSPACE
-                    tv.text = row.name
-                    tv.contentDescription = null
-                    tv.alpha = 1f
-                }
+                is TagRow -> bindPlainRow(tv, listTypeface, row.name)
+                is OrderRow -> bindPlainRow(
+                    tv, Typeface.MONOSPACE,
+                    activity.getString(if (row.toUsage) R.string.order_to_usage else R.string.order_to_name),
+                )
+                is CommandRow -> bindPlainRow(tv, Typeface.MONOSPACE, row.name)
                 is AppRow -> bindAppRow(tv, row.entry)
             }
             return tv
+        }
+
+        /** A row without an app; clears what a recycled app row set (edit-mode description, dimming). */
+        private fun bindPlainRow(tv: TextView, face: Typeface, text: String) {
+            tv.typeface = face
+            tv.text = text
+            tv.contentDescription = null
+            tv.alpha = 1f
         }
 
         private fun bindAppRow(tv: TextView, entry: AppEntry) {

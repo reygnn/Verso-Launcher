@@ -20,7 +20,7 @@ class AppDrawerTest {
 
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
 
-    private fun app(label: String) = AppEntry.of(label, "com.${label.lowercase()}", "com.${label.lowercase()}.Main", label)
+    private fun app(label: String) = AppEntry(label, "com.${label.lowercase()}", "com.${label.lowercase()}.Main", label)
     private val installed = listOf(app("Alpha"), app("Bravo"), app("Charlie"))
 
     private val state = testLauncherState(

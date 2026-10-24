@@ -9,8 +9,8 @@ class HomeCacheTest {
 
     @get:Rule val tmp = TemporaryFolder()
 
-    private val personal = AppEntry.of("Telefon", "com.google.android.dialer", "com.android.dialer.Main", "Telefon")
-    private val work = AppEntry.of("Gmail (Arbeit)", "com.google.android.gm", "com.google.android.gm.Main", "Gmail (Arbeit)", profile = 10)
+    private val personal = AppEntry("Telefon", "com.google.android.dialer", "com.android.dialer.Main", "Telefon")
+    private val work = AppEntry("Gmail (Arbeit)", "com.google.android.gm", "com.google.android.gm.Main", "Gmail (Arbeit)", profile = 10)
 
     @Test fun `a round trip keeps order, keys and labels, work profile included`() {
         val back = HomeCache.parse(HomeCache.format(listOf(personal, work)))
@@ -20,7 +20,7 @@ class HomeCacheTest {
     }
 
     @Test fun `a tab or line break in a label cannot break the format`() {
-        val odd = AppEntry.of("a\tb\nc", "p", "p.Main", "a\tb\nc")
+        val odd = AppEntry("a\tb\nc", "p", "p.Main", "a\tb\nc")
         assertEquals(listOf("a b c"), HomeCache.parse(HomeCache.format(listOf(odd))).map { it.label })
     }
 

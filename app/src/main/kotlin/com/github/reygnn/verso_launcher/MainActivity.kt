@@ -275,16 +275,14 @@ class MainActivity : Activity() {
     private fun guarded(what: String, task: Runnable) = Guard.wrap(what, ::logWarning, task)
 
     /** A refused task is reported as false, never thrown (the executor is never shut down, but a HOME app must not crash). */
-    private fun submitIo(task: Runnable): Boolean {
-        if (ioExecutor.isShutdown) return false
-        return try {
+    private fun submitIo(task: Runnable): Boolean =
+        try {
             ioExecutor.execute(guarded("IO task", task))
             true
         } catch (e: RejectedExecutionException) {
-            Log.w("Verso", "IO task rejected (executor shutting down)", e)
+            Log.w("Verso", "IO task rejected (executor shut down)", e)
             false
         }
-    }
 
     /** A hardware keyboard on home: typing (or Search) opens the drawer with that character in the prompt. */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

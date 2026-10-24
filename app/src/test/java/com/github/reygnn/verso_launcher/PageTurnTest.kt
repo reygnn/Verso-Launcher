@@ -32,7 +32,7 @@ class PageTurnTest {
         io = { task -> task.run(); true },
         main = { task -> task.run() },
         loadConfig = { VersoConfig() },
-        enumerateApps = { Enumeration(listOf(AppEntry.of("Alpha", "com.alpha", "com.alpha.Main", "Alpha")), true) },
+        enumerateApps = { Enumeration(listOf(AppEntry("Alpha", "com.alpha", "com.alpha.Main", "Alpha")), true) },
         serialize = { "" },
         writeConfig = { true },
         onRefreshed = { _, _ -> },

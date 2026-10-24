@@ -230,7 +230,7 @@ internal fun <P> enumerate(
                 // Cleaned like a custom name: no bidi tricks to pass for another app.
                 val raw = LauncherLogic.cleanName(app.label).ifEmpty { app.packageName }
                 val systemLabel = if (serial == null) raw else badge(raw, serial, user)
-                entries += AppEntry.of(
+                entries += AppEntry(
                     label = systemLabel,
                     packageName = app.packageName,
                     className = app.className,

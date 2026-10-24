@@ -19,7 +19,7 @@ internal object HomeCache {
     fun parse(text: String): List<AppEntry> = text.lineSequence().mapNotNull { line ->
         val label = line.substringAfter('\t', "").ifEmpty { return@mapNotNull null }
         val parts = AppEntry.parseKey(line.substringBefore('\t', "")) ?: return@mapNotNull null
-        AppEntry.of(label, parts.packageName, parts.className, label, parts.profile)
+        AppEntry(label, parts.packageName, parts.className, label, parts.profile)
     }.toList()
 
     // a disposable cache: unreadable = none

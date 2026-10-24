@@ -181,8 +181,10 @@ internal object LauncherLogic {
 
     private const val COMBINING_DOT_ABOVE = "\u0307"
 
-    /** [apps] under their custom names from [names], re-sorted — a name can move an app alphabetically. */
-    /** [apps] arrive sorted (the enumeration sorts on the IO thread): only a changed label re-sorts. */
+    /**
+     * [apps] under their custom names from [names]. They arrive sorted (the enumeration sorts on the
+     * IO thread), so only a changed label re-sorts — a name can move an app alphabetically.
+     */
     fun named(apps: List<AppEntry>, names: Map<String, String>, locale: Locale = Locale.getDefault()): List<AppEntry> {
         var relabelled = false
         val shown = apps.map { e ->

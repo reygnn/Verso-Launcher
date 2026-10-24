@@ -504,7 +504,7 @@ class LauncherLogicTest {
     // ---- named: custom names applied to an enumeration ------------------------------
 
     /** An enumerated app: label = its own system label, as an enumeration delivers it. */
-    private fun sys(label: String) = AppEntry.of(label, "p.${label.lowercase()}", "C", label)
+    private fun sys(label: String) = AppEntry(label, "p.${label.lowercase()}", "C", label)
 
     @Test fun `named shows a custom name and keeps the system label beside it`() {
         val shown = LauncherLogic.named(listOf(sys("Alpha")), mapOf(sys("Alpha").key to "Zulu"), Locale.GERMANY)
@@ -541,8 +541,8 @@ class LauncherLogicTest {
     }
 
     @Test fun `named applies names to a work copy by its own key only`() {
-        val personal = AppEntry.of("Gmail", "p.gmail", "C", "Gmail")
-        val work = AppEntry.of("Gmail (Work)", "p.gmail", "C", "Gmail (Work)", profile = 10)
+        val personal = AppEntry("Gmail", "p.gmail", "C", "Gmail")
+        val work = AppEntry("Gmail (Work)", "p.gmail", "C", "Gmail (Work)", profile = 10)
         val shown = LauncherLogic.named(listOf(personal, work), mapOf(work.key to "Job mail"), Locale.GERMANY)
         assertEquals(listOf("Gmail", "Job mail"), shown.map { it.label })
     }

@@ -91,7 +91,7 @@ class LauncherStateTest {
     private var candidatesCalls = 0
 
     private fun app(label: String) =
-        AppEntry.of(label, "com.$label".lowercase(), "com.${label.lowercase()}.Main", label)
+        AppEntry(label, "com.$label".lowercase(), "com.${label.lowercase()}.Main", label)
 
     private fun key(label: String) = app(label).key
 
@@ -1229,8 +1229,8 @@ class LauncherStateTest {
     // ---- AppEntry --------------------------------------------------------------
 
     @Test fun `a personal app keeps the plain key, another profile's copy gets the serial`() {
-        val personal = AppEntry.of("Gmail", "com.google.android.gm", "com.google.android.gm.Main", "Gmail")
-        val work = AppEntry.of("Gmail (Work)", "com.google.android.gm", "com.google.android.gm.Main", "Gmail (Work)", profile = 10)
+        val personal = AppEntry("Gmail", "com.google.android.gm", "com.google.android.gm.Main", "Gmail")
+        val work = AppEntry("Gmail (Work)", "com.google.android.gm", "com.google.android.gm.Main", "Gmail (Work)", profile = 10)
         assertEquals("com.google.android.gm/com.google.android.gm.Main", personal.key)
         assertEquals("com.google.android.gm/com.google.android.gm.Main#10", work.key)
         assertEquals(work.key, work.withLabel("Mail").key)
@@ -1239,14 +1239,14 @@ class LauncherStateTest {
     }
 
     @Test fun `the status is no part of the key, and a rename keeps it`() {
-        val ready = AppEntry.of("Gmail", "com.g", "com.g.Main", "Gmail", profile = 10)
-        val paused = AppEntry.of("Gmail", "com.g", "com.g.Main", "Gmail", profile = 10, status = AppStatus.PAUSED)
+        val ready = AppEntry("Gmail", "com.g", "com.g.Main", "Gmail", profile = 10)
+        val paused = AppEntry("Gmail", "com.g", "com.g.Main", "Gmail", profile = 10, status = AppStatus.PAUSED)
         assertEquals(ready.key, paused.key)  // favorites and names survive a pause
         assertEquals(AppStatus.PAUSED, paused.withLabel("Mail").status)
     }
 
     @Test fun `a work copy is its own row with its own favorite and name state`() {
-        val work = AppEntry.of("Charlie (Work)", "com.charlie", "com.charlie.Main", "Charlie (Work)", profile = 10)
+        val work = AppEntry("Charlie (Work)", "com.charlie", "com.charlie.Main", "Charlie (Work)", profile = 10)
         installed = installed + work
         disk = VersoConfig(favorites = listOf(key("Charlie")))
         started()
@@ -1256,7 +1256,7 @@ class LauncherStateTest {
     }
 
     @Test fun `the personal key is package slash class, the format old configs were written in`() {
-        val e = AppEntry.of("Mail", "com.example.mail", "com.example.mail.MainActivity", "Mail")
+        val e = AppEntry("Mail", "com.example.mail", "com.example.mail.MainActivity", "Mail")
         assertEquals("com.example.mail/com.example.mail.MainActivity", e.key)
         assertEquals("mail", e.labelLower)
         assertEquals("inbox", e.withLabel("Inbox").labelLower)

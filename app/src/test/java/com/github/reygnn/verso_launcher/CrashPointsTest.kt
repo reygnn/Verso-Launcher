@@ -158,7 +158,7 @@ class CrashPointsTest {
 
     // ---- ~cleanup (hard rule 14) ---------------------------------------------
 
-    private val alpha = AppEntry.of("Alpha", "com.alpha", "com.alpha.Main", "Alpha")
+    private val alpha = AppEntry("Alpha", "com.alpha", "com.alpha.Main", "Alpha")
     private val beforeCleanup = VersoConfig(
         favorites = listOf(alpha.key, "gone/A"),
         hidden = linkedSetOf("gone/A"),

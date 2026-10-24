@@ -71,7 +71,7 @@ class HomePageAccessibilityTest {
     }
 
     @Test fun `a favorite whose app is paused, then resumed, is redrawn both times`() {
-        val paused = AppEntry.of("Gmail (Work)", "com.g", "com.g.Main", "Gmail (Work)", profile = 10, status = AppStatus.PAUSED)
+        val paused = AppEntry("Gmail (Work)", "com.g", "com.g.Main", "Gmail (Work)", profile = 10, status = AppStatus.PAUSED)
         page.render(favs = listOf(paused), loaded = true)
         assertEquals(HomeStyle.UNAVAILABLE_ALPHA, favorite("Gmail (Work)").alpha, 0f)
         assertEquals(activity.getString(R.string.a11y_app_paused, "Gmail (Work)"), favorite("Gmail (Work)").contentDescription)
@@ -83,7 +83,7 @@ class HomePageAccessibilityTest {
     }
 
     @Test fun `switching the text colour redraws the favorites in it`() {
-        val gmail = AppEntry.of("Gmail", "com.g", "com.g.Main", "Gmail")
+        val gmail = AppEntry("Gmail", "com.g", "com.g.Main", "Gmail")
         page.render(favs = listOf(gmail), loaded = true)
         assertEquals(HomeStyle.TEXT_COLOR, (favorite("Gmail") as android.widget.TextView).currentTextColor)
 

@@ -5,7 +5,7 @@ import org.junit.Test
 
 class CleanupTest {
 
-    private val here = AppEntry.of("Here", "here", "here.Main", "Here")
+    private val here = AppEntry("Here", "here", "here.Main", "Here")
     private val config = VersoConfig(
         favorites = listOf(here.key, "gone/Gone", "disabled/Main"),
         hidden = linkedSetOf("gone/Gone"),

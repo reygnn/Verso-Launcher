@@ -32,11 +32,10 @@ internal object HomeStyle {
     const val INFO_DP = 18f
 
     // ---- Kolibri defaults -----------------------------------------------------
-    /** Kolibri's size slider (0..2) at its default. */
+    /** Kolibri's size slider (0..2) at its default, baked in: Verso has no slider. */
     const val LAYOUT_SCALE = 0.6f
     const val MAX_FAVORITE_RELATIVE_TO_CLOCK = 0.75f
     const val VERTICAL_PADDING_FACTOR = 0.6f
-    const val FAVORITES_BOLD = true
     const val OUTLINE_DP = 2f
     const val PRESSED_ALPHA = 180
     const val TEXT_COLOR = 0xFFFFFFFF.toInt()
@@ -55,15 +54,13 @@ internal object HomeStyle {
 
     const val DOUBLE_TAP_MS = 300L
 
-    /** A [scale] above 1 deliberately overshoots [maxPx], as Kolibri's 0..2 slider does. */
-    fun favoriteTextSizePx(minPx: Float, maxPx: Float, scale: Float = LAYOUT_SCALE): Float {
+    /** [LAYOUT_SCALE] of the way from [minPx] to [maxPx]; a max below the min is lifted to it. */
+    fun favoriteTextSizePx(minPx: Float, maxPx: Float): Float {
         val safeMin = minPx.coerceAtLeast(1f)
-        val safeMax = maxPx.coerceAtLeast(safeMin)
-        return safeMin + (safeMax - safeMin) * scale.coerceIn(0f, 2f)
+        return safeMin + (maxPx.coerceAtLeast(safeMin) - safeMin) * LAYOUT_SCALE
     }
 
-    fun favoriteVerticalPaddingPx(textSizePx: Float, factor: Float = VERTICAL_PADDING_FACTOR): Int =
-        (textSizePx * factor.coerceIn(0f, 2f)).toInt()
+    fun favoriteVerticalPaddingPx(textSizePx: Float): Int = (textSizePx * VERTICAL_PADDING_FACTOR).toInt()
 
     /** WCAG relative luminance; alpha is ignored. */
     fun luminance(argb: Int): Double {

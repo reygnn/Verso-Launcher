@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 617 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 616 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -52,7 +52,7 @@ ConfigJsonTest              32  round-trip (the "%" order too), parseForeign's r
                                 hostile nesting, look-alike characters, lone surrogates, size limits
 LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, the "!!" tap
                                 (pick up, let go, move)
-HomeStyleTest               23  sizes, luminance, outline-colour thresholds, battery,
+HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
 BackupFilesTest             17  backup naming: timestamps, patterns, restore pick, sweep
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
