@@ -3,6 +3,28 @@
 Every tag has an entry here, newest first. Versions follow SemVer; what counts as major,
 minor or patch is in `CLAUDE.md`, "Versions and releases".
 
+## 2.1.0 — 2026-10-24
+
+**The alert as on the Amiga.** Checked on the A17 with the sample and with Verso (daily-driver
+build): before, a black full-screen dialog with the box at the top and nothing of the app; now a
+black strip at the top — box, blinking border, hint — and the app slid down under it, seen
+below; after a double-tap, a hold (chooser cancelled) and in landscape the app is back pixel for
+pixel where it was; with "Remove animations" no slide and no blink; TalkBack reads the alert as
+before.
+
+- The alert is a black strip at the top, as high as box and hint need (below the top inset,
+  at most the window); below it the dialog's window is see-through and undimmed, the app slid
+  down by the strip's height (`decorView.translationY`, about 220 ms, a jump with animations
+  off). The alert stays modal: the window still fills the screen, every touch and TalkBack
+  stay with it. Gestures, texts, saving and sharing are unchanged.
+- **For hosts:** while the alert is up, Guru owns the activity's `decorView.translationY` and
+  puts back the value it found on every way out (README, "For hosts: the window slides").
+- Fix: `diedInGuru` counted any Guru frame in the trace. In a host's R8 release, a host lambda
+  can be merged into a Guru class — Verso's `~crash` went through `GuruScreen$show$5` — so a
+  host's own crash lost its alert. Now the root cause's first frame that is not the platform's
+  decides.
+- 190 tests.
+
 ## 2.0.2 — 2026-10-24
 
 From Verso's review (its audit 2026-10-24, B.8–B.13). Checked on the A17: the border blinks,

@@ -12,7 +12,7 @@ purpose: no coroutines, no MockK — see "deliberately not".
 
 ## What exists
 
-Unit tests (`library/src/test`, `./gradlew :library:testDebugUnitTest`, 176 tests):
+Unit tests (`library/src/test`, `./gradlew :library:testDebugUnitTest`, 190 tests):
 
 ```
 GuruStoreTest       19  reports on real files: atomic write (.new, rename, dir fsync), newest
@@ -27,10 +27,12 @@ GuruNumberTest      16  the number: kind with the dead-end bit, FNV-1a over the 
 ReportCodecTest     10  key=value round-trip (a hostile trace too); an unknown key from a newer
                         Guru skipped; missing field, bad value, bad escape or a cut-off file
                         is no report
-GuruTextTest        10  cap and readCapped at their limit (surrogate pairs whole), the alert
+GuruTextTest        11  cap and readCapped at their limit (surrogate pairs whole), the alert
                         lines with the host's "saved" line, the share's subject; died in
-                        Guru: a crash on main with a frame right in Guru's package, not off
-                        main, not another kind, not a package below
+                        Guru: the root cause's first non-platform frame right in Guru's
+                        package, on main — not a host's crash passing through a Guru class
+                        further down (R8-merged lambda), not off main, not another kind, not
+                        a package below
 AcraJsonTest         7  the ACRA fields Acrarium requires, USER_CRASH_DATE's format, read back
                         with the real org.json
 ExitSelectionTest    7  which exit records become reports: the first look only sets the
@@ -86,8 +88,14 @@ GuruScreenTest       9  Robolectric: close shares nothing, share acts once (the 
                         the alert closes with its activity; a long host line shrinks only
                         itself; the hint reads at WCAG contrast on black; fitted never grows
                         and never goes to nothing; the border blinks only while visible
-GuruTouchTest       10  Robolectric, real MotionEvents: a double-tap closes, a still hold
-                        shares; a single tap, two slow taps, a swipe, a slide past the slop
+GuruStripTest       12  Robolectric: the app's decorView slid down by the strip, below the top
+                        inset, never taller than the window; the window see-through and
+                        undimmed; animated for SLIDE_MS, a jump with animations off; the
+                        value before (not 0) put back after a double-tap, Back, a hold, the
+                        activity's end, an alert that cannot be shown; only the strip drawn
+                        black (native graphics)
+GuruTouchTest       11  Robolectric, real MotionEvents: a double-tap closes, a still hold
+                        shares, below the strip too; a single tap, two slow taps, a swipe, a slide past the slop
                         and a sliding second tap do nothing; TalkBack's click and long click
                         act
 ```

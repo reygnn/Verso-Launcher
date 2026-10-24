@@ -74,10 +74,10 @@ class GuruTouchTest {
 
     private fun up(x: Float = startX, y: Float = startY) = event(MotionEvent.ACTION_UP, x, y)
 
-    private fun tap() {
-        down()
+    private fun tap(y: Float = startY) {
+        down(y = y)
         after(TAP_MS)
-        up()
+        up(y = y)
     }
 
     /** Nothing happened, and nothing is still pending on the clock. */
@@ -93,6 +93,23 @@ class GuruTouchTest {
         tap()
 
         assertUntouched()
+    }
+
+    /** Below the strip the window is see-through, but the touches are still the alert's. */
+    @Test
+    fun `below the strip a tap does nothing and a double-tap closes`() {
+        val below = view.height - 10f
+        assertTrue((view as GuruView).strip < below)
+
+        tap(below)
+        after(doubleTapMs + BETWEEN_TAPS_MS)
+        assertTrue(dialog.isShowing)
+
+        tap(below)
+        after(BETWEEN_TAPS_MS)
+        tap(below)
+        assertEquals(1, closed)
+        assertEquals(0, shared)
     }
 
     @Test

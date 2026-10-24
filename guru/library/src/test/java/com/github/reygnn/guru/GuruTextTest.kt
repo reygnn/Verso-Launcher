@@ -66,11 +66,34 @@ class GuruTextTest {
     }
 
     @Test
-    fun `died in Guru - a crash on main with a frame of Guru's own package`() {
-        val guru = "java.lang.IllegalStateException: x\n\tat com.github.reygnn.guru.GuruView.onDraw(GuruScreen.kt:1)"
-        assertTrue(GuruText.diedInGuru(report(thread = "main", trace = guru)))
+    fun `died in Guru - the root cause's first own frame is Guru's`() {
         assertTrue(GuruText.diedInGuru(report(thread = "main",
-            trace = "java.lang.RuntimeException: y\n\tat android.view.View.draw(View.java:1)\n$guru")))
+            trace = "java.lang.IllegalStateException: x\n\tat com.github.reygnn.guru.GuruView.onDraw(GuruScreen.kt:1)")))
+        assertTrue(GuruText.diedInGuru(report(thread = "main", trace = listOf(
+            "java.lang.IllegalArgumentException: bad size",
+            "\tat android.graphics.Paint.setTextSize(Paint.java:1)",
+            "\tat kotlin.collections.CollectionsKt.first(Collections.kt:1)",
+            "\tat com.github.reygnn.guru.GuruView.measureBox(GuruScreen.kt:1)",
+            "\tat android.view.View.layout(View.java:1)",
+        ).joinToString("\n"))))
+        assertTrue(GuruText.diedInGuru(report(thread = "main", trace = listOf(
+            "java.lang.RuntimeException: wrapped",
+            "\tat android.app.ActivityThread.main(ActivityThread.java:1)",
+            "Caused by: java.lang.IllegalStateException: x",
+            "\tat com.github.reygnn.guru.GuruView.onDraw(GuruScreen.kt:1)",
+        ).joinToString("\n"))))
+    }
+
+    /** Seen on the A17: R8 merged Verso's command lambda into a Guru class; the crash was Verso's. */
+    @Test
+    fun `not died in Guru - a host's crash passing through a Guru class further down`() {
+        assertFalse(GuruText.diedInGuru(report(thread = "main", trace = listOf(
+            "java.lang.IllegalStateException: ~crash: deliberate crash (daily-driver build)",
+            "\tat com.github.reygnn.verso_launcher.MainActivity.runCommand(MainActivity.kt:78)",
+            "\tat com.github.reygnn.guru.GuruScreen\$show\$5.invoke(GuruScreen.kt:124)",
+            "\tat com.github.reygnn.verso_launcher.AppDrawer\$\$ExternalSyntheticLambda6.onEditorAction(AppDrawer.kt:462)",
+            "\tat android.widget.TextView.onEditorAction(TextView.java:1)",
+        ).joinToString("\n"))))
     }
 
     @Test

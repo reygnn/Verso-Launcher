@@ -13,7 +13,9 @@
 A crash reporter for Android, vendored as source: no dependency, no permission, no
 thread of its own. A crash is written to disk before the process dies. On the next start,
 before anything is shown, Guru saves every report as a `.json` file in `Download/Guru/`;
-then the app shows the Amiga alert — black, red, the border blinking — to say so, once.
+then the app shows the Amiga alert to say so, once: as on the Amiga, a black strip at the
+top — red text, the border blinking — and the app slid down under it, still to be seen, gliding
+back up once the alert is closed.
 **Hold** (right button) shares the saved files, **double-tap** (left button) or **Back**
 closes the alert. It decides nothing: the reports are saved already.
 A single tap or a swipe does nothing: a finger laid on a dimmed screen to wake it must not
@@ -23,8 +25,9 @@ close the alert unread. Moving past the touch slop cancels a double-tap and a ho
 answers: an app that dies before its alert still has its reports in `Download/Guru/`. An
 alert that cannot be built (the host's texts throw) is logged and left out; one that
 crashes later, in layout or drawing, is left out at the next start — its crash, on the main
-thread inside Guru's own package, is saved like any other, but gets no alert. No start
-loops on Guru's own alert.
+thread with its root cause thrown in Guru's own code, is saved like any other, but gets no
+alert. No start loops on Guru's own alert. (A host's crash that merely passes through a Guru
+class further down — R8 merges lambdas across packages — still gets its alert.)
 
 Platform APIs and the Kotlin stdlib only, minSdk 36 like the rest of the family.
 
@@ -219,13 +222,22 @@ save runs at every start before the host's own first load, if the host queues th
 Install in the main process only — every process that installs saves. The dialog dismisses
 itself when its activity is destroyed.
 
+**For hosts: the window slides.** While the alert is up, Guru owns the activity's
+`window.decorView.translationY`: it slides the app down by the strip's height (top inset,
+box, hint; at most the window's height), animated for about 220 ms unless the system's
+animations are off. On every way out — double-tap, Back, hold, the activity's end — it puts
+back the value it found, not 0: a host that uses `decorView.translationY` itself gets its own
+value back. The dialog's window still fills the screen, see-through and undimmed below the
+strip, so the alert stays modal and TalkBack stays with it. The system wallpaper is a window
+of its own and does not move.
+
 ## Tests
 
-`library/src/test/java`: 176 tests, JUnit 4, no mocks, each mutation-checked.
+`library/src/test/java`: 190 tests, JUnit 4, no mocks, each mutation-checked.
 
-- **90 plain JVM tests.** Real files in a `TemporaryFolder`, and the real desktop
+- **91 plain JVM tests.** Real files in a `TemporaryFolder`, and the real desktop
   `org.json` for parsing the JSON back (the library Acrarium reads it with).
-- **86 Robolectric tests** for what the JVM alone cannot reach:
+- **99 Robolectric tests** for what the JVM alone cannot reach:
   - `Guru.install`: one handler, no receiver.
   - Exit records via `ShadowActivityManager`, an unreadable ANR dump too.
   - Saving at the start through a fake MediaStore provider: one file per report in
@@ -239,7 +251,12 @@ itself when its activity is destroyed.
     cannot start costs nothing.
   - `GuruScreen`: share acts once, TalkBack labels, closing with the activity; a long host
     line shrinks only itself; the hint's contrast.
-  - Touch: a double-tap closes, a still hold shares; a single tap or a swipe does nothing.
+  - The strip: the app slid down by its height, below the top inset, never taller than
+    the window; see-through and undimmed below; animated, or a jump with animations off;
+    the value before put back after a double-tap, Back, a hold, the activity's end; only the
+    strip drawn black (native graphics).
+  - Touch: a double-tap closes, a still hold shares, below the strip too; a single tap or a
+    swipe does nothing.
 
 `library/src/androidTest/java`: `GuruDownloadsInstrumentedTest` (5), on a device — what
 MediaStore really does: the file under its name and readable back, ` (1)` for a name taken
@@ -265,6 +282,9 @@ plain application id, so install it with
 6. Press "ANR" and touch the screen until the system kills the app, restart:
    `#80000002`, the thread dump in the file.
 7. TalkBack in German: the hint, both actions and the "saved" line are read in German.
+   In every step: the strip at the top, the app slid down under it and, once the alert is
+   closed, back exactly where it was — in portrait and landscape, and with "Remove
+   animations" without the slide and the blink.
 8. `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew :library:connectedAndroidTest`: green.
 
 ## Verified

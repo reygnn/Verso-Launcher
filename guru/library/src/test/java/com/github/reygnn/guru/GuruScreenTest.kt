@@ -2,19 +2,19 @@ package com.github.reygnn.guru
 
 import android.app.Dialog
 import android.graphics.Color
+import android.os.Looper
+import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
-import java.time.Duration
-import org.robolectric.Shadows.shadowOf
-import android.view.View
-import android.os.Looper
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
 class GuruScreenTest {
