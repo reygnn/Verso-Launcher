@@ -6,8 +6,7 @@ behind it.
 Claude Code reads this file automatically at session start. Keep it short
 and actionable — not a marketing description (that's `README.md`).
 
-For the working agreement, see `WHY_CLAUDE.md`. For the (deliberately absent)
-Material 3 rules, see `MATERIAL3RULES.md`. For test conventions, see
+For the working agreement, see `WHY_CLAUDE.md`. For test conventions, see
 `app/src/test/CLAUDE.md` and
 `app/src/test/java/com/github/reygnn/verso_launcher/TESTING_CONVENTIONS.kt`.
 
@@ -121,6 +120,33 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   the device from the frame names). The script, `app/acra-scripts/upload_mapping.sh`, is not in
   the repo; it takes the backend's ADMIN credentials from the environment or
   `~/.config/acra/admin.env`. Without it the build warns; a failed upload fails it.
+
+---
+
+## Look
+
+No Compose, no Material 3, so no `MATERIAL3RULES.md` (the family's Part A is Compose-only and
+contradicts choices made here). The UI is text right on the user's wallpaper; colour comes from
+contrast, not from a scheme:
+
+- **One text colour for home and drawer:** `HomeStyle.palette` (white on a dark wallpaper, black
+  on a light one, from `WallpaperColors.HINT_SUPPORTS_DARK_TEXT`), with the tonal outline
+  `HomeStyle.tonalOutlineColor` for any wallpaper. Rows, prompt, hints, ×, cursor and selection
+  all use it; hints are set apart by italics; system-bar icons dark on a light wallpaper. Pressed
+  favorites: `HomePage.pressableText`. Charging / battery-protection marks: outlined vector
+  drawables (`ic_bolt_*`, `ic_shield_*`).
+- **Colour constants live in `HomeStyle.kt`**, never as hex across views. The one exception is
+  `MainActivity.DIALOG_TEXT`, the light field text of the dark dialogs.
+- **Theme parent `@android:style/Theme.Material.NoActionBar`, on purpose** (2026-10-13): the
+  window is a transparent wallpaper surface and every colour and typeface is set in code, so the
+  parent only decides the command line's cursor and handle accent. The rename and `~cleanup`
+  dialogs pin `Theme_Material_Dialog_Alert`, dark on every device, as `DIALOG_TEXT` requires —
+  moving them to DeviceDefault needs that colour tied to the theme and a check on a Pixel and a
+  Samsung.
+- **No `values-night/`, no splash attributes, no dynamic colour:** the window is always the
+  wallpaper, a HOME app shows it at once, and there is no surface to tint. The launcher icon is
+  an adaptive icon (background, foreground, monochrome) in `drawable/ic_launcher.xml`, no
+  `mipmap-anydpi-v26` and no separate round icon.
 
 ---
 
