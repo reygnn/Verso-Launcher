@@ -59,7 +59,8 @@ thread's first three frames.
 `filesDir/guru/`: one `guru-<time>-<id>.txt` per report (`key=value`, readable with
 `adb`), written atomically (`.new` + fsync → rename → fsync dir) — only until the next
 start saves it to `Download/Guru/`. At most 8, the newest. A crash loop cannot fill the
-disk. Beside them: `installation-id` and `exits-seen`.
+disk. Beside them: `installation-id`, `exits-seen` and `crashes-saved` (the times of the
+crashes saved, the newest 8).
 
 ## Saving
 
@@ -67,7 +68,7 @@ At every start, in its second step on the host's `io` (after the look at the exi
 records), Guru saves each pending report as a file of its own through
 `MediaStore.Downloads`, in `Download/Guru/`: no permission, no manifest entry. The file is
 the report's ACRA JSON, unchanged, named after the app, its version and the crash time in
-local time — `Verso-0.3.1-2026-10-24_14-03-12.json`. A character a file name should not
+local time — `Verso_Launcher-0.4.0-2026-10-24_14-03-12.json`. A character a file name should not
 carry becomes `_`; the app's name is cut to 40 chars and the version to 24, so the name stays
 under 255 bytes. MediaStore adds ` (1)` to a name already taken. The version is the crashed
 app's, as `install` read it then.
@@ -84,9 +85,11 @@ The times of the crashes saved are kept (the newest 8), so that an exit record o
 them, if the system lists it only at a later start, is no second crash.
 
 Of its own files in `Download/Guru/`, Guru keeps the newest 32 and removes the rest after
-saving, so a crash loop cannot fill the folder. Only files this app made are ever listed or
+saving, so a crash loop cannot fill the folder; a hidden file of ours left by a save that died
+halfway goes too (its report is still in the store and saved anew). Only files this app made are ever listed or
 removed: files the user put there, another app's, or an earlier install's are not touched.
-A file of Guru's that the user renames inside the folder still counts; moved out, it is the
+A file of Guru's that the user renames inside the folder still counts, and so does one of this
+app's own files moved into it; moved out, a file is the
 user's alone.
 
 **The alert** then names the newest report's number and how many were saved — only what this
@@ -205,7 +208,8 @@ Everything is `internal`. The host has two lines:
 // Application.onCreate — io: the app's own single IO thread; texts: its own words
 Guru.install(this, io = io::execute, texts = AppGuruTexts(this))
 
-// first Activity.onCreate — onUi: the app's own way back to the main thread
+// first Activity.onCreate — onUi: the app's own way back to the main thread; it must run every
+// block it gets, also for a destroyed activity: Guru checks and keeps the alert for the next call
 Guru.showPending(this, ::onUi)
 ```
 
@@ -217,11 +221,11 @@ itself when its activity is destroyed.
 
 ## Tests
 
-`library/src/test/java`: 167 tests, JUnit 4, no mocks, each mutation-checked.
+`library/src/test/java`: 176 tests, JUnit 4, no mocks, each mutation-checked.
 
 - **90 plain JVM tests.** Real files in a `TemporaryFolder`, and the real desktop
   `org.json` for parsing the JSON back (the library Acrarium reads it with).
-- **77 Robolectric tests** for what the JVM alone cannot reach:
+- **86 Robolectric tests** for what the JVM alone cannot reach:
   - `Guru.install`: one handler, no receiver.
   - Exit records via `ShadowActivityManager`, an unreadable ANR dump too.
   - Saving at the start through a fake MediaStore provider: one file per report in
@@ -237,10 +241,10 @@ itself when its activity is destroyed.
     line shrinks only itself; the hint's contrast.
   - Touch: a double-tap closes, a still hold shares; a single tap or a swipe does nothing.
 
-`library/src/androidTest/java`: `GuruDownloadsInstrumentedTest` (4), on a device — what
+`library/src/androidTest/java`: `GuruDownloadsInstrumentedTest` (5), on a device — what
 MediaStore really does: the file under its name and readable back, ` (1)` for a name taken
-(ours or someone else's), pruning that keeps the newest own files and never touches a file
-the shell made. Run it with `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew :library:connectedAndroidTest`.
+(ours or someone else's), pruning that keeps the newest own files, never touches a file the
+shell made, and clears a hidden row of ours left by a save that died halfway. Run it with `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew :library:connectedAndroidTest`.
 
 **On the device**, before every tag, with `sample/` — a tiny host that takes Guru as
 source, like Verso. Its debug build has the buttons "ANR" and "Crash twice" and keeps the

@@ -99,7 +99,9 @@ internal class GuruView(
     private val box = RectF()
     private var topInset = 0
     private var lineHeight = 0f
-    private var lit = true
+    /** The border's blink phase: lit, or dark for a moment. */
+    internal var lit = true
+        private set
 
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = ALERT_RED
@@ -175,9 +177,12 @@ internal class GuruView(
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouchEvent(event)
 
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        if (ValueAnimator.areAnimatorsEnabled()) postDelayed(blink, BLINK_MS)
+    // Blinks only while it can be seen: a launcher in the background is not woken every 700 ms.
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        removeCallbacks(blink)
+        lit = true
+        if (visibility == VISIBLE && ValueAnimator.areAnimatorsEnabled()) postDelayed(blink, BLINK_MS)
     }
 
     override fun onDetachedFromWindow() {
@@ -207,8 +212,7 @@ internal class GuruView(
         val inside = width - 2 * pad
         val head = if (lines.size > 1) lines.dropLast(1) else lines
         fit(text, TEXT_SP, head, inside - 2 * pad)
-        lastText.textSize = text.textSize
-        lastText.textSize *= minOf(1f, (inside - 2 * pad) / lastText.measureText(lines.last()))
+        lastText.textSize = fitted(text.textSize, inside - 2 * pad, lastText.measureText(lines.last()))
         fit(hintText, HINT_SP, listOf(hint), inside)
         lineHeight = text.fontSpacing
         val top = topInset + pad
@@ -220,8 +224,7 @@ internal class GuruView(
 
     private fun fit(paint: Paint, sp: Float, texts: List<String>, room: Float) {
         paint.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, metrics)
-        val widest = texts.maxOf { paint.measureText(it) }
-        if (widest > room) paint.textSize *= room / widest
+        paint.textSize = fitted(paint.textSize, room, texts.maxOf { paint.measureText(it) })
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -237,6 +240,16 @@ internal class GuruView(
     }
 
     companion object {
+        /**
+         * [size] shrunk until [widest] fits [room], never grown — and never to nothing or below:
+         * a window narrower than the padding (a split screen) leaves no room, and a size of 0 or
+         * less is what the drawing must never get.
+         */
+        fun fitted(size: Float, room: Float, widest: Float): Float =
+            if (widest <= room) size else maxOf(MIN_TEXT_PX, size * room / widest)
+
+        const val MIN_TEXT_PX = 1f
+
         /** The Kickstart's alert red. */
         val ALERT_RED = Color.rgb(0xFF, 0x00, 0x00)
         /** On black about 6.2 : 1, above WCAG's 4.5 : 1 for small text. */

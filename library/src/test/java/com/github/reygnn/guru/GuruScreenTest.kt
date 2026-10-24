@@ -8,6 +8,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import java.time.Duration
+import org.robolectric.Shadows.shadowOf
+import android.view.View
+import android.os.Looper
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -117,5 +121,34 @@ class GuruScreenTest {
         val luminance = 0.2126 * channel(Color.red(grey)) + 0.7152 * channel(Color.green(grey)) + 0.0722 * channel(Color.blue(grey))
 
         assertTrue((luminance + 0.05) / 0.05 >= 4.5)
+    }
+
+    @Test
+    fun `fitted shrinks to the room, never grows, never to nothing`() {
+        assertEquals(16f, GuruView.fitted(16f, room = 300f, widest = 200f), 0.001f)
+        assertEquals(8f, GuruView.fitted(16f, room = 100f, widest = 200f), 0.001f)
+        assertEquals(GuruView.MIN_TEXT_PX, GuruView.fitted(16f, room = -10f, widest = 200f), 0.001f)
+        assertEquals(GuruView.MIN_TEXT_PX, GuruView.fitted(16f, room = 0.01f, widest = 200f), 0.001f)
+        assertEquals(GuruView.MIN_TEXT_PX, GuruView.fitted(16f, room = -10f, widest = 0f), 0.001f)
+    }
+
+    /** Robolectric reports the dialog's window as gone; a device as visible — set here as there. */
+    @Test
+    fun `the border blinks only while the alert can be seen`() {
+        val view = view(show()) as GuruView
+        host.idleMain()
+        val looper = shadowOf(Looper.getMainLooper())
+
+        view.dispatchWindowVisibilityChanged(View.VISIBLE)
+        looper.idleFor(Duration.ofMillis(GuruView.BLINK_MS))
+        assertFalse(view.lit)
+
+        view.dispatchWindowVisibilityChanged(View.INVISIBLE)
+        looper.idleFor(Duration.ofMillis(5 * GuruView.BLINK_MS))
+        assertTrue(view.lit)
+
+        view.dispatchWindowVisibilityChanged(View.VISIBLE)
+        looper.idleFor(Duration.ofMillis(GuruView.BLINK_MS))
+        assertFalse(view.lit)
     }
 }

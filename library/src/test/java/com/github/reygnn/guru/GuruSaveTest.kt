@@ -404,4 +404,40 @@ class GuruSaveTest {
 
         assertEquals(listOf(a), media.rows.map { it.json().getString("REPORT_ID") })
     }
+
+    // ---- saves that died halfway --------------------------------------------------
+
+    @Test
+    fun `a save that died halfway is cleared, its report saved anew`() {
+        val halfway = media.pending("Download/Guru/")
+        host.crashed(a)
+
+        start()
+
+        assertTrue(halfway !in media.rows)
+        assertEquals(listOf(a), media.rows.map { it.json().getString("REPORT_ID") })
+    }
+
+    @Test
+    fun `hidden rows not ours, or elsewhere, stay`() {
+        val foreign = media.pending("Download/Guru/", owner = "com.example.other")
+        val elsewhere = media.pending("Download/Other/")
+        host.crashed(a)
+
+        start()
+
+        assertTrue(media.rows.containsAll(listOf(foreign, elsewhere)))
+    }
+
+    @Test
+    fun `hidden rows do not count among the 32`() {
+        repeat(GuruDownloads.KEEP - 1) { media.published("Download/Guru/") }
+        repeat(3) { media.pending("Download/Guru/") }
+        host.crashed(a)
+
+        start()
+
+        assertEquals(GuruDownloads.KEEP, ours().size)
+        assertTrue(ours().all { it.values.getAsInteger(MediaStore.MediaColumns.IS_PENDING) == 0 })
+    }
 }

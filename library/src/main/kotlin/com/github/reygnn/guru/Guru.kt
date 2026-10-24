@@ -83,8 +83,10 @@ internal object Guru {
      * Shows the alert for what this start saved, if anything — once it has been seen: a second
      * call shows nothing, but an alert the activity lost before it was answered (destroyed before
      * it came, or recreated while it was up) comes back with the next call. Queued on the IO
-     * thread behind [install]'s steps. [onUi] brings the result to the main thread the host's
-     * way (Verso's skips a destroyed activity).
+     * thread behind [install]'s steps; an [activity] already finishing or destroyed by then
+     * takes nothing, and the next call gets the alert. [onUi] brings the result to the main
+     * thread the host's way — and must run every block it is given: Guru checks the activity
+     * itself and keeps the alert for the next call, a block dropped would lose it.
      *
      * Left out when the newest report is a crash on the main thread inside Guru itself — the
      * alert's own crash: showing it again would crash again, at every start. The files are saved.
@@ -92,6 +94,8 @@ internal object Guru {
     fun showPending(activity: Activity, onUi: (() -> Unit) -> Unit) {
         val s = setup ?: return
         s.io(guarded("loading saved reports") {
+            // A recreated activity's old instance would take the list from the new one.
+            if (activity.isFinishing || activity.isDestroyed) return@guarded
             val saved = s.saved
             s.saved = emptyList()
             when {
@@ -140,7 +144,9 @@ internal object Guru {
             s.downloads.save(base, AcraJson.serialize(report, installation, zone))?.let { file ->
                 // Its time first: an exit record of this crash that shows up only at a later
                 // start must still find the crash the handler caught (ExitSelection).
-                if (report.kind == GuruKind.CRASH) s.store.markCrashSaved(report.crashedAt)
+                if (report.kind == GuruKind.CRASH && !s.store.markCrashSaved(report.crashedAt)) {
+                    log("crash time not kept: its exit record may come back as a second report", null)
+                }
                 s.store.remove(listOf(report.id))
                 Saved(report, file)
             }

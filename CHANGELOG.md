@@ -3,6 +3,26 @@
 Every tag has an entry here, newest first. Versions follow SemVer; what counts as major,
 minor or patch is in `CLAUDE.md`, "Versions and releases".
 
+## 2.0.2 — 2026-10-24
+
+From Verso's review (its audit 2026-10-24, B.8–B.13). Checked on the A17: the border blinks,
+the on-device tests 5/5, a hidden row of ours cleared by the prune.
+
+- Fix: `showPending` took the saved list on io even for an activity already finishing or
+  destroyed — recreated during the save, the old instance took it from the new one, and the
+  alert came only with a later `onCreate`. Such an activity now takes nothing; the next call
+  gets the alert. A host's `onUi` must run every block it gets (README, KDoc).
+- Fix: a save that died between insert and publish left a hidden MediaStore row that nothing
+  ever removed — one per start in a crash loop. The prune now lists pending rows too and
+  clears its own.
+- Fix: a window narrower than the alert's padding (split screen) made a negative text size;
+  every size is now at least 1 px.
+- The border blinks only while the alert can be seen: a launcher in the background is no
+  longer woken every 700 ms.
+- A crash time that cannot be kept is logged.
+- Tests: only the newest report decides whether Guru died; the rest above. 176 tests; on the
+  device 5.
+
 ## 2.0.1 — 2026-10-24
 
 Checked on the A17: "2 Berichte in Download/Guru gespeichert" set a little smaller, the Amiga

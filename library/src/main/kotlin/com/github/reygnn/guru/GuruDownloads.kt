@@ -78,18 +78,27 @@ internal class GuruDownloads(
      * Keeps the newest [keep] of Guru's own files in the folder, by MediaStore id (ids only grow).
      * A crash loop fills the folder no faster than that. Files the user put there, or an earlier
      * install's, are not ours and never listed.
+     *
+     * A hidden, still pending file of ours is a save that died halfway — its report is still in
+     * Guru's store and saved anew — so it goes too. Safe: every save runs on the one io, before
+     * this, so none is in flight now.
      */
     fun prune() {
         val own = listOwn() ?: return
-        own.sortedDescending().drop(keep).forEach { id ->
-            remove(ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id), "an old report file")
+        own.filter { it.pending }.forEach { remove(uriOf(it.id), "an unfinished report file") }
+        own.filterNot { it.pending }.map { it.id }.sortedDescending().drop(keep).forEach { id ->
+            remove(uriOf(id), "an old report file")
         }
     }
 
-    /** Ids of the published rows of ours in the folder; null if the query failed. */
+    private class Row(val id: Long, val pending: Boolean)
+
+    private fun uriOf(id: Long) = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+
+    /** The rows of ours in the folder, pending ones included; null if the query failed. */
     // unlistable = nothing pruned this time
     @Suppress("TooGenericExceptionCaught")
-    private fun listOwn(): List<Long>? = try {
+    private fun listOwn(): List<Row>? = try {
         val query = Bundle().apply {
             putString(
                 ContentResolver.QUERY_ARG_SQL_SELECTION,
@@ -99,9 +108,12 @@ internal class GuruDownloads(
             // RELATIVE_PATH is stored with a trailing slash. Without a storage permission only own
             // rows come back anyway; the owner check holds should that change.
             putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, listOfNotNull("$relativePath/", owner).toTypedArray())
+            // MediaStore hides pending rows even from their owner.
+            putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
         }
-        resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.MediaColumns._ID), query, null)
-            ?.use { c -> buildList { while (c.moveToNext()) add(c.getLong(0)) } }
+        val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.IS_PENDING)
+        resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, columns, query, null)
+            ?.use { c -> buildList { while (c.moveToNext()) add(Row(c.getLong(0), c.getInt(1) != 0)) } }
             .orEmpty()
     } catch (e: Exception) {
         log("listing $relativePath failed", e)
@@ -129,7 +141,7 @@ internal class GuruDownloads(
         private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss", Locale.ROOT)
 
         /**
-         * App name, version, crash time in [zone]: "Verso-0.3.1-2026-10-24_14-03-12". Whatever is
+         * App name, version, crash time in [zone]: "Verso_Launcher-0.4.0-2026-10-24_14-03-12". Whatever is
          * not a letter, digit, dot or dash becomes `_`; an empty part is left out. A second report
          * of the same second gets MediaStore's " (1)".
          *
