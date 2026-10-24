@@ -31,8 +31,11 @@ android {
         applicationId = "com.github.reygnn.verso_launcher"
         minSdk = 36                 // Android 16 only — no compat shims
         targetSdk = 36
-        versionCode = 23
-        versionName = "0.4.1"
+        // A GitHub release has an even versionCode; the daily-driver build of the same release the
+        // odd one above it and "-daily" in its name, so each build's mapping has a versionCode of its
+        // own. A release bump is +2 (CLAUDE.md, Stack particulars).
+        versionCode = 24 + if (dailyDriver) 1 else 0
+        versionName = "0.4.2" + if (dailyDriver) "-daily" else ""
 
         // On-device tests only for what a JVM can't reproduce: the real MediaStore behind the
         // Downloads backup (its renaming of taken names, pending rows, ownership) and Android's
@@ -172,9 +175,7 @@ dependencies {
 // Values are read here, at configuration: the tasks touch no `project` or `android` when they run.
 val releaseMapping = layout.buildDirectory.file("outputs/mapping/release/mapping.txt")
 val mappingUploadScript = layout.projectDirectory.file("acra-scripts/upload_mapping.sh")
-// A daily-driver release has its own mapping under the same versionCode: kept apart locally; the
-// backend holds one per versionCode, the last uploaded wins (CLAUDE.md, Stack particulars).
-val releaseId = android.defaultConfig.run { "$versionName-$versionCode" } + if (dailyDriver) "-dailyDriver" else ""
+val releaseId = android.defaultConfig.run { "$versionName-$versionCode" }
 val mappingArchive = providers.gradleProperty("verso.mappingArchive")
     .orElse(providers.systemProperty("user.home").map { "$it/apk/mappings" })
     .map { File(it, "verso/$releaseId") }

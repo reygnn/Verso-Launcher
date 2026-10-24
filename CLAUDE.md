@@ -110,8 +110,10 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   in the personal-only surfaces — today only `~crash`. `DailyDriver.ENABLED` comes from one of
   two twin files (`src/dailyDriver/kotlin`, `src/public/kotlin`) picked per build type in
   `app/build.gradle.kts`, not from BuildConfig: every buildFeature stays off. A plain
-  `bundleRelease` is the public build. Both share a versionCode but not a mapping: kept apart
-  locally (`…-dailyDriver/`), the backend keeps the last one uploaded.
+  `bundleRelease` is the public build (for GitHub). The two never share a version, so each
+  mapping is filed under its own: the public build has an even versionCode, the daily-driver
+  build of the same release the odd one above it and `-daily` in its name (`0.4.2` = 24,
+  `0.4.2-daily` = 25). A release bump is versionName +0.0.1, versionCode +2.
 - **Release mapping:** after every `assembleRelease`/`bundleRelease` the R8 mapping is kept in
   `~/apk/mappings/verso/<versionName>-<versionCode>/` (Gradle property `verso.mappingArchive`
   moves it) and uploaded to the ACRA backend (`uploadProguardMapping`), so a release trace can be
