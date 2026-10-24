@@ -9,6 +9,8 @@ class HomeCacheTest {
 
     @get:Rule val tmp = TemporaryFolder()
 
+    private val noLog: (String, Exception?) -> Unit = { _, _ -> }
+
     private val personal = AppEntry("Telefon", "com.google.android.dialer", "com.android.dialer.Main", "Telefon")
     private val work = AppEntry("Gmail (Arbeit)", "com.google.android.gm", "com.google.android.gm.Main", "Gmail (Arbeit)", profile = 10)
 
@@ -36,8 +38,8 @@ class HomeCacheTest {
 
     @Test fun `written to disk and read back, no file reads as empty`() {
         val dir = tmp.newFolder()
-        assertEquals(emptyList<AppEntry>(), HomeCache.read(dir))
+        assertEquals(emptyList<AppEntry>(), HomeCache.read(dir, noLog))
         HomeCache.write(dir, listOf(personal, work))
-        assertEquals(listOf(personal.key, work.key), HomeCache.read(dir).map { it.key })
+        assertEquals(listOf(personal.key, work.key), HomeCache.read(dir, noLog).map { it.key })
     }
 }

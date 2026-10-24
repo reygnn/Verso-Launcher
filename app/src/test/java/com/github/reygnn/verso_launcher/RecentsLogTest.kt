@@ -11,6 +11,8 @@ class RecentsLogTest {
 
     @get:Rule val folder = TemporaryFolder()
 
+    private val noLog: (String, Exception?) -> Unit = { _, _ -> }
+
     @Test fun `launches made before the read come first, de-duplicated and capped`() {
         assertEquals(listOf("c", "a", "b"), RecentsLog.merged(listOf("a", "b", "c"), listOf("c", "a"), 8))
         assertEquals(listOf("c", "a"), RecentsLog.merged(listOf("a", "b"), listOf("c"), 2))
@@ -24,20 +26,20 @@ class RecentsLogTest {
     @Test fun `written and read back unchanged, newest first`() {
         val dir = folder.root
         RecentsLog.write(dir, listOf("b/B", "a/A#10"))
-        assertEquals(listOf("b/B", "a/A#10"), RecentsLog.read(dir, 8))
+        assertEquals(listOf("b/B", "a/A#10"), RecentsLog.read(dir, 8, noLog))
         assertEquals(false, File(dir, "${RecentsLog.FILE}.tmp").exists())
     }
 
     @Test fun `no file, or one too large, is an empty list`() {
         val dir = folder.root
-        assertEquals(emptyList<String>(), RecentsLog.read(dir, 8))
+        assertEquals(emptyList<String>(), RecentsLog.read(dir, 8, noLog))
         File(dir, RecentsLog.FILE).writeText("x".repeat(RecentsLog.MAX_BYTES.toInt() + 1))
-        assertEquals(emptyList<String>(), RecentsLog.read(dir, 8))
+        assertEquals(emptyList<String>(), RecentsLog.read(dir, 8, noLog))
     }
 
     @Test fun `an unreadable file is null - it must not be written over`() {
         val dir = folder.root
         File(dir, RecentsLog.FILE).apply { writeText("a/A\n") }.setReadable(false)
-        assertNull(RecentsLog.read(dir, 8))
+        assertNull(RecentsLog.read(dir, 8, noLog))
     }
 }

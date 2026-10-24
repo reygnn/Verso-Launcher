@@ -1,11 +1,11 @@
 package com.github.reygnn.verso_launcher
 
-import android.util.Log
 import java.io.File
 
 /**
  * The "?" list beside verso.json, newest first, so it outlives the process. Disposable like
- * [UsageLog]: lost or torn, the list starts over. Used on VersoApp.io for the file, pure otherwise.
+ * [UsageLog]: lost or torn, the list starts over. Used on VersoApp.io for the file, pure otherwise;
+ * [read]'s log is the caller's.
  */
 internal object RecentsLog {
 
@@ -27,11 +27,11 @@ internal object RecentsLog {
      *  (writing over it would lose the list). No file, or a file too large, is an empty list. */
     // null is the answer (see above)
     @Suppress("TooGenericExceptionCaught")
-    fun read(dir: File, limit: Int): List<String>? = try {
+    fun read(dir: File, limit: Int, log: (String, Exception?) -> Unit): List<String>? = try {
         val file = File(dir, FILE)
         if (!file.isFile || file.length() > MAX_BYTES) emptyList() else parse(file.readText(), limit)
     } catch (e: Exception) {
-        Log.w("Verso", "$FILE unreadable, not loaded", e)
+        log("$FILE unreadable, not loaded", e)
         null
     }
 

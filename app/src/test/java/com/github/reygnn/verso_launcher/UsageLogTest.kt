@@ -13,6 +13,8 @@ class UsageLogTest {
 
     @get:Rule val folder = TemporaryFolder()
 
+    private val noLog: (String, Exception?) -> Unit = { _, _ -> }
+
     private val day = 24L * 60 * 60 * 1000
     private val t0 = 1_800_000_000_000L
 
@@ -87,10 +89,10 @@ class UsageLogTest {
 
     @Test fun `no file is an empty log, and a write lands whole`() {
         val dir = folder.newFolder()
-        assertEquals(emptyMap<String, Usage>(), UsageLog.read(dir))
+        assertEquals(emptyMap<String, Usage>(), UsageLog.read(dir, noLog))
         val log = mapOf("a" to Usage(2.0, t0))
         UsageLog.write(dir, log, t0)
-        assertEquals(log, UsageLog.read(dir))
+        assertEquals(log, UsageLog.read(dir, noLog))
         assertTrue(!File(dir, "${UsageLog.FILE}.tmp").exists())
     }
 
@@ -98,13 +100,13 @@ class UsageLogTest {
         val dir = folder.newFolder()
         val file = File(dir, UsageLog.FILE).apply { writeText("a\t1.0\t5\n") }
         file.setReadable(false)
-        assertNull(UsageLog.read(dir))
+        assertNull(UsageLog.read(dir, noLog))
     }
 
     @Test fun `a file too large is not read, only replaced`() {
         val dir = folder.newFolder()
         File(dir, UsageLog.FILE).writeText("a\t1.0\t5\n" + "x".repeat(UsageLog.MAX_BYTES.toInt()))
-        assertEquals(emptyMap<String, Usage>(), UsageLog.read(dir))
+        assertEquals(emptyMap<String, Usage>(), UsageLog.read(dir, noLog))
     }
 
     @Test fun `a launch stamped in the future starts to decay once the clock is right`() {

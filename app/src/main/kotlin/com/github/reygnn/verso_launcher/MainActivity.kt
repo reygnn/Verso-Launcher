@@ -65,11 +65,11 @@ class MainActivity : Activity() {
             enumerateApps = { apps.enumerate() },
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
             recentsFile = RecentsFile(
-                read = { RecentsLog.read(filesDir, LauncherState.RECENTS_KEPT) },
+                read = { RecentsLog.read(filesDir, LauncherState.RECENTS_KEPT, ::logWarning) },
                 write = { keys -> RecentsLog.write(filesDir, keys) },
             ),
             usageFile = UsageFile(
-                read = { UsageLog.read(filesDir) },
+                read = { UsageLog.read(filesDir, ::logWarning) },
                 write = { log, at -> UsageLog.write(filesDir, log, at) },
             ),
             process = app.process,
@@ -154,7 +154,7 @@ class MainActivity : Activity() {
         // before the full enumeration does — behind Guru's save after a crash (VersoApp), at
         // worst ~0.7 s later (8 ANR reports, release build on the A17).
         submitIo {
-            val cached = HomeCache.read(filesDir)
+            val cached = HomeCache.read(filesDir, ::logWarning)
             onUi {
                 if (cached.isNotEmpty() && !state.appsLoaded) {
                     cachedFavorites = cached.map { it.key to it.label }

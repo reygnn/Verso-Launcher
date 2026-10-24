@@ -1,7 +1,5 @@
 package com.github.reygnn.verso_launcher
 
-import android.content.Context
-
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -142,5 +140,3 @@ internal data class Palette(
     val outline: Int = HomeStyle.tonalOutlineColor(text)
     val selection: Int get() = (text and 0xFFFFFF) or 0x66000000
 }
-
-internal fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

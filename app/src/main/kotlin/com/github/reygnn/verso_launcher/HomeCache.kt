@@ -1,11 +1,11 @@
 package com.github.reygnn.verso_launcher
 
-import android.util.Log
 import java.io.File
 
 /**
  * The favorites as last shown, so a cold start draws home at once instead of waiting for the
- * enumeration. Disposable — no fsync; a lost or stale file costs one slow frame. Used on VersoApp.io.
+ * enumeration. Disposable — no fsync; a lost or stale file costs one slow frame. Used on VersoApp.io;
+ * [read]'s log is the caller's.
  */
 internal object HomeCache {
 
@@ -24,10 +24,10 @@ internal object HomeCache {
 
     // a disposable cache: unreadable = none
     @Suppress("TooGenericExceptionCaught")
-    fun read(dir: File): List<AppEntry> = try {
+    fun read(dir: File, log: (String, Exception?) -> Unit): List<AppEntry> = try {
         File(dir, FILE).takeIf { it.isFile }?.readText()?.let(::parse).orEmpty()
     } catch (e: Exception) {
-        Log.w("Verso", "$FILE unreadable", e)
+        log("$FILE unreadable", e)
         emptyList()
     }
 
