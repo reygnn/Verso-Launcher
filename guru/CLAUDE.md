@@ -27,15 +27,14 @@ Maven, no JitPack, no git submodule.
   `sourceSets { named("main") { kotlin.directories += "../library/src/main/kotlin" } }`
   (the AGP 9 spelling), not as a dependency on `:library`.
 
-The host interface is `Guru.install`, `Guru.showPending`, `GuruSink` and `GuruTexts`.
+The host interface is `Guru.install`, `Guru.showPending` and `GuruTexts`.
 
 ## Hard rules
 
-1. **No dependency, no permission.** `implementation` stays empty. `GuruSink.Share`
-   needs no permission; for `GuruSink.Acra` the host declares INTERNET itself.
-2. **No thread of its own.** Disk and network work run on the host's `io`, in submission
-   order, each task guarded. The only exception is the dying thread writing its own
-   report.
+1. **No dependency, no permission.** `implementation` stays empty. Saving goes through
+   `MediaStore.Downloads`, which needs none; Guru has no network code.
+2. **No thread of its own.** Disk work runs on the host's `io`, in submission order, each
+   task guarded. The only exception is the dying thread writing its own report.
 3. **Guru never decides how the process dies.** One capture per process, no binder call
    while dying, then the exception goes unchanged to the previous handler. A failed write
    is swallowed.
@@ -46,20 +45,25 @@ The host interface is `Guru.install`, `Guru.showPending`, `GuruSink` and `GuruTe
    field is a break (major version).
 6. **Write first, then move `exits-seen`.** A death in between repeats an exit, it never
    loses one.
-7. **Delete only what is gone:** on "continue", on an app picked in the share chooser
-   (`ChooserResult` `SELECTED_COMPONENT` — Copy, Edit, unknown or no result keep the
-   reports), on a 2xx from the ACRA server.
+7. **Save first, then tell; delete only what is saved.** At every start, before any alert,
+   each report goes to `Download/Guru` as a `.json`; Guru's copy goes once the file is
+   saved (`IS_PENDING` cleared), and from then on the file is the user's. The alert only
+   tells and decides nothing; nothing waits on the user, and nothing of the alert's may
+   crash the host twice (texts that throw are caught, Guru's own crash on main leaves the
+   next alert out). Of its own files there Guru keeps the newest 32 and never touches anyone
+   else's.
 8. **No manifest, no resources, everything `internal`.** Texts come from the host via
    `GuruTexts`; only the Amiga lines stay fixed English.
 9. **No code for a particular host.** What only Verso needs belongs in Verso (like
    `VersoGuruTexts`).
-10. **The ACRA fields are a contract** with the family's own ACRA backend
-    (`~/PythonProjects/acra`): `PACKAGE_NAME` and `STACK_TRACE` are required; it groups
-    by the exception class plus the `at` frames in the trace's first three lines, and for
-    ANRs and native crashes (no frames there) by `PACKAGE_NAME` + `CUSTOM_DATA.GURU_MEDITATION`.
-    So the trace's head, the number's format (`#XXXXXXXX.XXXXXXXX`) and that field's name
-    are part of the contract. A change there is checked against the backend's
-    `routes_api.py` / `utils.py`. The stock-ACRA fields (`REPORT_ID`, `INSTALLATION_ID`,
+10. **The ACRA fields are a contract** — the JSON in each file — with the family's own
+    ACRA backend ([`reygnn/acra-backend`](https://github.com/reygnn/acra-backend)): `PACKAGE_NAME` and `STACK_TRACE` are required; it groups
+    every Guru report by `PACKAGE_NAME` + the exception class of the trace's first line +
+    `CUSTOM_DATA.GURU_MEDITATION`, and counts a `REPORT_ID` once. So the trace's first
+    line, the number's format (`#XXXXXXXX.XXXXXXXX`, upper-case hex), that field's name
+    and a stable `REPORT_ID` per report are part of the contract. A change there is
+    checked against the backend's `utils.py` (`crash_location`, `guru_crash_location`)
+    and its `tests/test_utils.py`. The stock-ACRA fields (`REPORT_ID`, `INSTALLATION_ID`,
     `USER_CRASH_DATE` as `yyyy-MM-dd'T'HH:mm:ss.SSSXXX`) stay, for Acrarium compatibility.
 
 Working rules, as in Verso: comments and code in English; every `@Suppress` /
@@ -100,6 +104,7 @@ in `CHANGELOG.md`, newest first.
   `git subtree pull --prefix=guru https://github.com/reygnn/guru <tag> --squash`; the
   host's commit message names the tag.
 
-Before every tag: the device test on the A17 (`README.md`, "Tests"). It runs on the
+Before every tag: the device test on the A17 (`README.md`, "Tests"), including the
+on-device MediaStore tests (`ANDROID_SERIAL=R5GL51D5VHZ ./gradlew :library:connectedAndroidTest`). It runs on the
 sample's **debug** build — the only one with the ANR button — installed over USB with
 `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew :sample:installDebug`, not via `install-aab-a17.sh`.

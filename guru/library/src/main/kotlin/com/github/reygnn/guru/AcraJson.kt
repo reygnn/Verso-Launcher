@@ -7,10 +7,10 @@ import java.util.Locale
 
 /**
  * A report as ACRA's JSON, for POST /report. The family's backend requires PACKAGE_NAME and
- * STACK_TRACE, groups by the exception class plus the frames in the trace's first three lines,
- * and — for ANRs and native crashes, which have none there — by PACKAGE_NAME and
- * CUSTOM_DATA.GURU_MEDITATION (CLAUDE.md, hard rule 10). REPORT_ID, USER_CRASH_DATE and
- * INSTALLATION_ID are what Acrarium requires; they stay, so a stock ACRA server works too.
+ * STACK_TRACE, groups a Guru report by PACKAGE_NAME, the first line's exception class and
+ * CUSTOM_DATA.GURU_MEDITATION, and counts a REPORT_ID once (CLAUDE.md, hard rule 10).
+ * REPORT_ID, USER_CRASH_DATE and INSTALLATION_ID are what Acrarium requires; they stay, so a
+ * stock ACRA server works too.
  * Hand-written, so the module needs no org.json on the JVM; the escaping is the part under test.
  */
 internal object AcraJson {

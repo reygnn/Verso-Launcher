@@ -21,16 +21,16 @@ import java.time.Duration
 
 /**
  * Real MotionEvents on the alert, the clock advanced by hand. The rule under test: only a
- * double-tap continues and only a still hold sends — a single tap, a swipe or a finger laid on a
- * dimmed screen to wake it does nothing (hard rule 7).
+ * double-tap closes and only a still hold shares — a single tap, a swipe or a finger laid on a
+ * dimmed screen to wake it does nothing.
  */
 @RunWith(RobolectricTestRunner::class)
 class GuruTouchTest {
 
     @get:Rule val host = GuruHostRule()
 
-    private var continued = 0
-    private var sent = 0
+    private var shared = 0
+    private val closed get() = if (dialog.isShowing) 0 else 1
     private lateinit var dialog: Dialog
     private lateinit var view: View
     private var downTime = 0L
@@ -45,8 +45,7 @@ class GuruTouchTest {
     @Before
     fun setUp() {
         val activity = host.activity().get()
-        dialog = GuruScreen.show(activity, listOf(GuruText.SOFTWARE_FAILURE), GuruTexts.English,
-            onContinue = { continued++ }, onSend = { sent++ })
+        dialog = GuruScreen.show(activity, listOf(GuruText.SOFTWARE_FAILURE), GuruTexts.English, onShare = { shared++ })
         view = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
         // Attached and laid out first. A swipe has to stay inside the view, as it does on a device
         // where the alert fills the screen: View's own click handling drops a touch that leaves the
@@ -84,8 +83,8 @@ class GuruTouchTest {
     /** Nothing happened, and nothing is still pending on the clock. */
     private fun assertUntouched() {
         after(doubleTapMs + longPressMs)
-        assertEquals(0, continued)
-        assertEquals(0, sent)
+        assertEquals(0, closed)
+        assertEquals(0, shared)
         assertTrue(dialog.isShowing)
     }
 
@@ -97,13 +96,13 @@ class GuruTouchTest {
     }
 
     @Test
-    fun `a double-tap continues`() {
+    fun `a double-tap closes`() {
         tap()
         after(BETWEEN_TAPS_MS)
         tap()
 
-        assertEquals(1, continued)
-        assertEquals(0, sent)
+        assertEquals(1, closed)
+        assertEquals(0, shared)
         assertFalse(dialog.isShowing)
     }
 
@@ -129,7 +128,7 @@ class GuruTouchTest {
     }
 
     @Test
-    fun `a finger that moves past the slop and then rests does not send`() {
+    fun `a finger that moves past the slop and then rests does not share`() {
         down()
         after(TAP_MS)
         move(startX + 2 * slop)
@@ -140,7 +139,7 @@ class GuruTouchTest {
     }
 
     @Test
-    fun `a second tap that slides does not continue`() {
+    fun `a second tap that slides does not close`() {
         tap()
         after(BETWEEN_TAPS_MS)
         down()
@@ -151,39 +150,39 @@ class GuruTouchTest {
     }
 
     @Test
-    fun `a still hold sends`() {
+    fun `a still hold shares`() {
         down()
         after(longPressMs + TAP_MS)
 
-        assertEquals(0, continued)
-        assertEquals(1, sent)
+        assertEquals(1, shared)
         assertFalse(dialog.isShowing)
         up()
     }
 
     @Test
-    fun `a hold that wobbles within the slop still sends`() {
+    fun `a hold that wobbles within the slop still shares`() {
         down()
         after(TAP_MS)
         move(startX + slop / 2)
         after(longPressMs)
 
-        assertEquals(1, sent)
+        assertEquals(1, shared)
         up(startX + slop / 2)
     }
 
     @Test
-    fun `TalkBack's click continues`() {
+    fun `TalkBack's click closes`() {
         assertTrue(view.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
 
-        assertEquals(1, continued)
+        assertEquals(1, closed)
+        assertEquals(0, shared)
     }
 
     @Test
-    fun `TalkBack's long click sends`() {
+    fun `TalkBack's long click shares`() {
         assertTrue(view.performAccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, null))
 
-        assertEquals(1, sent)
+        assertEquals(1, shared)
     }
 
     private companion object {

@@ -19,8 +19,8 @@ package com.github.reygnn.guru
  * Production classes take their Android-bound collaborators as FUNCTIONS:
  *
  *   GuruStore(dir, log, syncDir, rename, now, keep)  // rename: force a failure
- *   AcraPost.post(url, login, password, json, log)   // against a loopback server
  *   GuruHandler(previous, capture)                   // capture may throw
+ *   GuruDownloads(resolver, log, owner, subDir, keep) // the device test's own folder
  *
  * The `log` parameter is the error channel of code that never throws: a test
  * collects the messages and asserts on them. Reports come from `report(...)`
@@ -47,14 +47,19 @@ package com.github.reygnn.guru
 
 /**
  * ============================================================================
- * FILES, NETWORK, LOCALES, ORG.JSON
+ * FILES, MEDIASTORE, LOCALES, ORG.JSON
  * ============================================================================
  *
  * FILES — real files in a JUnit `TemporaryFolder`. Only the directory fsync is
  * stubbed; write, rename and parse together are the thing under test.
  *
- * NETWORK — the JDK's `com.sun.net.httpserver.HttpServer` on loopback, port 0.
- * The request is recorded as it arrived (method, path, headers, body).
+ * MEDIASTORE — Robolectric has no MediaProvider. FakeMediaStore registers a
+ * provider under the `media` authority that keeps rows in memory and their
+ * bytes in real files, and can refuse or throw on an insert, a write, the
+ * publish (update), a query or a delete, fail one file's write
+ * (`failWriteOn`), and seed published rows of any owner and folder
+ * (`published`) for the pruning tests. It rejects any query selection but
+ * Guru's, so a wrong one fails here, not only on a device.
  *
  * LOCALE — a class whose tests set the default locale holds a GuruLocaleRule,
  * which restores main, FORMAT and DISPLAY.
@@ -70,8 +75,8 @@ package com.github.reygnn.guru
  * ROBOLECTRIC — SDK 36, JDK 21
  * ============================================================================
  *
- * Only for what needs the Android runtime: `Guru.install` / `showPending`, the
- * chooser's answer, `GuruScreen`. Annotate the class with
+ * Only for what needs the Android runtime: `Guru.install` / `showPending`,
+ * saving through MediaStore, the alert and the chooser it offers, `GuruScreen`. Annotate the class with
  * `@RunWith(RobolectricTestRunner::class)`; the SDK is pinned once in
  * `src/test/resources/robolectric.properties`. Drive a plain `Activity` with
  * `Robolectric.buildActivity(...)`; no androidx.test API in the tests.
@@ -82,14 +87,14 @@ package com.github.reygnn.guru
  * Harness traps already paid for:
  *  - Back: idle the main looper first (the dialog's window attaches on a post),
  *    then dispatch KEYCODE_BACK down/up on the dialog.
- *  - The chooser's callback: since Android 15, createChooser files it under
- *    EXTRA_CHOOSER_RESULT_INTENT_SENDER. Answer it as the system does, with a
- *    fill-in carrying EXTRA_CHOOSER_RESULT:
- *    `(sender as RoboIntentSender).pendingIntent.send(app, 0, fillIn)`, then idle
- *    the looper. ChooserResult's constructor is hidden: build it by reflection
- *    (GuruShareTest.answer). Robolectric drops the fill-in of an immutable
- *    PendingIntent, as a device does.
- *  - "No app at all": `shadowOf(app).checkActivities(true)`.
+ *  - MediaStore: `FakeMediaStore.install()` in @Before of every class that
+ *    installs Guru — install saves at the start. ContentResolver reaches its
+ *    insert/update/query/delete/openFile like the real provider's; a saved file is
+ *    read back from `row.file`. A class that reads reports from the store after
+ *    the start refuses every save (GuruInstallTest).
+ *  - install queues two io steps (exit look, save); showPending a third.
+ *  - A chooser start the system refuses: an Activity subclass whose startActivity
+ *    throws (GuruShareTest.RefusingActivity).
  *  - Touch (GuruTouchTest): idle the main looper first — the dialog's window attaches
  *    and lays the view out (Robolectric: 320 px wide). Keep every move inside the
  *    view: View's own click handling drops a touch that leaves it, so a swipe off the

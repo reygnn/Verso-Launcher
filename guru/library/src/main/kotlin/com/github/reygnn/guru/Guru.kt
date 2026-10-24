@@ -4,20 +4,15 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.app.Application
 import android.app.ApplicationExitInfo
-import android.app.PendingIntent
-import android.content.ActivityNotFoundException
-import android.content.BroadcastReceiver
-import android.content.Context
+import android.content.ClipData
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
-import android.service.chooser.ChooserResult
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
-import android.widget.Toast
 import java.io.File
 import java.io.FileDescriptor
 import java.time.ZoneId
@@ -25,64 +20,52 @@ import java.util.UUID
 
 /**
  * The module's front door. [install] once from Application.onCreate; [showPending] from the
- * first activity. Guru makes no thread of its own: all disk and network work goes through the
- * host's `io`, in submission order, and every task is wrapped so that nothing it throws reaches
- * the host's thread.
+ * first activity. Guru makes no thread of its own: all disk work goes through the host's `io`,
+ * in submission order, and every task is wrapped so that nothing it throws reaches the host's
+ * thread.
+ *
+ * Save first, then tell: at every start the reports go to Download/Guru before anything is
+ * shown. The alert only says what this start saved, once; nothing waits on the user, so an app
+ * that dies before its alert, or an alert that dies itself, loses nothing and loops nowhere.
  */
 internal object Guru {
 
     private const val DIR = "guru"
     private const val EXIT_LOOKBACK = 16
-    private const val EXTRA_IDS = "guru.ids"
 
     private class Setup(
         // The Application, never an Activity: Setup lives in a static field for the process.
         val context: Application,
         val store: GuruStore,
         val process: GuruProcess,
-        val sink: GuruSink,
         val texts: GuruTexts,
         val io: (Runnable) -> Unit,
+        val downloads: GuruDownloads,
+        /** The app's name for the files, read once at install. */
+        val label: String,
     ) {
-        /** Only this app can send it (the receiver is not exported): "a target was chosen". */
-        val sharedAction = context.packageName + ".guru.SHARED"
-
-        fun toast(text: String) = context.mainExecutor.execute { Toast.makeText(context, text, Toast.LENGTH_LONG).show() }
+        /** What this start saved, for the alert: set and taken on the IO thread only. */
+        var saved: List<Saved> = emptyList()
     }
 
-    // The chooser's answer: the ids it carries are the ones handed over. Since Android 15 it also
-    // answers for its own actions (Copy, Edit), with what happened in EXTRA_CHOOSER_RESULT. Only
-    // an app picked counts as handed over; Copy, Edit, unknown or no result keep the reports
-    // (hard rule 7: a copy may never be pasted anywhere). A cancelled chooser never answers.
-    private val shared = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val s = setup ?: return
-            val result = intent.getParcelableExtra(Intent.EXTRA_CHOOSER_RESULT, ChooserResult::class.java)
-            if (result?.type != ChooserResult.CHOOSER_RESULT_SELECTED_COMPONENT) return
-            val ids = intent.getStringArrayExtra(EXTRA_IDS)?.toList() ?: return
-            s.io(guarded("removing shared reports") { s.store.remove(ids) })
-        }
-    }
-
-    /** The reports on screen, their ACRA JSON already built on the IO thread. */
-    private class Pending(val reports: List<GuruReport>, val json: Map<String, String>)
+    /** A report saved, and where. */
+    private class Saved(val report: GuruReport, val file: Uri)
 
     // Replaced by a second install (a Robolectric test gets a new Application per test); the
     // handler reads it at crash time, so it always writes to the current one.
     @Volatile private var setup: Setup? = null
 
     /**
-     * Installs the handler and queues the look at the system's exit records on [io]. The
-     * process start is taken as now. Installing twice keeps one handler. [texts]: the host's
-     * words, from its resources; English when it has none.
+     * Installs the handler and queues two steps on [io]: the look at the system's exit records,
+     * then saving every pending report to Download/Guru. The process start is taken as now.
+     * Installing twice keeps one handler. [texts]: the host's words, from its resources;
+     * English when it has none.
      */
-    fun install(app: Application, sink: GuruSink, io: (Runnable) -> Unit, texts: GuruTexts = GuruTexts.English) {
+    fun install(app: Application, io: (Runnable) -> Unit, texts: GuruTexts = GuruTexts.English) {
         val store = GuruStore(File(app.filesDir, DIR), ::log, syncDir = ::fsyncDir)
-        val current = Setup(app, store, GuruProcess(environment(app), System.currentTimeMillis()), sink, texts, io)
+        val downloads = GuruDownloads(app.contentResolver, ::log, owner = app.packageName)
+        val current = Setup(app, store, GuruProcess(environment(app), System.currentTimeMillis()), texts, io, downloads, label(app))
         setup = current
-        if (sink is GuruSink.Share) {
-            app.registerReceiver(shared, IntentFilter(current.sharedAction), Context.RECEIVER_NOT_EXPORTED)
-        }
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         if (previous !is GuruHandler) {
             // On the crashing thread: no binder call, nothing beyond building and writing the report.
@@ -93,78 +76,104 @@ internal object Guru {
             )
         }
         io(guarded("reading exit records") { collectExits(current) })
+        io(guarded("saving reports") { save(current) })
     }
 
     /**
-     * Shows the alert for the pending reports, if any. Queued on the IO thread behind the exit
-     * look, so an ANR from the last run is among them. [onUi] brings the result to the main
-     * thread the host's way (Verso's skips a destroyed activity).
+     * Shows the alert for what this start saved, if anything — once it has been seen: a second
+     * call shows nothing, but an alert the activity lost before it was answered (destroyed before
+     * it came, or recreated while it was up) comes back with the next call. Queued on the IO
+     * thread behind [install]'s steps. [onUi] brings the result to the main thread the host's
+     * way (Verso's skips a destroyed activity).
+     *
+     * Left out when the newest report is a crash on the main thread inside Guru itself — the
+     * alert's own crash: showing it again would crash again, at every start. The files are saved.
      */
     fun showPending(activity: Activity, onUi: (() -> Unit) -> Unit) {
         val s = setup ?: return
-        s.io(guarded("loading reports") {
-            val reports = s.store.pending()
-            if (reports.isNotEmpty()) {
-                val installation = s.store.installationId(::newId)
-                val zone = ZoneId.systemDefault()
-                val pending = Pending(reports, reports.associate { it.id to AcraJson.serialize(it, installation, zone) })
-                onUi { present(activity, s, pending) }
+        s.io(guarded("loading saved reports") {
+            val saved = s.saved
+            s.saved = emptyList()
+            when {
+                saved.isEmpty() -> Unit
+                GuruText.diedInGuru(saved.first().report) -> log("alert left out: the last crash was Guru's own", null)
+                else -> onUi { present(activity, s, saved) }
             }
         })
     }
 
-    private fun present(activity: Activity, s: Setup, pending: Pending) {
-        if (activity.isFinishing || activity.isDestroyed) return
-        val discard = guarded("removing reports") { s.store.remove(pending.json.keys) }
-        GuruScreen.show(
-            activity,
-            GuruText.screenLines(pending.reports.first().number, pending.reports.size, s.texts),
-            s.texts,
-            onContinue = { s.io(discard) },
-            onSend = { send(activity, s, pending) },
-        )
-    }
-
-    private fun send(activity: Activity, s: Setup, pending: Pending) {
-        when (val sink = s.sink) {
-            is GuruSink.Share -> share(activity, s, sink, pending)
-            is GuruSink.Acra -> s.io(guarded("sending reports") {
-                val sent = pending.reports.map { it.id }.filter { id ->
-                    AcraPost.delivered(AcraPost.post(sink.url, sink.login, sink.password, pending.json.getValue(id), ::log))
-                }
-                s.store.remove(sent)
-                s.toast(s.texts.sent(sent.size, pending.reports.size))
-            })
+    // Nothing the host's texts or the view throw here reaches the host's main: logged, and the
+    // alert is left out — the files are saved. What throws later, in layout or drawing, crashes
+    // like anything on main, and the next start leaves the alert out (diedInGuru).
+    @Suppress("TooGenericExceptionCaught")
+    private fun present(activity: Activity, s: Setup, saved: List<Saved>) {
+        if (activity.isFinishing || activity.isDestroyed) {
+            keep(s, saved)
+            return
+        }
+        try {
+            GuruScreen.show(
+                activity,
+                GuruText.screenLines(saved.first().report.number, saved.size, s.texts),
+                s.texts,
+                onShare = { offer(activity, saved) },
+                onUnanswered = { keep(s, saved) },
+            )
+        } catch (e: RuntimeException) {
+            log("alert not shown", e)
         }
     }
 
-    // The ids ride in the chooser's callback, so nothing waits in memory: whenever an app is
-    // picked, [shared] removes exactly these. Mutable, or the system's fill-in — the ChooserResult
-    // that tells an app picked from Copy — is dropped. The price: a fill-in could overwrite extras,
-    // the ids too. Only the system chooser holds this sender, the intent stays explicit (package
-    // set, as Android 14+ requires of a mutable one), and remove touches report files only.
-    // A newer share cancels an older callback still waiting: its reports stay, the safe side.
-    private fun share(activity: Activity, s: Setup, sink: GuruSink.Share, pending: Pending) {
-        val intent = Intent(Intent.ACTION_SEND)
-            .setType("text/plain")
-            .putExtra(Intent.EXTRA_SUBJECT, GuruText.subject(pending.reports.first()))
-            .putExtra(Intent.EXTRA_TEXT, GuruText.shareBody(pending.reports) { pending.json.getValue(it.id) })
-        sink.mailTo?.let { intent.putExtra(Intent.EXTRA_EMAIL, arrayOf(it)) }
-        val answer = Intent(s.sharedAction)
-            .setPackage(activity.packageName)
-            .putExtra(EXTRA_IDS, pending.json.keys.toTypedArray())
-        val callback = PendingIntent.getBroadcast(
-            activity,
-            0,
-            answer,
-            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_CANCEL_CURRENT,
-        )
+    /** An alert not seen to its end waits for the next [showPending]; in memory only, it cannot loop. */
+    private fun keep(s: Setup, saved: List<Saved>) = s.io(guarded("keeping the alert") { s.saved = saved + s.saved })
+
+    // Each report saved is the user's file from then on, and Guru's copy goes at once, before the
+    // next is saved: a death in between repeats at most the one just saved (a second file, the
+    // same REPORT_ID). One that fails stays for the next start.
+    private fun save(s: Setup) {
+        val reports = s.store.pending()
+        if (reports.isEmpty()) return
+        val installation = s.store.installationId(::newId)
+        val zone = ZoneId.systemDefault()
+        val saved = reports.mapNotNull { report ->
+            val base = GuruDownloads.baseName(s.label, report, zone)
+            s.downloads.save(base, AcraJson.serialize(report, installation, zone))?.let { file ->
+                // Its time first: an exit record of this crash that shows up only at a later
+                // start must still find the crash the handler caught (ExitSelection).
+                if (report.kind == GuruKind.CRASH) s.store.markCrashSaved(report.crashedAt)
+                s.store.remove(listOf(report.id))
+                Saved(report, file)
+            }
+        }
+        s.downloads.prune()
+        s.saved = saved + s.saved
+    }
+
+    // A chooser that cannot start (no app, or the system refuses) costs nothing: the files stay.
+    @Suppress("TooGenericExceptionCaught")
+    private fun offer(activity: Activity, saved: List<Saved>) {
+        val files = saved.map { it.file }
+        val intent = if (files.size == 1) {
+            Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, files.single())
+        } else {
+            Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files))
+        }
+        // The ClipData set here, not left to the start's migration: createChooser hands it and the
+        // read grant on to the chooser too, so the chooser can preview the files, not only the
+        // app picked can read them.
+        val clip = ClipData.newRawUri(null, files.first())
+        files.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+        intent.setType(GuruDownloads.MIME)
+            .putExtra(Intent.EXTRA_SUBJECT, GuruText.subject(saved.first().report))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .clipData = clip
+        // A task of its own: from a singleTask HOME the chooser and the app picked would otherwise
+        // land in the launcher's task — a HOME press would clear a half-written mail.
+        val chooser = Intent.createChooser(intent, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
-            activity.startActivity(Intent.createChooser(intent, null, callback.intentSender))
-        } catch (e: ActivityNotFoundException) {
-            log("no app to share with", e)
-            callback.cancel()
-            s.toast(s.texts.sent(0, pending.reports.size))
+            activity.startActivity(chooser)
+        } catch (e: RuntimeException) {
+            log("chooser not started", e)
         }
     }
 
@@ -174,17 +183,24 @@ internal object Guru {
         val am = s.context.getSystemService(ActivityManager::class.java) ?: return
         val records = am.getHistoricalProcessExitReasons(null, 0, EXIT_LOOKBACK).mapNotNull { info ->
             kindOf(info.reason)?.let { kind ->
-                ExitRecord(kind, info.timestamp, info.description.orEmpty()) {
-                    if (kind != GuruKind.ANR) null
-                    else info.traceInputStream?.use { GuruText.readCapped(it, GuruText.MAX_DUMP_BYTES) }
-                }
+                ExitRecord(kind, info.timestamp, info.description.orEmpty()) { if (kind == GuruKind.ANR) dump(info) else null }
             }
         }
         val seen = s.store.exitsSeen()
-        val handlerTimes = s.store.pending().filter { it.kind == GuruKind.CRASH }.map { it.crashedAt }
+        val handlerTimes = s.store.pending().filter { it.kind == GuruKind.CRASH }.map { it.crashedAt } + s.store.crashesSaved()
         val outcome = ExitSelection.select(records, seen, System.currentTimeMillis(), handlerTimes)
         outcome.report.forEach { s.store.write(s.process.exit(newId(), it)) }
         if (outcome.seen != seen) s.store.markExitsSeen(outcome.seen)
+    }
+
+    // An unreadable dump still makes a report, without it; thrown, it would stop the loop before
+    // the mark moves, and the same exits would come back on every start.
+    @Suppress("TooGenericExceptionCaught")
+    private fun dump(info: ApplicationExitInfo): String? = try {
+        info.traceInputStream?.use { GuruText.readCapped(it, GuruText.MAX_DUMP_BYTES) }
+    } catch (e: Exception) {
+        log("ANR dump unreadable", e)
+        null
     }
 
     private fun kindOf(reason: Int): GuruKind? = when (reason) {
@@ -192,6 +208,15 @@ internal object Guru {
         ApplicationExitInfo.REASON_CRASH_NATIVE -> GuruKind.NATIVE
         ApplicationExitInfo.REASON_ANR -> GuruKind.ANR
         else -> null
+    }
+
+    // Read once at install, like the environment; no label, or none to be had, the package name.
+    @Suppress("TooGenericExceptionCaught")
+    private fun label(app: Application): String = try {
+        app.applicationInfo.loadLabel(app.packageManager).toString().ifBlank { app.packageName }
+    } catch (e: Exception) {
+        log("label unknown", e)
+        app.packageName
     }
 
     // Read once at install, so the handler never asks the PackageManager while dying.

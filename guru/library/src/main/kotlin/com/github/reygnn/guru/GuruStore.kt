@@ -7,12 +7,15 @@ import java.util.Locale
 /**
  * The reports in their own directory (filesDir/guru), one file each, written atomically
  * (.new + fsync → rename → fsync dir), at most [keep] — the newest — so a crash loop cannot
- * fill the disk. Beside them: the installation id and the exit mark. Never throws; [log] is the
- * error channel. [syncDir], [rename] and [now] are seams.
+ * fill the disk. Beside them: the installation id, the exit mark and the times of the crashes
+ * saved. Never throws; [log] is the error channel. [syncDir], [rename] and [now] are seams.
  *
  * Called from the IO thread, and from a crashing thread in the handler — each write goes to a
  * name of its own, so the two never touch the same file.
  */
+// The store is the directory: a read and a write for each of its four kinds of file, plus the
+// atomic write they share — split up, each part would hold one pair.
+@Suppress("TooManyFunctions")
 internal class GuruStore(
     private val dir: File,
     private val log: (String, Throwable?) -> Unit,
@@ -59,6 +62,15 @@ internal class GuruStore(
             if (!file.delete()) log("could not remove ${file.name}", null)
         }
     }
+
+    /**
+     * When the crashes Guru saved happened, the newest [keep]: an exit record of one of them, if
+     * the system lists it only at a later start, is no new crash. Unreadable = none.
+     */
+    fun crashesSaved(): List<Long> = read(File(dir, CRASHES_SAVED))?.lines()?.mapNotNull { it.trim().toLongOrNull() }.orEmpty()
+
+    fun markCrashSaved(at: Long): Boolean =
+        writeAtomically(File(dir, CRASHES_SAVED), (crashesSaved() + at).distinct().sortedDescending().take(keep).joinToString("\n"))
 
     /** The newest exit timestamp already looked at; null before the first look (or unreadable). */
     fun exitsSeen(): Long? = read(File(dir, EXITS_SEEN))?.trim()?.toLongOrNull()
@@ -118,6 +130,7 @@ internal class GuruStore(
         const val KEEP = 8
         const val LEFTOVER_AGE_MS = 60_000L
         const val EXITS_SEEN = "exits-seen"
+        const val CRASHES_SAVED = "crashes-saved"
         const val INSTALLATION = "installation-id"
         private const val PREFIX = "guru-"
         private const val SUFFIX = ".txt"

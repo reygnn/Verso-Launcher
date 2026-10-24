@@ -132,6 +132,17 @@ class GuruStoreTest {
         assertEquals(listOf("b"), s.pending().map { it.id })
     }
 
+    /** By the whole id, never a part of it: "", a prefix or a suffix removes nothing. */
+    @Test
+    fun `remove matches whole ids only`() {
+        val s = store()
+        s.write(r("abc-1", 1))
+
+        s.remove(listOf("", "a", "abc", "1", "-1", "abc-"))
+
+        assertEquals(listOf("abc-1"), s.pending().map { it.id })
+    }
+
     @Test
     fun `nothing written, nothing pending`() {
         assertEquals(emptyList<GuruReport>(), store().pending())
@@ -178,5 +189,22 @@ class GuruStoreTest {
     fun `an installation id that cannot be stored is still given`() {
         assertEquals("inst-3", store(rename = { _, _ -> false }).installationId { "inst-3" })
         assertFalse(File(dir, GuruStore.INSTALLATION).exists())
+    }
+
+    @Test
+    fun `the saved crash times keep the newest, distinct`() {
+        val s = store(keep = 3)
+        listOf(5L, 1L, 4L, 4L, 2L).forEach { s.markCrashSaved(it) }
+
+        assertEquals(listOf(5L, 4L, 2L), store(keep = 3).crashesSaved())
+    }
+
+    @Test
+    fun `no saved crash times, or unreadable ones, count as none`() {
+        assertTrue(store().crashesSaved().isEmpty())
+        dir.mkdirs()
+        File(dir, GuruStore.CRASHES_SAVED).writeText("x\n\n42")
+
+        assertEquals(listOf(42L), store().crashesSaved())
     }
 }

@@ -3,39 +3,32 @@ package com.github.reygnn.guru
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The English default; a host's own texts are its resources, tested where they live. */
+/** The English defaults; a host's own texts are its resources, tested where they live. */
 class GuruTextsTest {
 
     private val english = GuruTexts.English
 
     @Test
-    fun `all sent, one or several`() {
-        assertEquals("Guru: report sent", english.sent(1, 1))
-        assertEquals("Guru: 3 reports sent", english.sent(3, 3))
-    }
-
-    @Test
-    fun `none sent is kept`() {
-        assertEquals("Guru: not sent, kept for the next start", english.sent(0, 1))
-        assertEquals("Guru: not sent, kept for the next start", english.sent(0, 2))
-    }
-
-    /** Both neighbours of "all": one short of it is partial, not "all sent". */
-    @Test
-    fun `some sent says how many of how many`() {
-        assertEquals("Guru: 1 of 2 sent, the rest kept", english.sent(1, 2))
-        assertEquals("Guru: 2 of 3 sent, the rest kept", english.sent(2, 3))
-    }
-
-    @Test
-    fun `more counts the reports behind the one shown`() {
-        assertEquals("+1 more", english.more(1))
+    fun `saved names the folder - one, or how many`() {
+        assertEquals("saved to Download/Guru", english.saved(1))
+        assertEquals("3 reports saved to Download/Guru", english.saved(3))
     }
 
     @Test
     fun `the screen's words name both gestures`() {
-        assertEquals("double-tap: continue · hold: send · back: later", english.hint)
-        assertEquals("continue, discard the report", english.actionContinue)
-        assertEquals("send the report", english.actionSend)
+        assertEquals("double-tap: close · hold: share", english.hint)
+        assertEquals("close", english.actionClose)
+        assertEquals("share the report", english.actionShare)
+    }
+
+    @Test
+    fun `a host overrides only what it translates`() {
+        val partial = object : GuruTexts {
+            override val actionClose = "schließen"
+        }
+        assertEquals("schließen", partial.actionClose)
+        assertEquals(english.hint, partial.hint)
+        assertEquals(english.actionShare, partial.actionShare)
+        assertEquals(english.saved(2), partial.saved(2))
     }
 }

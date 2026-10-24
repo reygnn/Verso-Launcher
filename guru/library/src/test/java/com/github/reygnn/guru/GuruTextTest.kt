@@ -1,6 +1,7 @@
 package com.github.reygnn.guru
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -41,34 +42,45 @@ class GuruTextTest {
     // ---- screen and messages -------------------------------------------------------
 
     @Test
-    fun `one report is the three alert lines`() {
+    fun `the alert is the Amiga lines, the number and where the reports went`() {
         assertEquals(
-            listOf("Software Failure.", "Press left mouse button to continue.", "Guru Meditation #80000001.0000002A"),
-            GuruText.screenLines("#80000001.0000002A", pending = 1, GuruTexts.English),
+            listOf("Software Failure.", "Press left mouse button to continue.", "Guru Meditation #80000001.0000002A",
+                "saved to Download/Guru"),
+            GuruText.screenLines("#80000001.0000002A", saved = 1, GuruTexts.English),
         )
     }
 
     @Test
-    fun `more reports add the host's word for how many more`() {
-        val counted = object : GuruTexts by GuruTexts.English {
-            override fun more(count: Int) = "noch $count"
+    fun `the last line is the host's word for what was saved`() {
+        val counted = object : GuruTexts {
+            override fun saved(count: Int) = "$count gesichert"
         }
-        assertEquals("noch 2", GuruText.screenLines("#1", pending = 3, counted).last())
-        assertEquals(3, GuruText.screenLines("#1", pending = 1, counted).size)
-    }
-
-    @Test
-    fun `the share body carries each report under its number, capped`() {
-        val body = GuruText.shareBody(listOf(report(id = "a"), report(id = "b"))) { "{${it.id}}" }
-        val number = report().number
-        assertEquals("Guru Meditation $number\n{a}\n\nGuru Meditation $number\n{b}", body)
-        val huge = GuruText.shareBody(listOf(report())) { "x".repeat(GuruText.MAX_SHARE_CHARS) }
-        assertTrue(huge.endsWith("chars cut]"))
+        assertEquals("3 gesichert", GuruText.screenLines("#1", saved = 3, counted).last())
+        assertEquals("1 gesichert", GuruText.screenLines("#1", saved = 1, counted).last())
     }
 
     @Test
     fun `the subject names number, package and version`() {
         val r = report()
         assertEquals("Guru Meditation ${r.number} · com.example.app 1.2.3", GuruText.subject(r))
+    }
+
+    @Test
+    fun `died in Guru - a crash on main with a frame of Guru's own package`() {
+        val guru = "java.lang.IllegalStateException: x\n\tat com.github.reygnn.guru.GuruView.onDraw(GuruScreen.kt:1)"
+        assertTrue(GuruText.diedInGuru(report(thread = "main", trace = guru)))
+        assertTrue(GuruText.diedInGuru(report(thread = "main",
+            trace = "java.lang.RuntimeException: y\n\tat android.view.View.draw(View.java:1)\n$guru")))
+    }
+
+    @Test
+    fun `not died in Guru - off main, another kind, a package below Guru's, or none of Guru's frames`() {
+        val guru = "java.lang.IllegalStateException: x\n\tat com.github.reygnn.guru.GuruView.onDraw(GuruScreen.kt:1)"
+        assertFalse(GuruText.diedInGuru(report(thread = "io", trace = guru)))
+        assertFalse(GuruText.diedInGuru(report(kind = GuruKind.ANR, thread = "main", trace = guru)))
+        assertFalse(GuruText.diedInGuru(report(thread = "main",
+            trace = "java.lang.IllegalStateException: x\n\tat com.github.reygnn.guru.sample.MainActivity.onCreate(MainActivity.kt:1)")))
+        assertFalse(GuruText.diedInGuru(report(thread = "main")))
+        assertFalse(GuruText.diedInGuru(report(thread = "main", trace = "com.github.reygnn.guru.Guru failed")))
     }
 }

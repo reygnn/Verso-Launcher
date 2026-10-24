@@ -24,40 +24,44 @@ import kotlin.math.hypot
 
 /**
  * The alert: black screen, red text, a red border that blinks — unless the system's animations
- * are off (Settings › Accessibility › Remove animations), then it just stays lit. Double-tap =
- * left button (continue: the reports go), hold = right button (send), Back = neither (they come
- * back on the next start). Dismisses itself when its activity is destroyed.
+ * are off (Settings › Accessibility › Remove animations), then it just stays lit. It only tells:
+ * the reports are saved already. Double-tap (left button) or Back closes it, hold (right
+ * button) shares the saved files. Dismisses itself when its activity is destroyed.
  */
 internal object GuruScreen {
 
-    fun show(activity: Activity, lines: List<String>, texts: GuruTexts, onContinue: () -> Unit, onSend: () -> Unit): Dialog {
+    /** [onUnanswered]: the activity was destroyed while the alert was up and no one had answered it. */
+    fun show(activity: Activity, lines: List<String>, texts: GuruTexts, onShare: () -> Unit, onUnanswered: () -> Unit = {}): Dialog {
         val dialog = Dialog(activity, android.R.style.Theme_Material_NoActionBar_Fullscreen)
         var decided = false
-        val view = GuruView(activity, lines, texts.hint, texts.actionContinue, texts.actionSend)
+        val view = GuruView(activity, lines, texts.hint, texts.actionClose, texts.actionShare)
         view.setOnClickListener {
             if (!decided) {
                 decided = true
                 dialog.dismiss()
-                onContinue()
             }
         }
         view.setOnLongClickListener {
             if (!decided) {
                 decided = true
                 dialog.dismiss()
-                onSend()
+                onShare()
             }
             true
         }
         dialog.setContentView(view)
         dialog.show()
-        activity.registerActivityLifecycleCallbacks(DismissOnDestroy(dialog))
+        // Still up when the activity goes = not answered: every answer (and Back) closes it at once.
+        activity.registerActivityLifecycleCallbacks(DismissOnDestroy(dialog, onUnanswered))
         return dialog
     }
 
-    private class DismissOnDestroy(private val dialog: Dialog) : Application.ActivityLifecycleCallbacks {
+    private class DismissOnDestroy(private val dialog: Dialog, private val unanswered: () -> Unit) : Application.ActivityLifecycleCallbacks {
         override fun onActivityDestroyed(activity: Activity) {
-            if (dialog.isShowing) dialog.dismiss()
+            if (dialog.isShowing) {
+                dialog.dismiss()
+                unanswered()
+            }
             activity.unregisterActivityLifecycleCallbacks(this)
         }
 
@@ -76,8 +80,8 @@ internal object GuruScreen {
  *
  * Touch goes through a [GestureDetector], never View's own click handling: the view fills the
  * screen, so View would take any touch that ends on it — a swipe, a finger laid on a dimmed screen
- * to wake it — as a click and discard the reports. Here a double-tap continues ([performClick]) and
- * a still hold sends ([performLongClick]); a single tap does nothing, and a finger that moves past
+ * to wake it — as a click. Here a double-tap closes ([performClick]) and
+ * a still hold shares ([performLongClick]); a single tap does nothing, and a finger that moves past
  * the touch slop cancels both. TalkBack acts through the click and long-click actions, unchanged.
  */
 // Built in code only, never inflated from XML: the tools constructors would have no lines to draw.
@@ -86,8 +90,8 @@ internal class GuruView(
     context: Context,
     private val lines: List<String>,
     private val hint: String,
-    private val actionContinue: String,
-    private val actionSend: String,
+    private val actionClose: String,
+    private val actionShare: String,
 ) : View(context) {
 
     private val metrics = resources.displayMetrics
@@ -102,6 +106,7 @@ internal class GuruView(
         typeface = Typeface.MONOSPACE
         textAlign = Paint.Align.CENTER
     }
+    private val lastText = Paint(text)
     private val hintText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = HINT_GREY
         typeface = Typeface.MONOSPACE
@@ -160,8 +165,8 @@ internal class GuruView(
         accessibilityDelegate = object : AccessibilityDelegate() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfo(host, info)
-                info.addAction(AccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, actionContinue))
-                info.addAction(AccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, actionSend))
+                info.addAction(AccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, actionClose))
+                info.addAction(AccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, actionShare))
             }
         }
     }
@@ -193,17 +198,25 @@ internal class GuruView(
         measureBox()
     }
 
-    // The text size the longest line fits the box at, never above TEXT_SP; the hint likewise
-    // fits the width under the box, never above HINT_SP.
+    // The text size the longest line fits the box at, never above TEXT_SP — but the last line,
+    // the host's (where the reports went), fits on its own, never above the others: a longer
+    // translation shrinks only itself, not the Amiga lines. The hint fits the width under the
+    // box, never above HINT_SP.
     private fun measureBox() {
         if (width == 0) return
         val inside = width - 2 * pad
-        fit(text, TEXT_SP, lines, inside - 2 * pad)
+        val head = if (lines.size > 1) lines.dropLast(1) else lines
+        fit(text, TEXT_SP, head, inside - 2 * pad)
+        lastText.textSize = text.textSize
+        lastText.textSize *= minOf(1f, (inside - 2 * pad) / lastText.measureText(lines.last()))
         fit(hintText, HINT_SP, listOf(hint), inside)
         lineHeight = text.fontSpacing
         val top = topInset + pad
         box.set(pad, top, width - pad, top + 2 * pad + lineHeight * lines.size)
     }
+
+    /** The text sizes as laid out — the Amiga lines', the host's last line's: for tests. */
+    internal val textSizes get() = text.textSize to lastText.textSize
 
     private fun fit(paint: Paint, sp: Float, texts: List<String>, room: Float) {
         paint.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, metrics)
@@ -216,8 +229,8 @@ internal class GuruView(
         if (lit) canvas.drawRect(box, border)
         val x = width / 2f
         var y = box.top + pad - text.ascent()
-        for (line in lines) {
-            canvas.drawText(line, x, y, text)
+        lines.forEachIndexed { i, line ->
+            canvas.drawText(line, x, y, if (i == lines.lastIndex && lines.size > 1) lastText else text)
             y += lineHeight
         }
         canvas.drawText(hint, x, box.bottom + pad - hintText.ascent(), hintText)
@@ -226,7 +239,8 @@ internal class GuruView(
     companion object {
         /** The Kickstart's alert red. */
         val ALERT_RED = Color.rgb(0xFF, 0x00, 0x00)
-        val HINT_GREY = Color.rgb(0x66, 0x66, 0x66)
+        /** On black about 6.2 : 1, above WCAG's 4.5 : 1 for small text. */
+        val HINT_GREY = Color.rgb(0x8C, 0x8C, 0x8C)
         const val BLINK_MS = 700L
         const val TEXT_SP = 16f
         const val HINT_SP = 12f
