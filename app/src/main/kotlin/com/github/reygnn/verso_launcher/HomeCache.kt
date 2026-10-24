@@ -11,9 +11,12 @@ internal object HomeCache {
 
     const val FILE = "home-cache.txt"
 
+    /** A tab or line break in a label would break the line format. Compiled once, not per favorite. */
+    private val LINE_BREAKERS = Regex("[\\t\\r\\n]")
+
     /** One "key<TAB>label" line per favorite. */
     fun format(favorites: List<AppEntry>): String =
-        favorites.joinToString("") { "${it.key}\t${it.label.replace(Regex("[\\t\\r\\n]"), " ")}\n" }
+        favorites.joinToString("") { "${it.key}\t${it.label.replace(LINE_BREAKERS, " ")}\n" }
 
     /** A line whose key [AppEntry.keyOf] could not have built is skipped. */
     fun parse(text: String): List<AppEntry> = text.lineSequence().mapNotNull { line ->
