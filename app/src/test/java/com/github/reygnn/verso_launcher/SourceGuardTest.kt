@@ -96,7 +96,8 @@ class SourceGuardTest {
      * The alert on the next start: asked for in every onCreate, unconditionally — an alert a
      * recreation took away comes back only with the next call. Handed back with a plain
      * runOnUiThread, never onUi: Guru puts its list back only when its own check sees the
-     * destroyed activity, and onUi would drop the hand-back first (GuruWiringTest).
+     * destroyed activity, and onUi would drop the hand-back first. Robolectric cannot open that
+     * window (a recreate runs the queued hand-back first), so this pin is the guard.
      */
     @Test fun `MainActivity asks for pending Guru reports in onCreate, not through onUi`() {
         val activity = source("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")

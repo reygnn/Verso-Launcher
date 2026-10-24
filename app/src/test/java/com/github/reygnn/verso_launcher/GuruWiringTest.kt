@@ -82,7 +82,7 @@ class GuruWiringTest {
         assertTrue(alertShowing())
     }
 
-    @Test fun `an alert whose activity was recreated before it came is not lost`() {
+    @Test fun `an alert whose activity was recreated before it came shows on the new one`() {
         // The save is slow (MediaStore); a recreation lands before Guru hands the alert back.
         app.io.execute { hold.await(5, TimeUnit.SECONDS) }
         app.onCreate()
@@ -90,12 +90,10 @@ class GuruWiringTest {
         controller.recreate()
         hold.countDown()
         settle()
-        assertEquals(1, media.published())
 
-        // Guru put the list back once it saw the destroyed activity; the next instance shows it.
-        controller.recreate()
-        settle()
+        assertEquals(1, media.published())
         assertTrue(alertShowing())
+        assertEquals(1, ShadowDialog.getShownDialogs().size)
     }
 
     /** MediaStore for Robolectric, which has none: what Guru's save needs, its bytes in real files. */

@@ -169,8 +169,8 @@ class MainActivity : Activity() {
 
         // Crash reports from an earlier run: Guru's alert, once the window is up. Queued on
         // the IO thread behind Guru's look at the exit records and its save to Download/Guru.
-        // Not through onUi: Guru takes its list before the hand-back, and only its own check of
-        // a destroyed activity puts the list back for the next call — onUi would drop it.
+        // Not through onUi: Guru wants every block run (its README) — a destroyed activity is
+        // Guru's own check, which keeps the alert for the next call; onUi would drop it.
         Guru.showPending(this) { show -> runOnUiThread(show) }
     }
 

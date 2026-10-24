@@ -120,7 +120,7 @@ VersoGuruTextsTest           4  Robolectric: Guru's words from values and values
                                 time (a language change), every member Verso's own
 GuruWiringTest               2  Robolectric: Guru runs in Verso — a report left behind saved on
                                 the IO thread (a minimal MediaStore provider) and shown; an
-                                alert a recreation took away comes back with the next instance
+                                alert a recreation took away shows on the new instance
 ```
 
 Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
