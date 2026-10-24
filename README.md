@@ -261,8 +261,9 @@ Verso carries [Guru](https://github.com/reygnn/guru), a crash reporter vendored 
 `guru/` (a `git subtree`, never edited here). A crash is written to disk while the process
 dies; at the next start, before the alert, Guru saves it without asking as a `.json` file in
 `Download/Guru/` (MediaStore, no permission; Guru keeps its newest 32 there) and Verso shows
-the Amiga alert saying so — unless the alert itself was what crashed: then the file is saved
-and the alert left out. **Hold** hands the saved files to an app you pick (mail, a messenger,
+the Amiga alert saying so, a black strip at the top with Verso slid down beneath it until the
+alert closes — unless the alert itself was what crashed: then the file is saved and the alert
+left out. **Hold** hands the saved files to an app you pick (mail, a messenger,
 guru2acra), **double-tap** or **Back** closes the alert; once seen it does not come again. To be
 rid of a report, delete its file. Guru itself sends nothing; the files are readable by anything
 that reads `Download` — see `CAVEATS.md`.
