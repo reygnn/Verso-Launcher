@@ -24,6 +24,7 @@ import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import com.github.reygnn.guru.Guru
+import java.lang.ref.WeakReference
 import java.util.concurrent.RejectedExecutionException
 
 /**
@@ -309,10 +310,6 @@ class MainActivity : Activity() {
 
     // ---- config -------------------------------------------------------------
 
-    private fun logWarning(msg: String, e: Throwable?) {
-        if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg)
-    }
-
     private val store by lazy {
         ConfigStore(
             dir = filesDir,
@@ -511,16 +508,27 @@ class MainActivity : Activity() {
         // indefinitely. Newest pick wins — a stuck read may finish after a later one.
         val pick = ++restorePick
         safReading = true
-        Thread(guarded("restore read") {
-            val restored = backupStore.readText(uri)?.let { ConfigJson.parseForeign(it) }
-            onUi {
-                if (pick != restorePick) return@onUi
-                safReading = false
-                if (restored == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                // The adoption is a run of its own; with another one running, the pick is dropped.
-                else if (!gate.start { t -> adoptRestored(t, restored) }) toast(getString(R.string.toast_busy))
-            }
+        // The thread holds nothing of this activity — a read that never returns must not keep a
+        // destroyed instance alive: the application's resolver, a log of its own, a weak hand-back.
+        val reader = BackupStore(
+            resolver = applicationContext.contentResolver,
+            subDir = BackupFiles.DIR,
+            log = ::logWarning,
+            owner = packageName,
+        )
+        val self = WeakReference(this)
+        Thread(Guard.wrap("restore read", ::logWarning) {
+            val restored = reader.readText(uri)?.let { ConfigJson.parseForeign(it) }
+            self.get()?.restoreRead(pick, restored)
         }, "verso-restore-read").start()
+    }
+
+    private fun restoreRead(pick: Int, restored: VersoConfig?) = onUi {
+        if (pick != restorePick) return@onUi
+        safReading = false
+        if (restored == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+        // The adoption is a run of its own; with another one running, the pick is dropped.
+        else if (!gate.start { t -> adoptRestored(t, restored) }) toast(getString(R.string.toast_busy))
     }
 
     /**
@@ -833,6 +841,11 @@ class MainActivity : Activity() {
     private companion object {
         const val REQ_RESTORE = 1
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
+
+        /** In the companion, so a reference to it holds no activity (the "~restore-saf" read thread). */
+        private fun logWarning(msg: String, e: Throwable?) {
+            if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg)
+        }
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
         /** How long a paused profile's "ready" toast stays expected after the tap. */

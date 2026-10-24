@@ -238,7 +238,9 @@ thread.
    activity itself and keeps the alert for the next call, which a dropped hand-back would lose. The one exception: the
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
    content provider (an offline cloud drive) can block that read indefinitely, and it
-   touches no file of the app's own; the undo point and the adoption still go through
+   touches no file of the app's own, nor anything of the activity (the application's resolver,
+   a weak hand-back), so a read that never returns keeps no destroyed instance alive; the undo
+   point and the adoption still go through
    `VersoApp.io`. The second exception: Guru's uncaught-exception handler writes its crash
    report on the dying thread itself — the process is going down, nothing queued on
    `VersoApp.io` would run. That write touches only `filesDir/guru/`; everything else Guru

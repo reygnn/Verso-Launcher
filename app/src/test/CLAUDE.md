@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 616 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 617 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -118,6 +118,8 @@ SourceGuardTest             10  source scans: no lenient ConfigJson.parse in Mai
                                 writeRestored and gate wiring; Guru installed once from VersoApp
                                 behind Guard, showPending in onCreate (not through onUi),
                                 guru/ out of backup and transfer, R8 keeping names
+RestoreReadLeakTest          1  Robolectric: a "~restore-saf" read that never returns keeps no
+                                destroyed activity alive (weak reference, GC)
 VersoGuruTextsTest           4  Robolectric: Guru's words from values and values-de, read each
                                 time (a language change), every member Verso's own
 GuruWiringTest               2  Robolectric: Guru runs in Verso — a report left behind saved on

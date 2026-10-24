@@ -12,8 +12,9 @@ bugs and code improvements are fair game.
 - B1: a recreation mid-restore drops the result silently, toast included (a process-wide "last
   outcome").
 - B2: `~backup`/restore toasts can appear over another app after onStop.
-- B3: a stuck `~restore-saf` read thread keeps the destroyed activity in memory.
-- C1: the rename dialog's tag filter drops the IME's composing span (Samsung: "wwo").
+- C1: the rename dialog's tag filter drops the IME's composing span (Samsung: "wwo"). Not
+  reproduced on 2026-10-24 (A17, Samsung Keyboard, Shift+letters, fast, after a comma): every
+  capital became one small letter. Only with a reproduction.
 - C2: the first `!`/`-` restarts the keyboard (GO↔DONE); likely the "symbol page" jump.
 - C5: pasted newlines stay in prompt/name; a dead key starting typing on home loses its
   accent; hardware keys in the `?` view go nowhere; `foldLabel` drops every U+0307.
