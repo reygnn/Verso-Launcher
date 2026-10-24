@@ -1,6 +1,7 @@
 package com.github.reygnn.guru
 
 import android.app.Dialog
+import android.graphics.Color
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import org.junit.Assert.assertEquals
@@ -17,48 +18,43 @@ class GuruScreenTest {
     @get:Rule val host = GuruHostRule()
 
     private object German : GuruTexts {
-        override val hint = "doppeltippen: weiter · halten: senden · zurück: später"
-        override val actionContinue = "weiter, Bericht verwerfen"
-        override val actionSend = "Bericht senden"
-        override fun more(count: Int) = "+$count weitere"
-        override fun sent(sent: Int, total: Int) = "$sent von $total gesendet"
+        override val hint = "doppeltippen: schließen · halten: teilen"
+        override val actionClose = "schließen"
+        override val actionShare = "Bericht teilen"
+        override fun saved(count: Int) = "$count gespeichert"
     }
 
-    private var continued = 0
-    private var sent = 0
+    private var shared = 0
     private val lines = listOf(GuruText.SOFTWARE_FAILURE, GuruText.PRESS_LEFT, "Guru Meditation #80000001.4A3F21C0")
 
     private val controller = lazy { host.activity() }
 
-    private fun show() = GuruScreen.show(controller.value.get(), lines, German, onContinue = { continued++ }, onSend = { sent++ })
+    private fun show() = GuruScreen.show(controller.value.get(), lines, German, onShare = { shared++ })
 
     private fun view(dialog: Dialog) = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
 
     @Test
-    fun `continue acts once`() {
+    fun `close shares nothing, and a later hold neither`() {
         val dialog = show()
         val view = view(dialog)
 
         view.performClick()
-        view.performClick()
         view.performLongClick()
 
-        assertEquals(1, continued)
-        assertEquals(0, sent)
+        assertEquals(0, shared)
         assertFalse(dialog.isShowing)
     }
 
     @Test
-    fun `send acts once`() {
+    fun `share acts once`() {
         val dialog = show()
         val view = view(dialog)
 
-        view.performLongClick()
+        assertTrue(view.performLongClick())
         view.performLongClick()
         view.performClick()
 
-        assertEquals(0, continued)
-        assertEquals(1, sent)
+        assertEquals(1, shared)
         assertFalse(dialog.isShowing)
     }
 
@@ -67,8 +63,8 @@ class GuruScreenTest {
         val info = view(show()).createAccessibilityNodeInfo()
 
         val labels = info.actionList.associate { it.id to it.label?.toString() }
-        assertEquals(German.actionContinue, labels[AccessibilityNodeInfo.ACTION_CLICK])
-        assertEquals(German.actionSend, labels[AccessibilityNodeInfo.ACTION_LONG_CLICK])
+        assertEquals(German.actionClose, labels[AccessibilityNodeInfo.ACTION_CLICK])
+        assertEquals(German.actionShare, labels[AccessibilityNodeInfo.ACTION_LONG_CLICK])
     }
 
     @Test
@@ -89,7 +85,37 @@ class GuruScreenTest {
         controller.value.pause().stop().destroy()
 
         assertFalse(dialog.isShowing)
-        assertEquals(0, continued)
-        assertEquals(0, sent)
+        assertEquals(0, shared)
+    }
+
+    // ---- fitting and contrast --------------------------------------------------------
+
+    private fun sizesWith(last: String): Pair<Float, Float> {
+        val dialog = GuruScreen.show(host.activity().get(), lines + last, German, onShare = {})
+        host.idleMain()
+        return (view(dialog) as GuruView).textSizes
+    }
+
+    @Test
+    fun `a long host line shrinks only itself, a short one is as big as the rest`() {
+        val (quoteShort, lastShort) = sizesWith("ok")
+        // Robolectric measures about a pixel a char in a 320 px wide view: too long here means long.
+        val (quoteLong, lastLong) = sizesWith("8 Berichte in Download/Guru gespeichert ".repeat(12))
+
+        assertEquals(quoteShort, quoteLong, 0.01f)
+        assertEquals(quoteShort, lastShort, 0.01f)
+        assertTrue(lastLong < quoteLong)
+    }
+
+    @Test
+    fun `the hint reads at WCAG contrast on black`() {
+        fun channel(c: Int): Double {
+            val v = c / 255.0
+            return if (v <= 0.04045) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
+        }
+        val grey = GuruView.HINT_GREY
+        val luminance = 0.2126 * channel(Color.red(grey)) + 0.7152 * channel(Color.green(grey)) + 0.0722 * channel(Color.blue(grey))
+
+        assertTrue((luminance + 0.05) / 0.05 >= 4.5)
     }
 }

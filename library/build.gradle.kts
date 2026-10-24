@@ -10,7 +10,7 @@ plugins {
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.file("config/detekt/detekt.yml"))
-    source.setFrom("src/main/kotlin", "src/test/java")
+    source.setFrom("src/main/kotlin", "src/test/java", "src/androidTest/java")
 }
 
 android {
@@ -19,6 +19,8 @@ android {
 
     defaultConfig {
         minSdk = 36                 // Android 16 only — no compat shims
+        // The on-device tests (connectedAndroidTest): real MediaStore, see GuruDownloadsInstrumentedTest.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // Java 21 end to end.
@@ -49,8 +51,8 @@ android {
                 // agent loading is opted into explicitly.
                 it.jvmArgs("-XX:+EnableDynamicAgentLoading")
                 // Conscrypt lowercases os.name with the default locale: on a Turkish host its
-                // native library is not found and every Robolectric test fails. The loopback
-                // server in AcraPostTest is plain HTTP.
+                // native library is not found and every Robolectric test fails. No test
+                // needs TLS.
                 it.systemProperty("robolectric.conscryptMode", "OFF")
             }
         }
@@ -66,10 +68,18 @@ android {
     }
 }
 
+// check compiles the on-device tests too: an update that breaks them fails here and in CI, not
+// at the device test before a tag. Running them needs a device (connectedAndroidTest).
+tasks.named("check") { dependsOn("compileDebugAndroidTestKotlin") }
+
 // No implementation dependency — hard rule 1. Test classpath only.
 dependencies {
     testImplementation(libs.junit)
     // Real org.json for reading the ACRA JSON back (the library Acrarium parses it with).
     testImplementation(libs.json)
     testImplementation(libs.robolectric)
+    // On-device tests — test APK only, never in a host.
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

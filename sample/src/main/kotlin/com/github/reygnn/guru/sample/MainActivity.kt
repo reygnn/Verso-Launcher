@@ -11,13 +11,14 @@ import android.widget.TextView
 import com.github.reygnn.guru.Guru
 
 /**
- * Two buttons to die by: a crash on the main thread, and — debug builds only — an ANR. On the
- * next start Guru shows what it caught.
+ * Buttons to die by: a crash on the main thread, and — debug builds only — an ANR and two crashes
+ * in a row. On the next start Guru saves what it caught to Download/Guru and says so.
  */
 class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        check(!(application as SampleApp).crashBeforeSave) { "Guru sample: the second of two crashes, before the save" }
         setContentView(content())
         Guru.showPending(this, ::onUi)
     }
@@ -32,6 +33,7 @@ class MainActivity : Activity() {
         if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
             // Blocks the main thread; touch the screen until the system declares the ANR.
             addView(button(R.string.sample_anr) { Thread.sleep(ANR_BLOCK_MS) })
+            addView(button(R.string.sample_crash_twice) { (application as SampleApp).crashTwice() })
         }
         setOnApplyWindowInsetsListener { view, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())

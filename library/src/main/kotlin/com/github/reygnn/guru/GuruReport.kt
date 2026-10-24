@@ -33,7 +33,7 @@ internal data class GuruEnv(
 )
 
 /**
- * One crash, ANR or native crash, kept on disk until it is sent or dismissed. [id] is the
+ * One crash, ANR or native crash, kept on disk until it is saved. [id] is the
  * report's identity on the server too (ACRA's REPORT_ID: a resend is a duplicate, not a second
  * report). [startedAt] is 0 when unknown (an exit found on the next start).
  */

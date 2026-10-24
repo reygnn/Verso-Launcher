@@ -25,6 +25,14 @@ class GuruNumberTest {
         assertEquals(0xBF9CF968L, GuruNumber.fnv1a("foobar"))
     }
 
+    /** Over UTF-8 bytes, not chars or Latin-1: an exception type or frame may carry any letter. */
+    @Test
+    fun `fnv1a hashes the UTF-8 bytes`() {
+        assertEquals(0x119DD44AL, GuruNumber.fnv1a("ü"))
+        assertEquals(0x298F832BL, GuruNumber.fnv1a("€"))
+        assertEquals(0xB8226E38L, GuruNumber.fnv1a("Grüße"))
+    }
+
     @Test
     fun `the number is the kind, a dot, and eight hex digits`() {
         assertTrue(Regex("""#80000001\.[0-9A-F]{8}""").matches(GuruNumber.of(GuruKind.CRASH, "x")))
@@ -75,6 +83,30 @@ class GuruNumberTest {
         assertTrue(signature.lines().drop(1).all { '(' !in it })
     }
 
+    /** A(B(C)): the last "Caused by:" is the root cause, not the first. */
+    @Test
+    fun `a chain of causes is signed by its last`() {
+        val trace = listOf(
+            "java.lang.IllegalStateException: a",
+            "\tat a.A.run(A.kt:1)",
+            "Caused by: java.lang.IllegalArgumentException: b",
+            "\tat b.B.run(B.kt:2)",
+            "Caused by: java.io.IOException: c",
+            "\tat c.C.run(C.kt:3)",
+        ).joinToString("\n")
+        assertEquals("java.io.IOException\nc.C.run", GuruNumber.signature(GuruKind.CRASH, trace))
+    }
+
+    /** "Type : message" (a toString with a space) signs like "Type: message". */
+    @Test
+    fun `a space before the colon does not change the number`() {
+        assertEquals(
+            GuruNumber.of(GuruKind.CRASH, crash("com.example.Odd: boom", "a.B.c(B.kt:1)")),
+            GuruNumber.of(GuruKind.CRASH, crash("com.example.Odd : boom", "a.B.c(B.kt:1)")),
+        )
+        assertEquals("com.example.Odd\na.B.c", GuruNumber.signature(GuruKind.CRASH, crash("com.example.Odd : boom", "a.B.c(B.kt:1)")))
+    }
+
     /** An indented "Caused by:" belongs to a suppressed exception, not to the crash. */
     @Test
     fun `a suppressed exception's cause is not the root cause`() {
@@ -116,6 +148,23 @@ class GuruNumberTest {
             "ANR\ncom.example.Db.query\ncom.example.Main.onResume\nandroid.app.Activity.performResume",
             GuruNumber.signature(GuruKind.ANR, dump),
         )
+    }
+
+    /** The main block ends at its blank line: a short main stack takes no frames of the next thread. */
+    @Test
+    fun `an ANR's main thread with one frame takes none of the next thread's`() {
+        val dump = listOf(
+            "ApplicationNotResponding: Input dispatching timed out",
+            "",
+            "\"main\" prio=5 tid=1 Native",
+            "  at android.os.MessageQueue.nativePollOnce(Native method)",
+            "",
+            "\"Binder:1_1\" prio=5 tid=9 Native",
+            "  at android.os.BinderProxy.transactNative(Native method)",
+            "  at android.os.BinderProxy.transact(BinderProxy.java:1)",
+            "",
+        ).joinToString("\n")
+        assertEquals("ANR\nandroid.os.MessageQueue.nativePollOnce", GuruNumber.signature(GuruKind.ANR, dump))
     }
 
     @Test
