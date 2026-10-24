@@ -12,7 +12,7 @@ import org.junit.Test
 class VersoConfigTest {
 
     private val a = VersoConfig(
-        favorites = linkedSetOf("a/A", "b/B"),
+        favorites = listOf("a/A", "b/B"),
         hidden = linkedSetOf("x/X", "y/Y"),
         names = linkedMapOf("a/A" to "Alpha", "b/B" to "Bravo"),
         tags = linkedMapOf("a/A" to listOf("work", "chat")),
@@ -20,7 +20,7 @@ class VersoConfigTest {
 
     @Test fun `the order of hidden, names and tags does not count, and the hash agrees`() {
         val reordered = VersoConfig(
-            favorites = linkedSetOf("a/A", "b/B"),
+            favorites = listOf("a/A", "b/B"),
             hidden = linkedSetOf("y/Y", "x/X"),
             names = linkedMapOf("b/B" to "Bravo", "a/A" to "Alpha"),
             tags = linkedMapOf("a/A" to listOf("work", "chat")),
@@ -31,7 +31,7 @@ class VersoConfigTest {
 
     /** The favorites' order is the home page's rank. */
     @Test fun `the favorites' order counts`() {
-        assertNotEquals(a, a.copy(favorites = linkedSetOf("b/B", "a/A")))
+        assertNotEquals(a, a.copy(favorites = listOf("b/B", "a/A")))
     }
 
     @Test fun `the order inside one app's tags counts`() {

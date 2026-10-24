@@ -40,15 +40,24 @@ internal data class CommandRow(val name: String, val command: Command) : Row<Not
 /** The one "%" row: what Enter or a tap turns the plain drawer's order into. */
 internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
 
-/** What an Enter on the command line does ([LauncherLogic.enterAction]); the Activity performs it. */
-internal sealed interface EnterAction<out T : Ordered> {
-    data class Run(val command: Command) : EnterAction<Nothing>
-    data class LaunchApp<out T : Ordered>(val entry: T) : EnterAction<T>
+/**
+ * What an Enter on the command line ([LauncherLogic.enterAction]) or a tap on a row
+ * ([LauncherLogic.tapAction]) does; the Activity performs it.
+ */
+internal sealed interface DrawerAction<out T : Ordered> {
+    data class Launch<out T : Ordered>(val entry: T) : DrawerAction<T>
+    data class ToggleHidden<out T : Ordered>(val entry: T) : DrawerAction<T>
+    data class ToggleFavorite<out T : Ordered>(val entry: T) : DrawerAction<T>
+    data class ReorderPick<out T : Ordered>(val entry: T) : DrawerAction<T>
+    data class ToggleTag<out T : Ordered>(val entry: T) : DrawerAction<T>
+    data class Run(val command: Command) : DrawerAction<Nothing>
     /** Drives the TextWatcher exactly as typing would. */
-    data class SetPrompt(val text: String) : EnterAction<Nothing>
-    data object ToggleOrder : EnterAction<Nothing>
-    data object DismissKeyboard : EnterAction<Nothing>
-    data object None : EnterAction<Nothing>
+    data class SetPrompt(val text: String) : DrawerAction<Nothing>
+    data object ToggleOrder : DrawerAction<Nothing>
+    /** Enter on a blank prompt. */
+    data object DismissKeyboard : DrawerAction<Nothing>
+    /** A stale position, or a row or prompt this mode ignores. */
+    data object None : DrawerAction<Nothing>
 }
 
 /** One key event in plain values, so [LauncherLogic.enterEdge] stays free of android.view.KeyEvent. */
@@ -71,19 +80,6 @@ internal sealed interface ReorderStep {
     data object PutDown : ReorderStep
     /** Another row: the held favorite moves to its slot. */
     data class Move(val picked: String, val target: String) : ReorderStep
-}
-
-/** What a tap on a list row does ([LauncherLogic.tapAction]); the Activity performs it. */
-internal sealed interface TapAction<out T : Ordered> {
-    data class Launch<out T : Ordered>(val entry: T) : TapAction<T>
-    data class ToggleHidden<out T : Ordered>(val entry: T) : TapAction<T>
-    data class ToggleFavorite<out T : Ordered>(val entry: T) : TapAction<T>
-    data class ReorderPick<out T : Ordered>(val entry: T) : TapAction<T>
-    data class ToggleTag<out T : Ordered>(val entry: T) : TapAction<T>
-    data class Run(val command: Command) : TapAction<Nothing>
-    data class SetPrompt(val text: String) : TapAction<Nothing>
-    data object ToggleOrder : TapAction<Nothing>
-    data object None : TapAction<Nothing>
 }
 
 internal object LauncherLogic {
@@ -235,7 +231,7 @@ internal object LauncherLogic {
     }
 
     /** Everything not hidden, plus every favorite: favoriting overrides hiding. */
-    fun <T : Ordered> drawer(all: List<T>, hidden: Set<String>, favorites: Set<String>): List<T> =
+    fun <T : Ordered> drawer(all: List<T>, hidden: Set<String>, favorites: Collection<String>): List<T> =
         all.filter { it.key !in hidden || it.key in favorites }
 
     /**
@@ -254,7 +250,7 @@ internal object LauncherLogic {
     fun <T : Ordered> drawerStartingWith(
         all: List<T>,
         hidden: Set<String>,
-        favorites: Set<String>,
+        favorites: Collection<String>,
         prefix: String,
     ): List<T> {
         val p = foldLabel(prefix)
@@ -430,7 +426,7 @@ internal object LauncherLogic {
         trimmed: String,
         allApps: List<T>,
         hidden: Set<String>,
-        favorites: Set<String>,
+        favorites: Collection<String>,
         tags: Map<String, List<String>>,
         recentKeys: List<String>,
         tagEditTag: String?,
@@ -499,21 +495,21 @@ internal object LauncherLogic {
         command: Command?,
         promptBlank: Boolean,
         lastRow: Row<T>?,
-    ): EnterAction<T> = when {
-        command != null -> EnterAction.Run(command)
-        mode == Mode.COMMAND -> EnterAction.None
-        mode == Mode.ORDER -> if (lastRow is OrderRow) EnterAction.ToggleOrder else EnterAction.None
+    ): DrawerAction<T> = when {
+        command != null -> DrawerAction.Run(command)
+        mode == Mode.COMMAND -> DrawerAction.None
+        mode == Mode.ORDER -> if (lastRow is OrderRow) DrawerAction.ToggleOrder else DrawerAction.None
         mode == Mode.TAG_EDIT -> when (lastRow) {
-            is TagRow -> EnterAction.SetPrompt("##${lastRow.name}")
-            else -> EnterAction.SetPrompt("")
+            is TagRow -> DrawerAction.SetPrompt("##${lastRow.name}")
+            else -> DrawerAction.SetPrompt("")
         }
-        promptBlank -> EnterAction.DismissKeyboard
+        promptBlank -> DrawerAction.DismissKeyboard
         mode == Mode.NORMAL || mode == Mode.RECENTS || mode == Mode.TAG_FILTER -> when (lastRow) {
-            is AppRow -> EnterAction.LaunchApp(lastRow.entry)
-            is TagRow -> EnterAction.SetPrompt("#${lastRow.name}")
-            else -> EnterAction.None
+            is AppRow -> DrawerAction.Launch(lastRow.entry)
+            is TagRow -> DrawerAction.SetPrompt("#${lastRow.name}")
+            else -> DrawerAction.None
         }
-        else -> EnterAction.SetPrompt("")
+        else -> DrawerAction.SetPrompt("")
     }
 
     /**
@@ -543,18 +539,18 @@ internal object LauncherLogic {
     }
 
     /** What a tap on [row] does; a null [row] is a stale position (the list shrank under the tap). */
-    fun <T : Ordered> tapAction(mode: Mode, row: Row<T>?): TapAction<T> = when (row) {
-        null -> TapAction.None
-        is TagRow -> TapAction.SetPrompt(if (mode == Mode.TAG_EDIT) "##${row.name}" else "#${row.name}")
-        is CommandRow -> TapAction.Run(row.command)
-        is OrderRow -> TapAction.ToggleOrder
+    fun <T : Ordered> tapAction(mode: Mode, row: Row<T>?): DrawerAction<T> = when (row) {
+        null -> DrawerAction.None
+        is TagRow -> DrawerAction.SetPrompt(if (mode == Mode.TAG_EDIT) "##${row.name}" else "#${row.name}")
+        is CommandRow -> DrawerAction.Run(row.command)
+        is OrderRow -> DrawerAction.ToggleOrder
         is AppRow -> when (mode) {
-            Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER -> TapAction.Launch(row.entry)
-            Mode.HIDDEN_EDIT -> TapAction.ToggleHidden(row.entry)
-            Mode.FAV_EDIT -> TapAction.ToggleFavorite(row.entry)
-            Mode.FAV_REORDER -> TapAction.ReorderPick(row.entry)
-            Mode.TAG_EDIT -> TapAction.ToggleTag(row.entry)
-            Mode.COMMAND, Mode.ORDER -> TapAction.None
+            Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER -> DrawerAction.Launch(row.entry)
+            Mode.HIDDEN_EDIT -> DrawerAction.ToggleHidden(row.entry)
+            Mode.FAV_EDIT -> DrawerAction.ToggleFavorite(row.entry)
+            Mode.FAV_REORDER -> DrawerAction.ReorderPick(row.entry)
+            Mode.TAG_EDIT -> DrawerAction.ToggleTag(row.entry)
+            Mode.COMMAND, Mode.ORDER -> DrawerAction.None
         }
     }
 }

@@ -181,6 +181,7 @@ com.github.reygnn.verso_launcher/
   HomeCache           the favorites cached for an instant home page on a cold start
   UsageLog            the "%" order's launch counts (Kolibri's decay) and usage.txt
   RecentsLog          the "?" list's recents.txt
+  DisposableFile      writeDisposable: temp + rename for the three files above, no fsync
   SwipeFrame          window root; watches dispatchTouchEvent for the page-turn swipe
   SwipeGesture        pure gesture decisions: Unity's page drag + Kolibri's flick
   TapGuard            stale-click protection for list rows

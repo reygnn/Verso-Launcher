@@ -7,7 +7,7 @@ class CleanupTest {
 
     private val here = AppEntry.of("Here", "here", "here.Main", "Here")
     private val config = VersoConfig(
-        favorites = linkedSetOf(here.key, "gone/Gone", "disabled/Main"),
+        favorites = listOf(here.key, "gone/Gone", "disabled/Main"),
         hidden = linkedSetOf("gone/Gone"),
     )
 
@@ -40,7 +40,7 @@ class CleanupTest {
     }
 
     @Test fun `entries of a profile that answered empty are kept, other profiles still checked`() {
-        val cfg = VersoConfig(favorites = linkedSetOf("a.b/C#10", "a.b/C#11"))
+        val cfg = VersoConfig(favorites = listOf("a.b/C#10", "a.b/C#11"))
         val plan = Cleanup.plan(cfg, Enumeration(emptyList(), complete = true, emptyProfiles = setOf(10L))) { false }
         assertEquals(setOf("a.b/C#11"), (plan as CleanupPlan.Offer).orphans.keys)
     }
@@ -75,7 +75,7 @@ class CleanupTest {
     @Test fun `a key with the launcher's own profile serial is gone`() {
         val ownKey = "here/here.Main#0"
         val workKey = "work/work.Main#10"
-        val cfg = VersoConfig(favorites = linkedSetOf(here.key, ownKey, workKey))
+        val cfg = VersoConfig(favorites = listOf(here.key, ownKey, workKey))
         val plan = Cleanup.plan(cfg, Enumeration(listOf(here), complete = true), ownSerial = 0L) { true }
         assertEquals(setOf(ownKey), (plan as CleanupPlan.Offer).orphans.keys)
     }

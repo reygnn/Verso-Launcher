@@ -44,9 +44,9 @@ internal object HomeStyle {
     /** Unity Kolibri's "smart contrast", keyed on WallpaperColors.HINT_SUPPORTS_DARK_TEXT. */
     fun palette(lightWallpaper: Boolean): Palette =
         if (lightWallpaper) {
-            Palette(homeText = 0xFF000000.toInt(), listText = 0xFF000000.toInt(), darkBarIcons = true)
+            Palette(text = 0xFF000000.toInt(), darkBarIcons = true)
         } else {
-            Palette(homeText = TEXT_COLOR, listText = TEXT_COLOR, darkBarIcons = false)
+            Palette(text = TEXT_COLOR, darkBarIcons = false)
         }
 
     const val UNAVAILABLE_ALPHA = 0.45f
@@ -135,15 +135,15 @@ internal class DoubleTapGate(private val windowMs: Long = HomeStyle.DOUBLE_TAP_M
     }
 }
 
+/** One text colour for home and drawer alike, and what follows from it. */
 internal data class Palette(
-    val homeText: Int,
-    val listText: Int,
+    val text: Int,
     val darkBarIcons: Boolean,
 ) {
     // Computed once, not a getter: every drawer row asks for it on each bind. A body val, so it
-    // stays out of equals/hashCode/copy (it follows from listText anyway).
-    val listOutline: Int = HomeStyle.tonalOutlineColor(listText)
-    val selection: Int get() = (listText and 0xFFFFFF) or 0x66000000
+    // stays out of equals/hashCode/copy (it follows from text anyway).
+    val outline: Int = HomeStyle.tonalOutlineColor(text)
+    val selection: Int get() = (text and 0xFFFFFF) or 0x66000000
 }
 
 internal fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

@@ -15,7 +15,7 @@ class ConfigJsonTest {
         favorites: List<String> = emptyList(),
         names: Map<String, String> = emptyMap(),
         tags: Map<String, List<String>> = emptyMap(),
-    ) = VersoConfig(hidden.toSet(), favorites.toSet(), names, tags)
+    ) = VersoConfig(hidden.toSet(), favorites.distinct(), names, tags)
 
     @Test fun `round-trips a full config`() {
         val original = config(
@@ -26,7 +26,7 @@ class ConfigJsonTest {
         )
         val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
         assertEquals(original.hidden, parsed.hidden)
-        assertEquals(original.favorites.toList(), parsed.favorites.toList())
+        assertEquals(original.favorites, parsed.favorites)
         assertEquals(original.names, parsed.names)
         assertEquals(original.tags, parsed.tags)
     }
@@ -80,7 +80,7 @@ class ConfigJsonTest {
     @Test fun `preserves favorite order (the rank)`() {
         val original = config(favorites = listOf("z", "a", "m"))
         val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
-        assertEquals(listOf("z", "a", "m"), parsed.favorites.toList())
+        assertEquals(listOf("z", "a", "m"), parsed.favorites)
     }
 
     @Test fun `malformed input returns null`() {
@@ -98,7 +98,7 @@ class ConfigJsonTest {
 
     @Test fun `a partial file loads what it can`() {
         val parsed = ConfigJson.parse("""{"favorites":["x","y"]}""")!!
-        assertEquals(listOf("x", "y"), parsed.favorites.toList())
+        assertEquals(listOf("x", "y"), parsed.favorites)
         assertTrue(parsed.hidden.isEmpty())
         assertTrue(parsed.names.isEmpty())
     }
@@ -109,7 +109,7 @@ class ConfigJsonTest {
             """{"hidden":[123,"com.a/A"],"favorites":[true,"com.f/F"],"names":{"com.b/B":456,"com.c/C":"Real"}}""",
         )!!
         assertEquals(listOf("com.a/A"), parsed.hidden.toList())
-        assertEquals(listOf("com.f/F"), parsed.favorites.toList())
+        assertEquals(listOf("com.f/F"), parsed.favorites)
         assertEquals(mapOf("com.c/C" to "Real"), parsed.names)
     }
 
@@ -136,7 +136,7 @@ class ConfigJsonTest {
 
     @Test fun `duplicate favorites in the file are de-duplicated, first position wins`() {
         val parsed = ConfigJson.parse("""{"favorites":["x","y","x"]}""")!!
-        assertEquals(listOf("x", "y"), parsed.favorites.toList())
+        assertEquals(listOf("x", "y"), parsed.favorites)
     }
     // ---- hostile restore files -----------------------------------------------
 
@@ -208,7 +208,7 @@ class ConfigJsonTest {
     fun `a single known section is enough to accept`() {
         val onlyFavorites = ConfigJson.parseForeign("""{"favorites":["pkg/Act"]}""")
         assertNotNull(onlyFavorites)
-        assertEquals(listOf("pkg/Act"), onlyFavorites!!.favorites.toList())
+        assertEquals(listOf("pkg/Act"), onlyFavorites!!.favorites)
     }
 
     /** Clearing everything and backing that up must still restore. */
@@ -223,13 +223,13 @@ class ConfigJsonTest {
     fun `a real serialized config round-trips through parseForeign`() {
         val cfg = VersoConfig(
             hidden = linkedSetOf("h/1"),
-            favorites = linkedSetOf("f/1", "f/2"),
+            favorites = listOf("f/1", "f/2"),
             names = linkedMapOf("f/1" to "Custom"),
             tags = linkedMapOf("f/2" to mutableListOf("work")),
         )
         val back = ConfigJson.parseForeign(ConfigJson.serialize(cfg))
         assertNotNull(back)
-        assertEquals(listOf("f/1", "f/2"), back!!.favorites.toList())
+        assertEquals(listOf("f/1", "f/2"), back!!.favorites)
         assertEquals(listOf("h/1"), back.hidden.toList())
         assertEquals("Custom", back.names["f/1"])
         assertEquals(listOf("work"), back.tags["f/2"])

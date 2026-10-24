@@ -15,14 +15,11 @@ internal object HomeCache {
     fun format(favorites: List<AppEntry>): String =
         favorites.joinToString("") { "${it.key}\t${it.label.replace(Regex("[\\t\\r\\n]"), " ")}\n" }
 
+    /** A line whose key [AppEntry.keyOf] could not have built is skipped. */
     fun parse(text: String): List<AppEntry> = text.lineSequence().mapNotNull { line ->
-        val key = line.substringBefore('\t', "").ifEmpty { return@mapNotNull null }
         val label = line.substringAfter('\t', "").ifEmpty { return@mapNotNull null }
-        val component = key.substringBefore('#')
-        val profile = if ('#' in key) key.substringAfter('#').toLongOrNull() ?: return@mapNotNull null else null
-        val pkg = component.substringBefore('/', "").ifEmpty { return@mapNotNull null }
-        val cls = component.substringAfter('/', "").ifEmpty { return@mapNotNull null }
-        AppEntry.of(label, pkg, cls, label, profile)
+        val parts = AppEntry.parseKey(line.substringBefore('\t', "")) ?: return@mapNotNull null
+        AppEntry.of(label, parts.packageName, parts.className, label, parts.profile)
     }.toList()
 
     // a disposable cache: unreadable = none
@@ -34,9 +31,5 @@ internal object HomeCache {
         emptyList()
     }
 
-    fun write(dir: File, favorites: List<AppEntry>) {
-        val tmp = File(dir, "$FILE.tmp")
-        tmp.writeText(format(favorites))
-        if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
-    }
+    fun write(dir: File, favorites: List<AppEntry>) = writeDisposable(dir, FILE, format(favorites))
 }

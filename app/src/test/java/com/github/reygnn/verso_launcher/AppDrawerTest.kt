@@ -26,23 +26,22 @@ class AppDrawerTest {
     private val state = testLauncherState(
         io = { task -> task.run(); true },
         main = { task -> task.run() },
-        loadConfig = { VersoConfig(favorites = linkedSetOf(installed[1].key)) },
+        loadConfig = { VersoConfig(favorites = listOf(installed[1].key)) },
         enumerateApps = { Enumeration(installed, true) },
         serialize = { "" },
         writeConfig = { true },
         onRefreshed = { _, _ -> },
     ).also { it.refresh() }
 
-    private val taps = mutableListOf<TapAction<AppEntry>>()
+    private val taps = mutableListOf<DrawerAction<AppEntry>>()
     private var filtered = 0
     private val modes = mutableListOf<Mode>()
     private val drawer = AppDrawer(
         activity = activity,
         state = state,
         palette = HomeStyle.palette(lightWallpaper = false),
-        onTap = { taps += it },
+        onAction = { taps += it },
         onLongPress = {},
-        onEnter = {},
         onFiltered = { filtered++ },
         onModeChanged = { modes += it },
     )
@@ -92,12 +91,12 @@ class AppDrawerTest {
     @Test fun `a palette switch recolours the prompt, the hint and the rows`() {
         val light = HomeStyle.palette(lightWallpaper = true)
         drawer.applyPalette(light)
-        assertEquals(light.listText, prompt.currentTextColor)
-        assertEquals(light.listText, prompt.currentHintTextColor)
-        assertEquals(light.listText, emptyHint.currentTextColor)
+        assertEquals(light.text, prompt.currentTextColor)
+        assertEquals(light.text, prompt.currentHintTextColor)
+        assertEquals(light.text, emptyHint.currentTextColor)
         drawer.setPrompt("")
         val row = list.adapter.getView(0, null, list) as TextView
-        assertEquals(light.listText, row.currentTextColor)
+        assertEquals(light.text, row.currentTextColor)
     }
 
     @Test fun `the prompt's hint and the empty-list hint are italic`() {
@@ -117,7 +116,7 @@ class AppDrawerTest {
     @Test fun `a tap on a row goes to the Activity as the tap's decision`() {
         drawer.setPrompt("br")
         list.performItemClick(null, 0, 0)
-        assertEquals(listOf<TapAction<AppEntry>>(TapAction.Launch(installed[1])), taps)
+        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
     }
 
     private val permit: LauncherState.EditPermit get() = checkNotNull(state.editPermit(checkNotNull(CommandGate().idle())))

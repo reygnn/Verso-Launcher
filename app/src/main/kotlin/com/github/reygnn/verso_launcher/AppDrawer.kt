@@ -37,9 +37,8 @@ internal class AppDrawer(
     private val activity: Activity,
     private val state: LauncherState,
     private var palette: Palette,
-    private val onTap: (TapAction<AppEntry>) -> Unit,
+    private val onAction: (DrawerAction<AppEntry>) -> Unit,
     private val onLongPress: (AppEntry) -> Unit,
-    private val onEnter: (EnterAction<AppEntry>) -> Unit,
     private val onFiltered: () -> Unit,
     private val onModeChanged: (Mode) -> Unit,
 ) {
@@ -121,8 +120,7 @@ internal class AppDrawer(
             setOnItemClickListener { _, _, position, _ ->
                 if (!clickStillValid()) return@setOnItemClickListener
                 // getOrNull: a load may have shrunk shown before this posted click runs.
-                val action = LauncherLogic.tapAction(mode, shown.getOrNull(position))
-                onTap(action)
+                onAction(LauncherLogic.tapAction(mode, shown.getOrNull(position)))
             }
             setOnItemLongClickListener { _, _, position, _ ->
                 val row = shown.getOrNull(position) as? AppRow
@@ -152,7 +150,7 @@ internal class AppDrawer(
             text = "×"
             typeface = Typeface.MONOSPACE
             textSize = 24f
-            setTextColor(palette.listText)
+            setTextColor(palette.text)
             gravity = Gravity.CENTER
             minWidth = 48.dp()
             contentDescription = activity.getString(R.string.clear_prompt)
@@ -169,8 +167,8 @@ internal class AppDrawer(
             hint = SpannableString(activity.getString(R.string.hint_search)).apply {
                 setSpan(StyleSpan(Typeface.ITALIC), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
             }
-            setHintTextColor(palette.listText)
-            setTextColor(palette.listText)
+            setHintTextColor(palette.text)
+            setTextColor(palette.text)
             textCursorDrawable = cursorDrawable.apply { setSize(2.dp(), 1) }
             typeface = Typeface.MONOSPACE
             textSize = 20f
@@ -207,7 +205,7 @@ internal class AppDrawer(
                 }
                 val command = LauncherLogic.resolveCommand(promptText.trim())
                 // The last row sits right above the prompt: it is Enter's target.
-                onEnter(
+                onAction(
                     LauncherLogic.enterAction(
                         mode = mode,
                         command = command,
@@ -247,20 +245,20 @@ internal class AppDrawer(
 
     fun applyPalette(p: Palette) {
         palette = p
-        prompt.setTextColor(palette.listText)
-        prompt.setHintTextColor(palette.listText)
-        clearButton.setTextColor(palette.listText)
-        prompt.setOutline(outlinePx, palette.listOutline)
-        clearButton.setOutline(outlinePx, palette.listOutline)
+        prompt.setTextColor(palette.text)
+        prompt.setHintTextColor(palette.text)
+        clearButton.setTextColor(palette.text)
+        prompt.setOutline(outlinePx, palette.outline)
+        clearButton.setOutline(outlinePx, palette.outline)
         // The theme's accent all but vanishes on a light wallpaper.
-        cursorDrawable.setColor(p.listText)
+        cursorDrawable.setColor(p.text)
         prompt.invalidate()
         prompt.highlightColor = p.selection
-        prompt.textSelectHandle?.let { prompt.setTextSelectHandle(it.mutate().apply { setTint(p.listText) }) }
-        prompt.textSelectHandleLeft?.let { prompt.setTextSelectHandleLeft(it.mutate().apply { setTint(p.listText) }) }
-        prompt.textSelectHandleRight?.let { prompt.setTextSelectHandleRight(it.mutate().apply { setTint(p.listText) }) }
-        emptyView.setTextColor(palette.listText)
-        emptyView.setOutline(outlinePx, palette.listOutline)
+        prompt.textSelectHandle?.let { prompt.setTextSelectHandle(it.mutate().apply { setTint(p.text) }) }
+        prompt.textSelectHandleLeft?.let { prompt.setTextSelectHandleLeft(it.mutate().apply { setTint(p.text) }) }
+        prompt.textSelectHandleRight?.let { prompt.setTextSelectHandleRight(it.mutate().apply { setTint(p.text) }) }
+        emptyView.setTextColor(palette.text)
+        emptyView.setOutline(outlinePx, palette.outline)
         adapter.notifyDataSetChanged()
     }
 
@@ -411,8 +409,8 @@ internal class AppDrawer(
                 setPadding(0, v, 0, v)
             }
             // Every bind, not only on creation: a recycled row may predate a palette switch.
-            tv.setTextColor(palette.listText)
-            (tv as? OutlinedTextView)?.setOutline(outlinePx, palette.listOutline)
+            tv.setTextColor(palette.text)
+            (tv as? OutlinedTextView)?.setOutline(outlinePx, palette.outline)
             when (val row = shown[position]) {
                 // Clear a recycled row's edit-mode description.
                 is TagRow -> {

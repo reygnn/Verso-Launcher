@@ -160,7 +160,7 @@ class CrashPointsTest {
 
     private val alpha = AppEntry.of("Alpha", "com.alpha", "com.alpha.Main", "Alpha")
     private val beforeCleanup = VersoConfig(
-        favorites = linkedSetOf(alpha.key, "gone/A"),
+        favorites = listOf(alpha.key, "gone/A"),
         hidden = linkedSetOf("gone/A"),
         names = linkedMapOf("gone/A" to "Old name", alpha.key to "Mine"),
     )
@@ -247,7 +247,7 @@ class CrashPointsTest {
     @Test fun `a cleanup that gets through keeps exactly one undo point, the config before it`() {
         cleanupAtEveryCrashPoint { point, onDisk, undoPoints ->
             if (point != "no death") return@cleanupAtEveryCrashPoint
-            assertEquals(listOf(alpha.key), onDisk.favorites.toList())
+            assertEquals(listOf(alpha.key), onDisk.favorites)
             assertEquals(mapOf(alpha.key to "Mine"), onDisk.names)
             assertEquals(1, undoPoints.size)
             assertEquals(beforeCleanup, undoPoints.single())

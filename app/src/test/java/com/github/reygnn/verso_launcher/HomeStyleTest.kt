@@ -81,26 +81,22 @@ class HomeStyleTest {
 
     @Test fun `a dark wallpaper keeps light text with dark rims and light bar icons`() {
         val p = HomeStyle.palette(lightWallpaper = false)
-        assertEquals(HomeStyle.TEXT_COLOR, p.homeText)
-        assertEquals(HomeStyle.argb(153, 0, 0, 0), HomeStyle.tonalOutlineColor(p.homeText))
-        assertEquals(0x000000, p.listOutline and 0xFFFFFF)
-        assertEquals("drawer rows in the favorites' colour", p.homeText, p.listText)
+        assertEquals(HomeStyle.TEXT_COLOR, p.text)
+        assertEquals(HomeStyle.argb(153, 0, 0, 0), p.outline)
         assertEquals(false, p.darkBarIcons)
     }
 
     @Test fun `a light wallpaper flips to dark text with light rims and dark bar icons`() {
         val p = HomeStyle.palette(lightWallpaper = true)
-        assertEquals(0xFF000000.toInt(), p.homeText)
-        assertEquals(HomeStyle.argb(204, 255, 255, 255), HomeStyle.tonalOutlineColor(p.homeText))
-        assertEquals(0xFFFFFF, p.listOutline and 0xFFFFFF)
-        assertEquals("drawer rows in the favorites' colour", p.homeText, p.listText)
+        assertEquals(0xFF000000.toInt(), p.text)
+        assertEquals(HomeStyle.argb(204, 255, 255, 255), p.outline)
         assertEquals(true, p.darkBarIcons)
     }
 
     @Test fun `the selection is the text colour, translucent`() {
         for (light in listOf(true, false)) {
             val p = HomeStyle.palette(lightWallpaper = light)
-            assertEquals(p.listText and 0xFFFFFF, p.selection and 0xFFFFFF)
+            assertEquals(p.text and 0xFFFFFF, p.selection and 0xFFFFFF)
             assertEquals(0x66, p.selection ushr 24)
         }
     }

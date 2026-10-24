@@ -87,7 +87,7 @@ class HomePageAccessibilityTest {
         page.render(favs = listOf(gmail), loaded = true)
         assertEquals(HomeStyle.TEXT_COLOR, (favorite("Gmail") as android.widget.TextView).currentTextColor)
 
-        page.applyTextColor(0xFF000000.toInt())
+        page.applyPalette(HomeStyle.palette(lightWallpaper = true))
 
         assertEquals(0xFF000000.toInt(), (favorite("Gmail") as android.widget.TextView).currentTextColor)
     }

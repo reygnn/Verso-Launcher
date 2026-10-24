@@ -49,9 +49,8 @@ class PageTurnTest {
         activity = activity,
         state = state,
         palette = HomeStyle.palette(lightWallpaper = false),
-        onTap = {},
+        onAction = {},
         onLongPress = {},
-        onEnter = {},
         onFiltered = {},
         onModeChanged = { pageTurn.modeChanged(it) },
     )

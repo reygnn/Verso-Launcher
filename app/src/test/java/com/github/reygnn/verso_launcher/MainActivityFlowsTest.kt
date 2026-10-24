@@ -63,7 +63,7 @@ class MainActivityFlowsTest {
     }
 
     private fun configWith(entry: AppEntry) =
-        ConfigJson.serialize(VersoConfig(favorites = linkedSetOf(entry.key))).byteInputStream()
+        ConfigJson.serialize(VersoConfig(favorites = listOf(entry.key))).byteInputStream()
 
     /** A provider that hangs, like an offline cloud drive: the read waits for the hold. */
     private fun hanging(content: InputStream) = object : InputStream() {
@@ -96,11 +96,11 @@ class MainActivityFlowsTest {
     }
 
     /** No LauncherApps, so no rows to tap: the tap as AppDrawer hands it on. */
-    private fun tap(action: TapAction<AppEntry>) = activity.onDrawerTap(action)
+    private fun tap(action: DrawerAction<AppEntry>) = activity.onDrawerAction(action)
 
     private val someApp = AppEntry.of("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
     private val otherApp = AppEntry.of("Yankee", "com.yankee", "com.yankee.Main", "Yankee")
-    private fun savedFavorites(): Set<String> =
+    private fun savedFavorites(): List<String> =
         File(activity.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText())?.favorites }.orEmpty()
 
     @Test fun `a second command while one runs is refused and stays in the prompt`() {
@@ -117,13 +117,13 @@ class MainActivityFlowsTest {
         started()
         holdIo()
         enter("~backup")
-        tap(TapAction.ToggleFavorite(someApp))
+        tap(DrawerAction.ToggleFavorite(someApp))
         assertEquals(activity.getString(R.string.toast_busy), ShadowToast.getTextOfLatestToast())
         hold.countDown()
         settle()
         assertFalse(someApp.key in savedFavorites())
 
-        tap(TapAction.ToggleFavorite(someApp))
+        tap(DrawerAction.ToggleFavorite(someApp))
         settle()
         assertTrue(someApp.key in savedFavorites())
     }
@@ -131,7 +131,7 @@ class MainActivityFlowsTest {
     @Test fun `no edit before the first load`() {
         holdIo()                                // the first load queues behind the hold
         controller.setup()
-        tap(TapAction.ToggleFavorite(someApp))
+        tap(DrawerAction.ToggleFavorite(someApp))
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
     }
 
@@ -188,7 +188,7 @@ class MainActivityFlowsTest {
         hold.countDown()
         joinReads()
         settle()
-        assertEquals(setOf(otherApp.key), savedFavorites())
+        assertEquals(listOf(otherApp.key), savedFavorites())
     }
 
     @Test fun `~restart builds the activity anew`() {

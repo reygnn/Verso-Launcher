@@ -222,9 +222,9 @@ internal class LauncherState(
     /** False, nothing saved, when the move is impossible or a no-op. */
     fun moveFavorite(permit: EditPermit, pickedKey: String, targetKey: String): Boolean {
         if (!permit.current) return false
-        val newOrder = LauncherLogic.reorder(cfg.favorites.toList(), pickedKey, targetKey)
+        val newOrder = LauncherLogic.reorder(cfg.favorites, pickedKey, targetKey)
             ?: return false
-        cfg = cfg.copy(favorites = newOrder.toSet())  // insertion order is the rank
+        cfg = cfg.copy(favorites = newOrder)
         mutated()
         return true
     }
@@ -350,6 +350,8 @@ internal class LauncherState(
     }
 
     private fun Set<String>.toggled(key: String): Set<String> = if (key in this) this - key else this + key
+
+    private fun List<String>.toggled(key: String): List<String> = if (key in this) this - key else this + key
 
     /** An empty list removes the key: the file drops empty lists, memory must match. */
     private fun Map<String, List<String>>.withList(key: String, list: List<String>): Map<String, List<String>> =

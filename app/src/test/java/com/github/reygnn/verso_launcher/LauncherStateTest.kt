@@ -145,7 +145,7 @@ class LauncherStateTest {
     // ---- cold start / warm refresh -----------------------------------------------
 
     @Test fun `cold start reads the config from disk and commits the apps`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Charlie")))
+        disk = VersoConfig(favorites = listOf(key("Charlie")))
         assertFalse(state.appsLoaded)
 
         state.refresh()
@@ -153,7 +153,7 @@ class LauncherStateTest {
 
         assertTrue(state.appsLoaded)
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
-        assertEquals(setOf(key("Charlie")), state.config.favorites)
+        assertEquals(listOf(key("Charlie")), state.config.favorites)
         assertEquals(listOf(true), refreshed)  // config replaced by the disk copy
         assertEquals(1, loadConfigCalls)
     }
@@ -201,7 +201,7 @@ class LauncherStateTest {
         runAll()
         assertEquals(1, setAsideCalls)
         assertTrue(state.configLoaded)
-        assertEquals(setOf(key("Charlie"), key("Alpha")), state.config.favorites)
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
         assertEquals(1, written.size)
         assertTrue("said once", state.takeStartedOver())
         assertFalse(state.takeStartedOver())
@@ -236,7 +236,7 @@ class LauncherStateTest {
         runAll()
         assertEquals(1, setAsideCalls)
         assertTrue(state.configLoaded)
-        assertEquals(setOf(key("Charlie"), key("Alpha")), state.config.favorites)
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
         assertTrue("said", state.takeStartedOver())
     }
 
@@ -269,19 +269,19 @@ class LauncherStateTest {
     }
 
     @Test fun `a readable config is never set aside`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        disk = VersoConfig(favorites = listOf(key("Bravo")))
         started()
         assertEquals(0, setAsideCalls)
         assertFalse(state.takeStartedOver())
     }
 
     @Test fun `loadedSnapshot is a copy of the loaded config`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        disk = VersoConfig(favorites = listOf(key("Alpha")))
         assertNull("not before the first load", state.loadedSnapshot())
         started()
         val snap = state.loadedSnapshot()!!
         state.toggleFavorite(permit, key("Bravo"))
-        assertEquals(setOf(key("Alpha")), snap.favorites)
+        assertEquals(listOf(key("Alpha")), snap.favorites)
     }
 
     @Test fun `configLoaded is false until the disk copy is loaded`() {
@@ -294,14 +294,14 @@ class LauncherStateTest {
     }
 
     @Test fun `adopt before the first load is refused, and the first load still lands`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        disk = VersoConfig(favorites = listOf(key("Alpha")))
         state.refresh()
         runIo()
-        assertFalse(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
+        assertFalse(state.adopt(VersoConfig(favorites = listOf(key("Bravo")))))
         assertFalse(state.configLoaded)
         assertTrue("nothing adopted", state.config.favorites.isEmpty())
         runAll()
-        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
         assertEquals(listOf(true), refreshed)
     }
 
@@ -309,14 +309,14 @@ class LauncherStateTest {
         fresh = true
         state.refresh()
         runIo()
-        assertFalse(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
+        assertFalse(state.adopt(VersoConfig(favorites = listOf(key("Bravo")))))
         runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
     }
 
     @Test fun `the first load of the newest generation adopts the file unchanged`() {
         disk = VersoConfig(
-            favorites = linkedSetOf(key("Charlie"), key("Alpha")),
+            favorites = listOf(key("Charlie"), key("Alpha")),
             hidden = linkedSetOf(key("Bravo")),
             names = linkedMapOf(key("Alpha") to "Mine"),
         )
@@ -414,14 +414,14 @@ class LauncherStateTest {
     @Test fun `a cleanup removes every entry of the keys in one save`() {
         disk = VersoConfig(
             hidden = linkedSetOf("gone/A"),
-            favorites = linkedSetOf(key("Alpha"), "gone/A"),
+            favorites = listOf(key("Alpha"), "gone/A"),
             names = linkedMapOf("gone/A" to "Old"),
             tags = linkedMapOf("gone/A" to mutableListOf("x"), key("Alpha") to mutableListOf("y")),
         )
         started()
         cleanup()
         runAll()
-        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
         assertTrue(state.config.hidden.isEmpty())
         assertTrue(state.config.names.isEmpty())
         assertEquals(setOf(key("Alpha")), state.config.tags.keys)
@@ -429,13 +429,13 @@ class LauncherStateTest {
     }
 
     @Test fun `a cleanup asked before the first load is refused and the load still lands`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), "gone/A"))
+        disk = VersoConfig(favorites = listOf(key("Alpha"), "gone/A"))
         state.refresh()
         cleanup()
         runAll()
         assertEquals(listOf("done:${CleanupOutcome.Refused}"), cleanupLog)
         assertTrue(state.configLoaded)
-        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
         assertTrue(written.isEmpty())
     }
 
@@ -457,7 +457,7 @@ class LauncherStateTest {
     ) { cleanupLog += "done:$it" }
 
     private fun startedWithOrphan() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), "gone/A"))
+        disk = VersoConfig(favorites = listOf(key("Alpha"), "gone/A"))
         started()
     }
 
@@ -465,11 +465,11 @@ class LauncherStateTest {
         startedWithOrphan()
         cleanup()
         runIo()
-        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
         runAll()
         assertTrue(cleanupLog[1].startsWith("undo:fav=${key("Alpha")},gone/A;"))
         assertTrue(cleanupLog[1].endsWith("|written=0"))
-        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
         assertEquals(1, written.size)
         assertTrue(cleanupLog.last().startsWith("done:Done"))
     }
@@ -479,7 +479,7 @@ class LauncherStateTest {
         undoName = null
         cleanup()
         runAll()
-        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
         assertTrue(written.isEmpty())
         assertEquals("done:${CleanupOutcome.UndoFailed}", cleanupLog.last())
     }
@@ -489,19 +489,19 @@ class LauncherStateTest {
         recheckPlan = CleanupPlan.Incomplete
         cleanup()
         runAll()
-        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
         assertTrue(cleanupLog.none { it.startsWith("undo:") })
         assertEquals("done:${CleanupOutcome.Incomplete}", cleanupLog.last())
     }
 
     @Test fun `only what was confirmed AND is still an orphan is removed`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), "gone/A", "gone/B"))
+        disk = VersoConfig(favorites = listOf(key("Alpha"), "gone/A", "gone/B"))
         started()
         // gone/B was not in the dialog; gone/A came back since (no longer an orphan).
         recheckPlan = CleanupPlan.Offer(Orphans(setOf("gone/B"), 1, 0, 0, 0))
         cleanup(confirmed = setOf("gone/A"))
         runAll()
-        assertEquals(setOf(key("Alpha"), "gone/A", "gone/B"), state.config.favorites)
+        assertEquals(listOf(key("Alpha"), "gone/A", "gone/B"), state.config.favorites)
         assertEquals("done:${CleanupOutcome.NothingToDo}", cleanupLog.last())
     }
 
@@ -509,10 +509,10 @@ class LauncherStateTest {
         startedWithOrphan()
         cleanup()
         runIo()                                            // check + undo point done
-        val restored = VersoConfig(favorites = linkedSetOf(key("Bravo"), "gone/A"), names = linkedMapOf("gone/A" to "Old"))
+        val restored = VersoConfig(favorites = listOf(key("Bravo"), "gone/A"), names = linkedMapOf("gone/A" to "Old"))
         mainQueue.addFirst(Runnable { assertTrue(state.adopt(restored)) })  // a restore lands first
         runAll()
-        assertEquals(setOf(key("Bravo"), "gone/A"), state.config.favorites)
+        assertEquals(listOf(key("Bravo"), "gone/A"), state.config.favorites)
         assertEquals("Old", state.config.names["gone/A"])
         assertEquals("done:${CleanupOutcome.Superseded}", cleanupLog.last())
     }
@@ -523,7 +523,7 @@ class LauncherStateTest {
         runIo()
         mainQueue.addFirst(Runnable { state.toggleFavorite(permit, key("Bravo")) })
         runAll()
-        assertEquals(setOf(key("Alpha"), key("Bravo")), state.config.favorites)
+        assertEquals(listOf(key("Alpha"), key("Bravo")), state.config.favorites)
         assertTrue(cleanupLog.last().startsWith("done:Done"))
     }
 
@@ -541,7 +541,7 @@ class LauncherStateTest {
         runIoThrowing()
         runMain()
         assertEquals("done:${CleanupOutcome.Refused}", cleanupLog.last())
-        assertEquals(setOf(key("Alpha"), "gone/A"), state.config.favorites)
+        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
     }
 
     @Test fun `a rename stores the name cleaned, whoever commits it`() {
@@ -694,7 +694,7 @@ class LauncherStateTest {
         state.toggleFavorite(before, key("Alpha"))
         assertTrue(state.config.favorites.isEmpty())
         state.toggleFavorite(permit, key("Alpha"))
-        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
     }
 
     // ---- saving ---------------------------------------------------------------
@@ -726,12 +726,12 @@ class LauncherStateTest {
 
     @Test fun `save before the first load writes nothing`() {
         // The empty default in memory must never be written over the real file.
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha")))
+        disk = VersoConfig(favorites = listOf(key("Alpha")))
         state.refresh()  // the load is queued, not yet run
         state.save()
         runAll()
         assertEquals(emptyList<String>(), written)
-        assertEquals(setOf(key("Alpha")), state.config.favorites)
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
     }
 
     @Test fun `every failed save is reported, a working one is not`() {
@@ -771,7 +771,7 @@ class LauncherStateTest {
     /** Every edit, not only some: each one checks the permit itself (audit 2026-10-22, #10). */
     @Test fun `an edit with a permit from before a command started is ignored`() {
         // Two favorites, so a move would succeed if it ignored the permit.
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), key("Bravo")))
+        disk = VersoConfig(favorites = listOf(key("Alpha"), key("Bravo")))
         started()
         val stale = permit
         gate.start {
@@ -791,13 +791,13 @@ class LauncherStateTest {
         started()
         state.toggleFavorite(permit, key("Charlie"))
         state.toggleFavorite(permit, key("Alpha"))
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
         state.toggleFavorite(permit, key("Charlie"))
-        assertEquals(listOf(key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
     }
 
     @Test fun `favorites() follows the stored order and skips uninstalled ones`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Charlie"), "gone/Gone", key("Alpha")))
+        disk = VersoConfig(favorites = listOf(key("Charlie"), "gone/Gone", key("Alpha")))
         started()
         assertEquals(listOf("Charlie", "Alpha"), state.favorites().map { it.label })
     }
@@ -811,10 +811,10 @@ class LauncherStateTest {
     }
 
     @Test fun `moveFavorite reorders and saves, an impossible move does neither`() {
-        disk = VersoConfig(favorites = linkedSetOf(key("Alpha"), key("Bravo"), key("Charlie")))
+        disk = VersoConfig(favorites = listOf(key("Alpha"), key("Bravo"), key("Charlie")))
         started()
         assertTrue(state.moveFavorite(permit, key("Alpha"), key("Charlie")))
-        assertEquals(listOf(key("Bravo"), key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Bravo"), key("Charlie"), key("Alpha")), state.config.favorites)
         runAll()
         assertEquals(1, written.size)
 
@@ -995,9 +995,9 @@ class LauncherStateTest {
         started()
         listChanges.clear()
         val before = enumerations
-        val restored = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        val restored = VersoConfig(favorites = listOf(key("Bravo")))
         assertTrue(state.adopt(restored))
-        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals(listOf(key("Bravo")), state.config.favorites)
         assertEquals("config replaced", listOf(true), refreshed)
         assertEquals("re-render", listOf(true), listChanges)
         runAll()
@@ -1010,7 +1010,7 @@ class LauncherStateTest {
         started()
         val seen = mutableListOf<Pair<Set<String>, List<String>>>()
         onReport = { seen += state.config.favorites.toSet() to labels() }
-        val restored = VersoConfig(favorites = linkedSetOf(key("Bravo")), names = linkedMapOf(key("Alpha") to "Zulu"))
+        val restored = VersoConfig(favorites = listOf(key("Bravo")), names = linkedMapOf(key("Alpha") to "Zulu"))
         assertTrue(state.adopt(restored))
         assertEquals(listOf(setOf(key("Bravo")) to listOf("Bravo", "Charlie", "Zulu")), seen)
     }
@@ -1020,10 +1020,10 @@ class LauncherStateTest {
         installed = installed + app("Delta")  // installed while the restore runs
         state.refresh()
         runIo()                               // its hand-off is queued
-        assertTrue(state.adopt(VersoConfig(favorites = linkedSetOf(key("Bravo")))))
+        assertTrue(state.adopt(VersoConfig(favorites = listOf(key("Bravo")))))
         runAll()
         assertTrue("Delta" in labels())
-        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals(listOf(key("Bravo")), state.config.favorites)
     }
 
     // ---- default favorites -------------------------------------------------------
@@ -1032,7 +1032,7 @@ class LauncherStateTest {
         fresh = true
         state.refresh()
         runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
         assertEquals(listOf("Charlie", "Alpha"), state.favorites().map { it.label })
         assertEquals(1, written.size)
         assertTrue(written.single().startsWith("fav=${key("Charlie")},${key("Alpha")};"))
@@ -1041,10 +1041,10 @@ class LauncherStateTest {
     @Test fun `a fresh install whose recovered config has favorites is not seeded`() {
         // Hard rule 10: only into a config with no favorites, even when the install counts as fresh.
         fresh = true
-        disk = VersoConfig(favorites = linkedSetOf(key("Bravo")))
+        disk = VersoConfig(favorites = listOf(key("Bravo")))
         state.refresh()
         runAll()
-        assertEquals(setOf(key("Bravo")), state.config.favorites)
+        assertEquals(listOf(key("Bravo")), state.config.favorites)
         assertEquals(emptyList<String>(), written)
     }
 
@@ -1089,7 +1089,7 @@ class LauncherStateTest {
         assertTrue("a resume tries again", state.needsRefresh)
         state.refresh()
         runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
         assertEquals(1, written.size)
         // Ended by the seeding: a "~cleanup" that later removes every default must not bring them back.
         assertFalse(process.seedPending.get())
@@ -1110,7 +1110,7 @@ class LauncherStateTest {
         gate.finish(checkNotNull(running)) {}
         state.refresh()
         runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
         // The same list as last time, but home must show the seeds (audit 2026-10-22 (2), #1).
         assertEquals("re-rendered", true, listChanges.last())
     }
@@ -1161,7 +1161,7 @@ class LauncherStateTest {
         state.toggleOrder(permit)
         state.refresh()
         runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
     }
 
     @Test fun `a favorite chosen meanwhile ends the wait, even one toggled off again`() {
@@ -1201,7 +1201,7 @@ class LauncherStateTest {
         )
         next.refresh()
         runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), next.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), next.config.favorites)
         assertTrue("the file's own settings stay", next.config.byUsage)
     }
 
@@ -1211,7 +1211,7 @@ class LauncherStateTest {
         enumerationComplete = false
         state.refresh()
         runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites.toList())
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
     }
 
     @Test fun `an existing config whose first enumeration failed is not seeded later either`() {
@@ -1248,7 +1248,7 @@ class LauncherStateTest {
     @Test fun `a work copy is its own row with its own favorite and name state`() {
         val work = AppEntry.of("Charlie (Work)", "com.charlie", "com.charlie.Main", "Charlie (Work)", profile = 10)
         installed = installed + work
-        disk = VersoConfig(favorites = linkedSetOf(key("Charlie")))
+        disk = VersoConfig(favorites = listOf(key("Charlie")))
         started()
         assertEquals(listOf("Charlie"), state.favorites().map { it.label })
         state.toggleFavorite(permit, work.key)

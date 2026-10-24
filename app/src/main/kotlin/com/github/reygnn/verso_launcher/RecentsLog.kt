@@ -35,9 +35,5 @@ internal object RecentsLog {
         null
     }
 
-    fun write(dir: File, keys: List<String>) {
-        val tmp = File(dir, "$FILE.tmp")
-        tmp.writeText(format(keys))
-        if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
-    }
+    fun write(dir: File, keys: List<String>) = writeDisposable(dir, FILE, format(keys))
 }

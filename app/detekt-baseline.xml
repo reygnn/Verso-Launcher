@@ -6,7 +6,7 @@
     <ID>CyclomaticComplexMethod:AppDrawer.kt:AppDrawer$private fun applyFilter</ID>
     <ID>CyclomaticComplexMethod:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>CyclomaticComplexMethod:ConfigJson.kt:ConfigJson$private fun parseObject: VersoConfig</ID>
-    <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; enterAction: EnterAction&lt;T&gt;</ID>
+    <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; enterAction: DrawerAction&lt;T&gt;</ID>
     <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; rowsFor: List&lt;Row&lt;T&gt;&gt;</ID>
     <ID>CyclomaticComplexMethod:LauncherState.kt:LauncherState$fun refresh</ID>
     <ID>CyclomaticComplexMethod:SwipeFrame.kt:SwipeFrame$override fun dispatchTouchEvent: Boolean</ID>

@@ -81,7 +81,7 @@ class ConfigStoreTest {
     fun `a new file left by a crash does not disturb the load`() {
         primary.writeText(json("old"))
         pending.writeText(json("half written"))
-        assertEquals(listOf("old"), store.load()!!.favorites.toList())
+        assertEquals(listOf("old"), store.load()!!.favorites)
     }
 
     @Test
@@ -97,7 +97,7 @@ class ConfigStoreTest {
     fun `a write publishes the config, leaves no new file and syncs the directory`() {
         assertTrue(store.write(json("f/1", "f/2")))
         assertEquals(listOf("verso.json"), files())
-        assertEquals(listOf("f/1", "f/2"), store.load()!!.favorites.toList())
+        assertEquals(listOf("f/1", "f/2"), store.load()!!.favorites)
         assertEquals(1, dirSyncs)
     }
 
@@ -105,7 +105,7 @@ class ConfigStoreTest {
     fun `a second write replaces the first`() {
         store.write(json("first"))
         store.write(json("second"))
-        assertEquals(listOf("second"), store.load()!!.favorites.toList())
+        assertEquals(listOf("second"), store.load()!!.favorites)
         assertEquals(listOf("verso.json"), files())
     }
 
@@ -116,7 +116,7 @@ class ConfigStoreTest {
 
         assertFalse(refusing.write(json("new")))
         assertEquals("no .new left behind (checked before load, which would clear it)", listOf("verso.json"), files())
-        assertEquals(listOf("old"), store.load()!!.favorites.toList())
+        assertEquals(listOf("old"), store.load()!!.favorites)
         assertTrue(logs.any { "save failed" in it })
     }
 
@@ -129,7 +129,7 @@ class ConfigStoreTest {
     @Test
     fun `a written config round-trips back through load`() {
         val original = VersoConfig(
-            favorites = linkedSetOf("f/1", "f/2"),
+            favorites = listOf("f/1", "f/2"),
             hidden = linkedSetOf("h/1"),
             names = linkedMapOf("f/1" to "Custom"),
             tags = linkedMapOf("f/2" to mutableListOf("work")),

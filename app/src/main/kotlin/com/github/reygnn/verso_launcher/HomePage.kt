@@ -71,11 +71,11 @@ internal class HomePage(
     private var rendered: List<AppEntry>? = null
     private var lastRender: Pair<List<AppEntry>, Boolean>? = null
 
-    fun applyTextColor(color: Int) {
-        if (color == textColor) return
-        textColor = color
-        outlineColor = HomeStyle.tonalOutlineColor(color)
-        pressableText = pressable(color)
+    fun applyPalette(p: Palette) {
+        if (p.text == textColor) return
+        textColor = p.text
+        outlineColor = p.outline
+        pressableText = pressable(textColor)
         clock.outlined()
         date.outlined()
         batteryText.outlined()

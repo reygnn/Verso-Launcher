@@ -85,9 +85,5 @@ internal object UsageLog {
         null
     }
 
-    fun write(dir: File, log: Map<String, Usage>, now: Long) {
-        val tmp = File(dir, "$FILE.tmp")
-        tmp.writeText(format(log, now))
-        if (!tmp.renameTo(File(dir, FILE))) tmp.delete()
-    }
+    fun write(dir: File, log: Map<String, Usage>, now: Long) = writeDisposable(dir, FILE, format(log, now))
 }

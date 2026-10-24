@@ -715,7 +715,7 @@ class LauncherLogicTest {
     @Test fun `drawerStartingWith with an empty prefix equals the ordered drawer`() {
         val all = rows("a", "b", "c")
         val hidden = setOf("b")
-        val favorites = linkedSetOf("c")
+        val favorites = listOf("c")
         val expected = LauncherLogic.orderWithFavorites(
             LauncherLogic.drawer(all, hidden, favorites), favorites,
         ).keys()
@@ -1036,7 +1036,7 @@ class LauncherLogicTest {
     @Test fun `orphans are the entries of apps not installed, counted per section`() {
         val config = VersoConfig(
             hidden = linkedSetOf("gone/A", "here/B"),
-            favorites = linkedSetOf("here/B", "gone/A", "gone/C#10"),
+            favorites = listOf("here/B", "gone/A", "gone/C#10"),
             names = linkedMapOf("gone/D" to "Dee", "here/B" to "Bee"),
             tags = linkedMapOf("gone/A" to mutableListOf("x"), "here/B" to mutableListOf("y")),
         )
@@ -1053,7 +1053,7 @@ class LauncherLogicTest {
 
     @Test fun `a key orphaned in one section only is still offered`() {
         for (config in listOf(
-            VersoConfig(favorites = linkedSetOf("gone/A")),
+            VersoConfig(favorites = listOf("gone/A")),
             VersoConfig(hidden = linkedSetOf("gone/A")),
             VersoConfig(names = linkedMapOf("gone/A" to "Old")),
             VersoConfig(tags = linkedMapOf("gone/A" to mutableListOf("x"))),

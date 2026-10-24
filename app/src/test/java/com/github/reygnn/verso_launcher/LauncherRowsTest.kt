@@ -13,7 +13,7 @@ class LauncherRowsTest {
         orderedFake("com.b/B", "Bravo"),
         orderedFake("com.c/C", "Charlie"),
     )
-    private val favorites = linkedSetOf("com.c/C", "com.a/A") // rank: C=0, A=1
+    private val favorites = listOf("com.c/C", "com.a/A") // rank: C=0, A=1
     private val hidden = setOf("com.b/B")
     private val tags = mapOf("com.a/A" to listOf("games"), "com.c/C" to listOf("work"))
     private val recents = listOf("com.b/B", "com.a/A") // most-recent-first
@@ -66,7 +66,7 @@ class LauncherRowsTest {
 
     @Test fun `empty prompt keeps a hidden favorite - favoriting overrides hiding`() {
         val rows = LauncherLogic.rowsFor(
-            Mode.NORMAL, "", apps, hidden, favorites = linkedSetOf("com.b/B"), tags, recents, null,
+            Mode.NORMAL, "", apps, hidden, favorites = listOf("com.b/B"), tags, recents, null,
         )
         assertEquals(listOf("com.a/A", "com.b/B", "com.c/C"), appKeys(rows))
     }

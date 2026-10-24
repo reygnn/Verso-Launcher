@@ -119,9 +119,8 @@ class MainActivity : Activity() {
             activity = this,
             state = state,
             palette = wallpaper.current,
-            onTap = ::onDrawerTap,
+            onAction = ::onDrawerAction,
             onLongPress = { entry -> if (editPermit() != null) promptRename(entry) },
-            onEnter = ::onDrawerEnter,
             onFiltered = ::renderHome,
             // Called only by a filter, never while AppDrawer is built: pageTurn is set by then.
             onModeChanged = { mode -> pageTurn.modeChanged(mode) },
@@ -593,35 +592,25 @@ class MainActivity : Activity() {
         appDrawer.setPrompt("")
     }
 
-    /** Internal for MainActivityFlowsTest. */
-    internal fun onDrawerTap(action: TapAction<AppEntry>) {
+    /** A tap on a row or an Enter on the prompt. Internal for MainActivityFlowsTest. */
+    internal fun onDrawerAction(action: DrawerAction<AppEntry>) {
         when (action) {
-            is TapAction.Launch -> launch(action.entry)
-            is TapAction.ToggleHidden -> editPermit()?.let {
+            is DrawerAction.Launch -> launch(action.entry)
+            is DrawerAction.ToggleHidden -> editPermit()?.let {
                 state.toggleHidden(it, action.entry.key)
                 afterToggle()
             }
-            is TapAction.ToggleFavorite -> editPermit()?.let {
+            is DrawerAction.ToggleFavorite -> editPermit()?.let {
                 state.toggleFavorite(it, action.entry.key)
                 afterToggle()
             }
-            is TapAction.ReorderPick -> reorderTap(action.entry.key)
-            is TapAction.ToggleTag -> toggleTagOn(action.entry.key)
-            is TapAction.Run -> runCommand(action.command)
-            is TapAction.SetPrompt -> appDrawer.setPrompt(action.text)
-            TapAction.ToggleOrder -> toggleOrder()
-            TapAction.None -> {}  // stale position, or a row this mode ignores
-        }
-    }
-
-    private fun onDrawerEnter(action: EnterAction<AppEntry>) {
-        when (action) {
-            is EnterAction.Run -> runCommand(action.command)
-            is EnterAction.LaunchApp -> launch(action.entry)
-            is EnterAction.SetPrompt -> appDrawer.setPrompt(action.text)
-            EnterAction.ToggleOrder -> toggleOrder()
-            EnterAction.DismissKeyboard -> appDrawer.hideKeyboard()
-            EnterAction.None -> {}
+            is DrawerAction.ReorderPick -> reorderTap(action.entry.key)
+            is DrawerAction.ToggleTag -> toggleTagOn(action.entry.key)
+            is DrawerAction.Run -> runCommand(action.command)
+            is DrawerAction.SetPrompt -> appDrawer.setPrompt(action.text)
+            DrawerAction.ToggleOrder -> toggleOrder()
+            DrawerAction.DismissKeyboard -> appDrawer.hideKeyboard()
+            DrawerAction.None -> {}
         }
     }
 
@@ -818,7 +807,7 @@ class MainActivity : Activity() {
 
     private fun applyPalette(p: Palette) {
         app.palette = p
-        homePage.applyTextColor(p.homeText)
+        homePage.applyPalette(p)
         appDrawer.applyPalette(p)
         val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS

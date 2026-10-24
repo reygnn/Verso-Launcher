@@ -13,7 +13,7 @@ internal object ConfigJson {
         for ((k, v) in config.tags) tags.put(k, JSONArray(v))
         return JSONObject().apply {
             put("hidden", JSONArray(config.hidden.toList()))
-            put("favorites", JSONArray(config.favorites.toList()))
+            put("favorites", JSONArray(config.favorites))
             put("names", names)
             put("tags", tags)
             put("order", if (config.byUsage) ORDER_USAGE else ORDER_NAME)
@@ -78,6 +78,7 @@ internal object ConfigJson {
 
     private fun parseObject(j: JSONObject): VersoConfig {
         val hidden = LinkedHashSet<String>()
+        // A set while reading: a favorite listed twice is one favorite.
         val favorites = LinkedHashSet<String>()
         val names = LinkedHashMap<String, String>()
         val tags = LinkedHashMap<String, List<String>>()
@@ -109,6 +110,6 @@ internal object ConfigJson {
             }
         }
         // Absent (an older file) or unknown order: A to Z.
-        return VersoConfig(hidden, favorites, names, tags, byUsage = j.opt("order") == ORDER_USAGE)
+        return VersoConfig(hidden, favorites.toList(), names, tags, byUsage = j.opt("order") == ORDER_USAGE)
     }
 }
