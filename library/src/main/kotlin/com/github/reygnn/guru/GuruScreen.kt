@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.GestureDetector
@@ -18,21 +19,35 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowInsets
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 import kotlin.math.hypot
 
 /**
- * The alert: black screen, red text, a red border that blinks — unless the system's animations
- * are off (Settings › Accessibility › Remove animations), then it just stays lit. It only tells:
- * the reports are saved already. Double-tap (left button) or Back closes it, hold (right
- * button) shares the saved files. Dismisses itself when its activity is destroyed.
+ * The alert, as on the Amiga: a black strip at the top — the box with its red border, which
+ * blinks unless the system's animations are off (Settings › Accessibility › Remove animations),
+ * and the hint under it — and the app slid down by the strip's height, still to be seen below.
+ * It only tells: the reports are saved already. Double-tap (left button) or Back closes it,
+ * hold (right button) shares the saved files. Dismisses itself when its activity is destroyed.
+ *
+ * The dialog's window still fills the screen, see-through below the strip: the alert stays
+ * modal, every touch is its own. Guru owns the activity's `decorView.translationY` only while
+ * the alert is up, and puts back the value it found on every way out.
  */
 internal object GuruScreen {
+
+    /** The slide down and back up. */
+    const val SLIDE_MS = 220L
 
     /** [onUnanswered]: the activity was destroyed while the alert was up and no one had answered it. */
     fun show(activity: Activity, lines: List<String>, texts: GuruTexts, onShare: () -> Unit, onUnanswered: () -> Unit = {}): Dialog {
         val dialog = Dialog(activity, android.R.style.Theme_Material_NoActionBar_Fullscreen)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        }
+        val app = AppSlide(activity)
         var decided = false
         val view = GuruView(activity, lines, texts.hint, texts.actionClose, texts.actionShare)
         view.setOnClickListener {
@@ -49,11 +64,37 @@ internal object GuruScreen {
             }
             true
         }
+        view.onStrip = app::down
+        // Every way out — a double-tap, Back, a hold, the activity's end — dismisses the dialog.
+        dialog.setOnDismissListener { app.back() }
+        // Nothing slides before the view is measured, after show(): a show that throws leaves the
+        // app where it was.
         dialog.setContentView(view)
         dialog.show()
         // Still up when the activity goes = not answered: every answer (and Back) closes it at once.
         activity.registerActivityLifecycleCallbacks(DismissOnDestroy(dialog, onUnanswered))
         return dialog
+    }
+
+    /** The activity's window slid down under the strip, and back to where it was. */
+    private class AppSlide(private val activity: Activity) {
+        private val decor = activity.window.decorView
+        private val before = decor.translationY
+
+        fun down(strip: Float) = move(strip, animated = true)
+
+        // An ending activity is not animated: there is nothing left to see, and an animation
+        // that never runs would leave the value behind.
+        fun back() = move(before, animated = !activity.isFinishing && !activity.isDestroyed)
+
+        private fun move(to: Float, animated: Boolean) {
+            decor.animate().cancel()
+            if (animated && ValueAnimator.areAnimatorsEnabled()) {
+                decor.animate().translationY(to).setDuration(SLIDE_MS).start()
+            } else {
+                decor.translationY = to
+            }
+        }
     }
 
     private class DismissOnDestroy(private val dialog: Dialog, private val unanswered: () -> Unit) : Application.ActivityLifecycleCallbacks {
@@ -98,6 +139,15 @@ internal class GuruView(
     private val pad = BOX_PAD_DP * metrics.density
     private val box = RectF()
     private var topInset = 0
+
+    /** Told the strip's height — top inset, box and hint — whenever it changes. */
+    var onStrip: (Float) -> Unit = {}
+
+    /** The black strip's height from the window's top, at most the window's height. */
+    internal var strip = 0f
+        private set
+
+    private val black = Paint().apply { color = Color.BLACK }
     private var lineHeight = 0f
     /** The border's blink phase: lit, or dark for a moment. */
     internal var lit = true
@@ -217,6 +267,11 @@ internal class GuruView(
         lineHeight = text.fontSpacing
         val top = topInset + pad
         box.set(pad, top, width - pad, top + 2 * pad + lineHeight * lines.size)
+        val bottom = minOf(height.toFloat(), box.bottom + 2 * pad + hintText.descent() - hintText.ascent())
+        if (bottom != strip) {
+            strip = bottom
+            onStrip(strip)
+        }
     }
 
     /** The text sizes as laid out — the Amiga lines', the host's last line's: for tests. */
@@ -228,7 +283,8 @@ internal class GuruView(
     }
 
     override fun onDraw(canvas: Canvas) {
-        canvas.drawColor(Color.BLACK)
+        // Black only where the strip is; below it the app shows through the see-through window.
+        canvas.drawRect(0f, 0f, width.toFloat(), strip, black)
         if (lit) canvas.drawRect(box, border)
         val x = width / 2f
         var y = box.top + pad - text.ascent()

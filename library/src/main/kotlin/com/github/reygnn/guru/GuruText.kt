@@ -26,14 +26,29 @@ internal object GuruText {
     )
 
     /**
-     * A crash on the main thread with a frame of Guru's own package in its trace: the alert (or
-     * something else of Guru's on main) died. A class right in the package — `guru.GuruView`,
-     * not `guru.sample.MainActivity`.
+     * A crash on the main thread whose root cause was thrown in Guru's own code: the alert (or
+     * something else of Guru's on main) died. Decided by the root cause's first frame that is
+     * not the platform's — a class right in Guru's package (`guru.GuruView`, not
+     * `guru.sample.MainActivity`). Not any Guru frame further down: R8 merges a host's lambda
+     * into one of Guru's classes, so a host's own crash can pass through a `GuruScreen$show$5`.
      */
-    fun diedInGuru(report: GuruReport): Boolean =
-        report.kind == GuruKind.CRASH && report.thread == "main" && GURU_FRAME.containsMatchIn(report.trace)
+    fun diedInGuru(report: GuruReport): Boolean {
+        if (report.kind != GuruKind.CRASH || report.thread != "main") return false
+        val lines = report.trace.lines()
+        val cause = lines.indices.lastOrNull { lines[it].startsWith("Caused by: ") } ?: 0
+        val first = lines.drop(cause + 1)
+            .takeWhile { it.startsWith("\tat ") }
+            .map { it.removePrefix("\tat ") }
+            .firstOrNull { frame -> PLATFORM.none { frame.startsWith(it) } }
+        return first != null && GURU_CLASS.containsMatchIn(first)
+    }
 
-    private val GURU_FRAME = Regex("""^\s*at com\.github\.reygnn\.guru\.[A-Z]""", RegexOption.MULTILINE)
+    private val GURU_CLASS = Regex("""^com\.github\.reygnn\.guru\.[A-Z]""")
+
+    /** Frames that are no app's own: the platform, the runtime, the libraries every app has. */
+    private val PLATFORM = listOf(
+        "android.", "androidx.", "com.android.", "dalvik.", "java.", "javax.", "jdk.", "kotlin.", "kotlinx.", "libcore.", "sun.",
+    )
 
     fun subject(report: GuruReport): String =
         "Guru Meditation ${report.number} · ${report.env.packageName} ${report.env.versionName}"
