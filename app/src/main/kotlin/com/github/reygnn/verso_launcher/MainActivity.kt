@@ -152,7 +152,8 @@ class MainActivity : Activity() {
         watchApps()
 
         // Queued on the IO thread ahead of the first load, so the cached favorites land long
-        // before the full enumeration does.
+        // before the full enumeration does — behind Guru's save after a crash (VersoApp), at
+        // worst ~0.7 s later (8 ANR reports, release build on the A17).
         submitIo {
             val cached = HomeCache.read(filesDir)
             onUi {
