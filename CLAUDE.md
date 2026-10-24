@@ -101,6 +101,13 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   commit names the tag. Its own rules are in `guru/CLAUDE.md`; its tests run in its repo,
   not here. Release builds keep names and line numbers (`-dontobfuscate`, `proguard-rules.pro`)
   so a report's trace is readable and its Guru number stable from release to release.
+- **Release mapping:** after every `assembleRelease`/`bundleRelease` the R8 mapping is kept in
+  `~/apk/mappings/verso/<versionName>-<versionCode>/` (Gradle property `verso.mappingArchive`
+  moves it) and uploaded to the ACRA backend (`uploadProguardMapping`), so a release trace can be
+  retraced — R8 inlines even with `-dontobfuscate`, which stays (the Guru number is computed on
+  the device from the frame names). The script, `app/acra-scripts/upload_mapping.sh`, is not in
+  the repo; it takes the backend's ADMIN credentials from the environment or
+  `~/.config/acra/admin.env`. Without it the build warns; a failed upload fails it.
 
 ---
 
