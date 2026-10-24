@@ -206,7 +206,7 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
   `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
   instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`; and Guru's crash
-  reports in `guru/`, see "Crash reports"), written atomically (a `.new` file + fsync + rename, then a
+  reports in `guru/` until the next start saves them, see "Crash reports"), written atomically (a `.new` file + fsync + rename, then a
   directory fsync so the rename itself survives power-loss); no `.bak` — your own
   `~backup` is the copy to fall back on; and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
@@ -256,10 +256,12 @@ and unit-tested on the JVM or a thin view class:
 
 Verso carries [Guru](https://github.com/reygnn/guru), a crash reporter vendored as source in
 `guru/` (a `git subtree`, never edited here). A crash is written to disk while the process
-dies; on the next start Verso shows the Amiga alert. **Double-tap** discards the report,
-**hold** hands it to an app you pick (mail, a messenger, a note), **Back** keeps it for the
-next start. Nothing is sent on its own, and no permission is needed. A single tap or a swipe
-on the alert does nothing, so waking a dimmed screen cannot discard a report.
+dies; at the next start, before anything is shown, Guru saves it without asking as a `.json`
+file in `Download/Guru/` (MediaStore, no permission; Guru keeps its newest 32 there) and Verso
+shows the Amiga alert saying so. **Hold** hands the saved files to an app you pick (mail, a
+messenger, guru2acra), **double-tap** or **Back** closes the alert; once seen it does not come
+again. To be rid of a report, delete its file. Nothing is sent on its own; the files are
+readable by anything that reads `Download` — see `CAVEATS.md`.
 
 Guru adds about 30 KB of code and keeping class names (`-dontobfuscate`, for readable crash
 traces) about 18 KB: the release APK went from about 180 to 229 KB. The only

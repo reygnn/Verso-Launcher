@@ -85,6 +85,17 @@ profile gets a new serial, so its apps start without favorites, names, tags or h
 state. The personal profile's config moves over
 intact, and the default favorites are not seeded there (the install is not fresh).
 
+## Crash reports land in Download/Guru
+
+After a crash, the next start saves the report to `Download/Guru/` without asking, before the
+alert says so. A report holds the full trace (exception messages can carry names, paths or
+other apps' package names), an ANR's dump of every thread, the device's brand, model and
+Android version, and an installation ID that stays the same until Verso is reinstalled. Like
+the backups, the files can be read by a file manager, a cloud-sync app that scans Download, a
+PC over USB or an app with access to all files, and they outlive an uninstall; after a
+reinstall Verso can no longer see or remove them. Every app with Guru shares the one folder.
+Nothing leaves the phone unless you share a file; to be rid of a report, delete its file.
+
 ## Gestures on the front page
 
 Swipe up (drawer) and swipe down (recent apps) are wired, as in Kolibri. Swipe

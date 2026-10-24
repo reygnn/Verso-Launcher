@@ -43,9 +43,10 @@ are not frozen; they must not regress anything, and a change may alter behaviour
 it do what it already claims to do.
 
 **Freeze exception (2026-10-23, lifted by the user): Guru**, the crash reporter. After a
-crash, the next start shows Guru's alert (double-tap: discard, hold: share the report with
-an app the user picks, Back: later). It needs no permission and sends nothing on its own
-(`GuruSink.Share`). The exception covers Guru and its updates, nothing else.
+crash, the next start saves the report to `Download/Guru` without asking and shows Guru's
+alert saying so (hold: share the saved files with an app the user picks, double-tap or Back:
+close). It needs no permission and sends nothing on its own. The exception covers Guru and
+its updates, nothing else.
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,
@@ -71,9 +72,10 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
   launch counts behind the `%` order, and `recents.txt` (`RecentsLog`), the `?` list —
   disposable too, never in a backup — and `filesDir/guru/`, Guru's: at most 8 crash
-  reports, `installation-id` and `exits-seen`, never in a backup and excluded from a
-  device transfer (`data_extraction_rules.xml`). Off-device backups in `Download/Verso/` via
-  MediaStore (`BackupStore`).
+  reports waiting for the next start, `installation-id` and `exits-seen`, never in a backup
+  and excluded from a device transfer (`data_extraction_rules.xml`). Off-device backups in
+  `Download/Verso/` via MediaStore (`BackupStore`); Guru saves its reports to
+  `Download/Guru/` the same way (its own newest 32 kept).
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath (android.jar's is a
   stub), Robolectric where a real widget is needed, **no MockK / no mocks** (fakes
   and manual queues). An `androidTest` set (androidx.test, test APK only) covers
@@ -188,7 +190,9 @@ thread.
    `VersoApp.io`. The second exception: Guru's uncaught-exception handler writes its crash
    report on the dying thread itself — the process is going down, nothing queued on
    `VersoApp.io` would run. That write touches only `filesDir/guru/`; everything else Guru
-   does (the exit records, loading, removing) goes through `VersoApp.io`. Not a breach to
+   does (the exit records, saving each report to `Download/Guru` — a MediaStore insert and an
+   fsync per report, queued at `install` and so ahead of Verso's first load —, the alert's
+   list) goes through `VersoApp.io`. Not a breach to
    "fix".
 4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync →
    rename over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net
