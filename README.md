@@ -129,6 +129,9 @@ keyboard, no prompt:
     command. Each command acts once and clears the prompt. One runs at a time: a second
     one sent meanwhile is refused with a toast and stays on the line, to send again, and
     so is any edit until it is done:
+    - `~crash` — only in a daily-driver build (`./gradlew bundleRelease -PdailyDriver`, and
+      every debug build): crash on purpose, to see Guru's report. Spelled out only — `~c` stays
+      `~cleanup`
     - `~restart` — read the config again and rebuild the list (after editing
       `verso.json` by hand, or when something looks stale). It also retries
       `recents.txt` and `usage.txt` if they could not be read

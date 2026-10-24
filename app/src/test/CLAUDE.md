@@ -13,10 +13,11 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 615 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 617 tests):
 
 ```
-LauncherLogicTest          151  modes, commands, search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
+                                search + foldLabel (Turkish, İ, NFC),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
@@ -68,7 +69,8 @@ AppDrawerTest               12  Robolectric: the back page — rows per prompt, 
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       12  Robolectric, the real Activity: a second command and an edit
+MainActivityFlowsTest       13  Robolectric, the real Activity: ~crash throws at once (before the
+                                first load too); a second command and an edit
                                 refused while one runs (prompt kept; the rename OK says why),
                                 ~restart dropping a pick still being read (said; other
                                 commands ran meanwhile) or one whose hand-back is already

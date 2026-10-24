@@ -289,6 +289,16 @@ class LauncherLogicTest {
         assertEquals(emptyList<String>(), LauncherLogic.commandsMatching("~zzz").map { it.first })
     }
 
+    /** "~crash": only in a daily-driver build (unit tests compile it in) and only spelled out. */
+    @Test fun `~crash only in a daily-driver build, never abbreviated`() {
+        val crash = Command.CRASH.takeIf { DailyDriver.ENABLED }
+        assertEquals(crash, LauncherLogic.parseCommand("~crash"))
+        assertEquals(crash, LauncherLogic.resolveCommand("~crash"))
+        assertEquals(null, LauncherLogic.resolveCommand("~cr"))
+        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
+        assertEquals(DailyDriver.ENABLED, "~crash" in LauncherLogic.commandsMatching("~").map { it.first })
+    }
+
     @Test fun `an unambiguous abbreviation resolves`() {
         assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))

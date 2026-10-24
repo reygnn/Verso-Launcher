@@ -335,6 +335,12 @@ class MainActivity : Activity() {
 
     /** Run a "~" command, one at a time (hard rule 15); each reports its real result with a toast. */
     private fun runCommand(command: Command) {
+        // Not a run: a deliberate crash, for Guru and the crash-only paths, at any time. The
+        // constant compiles it out of a public release, where nothing parses to CRASH anyway.
+        if (command == Command.CRASH) {
+            if (DailyDriver.ENABLED) error("~crash: deliberate crash (daily-driver build)")
+            return
+        }
         // Refused while one runs — and the typed command stays in the prompt, to send again.
         if (gate.busy) {
             toast(getString(R.string.toast_busy))
@@ -360,6 +366,7 @@ class MainActivity : Activity() {
                 // Only the picker: it is another activity, so no run spans it (onActivityResult starts one).
                 Command.RESTORE_SAF -> pickRestoreFile()
                 Command.CLEANUP -> cleanup(t)
+                Command.CRASH -> Unit // returned above
             }
         }
     }

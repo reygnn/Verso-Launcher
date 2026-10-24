@@ -13,9 +13,15 @@ detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.file("config/detekt/detekt.yml"))
     // guru/: Guru's sources (git subtree), checked with Verso's rules like Verso's own.
-    source.setFrom("src/main/kotlin", "src/test/java", "src/androidTest/java", "../guru/library/src/main/kotlin")
+    source.setFrom(
+        "src/main/kotlin", "src/dailyDriver/kotlin", "src/public/kotlin",
+        "src/test/java", "src/androidTest/java", "../guru/library/src/main/kotlin",
+    )
     baseline = file("detekt-baseline.xml")
 }
+
+// -PdailyDriver (bare or =true): the personal release build (see sourceSets below).
+val dailyDriver = providers.gradleProperty("dailyDriver").map { it.isBlank() || it.toBoolean() }.getOrElse(false)
 
 android {
     namespace = "com.github.reygnn.verso_launcher"
@@ -32,6 +38,14 @@ android {
         // Downloads backup (its renaming of taken names, pending rows, ownership) and Android's
         // own org.json. Everything else stays a JVM test.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // The daily-driver build: debug always, a release only with -PdailyDriver. DailyDriver.ENABLED
+    // comes from one of two twin files, so a plain assembleRelease/bundleRelease can only produce
+    // the public build, with the personal-only surfaces (~crash) compiled out.
+    sourceSets {
+        named("debug") { kotlin.directories += "src/dailyDriver/kotlin" }
+        named("release") { kotlin.directories += if (dailyDriver) "src/dailyDriver/kotlin" else "src/public/kotlin" }
     }
 
     // Guru, the crash reporter, is vendored as source (git subtree in guru/, never edited
@@ -158,7 +172,9 @@ dependencies {
 // Values are read here, at configuration: the tasks touch no `project` or `android` when they run.
 val releaseMapping = layout.buildDirectory.file("outputs/mapping/release/mapping.txt")
 val mappingUploadScript = layout.projectDirectory.file("acra-scripts/upload_mapping.sh")
-val releaseId = android.defaultConfig.run { "$versionName-$versionCode" }
+// A daily-driver release has its own mapping under the same versionCode: kept apart locally; the
+// backend holds one per versionCode, the last uploaded wins (CLAUDE.md, Stack particulars).
+val releaseId = android.defaultConfig.run { "$versionName-$versionCode" } + if (dailyDriver) "-dailyDriver" else ""
 val mappingArchive = providers.gradleProperty("verso.mappingArchive")
     .orElse(providers.systemProperty("user.home").map { "$it/apk/mappings" })
     .map { File(it, "verso/$releaseId") }

@@ -151,7 +151,9 @@ class LauncherRowsTest {
         val rows = rowsFor(Mode.COMMAND, "~")
         assertTrue(rows.all { it is CommandRow })
         assertEquals(LauncherLogic.COMMANDS.map { it.first }, rows.filterIsInstance<CommandRow>().map { it.name })
-        assertEquals("~restart", (rows.first() as CommandRow).name)
+        // "~crash", where it exists, farthest from the bottom-anchored prompt; then the harmless one.
+        val names = rows.filterIsInstance<CommandRow>().map { it.name }
+        assertEquals(if (DailyDriver.ENABLED) listOf("~crash", "~restart") else listOf("~restart"), names.take(names.indexOf("~restart") + 1))
     }
 
     @Test fun `tilde prefix narrows the command overview`() {

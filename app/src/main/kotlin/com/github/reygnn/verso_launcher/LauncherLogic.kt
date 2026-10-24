@@ -18,7 +18,7 @@ internal enum class Mode {
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
+internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
 
 /** The config entries of uninstalled apps ([LauncherLogic.orphans]) and their count per section. */
 internal data class Orphans(val keys: Set<String>, val favorites: Int, val hidden: Int, val names: Int, val tags: Int) {
@@ -105,8 +105,10 @@ internal object LauncherLogic {
      * Every "~" command — the one list the overview, the abbreviations and the parser share.
      * Harmless ones first: the overview is bottom-anchored, so the config-changing ones sit
      * nearest the prompt, each guarded by an undo point (and a picker or a confirmation).
+     * "~crash" only in a daily-driver build ([DailyDriver]), farthest from the prompt.
      */
-    val COMMANDS: List<Pair<String, Command>> = listOf(
+    val COMMANDS: List<Pair<String, Command>> = listOfNotNull(
+        ("~crash" to Command.CRASH).takeIf { DailyDriver.ENABLED },
         "~restart" to Command.RESTART,
         "~backup" to Command.BACKUP,
         "~restore" to Command.RESTORE,
@@ -147,12 +149,13 @@ internal object LauncherLogic {
     /**
      * An exact match, else an unambiguous abbreviation ("~b"). Exact must win: "~restore" also
      * prefixes "~restore-saf". An ambiguous abbreviation ("~r") resolves to null, never a guess.
+     * "~crash" is never abbreviated: "~c" stays "~cleanup" in every build.
      */
     fun resolveCommand(trimmed: String): Command? {
         // As in parseCommand: commandsMatching folds the U+0307 away.
         if (!trimmed.startsWith("~")) return null
         parseCommand(trimmed)?.let { return it }
-        return commandsMatching(trimmed).singleOrNull()?.second
+        return commandsMatching(trimmed).filter { it.second != Command.CRASH }.singleOrNull()?.second
     }
 
     /**

@@ -24,7 +24,8 @@ double-tap target), the favorites as large text, swipe up for the drawer, pull d
 the recently used apps (a HUD from the top). Back page ("verso"): Sigil Launcher's list
 plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reorder,
 `#`/`##` tags, `?` recents, `%` drawer order A–Z ↔ most used) and the `~` commands
-(`~restart`, `~backup`, `~restore`, `~restore-saf`, `~cleanup`). Every change is saved at
+(`~restart`, `~backup`, `~restore`, `~restore-saf`, `~cleanup`; `~crash` in a daily-driver
+build). Every change is saved at
 once — there is no `~save`; `~restart` recreates the activity, which reads the config
 afresh. Default favorites (phone, messenger, email, browser, camera) are seeded once, on a
 fresh install.
@@ -47,6 +48,10 @@ crash, the next start saves the report to `Download/Guru` without asking and sho
 alert saying so (hold: share the saved files with an app the user picks, double-tap or Back:
 close). It needs no permission and sends nothing on its own. The exception covers Guru and
 its updates, nothing else.
+
+**Freeze exception (2026-10-24, lifted by the user): `~crash`**, a deliberate crash for testing
+Guru and the crash-only paths — only in a daily-driver build (debug, or a release built with
+`-PdailyDriver`), compiled out of a public release, never abbreviated (`~c` stays `~cleanup`).
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,
@@ -101,6 +106,12 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   commit names the tag. Its own rules are in `guru/CLAUDE.md`; its tests run in its repo,
   not here. Release builds keep names and line numbers (`-dontobfuscate`, `proguard-rules.pro`)
   so a report's trace is readable and its Guru number stable from release to release.
+- **Daily-driver build:** `./gradlew bundleRelease -PdailyDriver` (debug builds always) compiles
+  in the personal-only surfaces — today only `~crash`. `DailyDriver.ENABLED` comes from one of
+  two twin files (`src/dailyDriver/kotlin`, `src/public/kotlin`) picked per build type in
+  `app/build.gradle.kts`, not from BuildConfig: every buildFeature stays off. A plain
+  `bundleRelease` is the public build. Both share a versionCode but not a mapping: kept apart
+  locally (`…-dailyDriver/`), the backend keeps the last one uploaded.
 - **Release mapping:** after every `assembleRelease`/`bundleRelease` the R8 mapping is kept in
   `~/apk/mappings/verso/<versionName>-<versionCode>/` (Gradle property `verso.mappingArchive`
   moves it) and uploaded to the ACRA backend (`uploadProguardMapping`), so a release trace can be
@@ -159,6 +170,8 @@ com.github.reygnn.verso_launcher/
   BackupFiles         pure backup naming rules
   RestoreSteps        the IO half of a restore, in its load-bearing order
   Cleanup             pure "~cleanup" decisions: what may be offered (CleanupPlan)
+  DailyDriver         ENABLED: true in a daily-driver build, false in the public one (twin
+                      files in src/dailyDriver and src/public, not in main)
 ```
 
 Data flow: a `LauncherApps.Callback` (install/uninstall/update) or a profile broadcast →

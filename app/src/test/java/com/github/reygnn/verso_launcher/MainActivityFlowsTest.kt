@@ -135,6 +135,14 @@ class MainActivityFlowsTest {
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
     }
 
+    /** Before the load and while a command runs: a deliberate crash waits for nothing. */
+    @Test fun `~crash throws at once, even before the first load`() {
+        holdIo()
+        controller.setup()
+        val thrown = runCatching { enter("~crash") }.exceptionOrNull()
+        assertEquals(DailyDriver.ENABLED, thrown is IllegalStateException)
+    }
+
     @Test fun `no command but ~restart before the first load`() {
         holdIo()
         controller.setup()
