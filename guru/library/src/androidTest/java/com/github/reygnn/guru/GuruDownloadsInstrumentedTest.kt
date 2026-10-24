@@ -1,6 +1,7 @@
 package com.github.reygnn.guru
 
 import android.content.ContentResolver
+import android.content.ContentValues
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -20,7 +21,8 @@ import java.util.UUID
 /**
  * What only a device shows about Download/Guru: MediaStore publishes the file under its name,
  * adds " (1)" to a name already taken, lists only the rows of their owner — and so pruning
- * never touches a file someone else put there.
+ * never touches a file someone else put there — and hands a hidden pending row of ours to a
+ * query that asks for it, so a save that died halfway is cleared.
  *
  * A row we do NOT own is made by the shell, whose files land in MediaStore under the shell's
  * ownership, like a file copied in over adb or left by an earlier install.
@@ -93,10 +95,31 @@ class GuruDownloadsInstrumentedTest {
         assertTrue(logs.toString(), logs.isEmpty())
     }
 
+    /** A save that died between insert and publish: hidden even from us — prune finds and clears it. */
+    @Test fun pruneClearsASaveThatDiedHalfway() {
+        val halfway = resolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "halfway.json")
+                put(MediaStore.MediaColumns.MIME_TYPE, GuruDownloads.MIME)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$subDir")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            },
+        )
+        assertNotNull(halfway)
+        val d = downloads()
+        d.save("kept", JSON_A)
+
+        d.prune()
+
+        assertEquals(listOf("kept.json"), ownNames(withPending = true))
+        assertTrue(logs.toString(), logs.isEmpty())
+    }
+
     private fun read(uri: Uri): String = resolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
 
-    /** The display names of every published row of ours in the folder. */
-    private fun ownNames(): List<String> {
+    /** The display names of every published row of ours in the folder — pending ones too, if asked. */
+    private fun ownNames(withPending: Boolean = false): List<String> {
         val query = Bundle().apply {
             putString(
                 ContentResolver.QUERY_ARG_SQL_SELECTION,
@@ -106,6 +129,7 @@ class GuruDownloadsInstrumentedTest {
                 ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
                 arrayOf("${Environment.DIRECTORY_DOWNLOADS}/$subDir/", instrumentation.targetContext.packageName),
             )
+            if (withPending) putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
         }
         return resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), query, null)
             ?.use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }

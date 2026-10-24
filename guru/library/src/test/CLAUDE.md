@@ -12,7 +12,7 @@ purpose: no coroutines, no MockK — see "deliberately not".
 
 ## What exists
 
-Unit tests (`library/src/test`, `./gradlew :library:testDebugUnitTest`, 167 tests):
+Unit tests (`library/src/test`, `./gradlew :library:testDebugUnitTest`, 176 tests):
 
 ```
 GuruStoreTest       19  reports on real files: atomic write (.new, rename, dir fsync), newest
@@ -44,7 +44,7 @@ GuruProcessTest      6  building a report from a crash (trace capped) or an exit
 GuruHandlerTest      5  one capture per process, a failing capture swallowed, the previous
                         handler always reached with the original throwable
 GuruTextsTest        3  the English defaults; a host overrides only what it translates
-GuruSaveTest        26  Robolectric + FakeMediaStore: saving at the start, after the exit
+GuruSaveTest        29  Robolectric + FakeMediaStore: saving at the start, after the exit
                         look on io; one .json per report in the Downloads collection,
                         Download/Guru (name, MIME), hidden until all bytes are in, its own
                         report's ACRA JSON, the installation's one id, a trace beyond ASCII
@@ -58,8 +58,9 @@ GuruSaveTest        26  Robolectric + FakeMediaStore: saving at the start, after
                         another folder's, nothing when nothing was pending, also when
                         nothing could be saved, and a failing listing or delete stops no
                         save and no alert; an exit look that throws stops neither io nor the
-                        save
-GuruShowPendingTest 18  Robolectric: the alert only for what this start saved, after the save,
+                        save; a hidden row of ours left halfway is cleared, not counted among
+                        the 32, another owner's or folder's stays
+GuruShowPendingTest 22  Robolectric: the alert only for what this start saved, after the save,
                         on the host's main; nothing saved queues nothing; the newest's number
                         and how many; once seen, never again; a double-tap or Back only
                         closes; a destroyed or finishing activity gets none, the files are
@@ -67,7 +68,8 @@ GuruShowPendingTest 18  Robolectric: the alert only for what this start saved, a
                         recreated while up) it comes back, answered it does not; host texts
                         that throw cost the alert, not the host; Guru's own crash on main
                         leaves the next alert out, a crash below Guru's package or off main
-                        does not
+                        does not, and only the newest report decides; an activity recreated
+                        or finishing before its io turn leaves the alert to the next call
 GuruShareTest        5  Robolectric: a hold offers one file (SEND) or several (SEND_MULTIPLE),
                         read access but no write for the chooser and the app picked, in a
                         new task, under the newest's subject; only what was saved; a chooser
@@ -79,20 +81,21 @@ GuruInstallTest     11  Robolectric (every save refused, so reports stay readabl
                         and other reasons stay out, an unreadable dump (checked or unchecked)
                         still a report and the mark moved, a native tombstone stays out, an
                         ANR report hides no crash exit
-GuruScreenTest       7  Robolectric: close shares nothing, share acts once (the hold
+GuruScreenTest       9  Robolectric: close shares nothing, share acts once (the hold
                         consumed); TalkBack's action labels and description from GuruTexts;
                         the alert closes with its activity; a long host line shrinks only
-                        itself; the hint reads at WCAG contrast on black
+                        itself; the hint reads at WCAG contrast on black; fitted never grows
+                        and never goes to nothing; the border blinks only while visible
 GuruTouchTest       10  Robolectric, real MotionEvents: a double-tap closes, a still hold
                         shares; a single tap, two slow taps, a swipe, a slide past the slop
                         and a sliding second tap do nothing; TalkBack's click and long click
                         act
 ```
 
-On a device (`library/src/androidTest`, `./gradlew :library:connectedAndroidTest`, 4 tests):
+On a device (`library/src/androidTest`, `./gradlew :library:connectedAndroidTest`, 5 tests):
 `GuruDownloadsInstrumentedTest` — real MediaStore: the file published under its name and
 readable back, " (1)" for a name taken by ours or the shell's, pruning keeps the newest own
-files and leaves the shell's. The only androidTest set: what Robolectric cannot show.
+files and leaves the shell's, a hidden row of ours left halfway is cleared. The only androidTest set: what Robolectric cannot show.
 
 `sample/src/test`: `SampleGuruTextsTest` (2) — the sample's `GuruTexts` from `values` and
 `values-de`.

@@ -301,4 +301,59 @@ class GuruShowPendingTest {
 
         assertTrue(ShadowDialog.getLatestDialog() === first)
     }
+
+    // ---- the activity at io time, and which report decides ------------------------
+
+    /** As Verso's onUi does: a block for a destroyed activity is dropped, never run. */
+    @Test
+    fun `an activity recreated before its io turn leaves the alert to the new one`() {
+        host.crashed(a)
+        installed()
+        val old = host.activity()
+        Guru.showPending(old.get()) { block -> if (!old.get().isDestroyed) block() }
+        old.pause().stop().destroy()
+        val recreated = host.activity().get()
+        Guru.showPending(recreated) { it() }
+
+        host.runIo()
+
+        assertTrue(ShadowDialog.getLatestDialog().isShowing)
+    }
+
+    @Test
+    fun `only the newest report decides whether Guru died - newest Guru's own`() {
+        host.store.write(report(id = a, crashedAt = System.currentTimeMillis() - 2 * GuruHostRule.MINUTE_MS))
+        host.store.write(report(id = b, crashedAt = System.currentTimeMillis(), thread = "main",
+            trace = "java.lang.IllegalStateException: draw\n\tat com.github.reygnn.guru.GuruView.onDraw(GuruScreen.kt:1)"))
+        installed()
+        Guru.showPending(host.activity().get()) { it() }
+
+        host.runIo()
+
+        assertNull(ShadowDialog.getLatestDialog())
+        assertEquals(2, media.rows.size)
+    }
+
+    @Test
+    fun `only the newest report decides whether Guru died - an older one Guru's own`() {
+        host.store.write(report(id = a, crashedAt = System.currentTimeMillis() - 2 * GuruHostRule.MINUTE_MS, thread = "main",
+            trace = "java.lang.IllegalStateException: draw\n\tat com.github.reygnn.guru.GuruView.onDraw(GuruScreen.kt:1)"))
+        host.store.write(report(id = b, crashedAt = System.currentTimeMillis()))
+
+        assertTrue(shown().isShowing)
+    }
+
+    @Test
+    fun `an activity finishing before its io turn leaves the alert to the next call`() {
+        host.crashed(a)
+        installed()
+        val finishing = host.activity().get()
+        Guru.showPending(finishing) { block -> if (!finishing.isFinishing) block() }
+        finishing.finish()
+        Guru.showPending(host.activity().get()) { it() }
+
+        host.runIo()
+
+        assertTrue(ShadowDialog.getLatestDialog().isShowing)
+    }
 }
