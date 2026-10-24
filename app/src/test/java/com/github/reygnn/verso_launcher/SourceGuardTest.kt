@@ -76,13 +76,13 @@ class SourceGuardTest {
     }
 
     /**
-     * Guru (guru/): installed once, from the Application, with no permission (Share) and Verso's
-     * words; its disk work on the one IO thread (hard rule 3), behind Guard (hard rule 2). A
-     * second install elsewhere would replace this setup.
+     * Guru (guru/): installed once, from the Application, with Verso's words; its disk work
+     * (its store and the MediaStore save) on the one IO thread (hard rule 3), behind Guard (hard
+     * rule 2). A second install elsewhere would replace this setup.
      */
     @Test fun `Guru is installed once, from VersoApp, on the IO thread behind Guard`() {
         val app = source("src/main/kotlin/com/github/reygnn/verso_launcher/VersoApp.kt")
-        assertTrue(app.contains("GuruSink.Share()"))
+        assertTrue(Regex("""\bGuru\.install\(\s*this,\s*io = """).containsMatchIn(app))
         assertTrue(app.contains("io.execute(Guard.wrap("))
         assertTrue(app.contains("texts = VersoGuruTexts(this)"))
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
