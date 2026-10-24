@@ -268,6 +268,10 @@ guru2acra), **double-tap** or **Back** closes the alert; once seen it does not c
 rid of a report, delete its file. Guru itself sends nothing; the files are readable by anything
 that reads `Download` — see `CAVEATS.md`.
 
+<p>
+  <img src="docs/screenshots/guru-alert.gif" alt="Guru's alert after a crash: a black strip at the top with the blinking red box — Software Failure, the Guru Meditation number, saved to Download/Guru — and the hint, the home page slid down beneath it" width="270">
+</p>
+
 Guru adds about 30 KB of code and keeping class names (`-dontobfuscate`, for readable crash
 traces) about 18 KB: the release APK went from about 180 to 231 KB. The only
 *shipped* dependencies are the Kotlin stdlib (added automatically by AGP's
