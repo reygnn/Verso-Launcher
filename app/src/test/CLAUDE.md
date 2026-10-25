@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 641 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 648 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -76,8 +76,13 @@ AppDrawerTest               12  Robolectric: the back page — rows per prompt, 
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       21  Robolectric, the real Activity: the state is the process's —
-                                a recreation keeps the loaded config, ~restart reads it again; ~crash throws at once (before the
+MainActivityFlowsTest       28  Robolectric, the real Activity: the state is the process's —
+                                a recreation keeps the loaded config, ~restart reads it again;
+                                with no window at all (destroyed, no successor yet) a run still
+                                ends, its result waits for the next window, and a load lands;
+                                the window ~restart replaces takes no command, a second ~restart
+                                resets nothing more; a ~cleanup check answers only the page that
+                                asked (not after HOME, not a window made since); ~crash throws at once (before the
                                 first load too); a second command and an edit
                                 refused while one runs (prompt kept; the rename OK says why),
                                 also on the instance a recreation made, until the old step ends;

@@ -409,6 +409,103 @@ class MainActivityFlowsTest {
         controller.resume()
     }
 
+    /**
+     * Hard rule 16: a run's hand-back is the process's. The system may destroy the window while the
+     * process lives, with no successor yet: the run still ends and its result waits for the next
+     * window. (controller.recreate is synchronous; only a destroy without a successor makes the gap.)
+     */
+    @Test fun `a run ends and its result waits while no window exists`() {
+        started()
+        holdIo()
+        enter("~backup")
+        controller.pause().stop().destroy()
+        hold.countDown()
+        settle()
+        assertFalse("the run ended without a window", app.gate.busy)
+        assertEquals("its result waits", 1, app.process.messages.size)
+        ShadowToast.reset()
+        val next = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            assertTrue("shown by the next window", app.process.messages.isEmpty())
+            assertEquals(1, ShadowToast.shownToastCount())
+        } finally {
+            next.pause().stop().destroy()
+        }
+    }
+
+    /**
+     * The state's hand-backs are the process's too: a load landing while no window exists still
+     * loads. A confirmed ~cleanup reports back the same way — dropped, it would hold the gate for good.
+     */
+    @Test fun `the state loads while no window exists`() {
+        holdIo()                                // the first load queues behind the hold
+        controller.setup()
+        controller.pause().stop().destroy()
+        hold.countDown()
+        settle()
+        assertTrue(app.core.state.configLoaded)
+    }
+
+    /**
+     * After ~restart the process's state is already the fresh one, but the recreation is only queued:
+     * this window would check a command against its old, loaded state and run it on the new one.
+     */
+    @Test fun `the window ~restart replaces takes no command before the recreation lands`() {
+        started()
+        enter("~restart")                       // the recreation is queued; the looper does not run
+        enter("~backup")
+        assertEquals("not taken, left for the new window", "~backup", prompt.text.toString())
+    }
+
+    @Test fun `a second ~restart before the recreation lands resets nothing more`() {
+        started()
+        val loaded = app.core.state
+        enter("~restart")
+        val fresh = app.core.state
+        assertNotSame(loaded, fresh)
+        enter("~restart")
+        assertSame("reset once", fresh, app.core.state)
+    }
+
+    private val cleanupAnswers get() = listOf(
+        R.string.toast_cleanup_not_run, R.string.toast_cleanup_incomplete, R.string.toast_cleanup_none,
+    ).map(activity::getString)
+
+    /** The control for the two below: unanswered by a page turn, the check says what it found. */
+    @Test fun `a cleanup check answers the page that asked`() {
+        started()
+        holdIo()
+        enter("~cleanup")
+        ShadowToast.reset()
+        hold.countDown()
+        settle()
+        val shown = ShadowToast.getTextOfLatestToast()
+        assertTrue("expected one of $cleanupAnswers, got \"$shown\"", shown in cleanupAnswers)
+    }
+
+    @Test fun `a cleanup check answers no one once HOME turned the page`() {
+        started()
+        holdIo()
+        enter("~cleanup")
+        controller.newIntent(home)
+        ShadowToast.reset()
+        hold.countDown()
+        settle()
+        assertNull(ShadowToast.getLatestToast())
+    }
+
+    @Test fun `a cleanup check answers no window made since`() {
+        started()
+        holdIo()
+        enter("~cleanup")
+        controller.recreate()
+        shadowOf(Looper.getMainLooper()).idle()
+        ShadowToast.reset()
+        hold.countDown()
+        settle()
+        assertNull(ShadowToast.getLatestToast())
+    }
+
     private fun startSwipeUp() {
         val t = SystemClock.uptimeMillis()
         root.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, 500f, 1500f, 0))

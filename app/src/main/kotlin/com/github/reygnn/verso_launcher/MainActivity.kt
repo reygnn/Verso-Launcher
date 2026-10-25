@@ -338,6 +338,8 @@ class MainActivity : Activity() {
 
     /** "~restart": the repair by hand. */
     private fun restart() {
+        // Already replaced: a second ~restart before the recreation lands would reset again.
+        if (restarting) return
         // A hung provider must not block ~restart: the pick is dropped, read or still being read,
         // and a read that lands later finds it gone.
         if (app.pick.drop()) toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
