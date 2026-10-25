@@ -242,6 +242,13 @@ class AppDrawerTest {
         assertNull(row.contentDescription)
         assertNull(row.stateDescription)
         assertNull(clickLabel(0))
+
+        drawer.setPrompt("-")
+        val withState = rowView(0)
+        drawer.setPrompt("~")                     // command rows: no app behind them
+        val command = list.adapter.getView(0, withState, list) as TextView
+        assertNull(command.contentDescription)
+        assertNull(command.stateDescription)
     }
 
     /** A finger down and up on the list; [scrolled]: it moved far enough to scroll, as the list reports it. */
