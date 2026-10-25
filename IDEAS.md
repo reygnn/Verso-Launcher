@@ -5,16 +5,21 @@ from. The feature freeze is lifted (2026-10-25, see `CLAUDE.md`); new features a
 the project scope, not by a freeze.
 
 Release triage, 2026-10-25: every open point of the reviews was implemented, written into
-`CAVEATS.md`, or discarded below with its reason. Still open: the two points to measure.
-
-## To measure, then build or discard (review round 5, 2026-10-17)
-
-- Dimmed rows go through an offscreen layer every frame while scrolling (`OutlinedViews`
-  `hasOverlappingRendering`): only with many dimmed apps (a paused work profile).
-- The first wallpaper-colour query after boot delays the first enumeration (both on the one IO
-  thread). Measure on a release build, not a debug one (that distorts about fourfold).
+`CAVEATS.md`, or discarded below with its reason — the two performance points after measuring.
 
 ## Discarded, with the reason (2026-10-25)
+
+- Measured on release builds (R8, not debuggable), A17 and Pixel 9a, throwaway patches:
+  - The first wallpaper-colour query delays the first enumeration: by about 3 ms on the A17
+    (Samsung answers no colours) and 0.35–0.65 ms on the Pixel, against an enumeration of
+    roughly 110 and 70 ms. Not measured: the very first query after a boot.
+  - Dimmed rows go through an offscreen layer every frame (`OutlinedViews`
+    `hasOverlappingRendering`). Worst case, every row dimmed, scrolling, p90 frame time with the
+    layer / without it / with a hardware layer per dimmed row instead: Pixel 7 / 7 / 5–6 ms, no
+    difference; A17 fresh 7 / 6 / 7 ms, throttled 19–20 / 13 / 20 ms. Only dropping the layer
+    helps, and only on the A17 when throttled with every row dimmed — while it lets the outline
+    show through a dimmed row's fill, the reason the layer is there; a per-row hardware layer is
+    redrawn as rows are rebound and saves nothing. A paused work profile dims some rows, not all.
 
 - A4 rest: a process killed mid-`~cleanup`, after its undo point and before `forget`, has swept
   the previous cleanup undo point while removing nothing. A successful cleanup replaces the older
