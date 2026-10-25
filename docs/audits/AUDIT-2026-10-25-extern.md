@@ -107,8 +107,8 @@ dokumentiert oder in Kotlin so nicht umsetzbar.
   Modul lässt sich jeder Konstruktor aufrufen und jedes Interface implementieren. Entschieden in
   Audit 2026-10-22 #5.
 - `LauncherState.adoptions` / `CleanupOutcome.Superseded` unerreichbar: **stimmt.** Seit das Gate
-  prozessweit gilt, kann während `~cleanup` kein Restore übernommen werden. — ⬜ offen: als
-  billige Rückfallsicherung behalten oder mit ihren Tests entfernen.
+  prozessweit gilt, kann während `~cleanup` kein Restore übernommen werden. — ✅ entfernt
+  (`refactor/drop-superseded`).
 
 ### Nicht geprüft
 - Die Kontur auf getipptem Text in der Kommandozeile fehlt vielleicht (beide `onDraw`-Durchläufe
