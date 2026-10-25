@@ -82,6 +82,8 @@ class MainActivity : Activity() {
                 // the one that just arrived.
                 if (configReplaced) dismissDialogs()
                 if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
+                // A recreated instance's first load queues behind its predecessor's last step.
+                showLastMessage()
                 if (listChanged) appDrawer.refilter()
             },
         )
@@ -179,6 +181,7 @@ class MainActivity : Activity() {
         super.onStart()
         started = true
         homePage.startBattery()
+        showLastMessage()
     }
 
     override fun onResume() {
@@ -372,9 +375,14 @@ class MainActivity : Activity() {
     /** "~backup": export the config in memory to Download/Verso (hard rule 6). */
     private fun backup(t: CommandGate.Ticket) {
         val payload = ConfigJson.serialize(state.loadedSnapshot() ?: return)
-        commandIo(t, work = { backupStore.write(BackupFiles.BACKUP_BASE, payload) }) { name ->
-            if (name != null) toastIfStarted(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
-            else toastIfStarted(getString(R.string.toast_backup_failed))
+        commandIo(t, work = {
+            val name = backupStore.write(BackupFiles.BACKUP_BASE, payload)
+            keepMessage(
+                if (name != null) getString(R.string.toast_backup_ok, name) else getString(R.string.toast_backup_failed)
+            )
+        }) { kept ->
+            // Nothing kept: the step threw.
+            if (kept == null) report(getString(R.string.toast_backup_failed)) else showLastMessage()
         }
     }
 
@@ -449,19 +457,30 @@ class MainActivity : Activity() {
         commandIo(t, work = {
             val latest = backupStore.lookupLatest(BackupFiles.BACKUP_BASE)
             val text = (latest as? BackupStore.Latest.Found)?.let { backupStore.readText(it.uri) }
-            latest to text?.let { ConfigJson.parseForeign(it) }
+            val restored = text?.let { ConfigJson.parseForeign(it) }
+            if (restored == null) keepMessage(readFailure(latest))
+            Read(restored)
         }) { read ->
-            val (latest, restored) = read ?: (null to null)
+            val restored = read?.restored
             when {
-                latest is BackupStore.Latest.Failed ->
-                    toastIfStarted(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
-                latest is BackupStore.Latest.None ->
-                    toastIfStarted(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
-                restored == null -> toastIfStarted(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                // Nothing kept: the step threw.
+                read == null -> report(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                restored == null -> showLastMessage()
                 else -> adoptRestored(t, restored)
             }
         }
     }
+
+    /** A "~restore" read: null if there was nothing to restore (its message is kept). */
+    private class Read(val restored: VersoConfig?)
+
+    private fun readFailure(latest: BackupStore.Latest): String = getString(
+        when (latest) {
+            is BackupStore.Latest.Failed -> R.string.toast_restore_list_failed
+            is BackupStore.Latest.None -> R.string.toast_restore_none
+            is BackupStore.Latest.Found -> R.string.toast_restore_failed
+        }
+    )
 
     /**
      * "~restore-saf": the way a config moves between devices. Plain "~restore" only sees the app's
@@ -526,9 +545,9 @@ class MainActivity : Activity() {
     private fun restoreRead(pick: Int, restored: VersoConfig?) = onUi {
         if (pick != restorePick) return@onUi
         safReading = false
-        if (restored == null) toastIfStarted(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+        if (restored == null) report(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
         // The adoption is a run of its own; with another one running, the pick is dropped.
-        else if (!gate.start { t -> adoptRestored(t, restored) }) toastIfStarted(getString(R.string.toast_busy))
+        else if (!gate.start { t -> adoptRestored(t, restored) }) report(getString(R.string.toast_busy))
     }
 
     /**
@@ -544,7 +563,7 @@ class MainActivity : Activity() {
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
         val outgoing = state.loadedSnapshot() ?: run {
-            toastIfStarted(getString(R.string.toast_not_loaded))
+            report(getString(R.string.toast_not_loaded))
             return
         }
         commandIo(t, work = {
@@ -554,17 +573,25 @@ class MainActivity : Activity() {
                 writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
                 writeConfig = state::writeRestored,
                 sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
-            )
+            ).also { outcome -> keepMessage(restoreMessage(outcome)) }
         }) { outcome ->
-            when (outcome) {
-                RestoreSteps.Outcome.Unchanged -> toastIfStarted(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
-                RestoreSteps.Outcome.WriteFailed -> toastIfStarted(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
-                null, RestoreSteps.Outcome.UndoFailed -> toastIfStarted(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
-                is RestoreSteps.Outcome.Done -> if (state.adopt(restored)) {
-                    toastIfStarted(getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
-                }
+            // Nothing kept: the step threw.
+            if (outcome == null) {
+                report(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
+                return@commandIo
             }
+            // Cannot refuse: loaded was checked above. The message is the write's, so it stands
+            // even for an instance that never gets this hand-back.
+            if (outcome is RestoreSteps.Outcome.Done) state.adopt(restored)
+            showLastMessage()
         }
+    }
+
+    private fun restoreMessage(outcome: RestoreSteps.Outcome): String = when (outcome) {
+        RestoreSteps.Outcome.Unchanged -> getString(R.string.toast_restore_same)
+        RestoreSteps.Outcome.WriteFailed -> getString(R.string.toast_restore_write_failed)
+        RestoreSteps.Outcome.UndoFailed -> getString(R.string.toast_restore_undo_failed)
+        is RestoreSteps.Outcome.Done -> getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName))
     }
 
     /** No "~" command but ~restart before the config is loaded (hard rule 5); the toast says why. */
@@ -590,12 +617,24 @@ class MainActivity : Activity() {
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
         Toast.makeText(this, text, duration).show()
 
-    /**
-     * A toast only while the launcher is in front: a ~backup or restore step hands back on the main
-     * thread and may land after onStop, where the toast would show over whatever app is now on top.
+    /*
+     * A "~backup"/restore result is never shown over another app and never lost: it waits in
+     * ProcessState.lastMessage until an instance is in front — shown in the step's hand-back, at
+     * onStart (it finished after onStop), or at the first load of an instance that replaced the one
+     * whose hand-back a recreation dropped (that load queues behind the step on the IO thread).
      */
-    private fun toastIfStarted(text: String, duration: Int = Toast.LENGTH_SHORT) {
-        if (started) toast(text, duration)
+
+    /** On the IO thread, before the hand-back: keeps [text] as the last message and returns it. */
+    private fun keepMessage(text: String): String = text.also { app.process.lastMessage.set(it) }
+
+    /** A message decided on the main thread: now if in front, else kept for the next start. */
+    private fun report(text: String, duration: Int = Toast.LENGTH_SHORT) {
+        if (started) toast(text, duration) else app.process.lastMessage.set(text)
+    }
+
+    /** The last message, once, while in front. */
+    private fun showLastMessage() {
+        if (started) app.process.lastMessage.getAndSet(null)?.let { toast(it, Toast.LENGTH_LONG) }
     }
 
     /** "%": saved at once like every edit; the prompt clears onto the drawer in its new order. */

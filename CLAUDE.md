@@ -157,7 +157,8 @@ Single `:app` module, one package:
 ```
 com.github.reygnn.verso_launcher/
   VersoApp            process-wide: the IO executor, the ProcessState (recents, launches,
-                      the start-over and seed flags), palette and badge-label caches;
+                      the start-over and seed flags, the last ~backup/restore message),
+                      palette and badge-label caches;
                       installs Guru (onCreate)
   VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
   LauncherStateParts  what LauncherState is built from: ProcessState, ConfigFile,

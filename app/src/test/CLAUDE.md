@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 618 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 621 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -69,9 +69,12 @@ AppDrawerTest               12  Robolectric: the back page — rows per prompt, 
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       13  Robolectric, the real Activity: ~crash throws at once (before the
+MainActivityFlowsTest       15  Robolectric, the real Activity: ~crash throws at once (before the
                                 first load too); a second command and an edit
                                 refused while one runs (prompt kept; the rename OK says why),
+                                a restore's message never over another app and never lost
+                                (after onStop: at the next start; after a recreation dropped
+                                the hand-back: on the new instance's first load),
                                 ~restart dropping a pick still being read (said; other
                                 commands ran meanwhile) or one whose hand-back is already
                                 queued (not adopted), and dropping nothing after it; ~restart
@@ -79,7 +82,8 @@ MainActivityFlowsTest       13  Robolectric, the real Activity: ~crash throws at
                                 ~restore-saf closing the rename dialog; no edit and no
                                 command but ~restart before the first load; HOME ending a
                                 running swipe
-RenameDialogFilterTest      10  Robolectric: the tag and name fields' InputFilters on a real widget
+RenameDialogFilterTest      11  Robolectric: the tag and name fields' InputFilters on a real widget
+                                (a folded run keeps the IME's composing span)
 VersoConfigTest              4  equality as file content: the favorites' and a tag list's order
                                 count, other order does not, every field counts
 WallpaperPaletteTest         6  the palette's question and the colour listener as manual queues:

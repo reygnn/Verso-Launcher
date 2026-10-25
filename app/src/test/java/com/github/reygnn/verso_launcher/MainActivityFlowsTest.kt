@@ -235,17 +235,43 @@ class MainActivityFlowsTest {
         assertFalse(dialog.isShowing)
     }
 
-    /** B2: a restore hands back after onStop — the data lands, but its toast must not show over another app. */
-    @Test fun `a restore finishing after onStop shows no toast`() {
+    private fun assertRestoredToast() {
+        val prefix = activity.getString(R.string.toast_restore_ok, "")
+        val shown = ShadowToast.getTextOfLatestToast()
+        assertTrue("expected \"$prefix…\", got \"$shown\"", shown?.startsWith(prefix) == true)
+    }
+
+    /** B2: the hand-back lands after onStop — no toast over another app, but none lost either. */
+    @Test fun `a restore finishing after onStop says so at the next start`() {
         started()
-        controller.pause().stop()               // onStop: started = false
+        controller.pause().stop()
         ShadowToast.reset()
         pick("verso.json", configWith(someApp))
         joinReads()
         settle()
         assertTrue("the restore still happened", someApp.key in savedFavorites())
         assertNull("no toast over the app now in front", ShadowToast.getLatestToast())
-        controller.destroy()                     // valid from stopped; @After then skips its own stop
+        controller.restart()
+        assertRestoredToast()
+        controller.resume()
+    }
+
+    /** B1: the new instance's onStart comes before the step ends; its first load queues behind it. */
+    @Test fun `a restore whose hand-back a recreation dropped is reported by the new instance`() {
+        started()
+        holdIo()                                // the adoption's IO step waits behind the hold
+        pick("verso.json", configWith(someApp))
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle() // the read's hand-back starts the adoption
+        val before = activity
+        before.recreate()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(before.isDestroyed)
+        ShadowToast.reset()
+        hold.countDown()
+        settle()
+        assertTrue("the restore was written", someApp.key in savedFavorites())
+        assertRestoredToast()
     }
 
     private fun startSwipeUp() {
