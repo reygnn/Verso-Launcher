@@ -19,7 +19,8 @@ the process ends first).
 
 ## An unreadable config starts over
 
-If `verso.json` cannot be read when Verso starts — torn, or a read error the system reports —
+If `verso.json` cannot be read when Verso starts (or reads it again after `~restart`) — torn, or
+a read error the system reports —
 Verso moves it to `Download/Verso/verso-unreadable-…` (or, if even that fails, renames it to
 `verso.json.unreadable` in its own files) and starts over with the default favorites; a toast
 says so. A torn file and a passing read error look the same to
@@ -33,8 +34,7 @@ on the device — `~backup` is that copy.
 
 On a fresh install Verso seeds the default favorites from the first app list it gets. If the
 very first enumeration brings no list at all (the system answered nothing for your own
-profile), it waits for the next one — also across a recreation such as `~restart` or a
-language change. A `~` command running when that list arrives holds the seeding back until the
+profile), it waits for the next one — also across `~restart`. A `~` command running when that list arrives holds the seeding back until the
 next return to the launcher; a restore written meanwhile ends the wait, since the restored
 favorites (or none) are yours. The wait lives in memory: if the process itself ends before any list arrived
 *and* an edit (say `%`) had already written `verso.json`, the next start is no fresh install
@@ -124,6 +124,16 @@ text gets it in the drawer, or through the display size setting, which scales bo
 The swipe is not available to a screen reader, so the front page exposes an
 "Open all apps" custom accessibility action (TalkBack's actions menu), and the
 empty-favorites hint is tappable.
+
+## A `~` command's result can come later
+
+A `~backup`, `~restore` or `~cleanup` result is never shown over another app: if you leave
+Verso before it ends, the toast waits and appears when you come back — sometimes much later.
+A file picked with `~restore-saf` waits too while a command is still running or Verso is still
+starting, and is restored right after; meanwhile `~restore` and `~restore-saf` say a file is
+still being restored. The pick lives in memory only: if the system ends Verso's process before
+it is restored — say while the file is still being read from an offline cloud drive — it is gone
+without a word. Pick it again.
 
 ## Leaving the launcher resets to the front page
 
