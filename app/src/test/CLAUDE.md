@@ -13,11 +13,12 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 655 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 658 tests):
 
 ```
-LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
-                                search + foldLabel (Turkish, İ, NFC),
+LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
+                                search + foldLabel (Turkish, İ, NFC), a prompt run (line
+                                breaks become a space, typing passes untouched),
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
@@ -74,7 +75,8 @@ PageTurnTest                27  Robolectric: the page turn on real views — ope
                                 drag commit/cancel both ways, open ending a held drag, Back
                                 (home, prompt, recents, preview, cancel — also after HOME closed
                                 the drawer)
-AppDrawerTest               12  Robolectric: the back page — rows per prompt, edit-mode markers,
+AppDrawerTest               13  Robolectric: the back page — rows per prompt, a pasted line break
+                                turned into a space in the real field, edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt

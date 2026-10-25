@@ -423,6 +423,23 @@ class LauncherLogicTest {
 
     // ---- names and tags: no look-alike characters, bounded length ---------
 
+    /** Typing passes untouched: a rewritten run would drop the keyboard's composing span ("wwo"). */
+    @Test fun `promptRun leaves a run without control characters alone`() {
+        assertNull(LauncherLogic.promptRun("Google Maps"))
+        assertNull(LauncherLogic.promptRun("~backup"))
+        assertNull(LauncherLogic.promptRun(""))
+    }
+
+    /** A name copied over two lines must still find the app: its words apart, not run together. */
+    @Test fun `promptRun turns line breaks and tabs into one space and drops other controls`() {
+        assertEquals("Google Maps", LauncherLogic.promptRun("Google\nMaps"))
+        assertEquals("Google Maps", LauncherLogic.promptRun("Google\r\nMaps"))
+        assertEquals("Google Maps", LauncherLogic.promptRun("Google\n\n\tMaps"))
+        assertEquals("a b", LauncherLogic.promptRun("a\tb"))
+        assertEquals("ab", LauncherLogic.promptRun("a\u0007b"))
+        assertEquals("~backup ", LauncherLogic.promptRun("~backup\n"))
+    }
+
     @Test fun `cleanName drops invisible bidi and zero-width characters`() {
         // U+202E (right-to-left override) can make "lang" display reversed; U+200B is invisible.
         assertEquals("Signal", LauncherLogic.cleanName("Sig\u200Bnal"))

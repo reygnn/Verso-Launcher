@@ -336,6 +336,20 @@ internal object LauncherLogic {
         truncate(nfc(pairedOnly(raw.filter { !it.isISOControl() && !isSpoofChar(it) })), MAX_NAME_LENGTH).trim()
 
     /**
+     * A run pasted or typed into the one-line prompt, as it may stand there: line breaks and tabs
+     * are one space (a name copied over two lines still matches, its words apart; the field would
+     * only show them as a space), any other control character goes. Null when the run needs
+     * nothing — the keyboard's own typing passes untouched, a rewritten run would drop its
+     * composing span.
+     */
+    fun promptRun(run: CharSequence): String? {
+        if (run.none { it.isISOControl() }) return null
+        return run.toString().replace(LINE_BREAKS, " ").filterNot { it.isISOControl() }
+    }
+
+    private val LINE_BREAKS = Regex("[\r\n\t]+")
+
+    /**
      * [s] without a lone UTF-16 surrogate. Memory would hold it, but UTF-8 has no form for it:
      * verso.json and every backup would say "?", so the file would differ from the config it saves.
      * After the other filters, so a pair they separated is whole again.

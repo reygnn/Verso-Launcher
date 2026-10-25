@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.Editable
+import android.text.InputFilter
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
@@ -175,6 +176,10 @@ internal class AppDrawer(
             // Room for the outline's outer half: the view clips at its bounds.
             setPadding(2.dp(), 2.dp(), 2.dp(), 2.dp())
             isSingleLine = true
+            // A pasted line break would only look like a space here: it becomes one (LauncherLogic.promptRun).
+            filters = arrayOf(InputFilter { source, start, end, _, _, _ ->
+                LauncherLogic.promptRun(source.subSequence(start, end))
+            })
             inputType = InputType.TYPE_CLASS_TEXT or
                 InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             imeOptions = EditorInfo.IME_ACTION_GO

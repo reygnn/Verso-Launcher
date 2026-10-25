@@ -18,8 +18,8 @@ what is still open.
 - C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
   page" jump. Already guarded to fire only on the action change, not per keystroke
   (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
-- C5: pasted newlines stay in the prompt; a dead key starting typing on home loses its accent;
-  hardware keys in the `?` view go nowhere.
+- C5: a dead key starting typing on home loses its accent; hardware keys in the `?` view go
+  nowhere. (Pasted line breaks in the prompt became spaces on 2026-10-25.)
 - D4: `~cleanup`'s verdict for a profile that exists but is not listed is untested
   (`CleanupTest` covers "answered empty", not "not listed").
 

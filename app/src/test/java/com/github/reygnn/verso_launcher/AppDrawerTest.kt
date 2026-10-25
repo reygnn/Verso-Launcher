@@ -64,6 +64,15 @@ class AppDrawerTest {
         assertEquals(listOf("Bravo"), rows())
     }
 
+    /** The one-line field shows a line break as a space; the text gets a space, so a search sees one. */
+    @Test fun `a pasted line break becomes a space in the prompt, typing stays as typed`() {
+        prompt.setText("Alpha\nBravo")
+        assertEquals("Alpha Bravo", prompt.text.toString())
+        prompt.setText("")
+        prompt.text.append("br")
+        assertEquals(listOf("Bravo"), rows())
+    }
+
     /** Home re-renders from onFiltered: a search cannot change the favorites. */
     @Test fun `typing does not ask home to re-render, a refilter does`() {
         drawer.setPrompt("br")
