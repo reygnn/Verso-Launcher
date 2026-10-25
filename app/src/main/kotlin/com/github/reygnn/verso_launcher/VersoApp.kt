@@ -29,15 +29,35 @@ class VersoApp : Application() {
     /**
      * The "~" commands, one at a time across activity instances (hard rule 15): a recreation
      * finds a run its predecessor left going still going, and is refused until it ends. Main
-     * thread only.
+     * thread only. A run's end posts a look at a pick waiting for it ([pick]).
      */
-    internal val gate = CommandGate()
+    internal val gate = CommandGate(onIdle = { onMain { instance?.adoptPendingPick() } })
+
+    /** The "~restore-saf" pick from the picker's answer until its adoption starts. Main thread only. */
+    internal val pick = PendingPick()
+
+    /**
+     * The live MainActivity, between its onCreate and its onDestroy, for what the process hands
+     * over: a pick to adopt. Main thread only; never held past onDestroy, so it keeps no instance alive.
+     */
+    internal var instance: MainActivity? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /** On the main thread for the process, never dropped — unlike MainActivity.onUi, which is per instance. */
     internal fun onMain(block: () -> Unit) {
         mainHandler.post { block() }
+    }
+
+    /**
+     * Main thread: the read of pick [number] is back. A dropped or superseded pick is ignored. An
+     * unreadable file is a result of the user's pick — queued, shown once an instance is in front;
+     * a config waits in [pick] for an idle gate and a loaded config (MainActivity.adoptPendingPick).
+     */
+    internal fun pickRead(number: Int, restored: VersoConfig?) {
+        if (!pick.arrived(number, restored)) return
+        if (restored == null) process.messages.add(getString(R.string.toast_restore_failed))
+        instance?.pickArrived()
     }
 
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)

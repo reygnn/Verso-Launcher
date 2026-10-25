@@ -8,8 +8,12 @@ package com.github.reygnn.verso_launcher
  * One per process (VersoApp.gate), so a recreated activity sees a run its predecessor left
  * going. A destroyed owner never gets its hand-backs (they are dropped), so it gives the run up
  * with [abandon] once its IO steps are through (MainActivity.onDestroy queues that on the IO thread).
+ *
+ * @param onIdle called each time a run ends (its last release, or [abandon]): something may have
+ *   waited for the gate (a "~restore-saf" pick, VersoApp). Called in the middle of the release, so
+ *   it must not start a run itself — it posts.
  */
-internal class CommandGate {
+internal class CommandGate(private val onIdle: () -> Unit = {}) {
 
     /** One run, started by [owner]. Compared by identity. */
     class Ticket internal constructor(internal val owner: Any) {
@@ -104,10 +108,14 @@ internal class CommandGate {
      * steps would interleave with the old one's. A late [finish] of that run is a no-op.
      */
     fun abandon(owner: Any) {
-        if (current?.owner === owner) current = null
+        if (current?.owner !== owner) return
+        current = null
+        onIdle()
     }
 
     private fun release(ticket: Ticket) {
-        if (current === ticket && --ticket.holds == 0) current = null
+        if (current !== ticket || --ticket.holds > 0) return
+        current = null
+        onIdle()
     }
 }

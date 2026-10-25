@@ -182,18 +182,23 @@ class MainActivityFlowsTest {
         assertFalse(someApp.key in savedFavorites())
     }
 
-    @Test fun `the newest pick wins over a slower one`() {
+    /**
+     * While a pick is read or waits, no second restore starts: an automatic adoption behind it would
+     * sweep its undo point. Only those two wait — the other commands (and edits) go on.
+     */
+    @Test fun `a second restore while a pick is pending is refused and says why`() {
         started()
         pick("old.json", hanging(configWith(someApp)))
-        val slow = reads()
-        pick("new.json", configWith(otherApp))
-        joinReads(reads() - slow.toSet())
-        settle()
-        assertTrue(otherApp.key in savedFavorites())
-        hold.countDown()
-        joinReads()
-        settle()
-        assertEquals(listOf(otherApp.key), savedFavorites())
+        val pending = activity.getString(R.string.toast_restore_pending)
+        enter("~restore-saf")
+        assertEquals(pending, ShadowToast.getTextOfLatestToast())
+        assertEquals("~restore-saf", prompt.text.toString())
+        assertNull("no second picker", shadowOf(activity).nextStartedActivityForResult)
+        enter("~restore")
+        assertEquals(pending, ShadowToast.getTextOfLatestToast())
+        assertEquals("~restore", prompt.text.toString())
+        enter("~backup")
+        assertEquals("other commands go on", "", prompt.text.toString())
     }
 
     @Test fun `~restart builds the activity anew`() {
@@ -295,31 +300,72 @@ class MainActivityFlowsTest {
         assertEquals("accepted once the old run is given up", "", prompt.text.toString())
     }
 
-    /**
-     * A refusal is no result: a pick refused while away is dropped, never queued, so it neither
-     * shows out of context nor competes with the result of the run that caused it.
-     */
-    @Test fun `a refusal while away is dropped and the running command's result still shows`() {
+    /** A pick read while a command runs waits for it, then is adopted — even while away. */
+    @Test fun `a pick read while a command runs is adopted once it ends`() {
         started()
         pick("verso.json", hanging(configWith(someApp)))
-        // A latch of its own: the read must hand back while the backup's step still waits.
+        // A latch of its own: the read must land while the backup's step still waits.
         app.io.execute { ioHold.await(30, TimeUnit.SECONDS) }
         enter("~backup")                        // runs while the pick is read
         controller.pause().stop()
         ShadowToast.reset()
         hold.countDown()
         joinReads()
-        shadowOf(Looper.getMainLooper()).idle() // the read's hand-back: refused, the backup runs
+        shadowOf(Looper.getMainLooper()).idle() // the read lands: it waits for the backup
+        assertFalse("not adopted while the backup runs", someApp.key in savedFavorites())
         assertNull("no toast over another app", ShadowToast.getLatestToast())
-        assertTrue("the refusal is not queued", app.process.messages.isEmpty())
         ioHold.countDown()
-        settle()
-        assertEquals("the backup's result is queued", 1, app.process.messages.size)
+        settle()                                // the backup ends, the adoption runs
+        assertTrue("adopted after it", someApp.key in savedFavorites())
+        assertEquals("both results queued", 2, app.process.messages.size)
         controller.restart()
-        assertEquals(1, ShadowToast.shownToastCount())
-        assertFalse(ShadowToast.showedToast(activity.getString(R.string.toast_busy)))
-        assertFalse("the refused pick is not adopted", someApp.key in savedFavorites())
+        assertEquals(2, ShadowToast.shownToastCount())
+        assertRestoredToast()
         controller.resume()
+    }
+
+    /**
+     * A picker's answer can reach an instance whose first load has not landed (the process was
+     * killed while the picker was open): the pick waits for the load instead of being refused.
+     */
+    @Test fun `a pick read before the first load is adopted once it lands`() {
+        holdIo()                                // the first load queues behind the hold
+        controller.setup()
+        val picked = Uri.parse("content://cloud/verso.json")
+        shadowOf(activity.contentResolver).registerInputStream(picked, configWith(otherApp))
+        // Answered without the command, which is refused before the load: a picker opened earlier.
+        val request = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        activity.startActivityForResult(request, REQ_RESTORE)
+        shadowOf(activity).receiveResult(request, Activity.RESULT_OK, Intent().setData(picked))
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse("not before the load", otherApp.key in savedFavorites())
+        hold.countDown()
+        settle()
+        assertTrue("adopted once loaded", otherApp.key in savedFavorites())
+        assertRestoredToast()
+    }
+
+    /**
+     * The pick is the process's: a recreation while it waits hands it to the new instance, which
+     * adopts it at its first load. (The live-instance hand-over on a run's end, VersoApp.instance and
+     * onIdle, is the path of "a pick read while a command runs".)
+     */
+    @Test fun `a waiting pick survives a recreation and the new instance adopts it`() {
+        started()
+        pick("verso.json", hanging(configWith(someApp)))
+        app.io.execute { ioHold.await(30, TimeUnit.SECONDS) }
+        enter("~backup")
+        hold.countDown()
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle() // read, waiting for the backup
+        controller.recreate()                   // the backup's hand-back will be dropped
+        shadowOf(Looper.getMainLooper()).idle()
+        ShadowToast.reset()
+        ioHold.countDown()
+        settle()                                // the step, the old run given up, the new load
+        assertTrue("adopted by the new instance", someApp.key in savedFavorites())
+        assertRestoredToast()                   // after the backup's result, which the new load shows
     }
 
     @Test fun `every queued result is shown at the next start, oldest first, once`() {

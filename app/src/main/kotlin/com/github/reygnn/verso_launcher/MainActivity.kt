@@ -24,7 +24,6 @@ import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import com.github.reygnn.guru.Guru
-import java.lang.ref.WeakReference
 import java.util.concurrent.RejectedExecutionException
 
 /**
@@ -91,6 +90,8 @@ class MainActivity : Activity() {
                 if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
                 // A recreated instance's first load queues behind its predecessor's last step.
                 showMessages()
+                // A pick read before the first load waited for it (adoptPendingPick).
+                adoptPendingPick()
                 if (listChanged) appDrawer.refilter()
             },
         )
@@ -111,6 +112,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The process hands a "~restore-saf" pick to whichever instance is alive (VersoApp.pick).
+        app.instance = this
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
         // ourselves. No scrim behind 3-button navigation: the wallpaper runs to the bottom edge.
@@ -275,6 +278,7 @@ class MainActivity : Activity() {
         // No executor shutdown: work this instance queued (a save above all) must still run;
         // its hand-back is dropped by onUi.
         abandonRunBehindIo()
+        if (app.instance === this) app.instance = null
         unwatchApps()
         unwatchWallpaper()
         super.onDestroy()
@@ -362,6 +366,7 @@ class MainActivity : Activity() {
             toast(getString(R.string.toast_busy))
             return
         }
+        if (heldBackByPick(command)) return
         if (command != Command.RESTART && !editable()) return
         // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
@@ -369,22 +374,30 @@ class MainActivity : Activity() {
         gate.start(runOwner) { t ->
             when (command) {
                 Command.RESTART -> {
-                    // A hung provider must not block ~restart; the bump voids a hand-back already queued.
-                    if (safReading) {
-                        restorePick++
-                        safReading = false
-                        toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
-                    }
+                    // A hung provider must not block ~restart: the pick is dropped, read or still
+                    // being read, and a read that lands later finds it gone.
+                    if (app.pick.drop()) toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
                     recreate()
                 }
                 Command.BACKUP -> backup(t)
                 Command.RESTORE -> restoreConfig(t)
-                // Only the picker: it is another activity, so no run spans it (onActivityResult starts one).
+                // Only the picker: it is another activity, so no run spans it (the adoption is one).
                 Command.RESTORE_SAF -> pickRestoreFile()
                 Command.CLEANUP -> cleanup(t)
                 Command.CRASH -> Unit // returned above
             }
         }
+    }
+
+    /**
+     * A restore while a pick is read or waits to be adopted (PendingPick) is refused, with a toast:
+     * the automatic adoption behind it would sweep its undo point. The prompt stays, to send again.
+     */
+    private fun heldBackByPick(command: Command): Boolean {
+        val restore = command == Command.RESTORE || command == Command.RESTORE_SAF
+        if (!restore || !app.pick.pending) return false
+        toast(getString(R.string.toast_restore_pending), Toast.LENGTH_LONG)
+        return true
     }
 
     /** One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. */
@@ -531,48 +544,55 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Counts "~restore-saf" picks, so only the newest one's read is adopted. */
-    private var restorePick = 0
-    // A picked file is being read: no run yet; ~restart drops it.
-    private var safReading = false
-
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQ_RESTORE) return
         val uri = data?.data
         // Backing out of the picker is not an error — say nothing.
         if (resultCode != RESULT_OK || uri == null) return
-        // Its own thread, not the IO thread (hard rule 3): a provider can block the read
-        // indefinitely. Newest pick wins — a stuck read may finish after a later one.
-        val pick = ++restorePick
-        safReading = true
-        // The thread holds nothing of this activity — a read that never returns must not keep a
-        // destroyed instance alive: the application's resolver, a log of its own, a weak hand-back.
+        // From here the pick is the process's (VersoApp.pick), so a recreation or a stop loses it
+        // no more. Its own thread, not the IO thread (hard rule 3): a provider can block the read
+        // indefinitely. The thread holds nothing of this activity — the application's resolver, a
+        // log of its own, a hand-back to the process — so a read that never returns keeps no
+        // destroyed instance alive.
+        val process = app
+        val number = process.pick.begin()
         val reader = BackupStore(
             resolver = applicationContext.contentResolver,
             subDir = BackupFiles.DIR,
             log = ::logWarning,
             owner = packageName,
         )
-        val self = WeakReference(this)
         Thread(Guard.wrap("restore read", ::logWarning) {
             val restored = reader.readText(uri)?.let { ConfigJson.parseForeign(it) }
-            self.get()?.restoreRead(pick, restored)
+            process.onMain { process.pickRead(number, restored) }
         }, "verso-restore-read").start()
     }
 
-    private fun restoreRead(pick: Int, restored: VersoConfig?) = onUi {
-        if (pick != restorePick) return@onUi
-        safReading = false
-        if (restored == null) report(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-        // The adoption is a run of its own; with another one running, the pick is dropped.
-        else if (!gate.start(runOwner) { t -> adoptRestored(t, restored) }) refuse(getString(R.string.toast_busy))
+    /** The process handed over a pick's read (VersoApp.pickRead): its result if it failed, else the adoption. */
+    internal fun pickArrived() {
+        showMessages()
+        adoptPendingPick()
+    }
+
+    /**
+     * Adopts a "~restore-saf" pick that is read and waiting, once nothing stands in its way: no run
+     * (also none a predecessor left) and a loaded config (hard rule 5). Called when the read lands,
+     * when a run ends (the gate's onIdle) and when a load lands — whichever comes last adopts. It
+     * waits instead of being refused: while it is pending no restore can start (runCommand), so the
+     * run it waits for is a backup or a cleanup, never a restore whose undo point it would sweep.
+     */
+    internal fun adoptPendingPick() {
+        if (isDestroyed || gate.busy || !state.configLoaded) return
+        val restored = app.pick.take() ?: return
+        gate.start(runOwner) { t -> adoptRestored(t, restored) }
     }
 
     /**
      * Adopt a config parsed with parseForeign (never the lenient parse, which turns any JSON
-     * object into an empty config). No undo point, no restore (hard rule 7). The picker's answer
-     * can reach a fresh process whose first load has not landed — then the user is told to retry.
+     * object into an empty config). No undo point, no restore (hard rule 7). Both callers start it
+     * only with the config loaded (runCommand's editable, adoptPendingPick); the check below stays
+     * as the last line of hard rule 5.
      */
     private fun adoptRestored(t: CommandGate.Ticket, restored: VersoConfig) {
         // So a "my favorites are gone" report can be settled from the log.
@@ -654,8 +674,8 @@ class MainActivity : Activity() {
 
     /**
      * A refusal from a step that ran while the user may have left: shown if in front, else dropped —
-     * "busy" or "not loaded" hours later, out of context, would mean nothing, and kept it would
-     * compete with the very result of the run that caused it.
+     * "not loaded" hours later, out of context, would mean nothing. (A pick no longer meets "busy"
+     * or "not loaded": it waits for both, adoptPendingPick. This stays for a caller that breaks that.)
      */
     private fun refuse(text: String) {
         if (started) toast(text)
@@ -921,7 +941,6 @@ class MainActivity : Activity() {
     }
 
     private companion object {
-        const val REQ_RESTORE = 1
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
 
         /** In the companion, so a reference to it holds no activity (the "~restore-saf" read thread). */
@@ -934,3 +953,6 @@ class MainActivity : Activity() {
         const val PROFILE_WAIT_MS = 2 * 60 * 1000L
     }
 }
+
+/** The "~restore-saf" picker's request code. Internal for MainActivityFlowsTest, which answers one. */
+internal const val REQ_RESTORE = 1

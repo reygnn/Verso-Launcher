@@ -34,15 +34,10 @@ what is still open.
 
 ## Second review of refactor/simple-gate (2026-10-17), left open
 
-- A `~restore-saf` pick read while a command runs is dropped with "busy" (by design) — while
-  away silently, since a refusal is never queued. Letting it wait for the gate was weighed and
-  dropped: an automatic restore right behind another `~restore` sweeps the first one's undo point,
-  the config from before both. Planned instead (next step of the process-owned rewrite): the read
-  belongs to the process and locks only `~restore`/`~restore-saf` meanwhile — edits, `~backup` and
-  `~cleanup` go on — so waiting for the gate is safe again (no restore can be the run waited for),
-  and the adoption waits for the gate and for the first load instead of being refused. Today a
-  pick whose read lands before the first load (a process killed while the picker was open, the
-  user away again) is refused "not loaded" and, while away, dropped without a word.
+- A `~restore-saf` pick lives in memory (`VersoApp.pick`) until its adoption starts: a process
+  that dies before then loses it, silently — the user picks again. Only a pick on disk (a small
+  journal) would survive that. (Since 2026-10-25 it no longer meets "busy" or "not loaded": it
+  waits for both; a hanging read holds back only a second restore, until `~restart`.)
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in.
 - The drawer rows' outline alpha is not pinned by a test of its own (home-favorite alpha is,
   in `HomePageAccessibilityTest`).

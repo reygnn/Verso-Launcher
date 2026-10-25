@@ -41,7 +41,8 @@
     <string name="toast_restore_list_failed">Download/Verso unreadable — try ~restore-saf</string>
     <string name="toast_restore_undo_failed">nothing changed — could not save the current config</string>
     <string name="toast_restore_failed">nothing changed — not a readable config file</string>
-    <string name="toast_restore_saf_dropped">~restore-saf dropped — the picked file was still being read</string>
+    <string name="toast_restore_saf_dropped">~restore-saf dropped — the picked file was not restored yet</string>
+    <string name="toast_restore_pending">a picked file is still being restored — wait, or ~restart drops it</string>
     <string name="toast_restore_none">no backup — run ~backup, or pick one: ~restore-saf</string>
     <string name="toast_cleanup_none">nothing to clean up</string>
     <string name="toast_cleanup_incomplete">not every profile could be read — try again later</string>

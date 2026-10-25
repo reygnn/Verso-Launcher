@@ -156,9 +156,10 @@ Single `:app` module, one package:
 
 ```
 com.github.reygnn.verso_launcher/
-  VersoApp            process-wide: the IO executor, the command gate, the ProcessState
-                      (recents, launches, the start-over and seed flags, the queued
-                      ~backup/restore results), palette and badge-label caches;
+  VersoApp            process-wide: the IO executor, the command gate, the pending
+                      ~restore-saf pick, the live instance (onCreate–onDestroy), the
+                      ProcessState (recents, launches, the start-over and seed flags, the
+                      queued ~backup/restore results), palette and badge-label caches;
                       installs Guru (onCreate)
   VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
   LauncherStateParts  what LauncherState is built from: ProcessState, ConfigFile,
@@ -191,6 +192,7 @@ com.github.reygnn.verso_launcher/
   RenameDialog        long-press dialog: custom name + tags
   LauncherState       config + app list + recents, and the concurrency rules (pure)
   CommandGate         the "~" commands one at a time: a run ends with its last step (pure)
+  PendingPick         a "~restore-saf" pick from the picker's answer to its adoption (pure)
   LauncherLogic       all pure decisions: modes, commands, search/fold, sort, rows,
                       Enter/tap actions, tags, default favorites
   AppEntry, VersoConfig   the data; a VersoConfig is immutable (an edit is a new one)
@@ -234,15 +236,18 @@ thread.
    say what failed — never swallowed, no catch-all net.
 3. **One IO thread, process-wide** (`VersoApp.io`). Never create another executor,
    never shut it down. Main-thread state is mutated only on the main thread; hand-backs
-   go through `onUi`, which drops them for a destroyed instance — except the release of a
-   destroyed instance's run (`VersoApp.onMain`, queued by `onDestroy` behind its IO steps; dropped
-   by `onUi`, it would leave the process's gate busy for good, hard rule 15) and Guru's alert
+   go through `onUi`, which drops them for a destroyed instance — except what belongs to the
+   process, posted with `VersoApp.onMain`: the release of a destroyed instance's run (queued by
+   `onDestroy` behind its IO steps; dropped by `onUi`, it would leave the process's gate busy for
+   good, hard rule 15), the gate's `onIdle` and a `~restore-saf` read's hand-back (both to the live
+   instance, `VersoApp.instance`, if any — a pick waits in `VersoApp.pick`); and Guru's alert
    (`showPending`), handed back with a plain `runOnUiThread`: Guru checks the destroyed
    activity itself and keeps the alert for the next call, which a dropped hand-back would lose. The one exception: the
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
    content provider (an offline cloud drive) can block that read indefinitely, and it
    touches no file of the app's own, nor anything of the activity (the application's resolver,
-   a weak hand-back), so a read that never returns keeps no destroyed instance alive; the undo
+   a hand-back to the process, `VersoApp.pickRead`), so a read that never returns keeps no
+   destroyed instance alive; the undo
    point and the adoption still go through
    `VersoApp.io`. The second exception: Guru's uncaught-exception handler writes its crash
    report on the dying thread itself — the process is going down, nothing queued on
@@ -341,9 +346,13 @@ thread.
     owner token) behind the IO steps it queued — never sooner, or the next run's steps would
     interleave with them. A result is queued (`ProcessState.messages`) and shown once an instance
     is in front; a refusal ("busy", "not loaded") is shown in front or dropped, never queued. No run
-    spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
-    before a run starts, only its adoption is one (`~restart` while it is read drops the
-    pick, with a toast); the cleanup dialog ends its run, its OK starts a new one.
+    spans another activity or a dialog waiting on the user: a `~restore-saf` pick is the
+    process's (`VersoApp.pick`, `PendingPick`) from the picker's answer until its adoption
+    starts — read before any run, then waiting for an idle gate and a loaded config, adopted by
+    whichever instance is alive; only the adoption is a run. Meanwhile `~restore` and
+    `~restore-saf` are refused (a restore the adoption waited behind would lose its undo point
+    to it), everything else goes on; `~restart` drops the pick, with a toast. The cleanup dialog
+    ends its run, its OK starts a new one.
 
 ---
 

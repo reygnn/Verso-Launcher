@@ -40,7 +40,8 @@
     <string name="toast_restore_list_failed">Download/Verso nicht lesbar — ~restore-saf versuchen</string>
     <string name="toast_restore_undo_failed">Nichts geändert — aktuelle Konfiguration nicht sicherbar</string>
     <string name="toast_restore_failed">Nichts geändert — keine lesbare Konfiguration</string>
-    <string name="toast_restore_saf_dropped">~restore-saf abgebrochen — die gewählte Datei wurde noch gelesen</string>
+    <string name="toast_restore_saf_dropped">~restore-saf abgebrochen — die gewählte Datei war noch nicht übernommen</string>
+    <string name="toast_restore_pending">Eine gewählte Datei wird noch übernommen — abwarten, oder ~restart bricht ab</string>
     <string name="toast_restore_none">Kein Backup — erst ~backup, oder Datei wählen: ~restore-saf</string>
     <string name="toast_cleanup_none">Nichts aufzuräumen</string>
     <string name="toast_cleanup_incomplete">Nicht alle Profile lesbar — später nochmal versuchen</string>

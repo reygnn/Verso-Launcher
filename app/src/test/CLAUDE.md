@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 629 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 639 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -42,10 +42,13 @@ LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
                                 an unreadable config (set aside, a fresh start, said once — also after a
                                 dropped hand-off or a recreation;
                                 if it cannot be moved: not loaded, no edit, retried)
-CommandGateTest             15  one "~" command at a time: a run ends with its last step,
+CommandGateTest             17  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, the edit permit; abandon (only
                                 its owner's run, a late finish harmless, a permit stays void);
-                                an IO step for an abandoned or ended run queues nothing (logged)
+                                an IO step for an abandoned or ended run queues nothing (logged);
+                                onIdle once per run end (also on abandon), not per release
+PendingPickTest              6  a "~restore-saf" pick's states: read config taken once, an
+                                unreadable file, a dropped or superseded read landing late
 LauncherRowsTest            41  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
@@ -71,19 +74,22 @@ AppDrawerTest               12  Robolectric: the back page — rows per prompt, 
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       18  Robolectric, the real Activity: ~crash throws at once (before the
+MainActivityFlowsTest       20  Robolectric, the real Activity: ~crash throws at once (before the
                                 first load too); a second command and an edit
                                 refused while one runs (prompt kept; the rename OK says why),
                                 also on the instance a recreation made, until the old step ends;
-                                a refusal while away dropped, not queued; every queued result
-                                shown at the next start, oldest first,
+                                every queued result shown at the next start, oldest first;
+                                a pick waits instead of being refused — for a running command
+                                (adopted after it, also while away), for the first load, across
+                                a recreation (the new instance adopts it); a second restore
+                                refused while a pick is pending, other commands go on;
                                 a restore's message never over another app and never lost
                                 (after onStop: at the next start; after a recreation dropped
                                 the hand-back: on the new instance's first load),
                                 ~restart dropping a pick still being read (said; other
                                 commands ran meanwhile) or one whose hand-back is already
                                 queued (not adopted), and dropping nothing after it; ~restart
-                                rebuilding the activity; the newest pick winning; a
+                                rebuilding the activity; a
                                 ~restore-saf closing the rename dialog; no edit and no
                                 command but ~restart before the first load; HOME ending a
                                 running swipe

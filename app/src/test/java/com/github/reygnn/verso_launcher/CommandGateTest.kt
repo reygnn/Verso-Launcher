@@ -173,6 +173,40 @@ class CommandGateTest {
         assertEquals(1, logged.size)
     }
 
+    /** What waits for the gate (a "~restore-saf" pick) is told each time a run ends, and only then. */
+    @Test fun `onIdle once per run end, not per release`() {
+        var idles = 0
+        val gate = CommandGate(onIdle = { idles++ })
+        gate.start(owner) { }
+        assertEquals(1, idles)
+        var report: (() -> Unit)? = null
+        gate.start(owner) { t ->
+            gate.hold(t)
+            gate.hold(t)
+            report = { gate.finish(t) { } }
+        }
+        assertEquals("the first step's release is not the last", 1, idles)
+        report!!()
+        assertEquals(1, idles)
+        report!!()
+        assertEquals(2, idles)
+        gate.start(owner) { t -> gate.hold(t) }   // a run that stays going
+        assertFalse(gate.start(owner) { })
+        assertEquals("a refused start ends nothing", 2, idles)
+    }
+
+    @Test fun `onIdle on abandon, not on someone else's`() {
+        var idles = 0
+        val gate = CommandGate(onIdle = { idles++ })
+        gate.start(owner) { t -> gate.hold(t) }
+        gate.abandon(other)
+        assertEquals(0, idles)
+        gate.abandon(owner)
+        assertEquals(1, idles)
+        gate.abandon(owner)
+        assertEquals("nothing left to end", 1, idles)
+    }
+
     @Test fun `an edit permit taken before an abandoned run stays void`() {
         val permit = gate.idle()!!
         gate.start(owner) { t -> gate.hold(t) }
