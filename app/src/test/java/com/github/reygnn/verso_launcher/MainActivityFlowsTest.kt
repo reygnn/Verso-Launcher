@@ -71,7 +71,7 @@ class MainActivityFlowsTest {
     private fun configWith(entry: AppEntry) =
         ConfigJson.serialize(VersoConfig(favorites = listOf(entry.key))).byteInputStream()
 
-    /** A provider that hangs, like an offline cloud drive: the read waits for the hold. */
+    /** A provider that hangs, slow to hand the file over: the read waits for the hold. */
     private fun hanging(content: InputStream) = object : InputStream() {
         override fun read(): Int {
             check(hold.await(30, TimeUnit.SECONDS))

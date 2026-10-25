@@ -257,7 +257,7 @@ thread.
    (`showPending`), handed back with a plain `runOnUiThread`: Guru checks the destroyed
    activity itself and keeps the alert for the next call, which a dropped hand-back would lose. The one exception: the
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
-   content provider (an offline cloud drive) can block that read indefinitely, and it
+   content provider (one slow to hand the file over, or that never does) can block that read indefinitely, and it
    touches no file of the app's own, nor anything of the activity (the application's resolver,
    a hand-back to the process, `Commands.readPick`), so a read that never returns keeps no
    destroyed instance alive; the undo

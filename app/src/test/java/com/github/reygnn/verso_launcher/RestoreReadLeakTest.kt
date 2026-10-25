@@ -21,7 +21,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * A "~restore-saf" read that never returns (an offline cloud drive) runs on a thread of its own
+ * A "~restore-saf" read that never returns (a provider that never hands the file over) runs on a thread of its own
  * (hard rule 3). It must not keep the activity that started it alive once that one is destroyed.
  * A class of its own: MainActivityFlowsTest's controller holds its activity for the whole test.
  */
