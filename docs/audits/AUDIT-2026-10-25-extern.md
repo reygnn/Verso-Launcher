@@ -71,7 +71,7 @@ dokumentiert oder in Kotlin so nicht umsetzbar.
   Systemaufruf auf dem IO-Thread, reiht sich das neue Laden nach `Core.reset` hinter ihm ein.
   Schon in `CAVEATS.md` („A stuck system call holds the `~` commands“, Abhilfe Force Stop).
 
-### 5. Der Schutz gegen veraltete Klicks verschluckt einen Klick — ⬜ offen
+### 5. Der Schutz gegen veraltete Klicks verschluckt einen Klick — ✅ `75a01b5`
 - **Stelle:** `AppDrawer.kt:105-119` (Touch-Listener), `clickStillValid`.
 - **Nachgeprüft:** ja, kleiner als beschrieben. Ein Wisch endet mit `ACTION_UP` und setzt
   `clickDownGeneration`, obwohl kein Klick folgt. Ändert sich danach die Liste (Tippen in der
