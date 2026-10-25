@@ -85,7 +85,7 @@ dokumentiert oder in Kotlin so nicht umsetzbar.
   eingepasst (`HomeStyle.favoriteTextSizePx`). Der Reviewer meint, nur die Uhr brauche die
   Ausnahme. Eine Änderung wäre eine Entscheidung des Users.
 
-### 6b. Zustand und „Double-tap to…“ in `contentDescription` statt `stateDescription` — ⬜ offen
+### 6b. Zustand und „Double-tap to…“ in `contentDescription` statt `stateDescription` — ✅ `584757a` (auf dem Gerät noch nicht gehört)
 - **Stelle:** `AppDrawer.kt:479ff` (Bearbeitungsmodi), `HomePage.unavailableDescription`,
   `strings.xml` `a11y_*_on/off`, `a11y_app_paused/archived`.
 - **Nachgeprüft:** ja. Der Weg der Plattform ist `stateDescription` plus eine beschriftete
