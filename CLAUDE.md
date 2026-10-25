@@ -364,6 +364,15 @@ thread.
     `~restore-saf` are refused (a restore the adoption waited behind would lose its undo point
     to it), everything else goes on; `~restart` drops the pick, with a toast. The cleanup dialog
     ends its run, its OK starts a new one.
+16. **The process owns the data; an activity is a window.** `Core` (the one `LauncherState`
+    and its stores), `Commands`, `Results`, the gate and the pending pick live in `VersoApp`,
+    built from the Application alone. They reach the window only as a `LauncherWindow`
+    (`VersoApp.instance`: a private object of `MainActivity`, set in `onCreate`, cleared in
+    `onDestroy`) — never an Activity or its Context (`SourceGuardTest`), so nothing of the
+    process keeps an instance alive or needs one to land. A recreation shares the loaded state
+    and draws it in `onCreate`; only `~restart` resets it (`Core.reset`). What a window decides
+    stays in `MainActivity`: refusing a command up front, the prompt, the picker, `~restart`,
+    the dialogs, launching.
 
 ---
 

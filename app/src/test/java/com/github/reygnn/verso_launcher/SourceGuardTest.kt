@@ -174,6 +174,26 @@ class SourceGuardTest {
     }
 
     /**
+     * Hard rule 16: the process's code reaches the window only as a LauncherWindow — no Activity,
+     * no MainActivity, so nothing of it can hold an instance or call one that is gone. A type keeps
+     * Core and Commands on the Application (their constructors take VersoApp); this keeps an
+     * Activity from coming in sideways (an import, a cast, a field).
+     */
+    @Test fun `the process's code knows no Activity`() {
+        val process = listOf(
+            "Core.kt", "Commands.kt", "Results.kt", "PendingPick.kt", "LauncherWindow.kt",
+            "CommandGate.kt", "LauncherState.kt", "LauncherStateParts.kt",
+        )
+        for (file in process) {
+            val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$file")
+            assertFalse("$file names MainActivity", Regex("""\bMainActivity\b""").containsMatchIn(text))
+            assertFalse("$file names an Activity", Regex("""\bandroid\s*\.\s*app\s*\.\s*Activity\b""").containsMatchIn(text))
+        }
+        val app = code("src/main/kotlin/com/github/reygnn/verso_launcher/VersoApp.kt")
+        assertTrue("the live window is a LauncherWindow", has(app, "internal var instance: LauncherWindow? = null"))
+    }
+
+    /**
      * A recreation finds the process's state loaded, and its own first refresh may bring the same
      * list and re-render nothing: onCreate must draw the loaded state itself, unconditionally on
      * anything but that. Robolectric lists no apps (no LauncherApps activities), so appsLoaded never

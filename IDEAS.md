@@ -11,12 +11,10 @@ what is still open.
 
 ## Review round 4 (2026-10-17), left open on purpose
 
-- A4: a recreation mid-`~cleanup` (after its undo point) has already swept the previous cleanup
-  undo point while removing nothing; `forget` runs on main (`LauncherState.cleanup`) and could
-  persist on the IO thread like the restore does.
-- B1 rest: a recreation during `~restore`'s read, after the file read but before the adoption
-  started, drops the run — nothing restored, nothing said; the user runs it again. (A failed read
-  and every adoption outcome are queued in `ProcessState.messages` and shown.)
+- A4 rest: a process killed mid-`~cleanup`, after its undo point and before `forget` lands on
+  main, has swept the previous cleanup undo point while removing nothing; `forget` could persist
+  on the IO thread like the restore does. (A recreation no longer does this since 2026-10-25:
+  the run's hand-backs go to the process, Core/Commands.)
 - C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
   page" jump. Already guarded to fire only on the action change, not per keystroke
   (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
