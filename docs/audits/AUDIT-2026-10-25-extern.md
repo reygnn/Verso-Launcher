@@ -99,8 +99,7 @@ dokumentiert oder in Kotlin so nicht umsetzbar.
   Geschmack.
 - detekt-Baseline mit 34 Einträgen: die Altlast vom Einschalten, laut `CLAUDE.md` nur schrumpfend.
 - **`SwipeFrame`: stumme No-op-Defaults der Lambdas** (`onSwipe`, `onDragStart`, `onDrag`,
-  `onDragEnd`, …) — ⬜ offen, klein: eine vergessene Verdrahtung kompiliert. Wie bei
-  `LauncherState` ohne Defaults verdrahten.
+  `onDragEnd`, …) — ✅ `9cf7a84` (`SwipeFrame.Host` ohne Defaults; dazu ein Test für den Flick).
 
 ### 8. Tests — teils verworfen
 - `SourceGuardTest` pinnt wörtliche Schnipsel: schon Audit 2026-10-23 #20, verworfen.
