@@ -1,6 +1,8 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CleanupTest {
@@ -71,6 +73,17 @@ class CleanupTest {
 
     /** Own apps carry no serial, so such a key (from another device's config) matches no app,
      *  though the system would call it "still there". */
+
+    /** D4, hard rule 14: a profile the system still has but shows Verso no list of keeps its entries. */
+    @Test fun `another profile's key - gone with its profile, kept unlisted without asking, else asked`() {
+        var asked = 0
+        val notThere = { _: String -> asked++; false }
+        assertFalse("the profile is gone", Cleanup.otherProfileStillThere(null, listed = true, notThere))
+        assertTrue("there, but not listed", Cleanup.otherProfileStillThere("private", listed = false, notThere))
+        assertEquals("neither asks the system", 0, asked)
+        assertFalse(Cleanup.otherProfileStillThere("work", listed = true, notThere))
+        assertEquals("a listed profile asks", 1, asked)
+    }
 
     @Test fun `a key with the launcher's own profile serial is gone`() {
         val ownKey = "here/here.Main#0"

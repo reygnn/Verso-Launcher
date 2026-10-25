@@ -71,14 +71,9 @@ internal class Apps(
                 Cleanup.activityStillThere(key.className, info.activities?.map { it.name })
             }
         } else {
-            val user = userManager.getUserForSerialNumber(serial)
-            when {
-                user == null -> false
-                serial !in listed -> true         // exists, but not one Verso can list
-                else -> {
-                    launcherApps.getApplicationInfo(key.packageName, STILL_THERE_FLAGS, user)
-                    true
-                }
+            Cleanup.otherProfileStillThere(userManager.getUserForSerialNumber(serial), serial in listed) { user ->
+                launcherApps.getApplicationInfo(key.packageName, STILL_THERE_FLAGS, user)
+                true
             }
         }
     } catch (e: PackageManager.NameNotFoundException) {

@@ -20,8 +20,6 @@ what is still open.
   (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
 - C5: a dead key starting typing on home loses its accent; hardware keys in the `?` view go
   nowhere. (Pasted line breaks in the prompt became spaces on 2026-10-25.)
-- D4: `~cleanup`'s verdict for a profile that exists but is not listed is untested
-  (`CleanupTest` covers "answered empty", not "not listed").
 
 ## Review of refactor/simple-gate (2026-10-17), below the merge threshold
 
@@ -37,8 +35,6 @@ what is still open.
   journal) would survive that. (Since 2026-10-25 it no longer meets "busy" or "not loaded": it
   waits for both; a hanging read holds back only a second restore, until `~restart`.)
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in.
-- The drawer rows' outline alpha is not pinned by a test of its own (home-favorite alpha is,
-  in `HomePageAccessibilityTest`).
 
 ## Review round 5 (2026-10-17), left open
 

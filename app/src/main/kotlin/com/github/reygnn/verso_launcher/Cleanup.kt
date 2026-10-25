@@ -34,6 +34,17 @@ internal object Cleanup {
         activities.isNullOrEmpty() || className in activities
 
     /**
+     * A key of another profile (hard rule 14): [user] null — the profile is gone, and the entry with
+     * it; there but not [listed] — one the system shows no launcher, kept without asking; listed —
+     * [packageThere] asks the system. Generic in the user, so this stays free of Android types.
+     */
+    fun <U : Any> otherProfileStillThere(user: U?, listed: Boolean, packageThere: (U) -> Boolean): Boolean = when {
+        user == null -> false
+        !listed -> true
+        else -> packageThere(user)
+    }
+
+    /**
      * Hard rule 14. [ownSerial]: a key carrying the launcher's own profile serial ("pkg/cls#0")
      * matches no app (own apps are keyed without one), yet the system would call it "still
      * there" — so it counts as gone. It comes from a config of another device or user.

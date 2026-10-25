@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 658 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 660 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -75,8 +75,9 @@ PageTurnTest                27  Robolectric: the page turn on real views — ope
                                 drag commit/cancel both ways, open ending a held drag, Back
                                 (home, prompt, recents, preview, cancel — also after HOME closed
                                 the drawer)
-AppDrawerTest               13  Robolectric: the back page — rows per prompt, a pasted line break
-                                turned into a space in the real field, edit-mode markers,
+AppDrawerTest               14  Robolectric: the back page — rows per prompt, a pasted line break
+                                turned into a space in the real field, a paused app's row dimmed
+                                (and a recycled command row not), edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
@@ -142,8 +143,9 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 the personal one cannot be read, is missing or empty,
                                 incomplete for every skipped profile or app (hard rule 14),
                                 empty work profiles, status
-CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
-                                a key with the launcher's own serial
+CleanupTest                 11  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
+                                a key with the launcher's own serial, another profile's key (gone
+                                with its profile, kept unlisted without asking, else asked)
 SourceGuardTest             13  source scans (snippets matched token by token, comments left out): no lenient ConfigJson.parse in MainActivity or Commands,
                                 no brace-less object templates, no density in configChanges,
                                 no default in LauncherState's constructor, no EditPermit built

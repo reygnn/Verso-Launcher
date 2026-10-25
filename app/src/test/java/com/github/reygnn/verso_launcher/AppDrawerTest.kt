@@ -73,6 +73,43 @@ class AppDrawerTest {
         assertEquals(listOf("Bravo"), rows())
     }
 
+    /**
+     * A paused or archived app's row is dimmed, like its favorite on home; a recycled row that then
+     * shows a command must lose the dimming (bindPlainRow).
+     */
+    @Test fun `a paused app's row is dimmed, a ready one and a recycled command row are not`() {
+        val paused = AppEntry("Delta", "com.delta", "com.delta.Main", "Delta", status = AppStatus.PAUSED)
+        val withPaused = testLauncherState(
+            io = { task -> task.run(); true },
+            main = { task -> task.run() },
+            loadConfig = { VersoConfig() },
+            enumerateApps = { Enumeration(installed + paused, true) },
+            serialize = { "" },
+            writeConfig = { true },
+            onRefreshed = { _, _ -> },
+        ).also { it.refresh() }
+        val drawer = AppDrawer(
+            activity = activity,
+            state = withPaused,
+            palette = HomeStyle.palette(lightWallpaper = false),
+            onAction = {},
+            onLongPress = {},
+            onFiltered = {},
+            onModeChanged = {},
+        )
+        val list = drawer.view.collect<ListView>().single()
+        drawer.setPrompt("")
+        val rows = (0 until list.adapter.count).map { list.adapter.getView(it, null, list) as TextView }
+        assertEquals(listOf("Alpha", "Bravo", "Charlie", "Delta"), rows.map { it.text.toString() })
+        assertEquals(1f, rows[0].alpha, 0f)
+        assertEquals(HomeStyle.UNAVAILABLE_ALPHA, rows[3].alpha, 0f)
+
+        drawer.setPrompt("~")
+        val recycled = list.adapter.getView(0, rows[3], list)
+        assertEquals("the same view, now a command row", rows[3], recycled)
+        assertEquals(1f, recycled.alpha, 0f)
+    }
+
     /** Home re-renders from onFiltered: a search cannot change the favorites. */
     @Test fun `typing does not ask home to re-render, a refilter does`() {
         drawer.setPrompt("br")
