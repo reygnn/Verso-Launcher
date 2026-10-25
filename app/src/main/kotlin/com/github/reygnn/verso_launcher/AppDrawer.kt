@@ -149,6 +149,9 @@ internal class AppDrawer(
                     ?: return@setOnItemLongClickListener false
                 // Row type before the guard: a tag row must not consume the marker.
                 if (!longPressStillValid()) return@setOnItemLongClickListener false
+                // Like a scroll, a long press makes no click: its touch leaves no mark (the
+                // rename's OK replaces the list, and the next click without a touch must pass).
+                touchDownGeneration = TapGuard.NO_TOUCH
                 onLongPress(row.entry)
                 true
             }

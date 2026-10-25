@@ -271,6 +271,18 @@ class AppDrawerTest {
         assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
     }
 
+    /** A long press takes the gesture too (the rename dialog, whose OK replaces the list). */
+    @Test fun `a click without a touch after a long press and a new list goes through`() {
+        drawer.setPrompt("")
+        list.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 10f, 10f, 0))
+        // The list fires it while the finger is still down.
+        list.onItemLongClickListener.onItemLongClick(list, rowView(0), 0, 0)
+        list.dispatchTouchEvent(MotionEvent.obtain(0, 600, MotionEvent.ACTION_UP, 10f, 10f, 0))
+        drawer.setPrompt("br")
+        list.performItemClick(null, 0, 0)
+        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+    }
+
     /** The guard itself: a tap whose list was replaced before its click lands on no other row. */
     @Test fun `the click of a tap whose list was replaced meanwhile is dropped`() {
         drawer.setPrompt("")
