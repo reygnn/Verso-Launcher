@@ -21,6 +21,14 @@ Release triage, 2026-10-25: every open point of the reviews was implemented, wri
     show through a dimmed row's fill, the reason the layer is there; a per-row hardware layer is
     redrawn as rows are rebound and saves nothing. A paused work profile dims some rows, not all.
 
+- Checked on the devices (audits 2026-10-21 (2) #4, 2026-10-23 #17):
+  - A profile that never reads makes every return home enumerate again (`needsRefresh`). Not seen:
+    no "skipping profile" or "skipping app" in the A17's or the Pixel's log, and neither has a
+    second profile. Throttle the retry only once a device shows it.
+  - Guru's alert does not count as a dialog for the page turn (`dialogOpen`, hard rule 11). It
+    cannot meet a running drag: it comes with a new window, already in that window's first frame
+    (A17, release, `am crash` and the relaunch filmed at 20 fps), so no touch on the window can
+    start before it; a drag started after it goes to the alert (tried: the drawer stays shut).
 - A4 rest: a process killed mid-`~cleanup`, after its undo point and before `forget`, has swept
   the previous cleanup undo point while removing nothing. A successful cleanup replaces the older
   undo point as well (one per kind, hard rule 6), and the new one holds the config from before
