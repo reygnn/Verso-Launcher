@@ -52,6 +52,28 @@ internal class TextOutline {
 internal class OutlinedTextView(context: Context) : TextView(context) {
     private val outline = TextOutline()
     private var drawingOutline = false
+    private var paletteText: Int? = null
+    private var paletteOutlineWidth = 0f
+    private var paletteOutlineColor = Color.TRANSPARENT
+
+    /**
+     * The row palette, idempotent: a recycled row already showing it skips both setters and the
+     * [ColorStateList] each one would allocate on every bind; one that predates a palette switch
+     * re-applies. The text colour also feeds the stroke/fill passes in [onDraw].
+     */
+    fun applyRowPalette(textColor: Int, outlineWidthPx: Float, outlineColor: Int) {
+        if (paletteText == textColor &&
+            paletteOutlineWidth == outlineWidthPx &&
+            paletteOutlineColor == outlineColor
+        ) {
+            return
+        }
+        paletteText = textColor
+        paletteOutlineWidth = outlineWidthPx
+        paletteOutlineColor = outlineColor
+        setTextColor(textColor)
+        setOutline(outlineWidthPx, outlineColor)
+    }
 
     fun setOutline(widthPx: Float, color: Int) {
         outline.set(widthPx, color)

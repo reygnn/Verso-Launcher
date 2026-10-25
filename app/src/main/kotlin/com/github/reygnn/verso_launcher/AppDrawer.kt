@@ -407,9 +407,10 @@ internal class AppDrawer(
                 val v = 10.dp()
                 setPadding(0, v, 0, v)
             }
-            // Every bind, not only on creation: a recycled row may predate a palette switch.
-            tv.setTextColor(palette.text)
-            (tv as? OutlinedTextView)?.setOutline(outlinePx, palette.outline)
+            // Idempotent: a recycled row already at this palette skips the setters (and the
+            // ColorStateList each would allocate); one that predates a palette switch re-applies.
+            (tv as? OutlinedTextView)?.applyRowPalette(palette.text, outlinePx, palette.outline)
+                ?: tv.setTextColor(palette.text)
             when (val row = shown[position]) {
                 is TagRow -> bindPlainRow(tv, listTypeface, row.name)
                 is OrderRow -> bindPlainRow(
