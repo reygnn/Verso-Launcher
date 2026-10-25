@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 627 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 629 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -42,9 +42,10 @@ LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
                                 an unreadable config (set aside, a fresh start, said once — also after a
                                 dropped hand-off or a recreation;
                                 if it cannot be moved: not loaded, no edit, retried)
-CommandGateTest             13  one "~" command at a time: a run ends with its last step,
+CommandGateTest             15  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, the edit permit; abandon (only
-                                its owner's run, a late finish harmless, a permit stays void)
+                                its owner's run, a late finish harmless, a permit stays void);
+                                an IO step for an abandoned or ended run queues nothing (logged)
 LauncherRowsTest            41  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside

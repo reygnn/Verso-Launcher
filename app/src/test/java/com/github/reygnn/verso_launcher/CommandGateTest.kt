@@ -149,6 +149,30 @@ class CommandGateTest {
         assertTrue("the old ticket must not end the new run", gate.busy)
     }
 
+    @Test fun `an IO step for an abandoned run queues nothing, hands nothing back, is logged`() {
+        var old: CommandGate.Ticket? = null
+        gate.start(owner) { t ->
+            gate.hold(t)
+            old = t
+        }
+        gate.abandon(owner)
+        var handedBack = false
+        step<Unit>(old!!) { handedBack = true }
+        assertTrue("nothing queued", pending.isEmpty())
+        assertFalse(handedBack)
+        assertEquals(1, logged.size)
+        assertFalse("and the gate is not taken by it", gate.busy)
+    }
+
+    @Test fun `an IO step for an ended run queues nothing either`() {
+        var ended: CommandGate.Ticket? = null
+        gate.start(owner) { t -> ended = t }
+        assertFalse(gate.busy)
+        step<Unit>(ended!!)
+        assertTrue(pending.isEmpty())
+        assertEquals(1, logged.size)
+    }
+
     @Test fun `an edit permit taken before an abandoned run stays void`() {
         val permit = gate.idle()!!
         gate.start(owner) { t -> gate.hold(t) }

@@ -66,6 +66,11 @@ internal class CommandGate {
     /**
      * [work] on the IO thread, [then] with its result back on main. A refused task or a [work]
      * that throws gives [then] null — a bug must not leave the gate shut for good.
+     *
+     * Only for the run going: a stale [ticket] (an abandoned or ended run) queues nothing and gets
+     * no [then] — its hand-back belongs to an instance that is gone, or to a run that is over. It
+     * is logged, not thrown (a HOME app must not crash, hard rule 2), and not silent, since only a
+     * bug gets here: every legal call comes from a step of the run, while it still holds it.
      */
     fun <T : Any> io(
         ticket: Ticket,
@@ -75,6 +80,10 @@ internal class CommandGate {
         logError: (Exception) -> Unit,
         then: (T?) -> Unit,
     ) {
+        if (current !== ticket) {
+            logError(IllegalStateException("an IO step for a run that is not going"))
+            return
+        }
         hold(ticket)
         val accepted = submit(Runnable {
             // a throwing step must still release the gate
