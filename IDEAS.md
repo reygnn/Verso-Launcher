@@ -4,8 +4,9 @@ Not a plan — things seen and deliberately not built (yet). One line each, with
 from. The feature freeze is lifted (2026-10-25, see `CLAUDE.md`); new features are bounded by
 the project scope, not by a freeze.
 
-Release triage, 2026-10-25: every open point of the reviews was implemented, written into
-`CAVEATS.md`, or discarded below with its reason — the two performance points after measuring.
+Release triage, 2026-10-25: every open point of the reviews and of `docs/audits/` was
+implemented, written into `CAVEATS.md`, or discarded below with its reason — the performance
+points after measuring; Guru's own points belong in Guru's repo.
 
 ## Discarded, with the reason (2026-10-25)
 
@@ -29,6 +30,16 @@ Release triage, 2026-10-25: every open point of the reviews was implemented, wri
     cannot meet a running drag: it comes with a new window, already in that window's first frame
     (A17, release, `am crash` and the relaunch filmed at 20 fps), so no touch on the window can
     start before it; a drag started after it goes to the alert (tried: the drawer stays shut).
+- Test gaps that would need what the JVM tests lack (audits 2026-10-21 (2) #14, 2026-10-22 #14
+  and #15, 2026-10-22 (3) #4): `onResume` asking for a refresh on `needsRefresh` (Robolectric's
+  `LauncherApps` is too thin; reflection only), `modeChanged` while a drag runs (real
+  MotionEvents through the page turn), the list's top and end, scrolling it to the top and the
+  `!!` pick dropped after a move (a laid-out list longer than the screen, or apps in
+  `MainActivityFlowsTest`). The rules beneath are pinned (`LauncherStateTest`, `SwipeGestureTest`,
+  `LauncherActionsTest`); the wiring is used on the devices every day.
+- The `~restore-saf` toast's wording (audit 2026-10-21 (2) #24, "nothing changed — …" like the
+  other failures): it now says "dropped — the picked file was not restored yet", which says as
+  much.
 - A4 rest: a process killed mid-`~cleanup`, after its undo point and before `forget`, has swept
   the previous cleanup undo point while removing nothing. A successful cleanup replaces the older
   undo point as well (one per kind, hard rule 6), and the new one holds the config from before
