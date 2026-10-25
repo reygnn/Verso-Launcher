@@ -31,7 +31,8 @@ class ConfigStoreTest {
         rename: (File, File) -> Boolean = File::renameTo,
         delete: (File) -> Boolean = File::delete,
         readText: (File) -> String = { it.readText() },
-    ) = ConfigStore(dir = dir, log = { msg, _ -> logs += msg }, rename = rename, delete = delete, readText = readText)
+        writeSynced: (File, ByteArray) -> Unit = { file, bytes -> file.writeBytes(bytes) },
+    ) = ConfigStore(dir, { msg, _ -> logs += msg }, rename, delete, readText, writeSynced)
 
     private fun json(vararg favorites: String) = ConfigJson.serialize(cfg(*favorites))
 
@@ -192,6 +193,20 @@ class ConfigStoreTest {
     fun `a first write with no bak to delete logs nothing`() {
         assertTrue(store.write(json("first")))
         assertEquals(emptyList<String>(), logs)
+    }
+
+    /** The disk fills up halfway: a half file is written, then the write throws. */
+    @Test
+    fun `a write that fails after the file was opened leaves the bak and no half file`() {
+        store.write(json("old"))
+        val full = storeWith(writeSynced = { file, bytes ->
+            file.writeBytes(bytes.copyOf(bytes.size / 2))
+            throw java.io.IOException("ENOSPC")
+        })
+
+        assertFalse(full.write(json("new")))
+        assertEquals(listOf("verso.json.bak"), files())
+        assertEquals(listOf("old"), store.load().favorites)
     }
 
     @Test

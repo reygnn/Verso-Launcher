@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 664 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 666 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -52,11 +52,11 @@ PendingPickTest              9  a "~restore-saf" pick's states: a read config as
                                 unreadable file, a dropped (in any state) or superseded read
                                 landing late
 LauncherRowsTest            41  rowsFor per mode
-ConfigStoreTest             19  verso.json on real temp files, SharedPreferences' terms: the old
+ConfigStoreTest             20  verso.json on real temp files, SharedPreferences' terms: the old
                                 file kept as .bak until the new one is written (also one already
-                                there), a failed write leaves the .bak, a .bak that cannot be
-                                deleted logged, a load takes a .bak back over a half file (or reads
-                                it in place), torn or unreadable loads as empty, an own file beyond
+                                there), a failed write (also halfway, a full disk) leaves the .bak,
+                                a .bak that cannot be deleted logged, a load takes a .bak back over
+                                a half file (or reads it in place), torn or unreadable loads as empty, an own file beyond
                                 parseForeign's limits loads whole, isFresh
 ConfigJsonTest              32  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, lone surrogates, size limits
@@ -86,9 +86,10 @@ AppDrawerTest               16  Robolectric: the back page — what a screen rea
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       36  Robolectric, the real Activity: "!!" moving a favorite and letting
+MainActivityFlowsTest       37  Robolectric, the real Activity: "!!" moving a favorite and letting
                                 go of it; no rename dialog before the first load; ~backup says
-                                where it wrote; a restore's undo point never named as a backup; a
+                                where it wrote; a restore's undo point never named as a backup, one
+                                whose config cannot be written adopts nothing; a
                                 "~restore-saf" file is asked about before it is adopted — its
                                 counts shown (a planted file),
                                 Cancel adopts nothing and says nothing, a dialog left unanswered

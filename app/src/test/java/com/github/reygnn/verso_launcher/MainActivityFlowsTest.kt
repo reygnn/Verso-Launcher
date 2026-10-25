@@ -297,6 +297,25 @@ class MainActivityFlowsTest {
         assertTrue(shown, BackupFiles.isPublished(BackupFiles.BACKUP_BASE, shown.removePrefix(prefix)))
     }
 
+    /** Hard rule 7: a restored config that could not be written is adopted nowhere, not even in memory. */
+    @Test fun `a restore whose config cannot be written adopts nothing and says so`() {
+        started()
+        pick("verso.json", configWith(someApp))
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle()
+        val files = activity.filesDir
+        check(files.setWritable(false)) { "filesDir stays writable (running as root?)" }
+        try {
+            answerRestore()
+            settle()
+        } finally {
+            files.setWritable(true)
+        }
+        assertEquals(activity.getString(R.string.toast_restore_write_failed), ShadowToast.getTextOfLatestToast())
+        assertFalse(someApp.key in app.core.state.config.favorites)
+        assertFalse(someApp.key in savedFavorites())
+    }
+
     /** Named as a backup, the undo point would be the newest one, and the next ~restore would take it. */
     @Test fun `a restore's undo point is never named as a backup`() {
         val media = Robolectric.setupContentProvider(GuruWiringTest.Downloads::class.java, MediaStore.AUTHORITY)

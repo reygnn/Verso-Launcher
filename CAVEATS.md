@@ -33,7 +33,7 @@ If you ran `~backup` after such an empty start, that empty backup is the newest,
 takes it. The older backups are all still in `Download/Verso/` — Verso deletes none: pick the
 one you want with `~restore-saf`.
 
-## Default favorites can still be missed in one corner
+## Default favorites can still be missed in two corners
 
 On a fresh install Verso seeds the default favorites from the first app list it gets. If the
 very first enumeration brings no list at all (the system answered nothing for your own
@@ -41,7 +41,9 @@ profile), it waits for the next one — also across `~restart`. A `~` command ru
 next return to the launcher; a restore written meanwhile ends the wait, since the restored
 favorites (or none) are yours. The wait lives in memory: if the process itself ends before any list arrived
 *and* an edit (say `%`) had already written `verso.json`, the next start is no fresh install
-and the defaults are not seeded. Pick your favorites with `!` then.
+and the defaults are not seeded. The same if the very first save — the seeding itself — is cut
+off halfway: there is no earlier file to fall back on, so the next start finds a half-written
+`verso.json`, loads it as empty and seeds nothing. Pick your favorites with `!` then.
 
 ## Private space is not reachable
 

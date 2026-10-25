@@ -8,7 +8,7 @@ import java.io.FileOutputStream
  * throws. A write first moves the last complete file to verso.json.bak (keeping one already there),
  * writes and fsyncs verso.json, then deletes the .bak; a load that finds a .bak takes it back, the
  * write before it was cut off. A file that cannot be read or parsed loads as the empty config.
- * [rename], [delete] and [readText] are test seams (root ignores chmod).
+ * [rename], [delete], [readText] and [writeSynced] are test seams (root ignores chmod).
  */
 internal class ConfigStore(
     private val dir: File,
@@ -16,6 +16,7 @@ internal class ConfigStore(
     private val rename: (File, File) -> Boolean = File::renameTo,
     private val delete: (File) -> Boolean = File::delete,
     private val readText: (File) -> String = { it.readText() },
+    private val writeSynced: (File, ByteArray) -> Unit = ::writeAndSync,
 ) {
 
     private val primary get() = File(dir, CONFIG_FILE)
@@ -60,11 +61,7 @@ internal class ConfigStore(
         }
         // hard rule 4: a failed write is a false, the .bak stands (on a val: detekt ignores it behind `return`)
         val written = @Suppress("TooGenericExceptionCaught") try {
-            FileOutputStream(primary).use { out ->
-                out.write(payload.toByteArray(Charsets.UTF_8))
-                out.flush()
-                out.fd.sync()
-            }
+            writeSynced(primary, payload.toByteArray(Charsets.UTF_8))
             if (backup.exists() && !delete(backup)) log("could not delete ${backup.name}: the next load takes it back", null)
             true
         } catch (e: Exception) {
@@ -77,5 +74,11 @@ internal class ConfigStore(
 
     companion object {
         const val CONFIG_FILE = "verso.json"
+
+        private fun writeAndSync(file: File, bytes: ByteArray) = FileOutputStream(file).use { out ->
+            out.write(bytes)
+            out.flush()
+            out.fd.sync()
+        }
     }
 }
