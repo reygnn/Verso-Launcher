@@ -54,7 +54,8 @@ locked — listing them dimmed, like a paused work profile, would reveal they ex
 Apps of a paused work profile and archived apps stay listed, dimmed; the first tap
 turns the profile back on (then a toast says the app is ready) or offers the system's
 restore. Both were verified on the A17. Turning a profile back on needs Verso to be
-the default home app; otherwise the system refuses and Verso shows "denied".
+the default home app; otherwise the system refuses and Verso shows "denied". The dimming is
+the only mark on screen — no badge, no label; TalkBack says "paused" or "archived" with the name.
 
 ## What the backups reveal, and moving to a new phone
 
@@ -148,6 +149,29 @@ Whenever the launcher stops (an app was launched, the screen went off, the recen
 screen was opened) the drawer is closed and its command line cleared. Coming back
 always lands on the front page, like most launchers — a half-typed search or an
 edit mode does not survive a trip away.
+
+## A hardware keyboard, two corners
+
+Typing on a hardware keyboard on the front page opens the drawer with that character in the
+command line. A dead key that starts the typing (an accent waiting for its letter) loses its
+accent there: the drawer gets the plain letter. In the recent apps (`?`) the command line has
+no focus, so keys go nowhere until you tap it.
+
+## An app that renames its launcher activity loses its place
+
+Favorites, custom names, tags and hidden marks belong to an app's launcher activity
+(`package/class`). An app that renames that activity in an update — rare — comes back as a new
+entry: its favorite slot, name, tags and hidden mark stay with the old key, and `~cleanup` later
+offers to remove them. Favorite, rename or tag it again. Carrying them over would need a
+migration of the stored keys, which Verso does not attempt for this.
+
+## A stuck system call holds the `~` commands
+
+The `~` commands run one at a time, their disk and system work on one thread. If a system
+service never answers (MediaStore or the package manager, not seen so far), that command never
+ends: every further `~` command — `~restart` too — and every edit says it is busy, while
+launching, searching and turning pages go on. Only force-stopping Verso (Settings → Apps →
+Verso → Force stop) ends it; the next start is clean.
 
 ## Portrait lock does not hold on tablets and foldables
 

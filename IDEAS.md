@@ -4,45 +4,37 @@ Not a plan — things seen and deliberately not built (yet). One line each, with
 from. The feature freeze is lifted (2026-10-25, see `CLAUDE.md`); new features are bounded by
 the project scope, not by a freeze.
 
-Reconciled against `cd0d505` on 2026-10-25: resolved points removed (D5 source guard; the
-Samsung-`null` wallpaper NPE — never was one, nullable receiver; the name field's control-char
-drop; `foldLabel` dropping U+0307, which is hard rule 9 by design), partial ones trimmed to
-what is still open.
+Release triage, 2026-10-25: every open point of the reviews was implemented, written into
+`CAVEATS.md`, or discarded below with its reason. Still open: the two points to measure.
 
-## Review round 4 (2026-10-17), left open on purpose
-
-- A4 rest: a process killed mid-`~cleanup`, after its undo point and before `forget` lands on
-  main, has swept the previous cleanup undo point while removing nothing; `forget` could persist
-  on the IO thread like the restore does. (A recreation no longer does this since 2026-10-25:
-  the run's hand-backs go to the process, Core/Commands.)
-- C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
-  page" jump. Already guarded to fire only on the action change, not per keystroke
-  (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
-- C5: a dead key starting typing on home loses its accent; hardware keys in the `?` view go
-  nowhere. (Pasted line breaks in the prompt became spaces on 2026-10-25.)
-
-## Review of refactor/simple-gate (2026-10-17), below the merge threshold
-
-- An IO step stuck in a system service (no timeout) keeps the gate busy for the process
-  (`VersoApp.gate`, also across a recreation): every further command is refused with "busy"
-  until it ends. Before the gate was process-wide a recreation got a fresh one, but its commands
-  then queued behind the same stuck IO thread and never ran either.
-
-## Second review of refactor/simple-gate (2026-10-17), left open
-
-- A `~restore-saf` pick lives in memory (`VersoApp.pick`) until its adoption starts: a process
-  that dies before then loses it, silently — the user picks again. Only a pick on disk (a small
-  journal) would survive that. (Since 2026-10-25 it no longer meets "busy" or "not loaded": it
-  waits for both; a hanging read holds back only a second restore, until `~restart`.)
-- `~restart` gives no toast and lands on home, not in the drawer it was typed in.
-
-## Review round 5 (2026-10-17), left open
+## To measure, then build or discard (review round 5, 2026-10-17)
 
 - Dimmed rows go through an offscreen layer every frame while scrolling (`OutlinedViews`
-  `hasOverlappingRendering`); the first wallpaper-colour query after boot delays the first
-  enumeration (both on the one IO thread).
-- Home ignores the system font size (by design for the clock); paused/archived is shown by
-  opacity alone.
+  `hasOverlappingRendering`): only with many dimmed apps (a paused work profile).
+- The first wallpaper-colour query after boot delays the first enumeration (both on the one IO
+  thread). Measure on a release build, not a debug one (that distorts about fourfold).
+
+## Discarded, with the reason (2026-10-25)
+
+- A4 rest: a process killed mid-`~cleanup`, after its undo point and before `forget`, has swept
+  the previous cleanup undo point while removing nothing. A successful cleanup replaces the older
+  undo point as well (one per kind, hard rule 6), and the new one holds the config from before
+  the cleanup: against success only the removal is missing — run `~cleanup` again. (A recreation
+  no longer does this at all: the run's hand-backs go to the process.)
+- C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
+  page" jump. Guarded to fire only on the action change, not per keystroke
+  (`AppDrawer.applyFilter`). Discarded until a reproduction shows the single restart hurts.
+- "First swipe after returning from an app does nothing" (A17): seen once, never reproduced. A
+  late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
+  workaround was tried and removed again. Discarded until a real reproduction.
+- `~restart` gives no toast and lands on home, not in the drawer it was typed in: by design — it
+  builds the window anew, and a new window shows home; the rebuilt page is the answer.
+
+## Kept as an idea
+
+- A `~restore-saf` pick lives in memory (`VersoApp.pick`) until its adoption starts: a process
+  that dies before then loses it (documented in `CAVEATS.md`). Only a pick on disk (a small
+  journal) would survive that.
 
 ## Taken out (2026-10-21)
 
@@ -55,19 +47,8 @@ what is still open.
   one is complete) and an unreadable `recents.txt` / `usage.txt` (the next refresh or
   `~restart`, see `CAVEATS.md`).
 
-## Seen on the A17
-
-- `BackupStoreInstrumentedTest` may leave empty `Download/VersoTest-…` folders behind. A
-  `@After tearDown()` now deletes the file rows (`content delete … _data='$dir'`); only an empty
-  directory may survive.
-
 ## Deferred earlier
 
 - RTL layouts.
-- "First swipe after returning from an app does nothing" (A17): seen once, not reproduced. A
-  late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
-  workaround was tried and removed again — only with a real reproduction.
-- An app that switches its launcher activity loses its favorite/name/tags (would need a key
-  migration, hard rule 8).
 - Lint's version bumps: targetSdk 37 (with the whole family, tested on a device), Robolectric
   4.17 (only worth it with SDK 37), androidx.test runner 1.7.0.
