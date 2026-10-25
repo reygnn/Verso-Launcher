@@ -68,6 +68,8 @@ internal class HomePage(
 
     // Skips the per-keystroke re-render from the drawer; whole entries, so a status change rebuilds.
     private var rendered: List<AppEntry>? = null
+    // What is on screen, for a colour change to redraw: only a render that drew. A not-loaded call
+    // draws nothing and must not replace it — the cold start's cached favorites would keep the old colour.
     private var lastRender: Pair<List<AppEntry>, Boolean>? = null
 
     fun applyPalette(p: Palette) {
@@ -164,8 +166,8 @@ internal class HomePage(
      * Listeners close over the entry, not a position, so a reload cannot redirect a tap.
      */
     fun render(favs: List<AppEntry>, loaded: Boolean) {
-        lastRender = favs to loaded
         if (!loaded) return
+        lastRender = favs to loaded
         if (favs == rendered) return
         rendered = favs
         favorites.removeAllViews()

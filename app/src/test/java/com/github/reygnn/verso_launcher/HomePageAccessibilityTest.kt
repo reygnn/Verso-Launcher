@@ -92,6 +92,20 @@ class HomePageAccessibilityTest {
         assertEquals(0xFF000000.toInt(), (favorite("Gmail") as android.widget.TextView).currentTextColor)
     }
 
+    /**
+     * A cold start draws the cached favorites, the drawer then renders "not loaded" (which draws
+     * nothing), and the wallpaper's answer switches the colour before the config has loaded.
+     */
+    @Test fun `a colour change before the load redraws the cached favorites in it`() {
+        val gmail = AppEntry("Gmail", "com.g", "com.g.Main", "Gmail")
+        page.render(favs = listOf(gmail), loaded = true)
+        page.render(favs = emptyList(), loaded = false)
+
+        page.applyPalette(HomeStyle.palette(lightWallpaper = true))
+
+        assertEquals(0xFF000000.toInt(), (favorite("Gmail") as android.widget.TextView).currentTextColor)
+    }
+
     private fun favorite(label: String): View =
         page.view.collect<android.widget.TextView>().single { it.text.toString() == label }
 

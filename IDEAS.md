@@ -42,8 +42,6 @@ what is still open.
 
 ## Review round 5 (2026-10-17), left open
 
-- A wallpaper colour change while the config is not loaded leaves the cached favorites in the
-  old colour (HomePage.applyTextColor re-renders from an empty render).
 - Dimmed rows go through an offscreen layer every frame while scrolling (`OutlinedViews`
   `hasOverlappingRendering`); the first wallpaper-colour query after boot delays the first
   enumeration (both on the one IO thread).

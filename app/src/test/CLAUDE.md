@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 654 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 655 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -128,8 +128,10 @@ CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed be
                                 then a cold start: either config whole, nothing the user had lost,
                                 one undo point once through
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest   10  Robolectric: TalkBack click on clock/date/battery, the double
-                                tap, the "open all apps" action, the empty-favorites hint
+HomePageAccessibilityTest   11  Robolectric: TalkBack click on clock/date/battery, the double
+                                tap, the "open all apps" action, the empty-favorites hint; a
+                                colour change redraws the favorites, also the cached ones of a
+                                cold start before the config has loaded
 HomePageStartGuardTest       4  Robolectric: clock, date and battery each guarded; a refused intent
                                 (no app, denied, any other) is a toast, never a crash
 HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
