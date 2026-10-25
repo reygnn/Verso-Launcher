@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 667 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 659 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -22,7 +22,7 @@ LauncherLogicTest          154  modes, commands (~crash daily-driver only, never
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           88  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an
@@ -40,9 +40,7 @@ LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
                                 unread, the read handed to a recreated instance, two instances
                                 merging the files in once), reports that
                                 come even when a step throws (a "~cleanup" waits for it),
-                                an unreadable config (set aside, a fresh start, said once — also after a
-                                dropped hand-off or a recreation;
-                                if it cannot be moved: not loaded, no edit, retried)
+                                an empty config from a file that existed (no defaults)
 CommandGateTest             12  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, the edit permit; an IO step for
                                 a run that is over queues nothing (logged); onIdle once per run
@@ -55,10 +53,10 @@ PendingPickTest              9  a "~restore-saf" pick's states: a read config as
                                 unreadable file, a dropped (in any state) or superseded read
                                 landing late
 LauncherRowsTest            41  rowsFor per mode
-ConfigStoreTest             18  verso.json on real temp files: .new + rename, no leftovers,
-                                torn or unreadable is null — not empty, isFresh, set aside
-                                (exported to Downloads, else renamed: one copy; an export that
-                                cannot be removed is not gone), a crash's .new ignored
+ConfigStoreTest             15  verso.json on real temp files, SharedPreferences' terms: the old
+                                file kept as .bak until the new one is written, a failed write
+                                leaves the .bak, a load takes a .bak back over a half file, torn
+                                or unreadable loads as empty, isFresh
 ConfigJsonTest              32  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, lone surrogates, size limits
 LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, the "!!" tap
@@ -191,7 +189,7 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 
 - **No MockK, no mocks at all.** Everything Android-bound is injected as a
   function (`LauncherState`'s `io`/`main`/`configFile`…, `ConfigStore`'s
-  `syncDir`/`rename`, `BackupStore`'s `beforePublish`/`now`), so tests pass plain
+  `rename`/`delete`, `BackupStore`'s `beforePublish`/`now`), so tests pass plain
   lambdas and fakes. Add MockK only if a real need appears — and then MockK, never
   Mockito.
 - **No coroutines, so no `MainDispatcherRule` / `runTest` / Turbine.** Threading is

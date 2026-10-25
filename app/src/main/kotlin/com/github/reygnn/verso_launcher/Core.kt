@@ -20,7 +20,7 @@ import android.provider.Telephony
  */
 internal class Core(private val app: VersoApp) {
 
-    val store = ConfigStore(dir = app.filesDir, log = ::logWarning, syncDir = { dir -> fsyncDir(dir, ::logWarning) })
+    val store = ConfigStore(dir = app.filesDir, log = ::logWarning)
 
     /** The application's resolver: a MediaStore call that hangs holds no activity. */
     val backupStore = BackupStore(
@@ -58,9 +58,6 @@ internal class Core(private val app: VersoApp) {
             main = { task -> app.onMain { if (state === built) task.run() } },
             configFile = ConfigFile(
                 load = { store.load() },
-                setAsideUnreadable = {
-                    store.setAsideUnreadable { text -> backupStore.write(BackupFiles.UNREADABLE_BASE, text) != null }
-                },
                 isFresh = { store.isFresh() },
                 serialize = ConfigJson::serialize,
                 write = { payload -> store.write(payload) },

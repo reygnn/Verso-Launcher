@@ -74,7 +74,8 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   (`MainActivity.onUi`). `LauncherState` plays the ViewModel role as plain Kotlin, one per
   process (`Core`), shared by every activity instance.
 - **Persistence:** one JSON file, `filesDir/verso.json`, via `ConfigStore` — not
-  SharedPreferences, not DataStore. Beside it only `home-cache.txt` (`HomeCache`), a
+  SharedPreferences, not DataStore, but on SharedPreferences' terms (hard rule 4; a
+  `verso.json.bak` only while a write is under way). Beside it only `home-cache.txt` (`HomeCache`), a
   disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
   launch counts behind the `%` order, and `recents.txt` (`RecentsLog`), the `?` list —
   disposable too, never in a backup — and `filesDir/guru/`, Guru's: at most 8 crash
@@ -160,9 +161,9 @@ Single `:app` module, one package:
 com.github.reygnn.verso_launcher/
   VersoApp            process-wide: the IO executor, Core, Commands, Results, the command
                       gate, the pending ~restore-saf pick, the live window (onCreate–onDestroy,
-                      a LauncherWindow), the ProcessState (recents, launches, the start-over
-                      and seed flags, the queued results of ~backup, restore, cleanup and a
-                      failed save), palette and badge-label caches;
+                      a LauncherWindow), the ProcessState (recents, launches, the seed flag,
+                      the queued results of ~backup, restore, cleanup and a failed save),
+                      palette and badge-label caches;
                       installs Guru (onCreate)
   VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
   Core                the process's data: the one LauncherState and its stores (ConfigStore,
@@ -208,8 +209,7 @@ com.github.reygnn.verso_launcher/
                       Enter/tap actions, tags, default favorites
   AppEntry, VersoConfig   the data; a VersoConfig is immutable (an edit is a new one)
   ConfigJson          verso.json <-> VersoConfig (parse / parseForeign / serialize)
-  ConfigStore         verso.json on disk: atomic write (.new + sync + rename), set-aside
-  DirSync             fsyncDir, the directory sync ConfigStore is handed (syncDir)
+  ConfigStore         verso.json on disk, on SharedPreferences' terms (.bak while writing)
   BackupStore         Download/Verso via MediaStore
   BackupFiles         pure backup naming rules
   RestoreSteps        the IO half of a restore, in its load-bearing order
@@ -239,8 +239,8 @@ thread.
    favorites, config and backup I/O) catches broadly and degrades; an uncaught
    exception on the executor kills the process on every start. Crash-only beyond that:
    a catch is armour only where it breaks a crash loop (`Guard` around every IO-thread
-   and SAF-thread task, setting an unreadable `verso.json` aside) or protects
-   `verso.json` (the atomic write); disposable work that is rebuilt on the next start may
+   and SAF-thread task, an unreadable `verso.json` loaded as empty) or protects
+   `verso.json` (its write); disposable work that is rebuilt on the next start may
    crash. The other catches are correctness or UX, not armour: the enumeration's (`Apps`)
    decide what `~cleanup` may trust and keep the last good list, the backup ones turn a
    failure into its own message. Main-thread catches always log, and where the user acted
@@ -270,29 +270,23 @@ thread.
    first load —, the alert's list) goes through `VersoApp.io` — but for Verso's own version and
    label, which `install` asks once on the main thread (both caught), so the dying thread never
    asks the PackageManager. Not a breach to "fix".
-4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync →
-   rename over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net
-   is the user's `~backup`. `load()` is null — never an empty config — when `verso.json`
-   is torn or cannot be read; then the FIRST LOAD (only it, never `load()` itself) moves
-   it out of the way — published to `Download/Verso/verso-unreadable-…` and only then
-   deleted; if its bytes cannot be read or the export fails, renamed to
-   `verso.json.unreadable` (replacing an earlier one) — and starts over as a fresh
-   install, with one toast (a process-wide flag, so a dropped hand-off does not lose it);
-   `~restore` brings the last backup back. Only with no `verso.json` is the empty config
-   real.
+4. **`verso.json` on SharedPreferences' terms** (`ConfigStore`). A write moves the last
+   complete `verso.json` to `verso.json.bak` (a `.bak` already there is kept and `verso.json`
+   deleted), writes and fsyncs `verso.json`, then deletes the `.bak`; a failed write deletes
+   its half file and leaves the `.bak`. A load first takes a `.bak` back (the write before it
+   was cut off), then reads and parses; a file that cannot be read or parsed loads as the
+   empty config — logged, nothing more, and the next edit writes over it. The net is the
+   backups, never deleted (hard rule 6). Fresh = neither file.
 5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
    empty default must never be written over the real file or a backup. `LauncherState`
    issues no `EditPermit` (every edit takes one, so an edit path without the check does not
    compile, and only `LauncherState.editPermit` builds one — `SourceGuardTest`) and refuses
    saves until then; the Activity says why (`editPermit()`,
    `editable()` for the commands). Backups and undo points come from memory only
-   (`loadedSnapshot`). If the files cannot even be set aside, the config stays not loaded
-   and every resume tries again. Home is drawn and its cache written only from a loaded
-   config.
+   (`loadedSnapshot`). Home is drawn and its cache written only from a loaded config.
 6. **Backups on MediaStore's terms: every backup is a new file, and Verso never deletes
-   one.** Each `~backup`, each undo point (`verso-pre-restore-…`, `verso-pre-cleanup-…`) and a
-   set-aside unreadable config (`verso-unreadable-…`) is a pending row under its timestamped
-   name (`verso-<date>_<time>.json`), written and fsynced, then published; a failure removes
+   one.** Each `~backup` and each undo point (`verso-pre-restore-…`, `verso-pre-cleanup-…`)
+   is a pending row under its timestamped name (`verso-<date>_<time>.json`), written and fsynced, then published; a failure removes
    only its own pending row. MediaStore owns the namespace: a backup is recognised by pattern,
    a restore takes the newest own row by `_ID`, never a fixed name. Clearing out old files is
    the user's, with a file manager.
@@ -311,7 +305,8 @@ thread.
    for labels, needles and tags (`canonicalTag` builds on it). Lists are sorted with
    a `Collator` for the device locale (`sortedForDrawer`, `sortedTags`), never by
    code point.
-10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`: no `verso.json`)
+10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`: no `verso.json`, no
+    `.bak`)
     and only into a config with no favorites. An existing config with no favorites is the
     user's choice. A fresh install whose first enumeration has no list waits for the first one
     that has (complete or not), process-wide (`ProcessState.seedPending`), so a recreation after

@@ -147,9 +147,8 @@ keyboard, no prompt:
       aborted, so a restore never destroys what it overwrote without a trace. A
       backup that doesn't parse changes nothing. To undo a restore, run
       `~restore-saf` and pick that `verso-pre-restore-…` file. If `verso.json` itself
-      can't be read when Verso starts, it is moved to `Download/Verso/verso-unreadable-…`
-      and Verso starts over with the default favorites (a toast says so); `~restore`
-      brings your config back from the last `~backup`. Only the latest such copy is kept.
+      can't be read when Verso starts, Verso starts empty, as an app does whose settings
+      are lost; `~restore` brings your config back from the last `~backup`.
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
@@ -212,9 +211,10 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
   `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
   instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`; and Guru's crash
-  reports in `guru/` until the next start saves them, see "Crash reports"), written atomically (a `.new` file + fsync + rename, then a
-  directory fsync so the rename itself survives power-loss); no `.bak` — your own
-  `~backup` is the copy to fall back on; and edited only through the in-app modes above
+  reports in `guru/` until the next start saves them, see "Crash reports"), kept the way
+  Android keeps SharedPreferences (the last complete file waits as `verso.json.bak` while a
+  write is under way; a file that cannot be read loads as empty) — your own `~backup`s are the
+  copies to fall back on; and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code
@@ -248,7 +248,7 @@ and unit-tested on the JVM or a thin view class:
   colours for the wallpaper behind them (asked once, then kept current by the system's listener).
 - `VersoConfig.kt`, `ConfigJson.kt`, `ConfigStore.kt`, `BackupStore.kt` — the config
   model, the `verso.json` round-trip, the durable file layer and the Downloads backup;
-  `DirSync.kt` the directory fsync after a rename, `BackupFiles.kt` the backup naming rules,
+  `BackupFiles.kt` the backup naming rules,
   `RestoreSteps.kt` a restore's IO in its load-bearing order.
 - `HomeCache.kt` — the favorites cached for an instant home page on a cold start;
   `UsageLog.kt` and `RecentsLog.kt` the `%` counts and the `?` list, disposable files too.

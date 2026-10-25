@@ -17,18 +17,19 @@ refresh (a package or profile change, a recreation, a resume while the app list 
 incomplete), or at once with `~restart`; launches meanwhile are merged in, not lost (unless
 the process ends first).
 
-## An unreadable config starts over
+## A config that cannot be read loads as empty
 
-If `verso.json` cannot be read when Verso starts (or reads it again after `~restart`) — torn, or
-a read error the system reports —
-Verso moves it to `Download/Verso/verso-unreadable-…` (or, if even that fails, renames it to
-`verso.json.unreadable` in its own files) and starts over with the default favorites; a toast
-says so. A torn file and a passing read error look the same to
-the launcher, so it does not wait. Your config comes back only from your own `~backup`
-(`~restore`, or `~restore-saf` on another phone); without one it is gone, except for the
-moved bytes in Download/Verso — a torn file, to repair by hand if at all; only the latest copy
-is kept. There is no `.bak`: a write is atomic, but a file that goes bad later has no second copy
-on the device — `~backup` is that copy.
+Verso keeps `verso.json` the way Android keeps an app's SharedPreferences: a write cut off
+halfway is undone from `verso.json.bak` at the next start. But a file that cannot be read —
+broken later, or a read error the system reports, which looks the same — loads as an empty
+config, without a word: no favorites, nothing hidden, and the next change writes over it. No
+default favorites either, since it is no fresh install. Your config comes back from your own
+backups (`~restore`; `~restore-saf` on another phone). A power cut right after a change can
+also cost that change; the file before it stays whole.
+
+If you ran `~backup` after such an empty start, that empty backup is the newest, and `~restore`
+takes it. The older backups are all still in `Download/Verso/` — Verso deletes none: pick the
+one you want with `~restore-saf`.
 
 ## Default favorites can still be missed in one corner
 
@@ -79,7 +80,7 @@ Android, so its backups sit there too.
 
 The app's own `verso.json` is excluded from Android's cloud backup
 (`data_extraction_rules.xml`), but a device-to-device transfer copies it on purpose
-(without the home cache and a set-aside unreadable copy). Entries for apps in a
+(without the home cache). Entries for apps in a
 work profile or clone carry that profile's serial (`package/class#10`), which on the new
 phone may belong to no profile or another one; such entries then simply match nothing.
 The same happens on one phone when a work profile is removed and set up again: the new

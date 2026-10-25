@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Cloud backup stays off: allowBackup="false" says so, and every domain is excluded here
      too, so it holds whichever of the two the platform reads. A device-to-device transfer moves verso.json
-     (the config) but not a half-written verso.json.new, nor an unreadable config set aside,
+     (the config, and a verso.json.bak a cut-off write left, which the next load takes back) but
+     not what earlier versions left beside it (verso.json.new, verso.json.unreadable),
      nor the home-cache, which is rebuilt on the first load, nor guru/ (Guru's crash reports):
      an old device's reports would be saved to the new one's Download/Guru, its installation-id
      would make the two one installation on the crash server, and exits-seen/crashes-saved

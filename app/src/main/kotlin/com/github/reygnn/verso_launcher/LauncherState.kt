@@ -80,8 +80,6 @@ internal class LauncherState(
     var configLoaded = false
         private set
 
-    fun takeStartedOver(): Boolean = configLoaded && process.startedOver.getAndSet(false)
-
     /**
      * Proof an edit may run: the config was loaded when it was issued (hard rule 5; it never
      * unloads) and no "~" command runs (hard rule 15) — [current] is false once one has started
@@ -111,13 +109,8 @@ internal class LauncherState(
         val seedStillPending = process.seedPending.get()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
-            val freshBefore = loadConfigNow && configFile.isFresh()
-            val read = if (loadConfigNow) configFile.load() else null
-            // Unreadable: set aside and start fresh; if it can't be moved, stay unloaded (hard rule 4).
-            val setAside = loadConfigNow && read == null && configFile.setAsideUnreadable()
-            if (setAside) process.startedOver.set(true)
-            val diskConfig = read ?: if (setAside) VersoConfig() else null
-            val fresh = freshBefore || setAside
+            val fresh = loadConfigNow && configFile.isFresh()
+            val diskConfig = if (loadConfigNow) configFile.load() else null
             val diskUsage = if (loadUsageNow) usageFile.read() else null
             val diskRecents = if (loadRecentsNow) recentsFile.read() else null
             val enumeration = enumerateApps()

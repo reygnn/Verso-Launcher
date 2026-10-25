@@ -27,7 +27,7 @@ package com.github.reygnn.verso_launcher
  *       parameters (loadConfig, writeConfig, loadRecents, …) with inert defaults,
  *       bundled there; the production constructor has no defaults. One shared
  *       ProcessState between two instances models a recreation.
- *   ConfigStore(dir, log, syncDir, rename, delete, readText)  // rename/delete/readText: force a failure
+ *   ConfigStore(dir, log, rename, delete, readText)  // rename/delete/readText: force a failure
  *   BackupStore(resolver, subDir, log, beforePublish, now, owner)
  *
  * The `log` parameter is the error channel of classes that never throw: a

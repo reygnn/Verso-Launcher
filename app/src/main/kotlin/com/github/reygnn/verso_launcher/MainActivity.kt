@@ -60,7 +60,6 @@ class MainActivity : Activity() {
         // An open rename dialog holds the OLD config and would write stale fields over the one
         // that just arrived.
         if (configReplaced) dismissDialogs()
-        if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
         // A recreated instance's first refresh: the results its predecessor's runs left.
         app.results.flush()
         if (listChanged) appDrawer.refilter()

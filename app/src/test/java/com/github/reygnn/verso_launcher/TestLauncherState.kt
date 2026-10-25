@@ -14,8 +14,7 @@ package com.github.reygnn.verso_launcher
 internal fun testLauncherState(
     io: (Runnable) -> Boolean,
     main: (Runnable) -> Unit,
-    loadConfig: () -> VersoConfig?,
-    setAsideUnreadable: () -> Boolean = { false },
+    loadConfig: () -> VersoConfig,
     enumerateApps: () -> Enumeration?,
     serialize: (VersoConfig) -> String,
     writeConfig: (String) -> Boolean,
@@ -36,7 +35,6 @@ internal fun testLauncherState(
     main = main,
     configFile = ConfigFile(
         load = loadConfig,
-        setAsideUnreadable = setAsideUnreadable,
         isFresh = isFreshInstall,
         serialize = serialize,
         write = writeConfig,

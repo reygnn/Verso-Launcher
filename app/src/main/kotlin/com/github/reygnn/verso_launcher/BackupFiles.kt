@@ -18,7 +18,6 @@ internal object BackupFiles {
     const val BACKUP_BASE = "verso"
     const val PRE_RESTORE_BASE = "verso-pre-restore"
     const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
-    const val UNREADABLE_BASE = "verso-unreadable"
 
     data class Entry(val id: Long, val name: String)
 

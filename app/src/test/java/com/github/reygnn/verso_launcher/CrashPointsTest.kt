@@ -1,7 +1,6 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -29,8 +28,11 @@ class CrashPointsTest {
     /** Dies before step number [deathAt] (0-based); the steps are named so a failure says where. */
     private class Reaper(private val deathAt: Int) {
         val passed = mutableListOf<String>()
-        fun step(name: String) {
-            if (passed.size == deathAt) throw ProcessDeath(name)
+        fun step(name: String, beforeDeath: () -> Unit = {}) {
+            if (passed.size == deathAt) {
+                beforeDeath()
+                throw ProcessDeath(name)
+            }
             passed += name
         }
     }
@@ -57,15 +59,21 @@ class CrashPointsTest {
     private fun storeIn(dir: File, reaper: Reaper? = null) = ConfigStore(
         dir = dir,
         log = { _, _ -> },
-        syncDir = { reaper?.step("fsync the directory") },
-        rename = { from, to -> reaper?.step("rename verso.json.new"); from.renameTo(to) },
+        rename = { from, to ->
+            reaper?.step("move verso.json to .bak")
+            from.renameTo(to).also {
+                // The write that follows, cut off halfway: a torn verso.json beside the .bak.
+                reaper?.step("write verso.json") { from.writeText("{\"favorites\":[\"to") }
+            }
+        },
+        delete = { file ->
+            if (file.name.endsWith(".bak")) reaper?.step("delete verso.json.bak")
+            file.delete()
+        },
     )
 
-    private fun coldStart(dir: File): VersoConfig {
-        val loaded = storeIn(dir).load()
-        assertNotNull("the next start could not read verso.json", loaded)
-        return loaded!!
-    }
+    /** The next start: a fresh ConfigStore's load, which must give back a config the user had. */
+    private fun coldStart(dir: File): VersoConfig = storeIn(dir).load()
 
     private fun List<VersoConfig>.holds(config: VersoConfig) = any { it == config }
 
@@ -94,10 +102,10 @@ class CrashPointsTest {
             val store = storeIn(dir, reaper)
             val point = try {
                 RestoreSteps.run(
-                    current = store.load()!!,
+                    current = store.load(),
                     restored = restored,
                     writeUndo = { payload -> downloads.write(BackupFiles.PRE_RESTORE_BASE, payload) },
-                    writeConfig = { payload -> reaper.step("write verso.json.new"); store.write(payload) },
+                    writeConfig = store::write,
                 )
                 "no death"
             } catch (death: ProcessDeath) {
@@ -122,8 +130,8 @@ class CrashPointsTest {
         }
         assertEquals(
             listOf(
-                "publish verso-pre-restore", "write verso.json.new", "rename verso.json.new",
-                "fsync the directory", "no death",
+                "publish verso-pre-restore", "move verso.json to .bak", "write verso.json",
+                "delete verso.json.bak", "no death",
             ),
             points,
         )
@@ -181,7 +189,7 @@ class CrashPointsTest {
                 loadConfig = { store.load() },
                 enumerateApps = { Enumeration(listOf(alpha), true) },
                 serialize = ConfigJson::serialize,
-                writeConfig = { payload -> reaper.step("write verso.json.new"); store.write(payload) },
+                writeConfig = store::write,
                 onRefreshed = { _, _ -> },
             )
             fun runAll() {
@@ -227,8 +235,8 @@ class CrashPointsTest {
         }
         assertEquals(
             listOf(
-                "recheck", "publish verso-pre-cleanup", "write verso.json.new",
-                "rename verso.json.new", "fsync the directory", "cleanup reported", "no death",
+                "recheck", "publish verso-pre-cleanup", "move verso.json to .bak", "write verso.json",
+                "delete verso.json.bak", "cleanup reported", "no death",
             ),
             points,
         )

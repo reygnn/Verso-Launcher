@@ -2,7 +2,6 @@ package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -10,8 +9,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
-/** Real files; only the directory fsync is stubbed, and the rename and read seams fail on demand. */
-
+/** Real files on SharedPreferences' terms; the rename, delete and read seams fail on demand. */
 class ConfigStoreTest {
 
     @get:Rule val tmp = TemporaryFolder()
@@ -19,26 +17,21 @@ class ConfigStoreTest {
     private lateinit var dir: File
     private lateinit var store: ConfigStore
     private val logs = mutableListOf<String>()
-    private var dirSyncs = 0
 
     private val primary get() = File(dir, "verso.json")
-    private val pending get() = File(dir, "verso.json.new")
-    private val setAside get() = File(dir, "verso.json.unreadable")
+    private val backup get() = File(dir, "verso.json.bak")
 
     @Before
     fun setUp() {
         dir = tmp.newFolder("files")
-        store = ConfigStore(dir = dir, log = { msg, _ -> logs += msg }, syncDir = { dirSyncs++ })
+        store = ConfigStore(dir = dir, log = { msg, _ -> logs += msg })
     }
 
     private fun storeWith(
         rename: (File, File) -> Boolean = File::renameTo,
         delete: (File) -> Boolean = File::delete,
         readText: (File) -> String = { it.readText() },
-    ) = ConfigStore(
-        dir = dir, log = { msg, _ -> logs += msg }, syncDir = { dirSyncs++ },
-        rename = rename, delete = delete, readText = readText,
-    )
+    ) = ConfigStore(dir = dir, log = { msg, _ -> logs += msg }, rename = rename, delete = delete, readText = readText)
 
     private fun json(vararg favorites: String) = ConfigJson.serialize(cfg(*favorites))
 
@@ -48,80 +41,118 @@ class ConfigStoreTest {
 
     @Test
     fun `a fresh install loads an empty config without logging`() {
-        assertTrue(store.load()!!.favorites.isEmpty())
+        assertTrue(store.load().favorites.isEmpty())
         assertEquals(emptyList<String>(), logs)
     }
 
     @Test
-    fun `isFresh only while there is no verso json`() {
+    fun `isFresh only while there is neither verso json nor its bak`() {
         assertTrue(store.isFresh())
+        backup.writeText(json("a/1"))
+        assertFalse("a cut-off write is no fresh install", store.isFresh())
+        backup.delete()
         store.write(json("a/1"))
         assertFalse(store.isFresh())
     }
 
-    /** Torn is null, never an empty config: the next edit would save that over the file. */
     @Test
-    fun `a torn verso json is null, not an empty config`() {
+    fun `a torn verso json loads as empty, logged, and stays until the next write`() {
         primary.writeText("{ torn")
-        assertNull(store.load())
+        assertTrue(store.load().favorites.isEmpty())
+        assertTrue(logs.any { "unparseable" in it })
         assertFalse("a torn file is no fresh install", store.isFresh())
+        assertEquals("{ torn", primary.readText())
     }
 
     @Test
-    fun `a verso json that cannot be read is null`() {
+    fun `a verso json that cannot be read loads as empty, logged`() {
         primary.writeText(json("a/1"))
         val failing = storeWith(readText = { throw java.io.IOException("EIO") })
-        assertNull(failing.load())
+        assertTrue(failing.load().favorites.isEmpty())
+        assertTrue(logs.any { "unreadable" in it })
     }
 
     @Test
     fun `a directory where verso json should be is treated as absent`() {
         primary.mkdirs()
-        assertTrue(store.load()!!.favorites.isEmpty())
+        assertTrue(store.load().favorites.isEmpty())
     }
 
-    /** A crash between writing verso.json.new and the rename leaves the old file in force. */
+    /** A write cut off after the move to .bak: the half-written verso.json is not trusted. */
     @Test
-    fun `a new file left by a crash does not disturb the load`() {
-        primary.writeText(json("old"))
-        pending.writeText(json("half written"))
-        assertEquals(listOf("old"), store.load()!!.favorites)
+    fun `a bak left by a cut-off write is taken back over a half verso json`() {
+        backup.writeText(json("old"))
+        primary.writeText("{ half wri")
+        assertEquals(listOf("old"), store.load().favorites)
+        assertEquals(listOf("verso.json"), files())
     }
 
     @Test
-    fun `the next write replaces a new file left by a crash`() {
-        pending.writeText(json("half written"))
-        assertTrue(store.write(json("next")))
+    fun `a bak alone is taken back`() {
+        backup.writeText(json("old"))
+        assertEquals(listOf("old"), store.load().favorites)
         assertEquals(listOf("verso.json"), files())
     }
 
     // ---- write ---------------------------------------------------------------
 
     @Test
-    fun `a write publishes the config, leaves no new file and syncs the directory`() {
+    fun `a write publishes the config and leaves no bak`() {
         assertTrue(store.write(json("f/1", "f/2")))
         assertEquals(listOf("verso.json"), files())
-        assertEquals(listOf("f/1", "f/2"), store.load()!!.favorites)
-        assertEquals(1, dirSyncs)
+        assertEquals(listOf("f/1", "f/2"), store.load().favorites)
     }
 
     @Test
     fun `a second write replaces the first`() {
         store.write(json("first"))
         store.write(json("second"))
-        assertEquals(listOf("second"), store.load()!!.favorites)
+        assertEquals(listOf("second"), store.load().favorites)
         assertEquals(listOf("verso.json"), files())
     }
 
+    /** The old file waits as .bak until the new one is complete: only then is the .bak deleted. */
     @Test
-    fun `a refused rename keeps the old file and leaves no new file`() {
+    fun `the old file is kept as bak until the new one is written`() {
+        store.write(json("old"))
+        var atDelete: Pair<String, String>? = null
+        val watching = storeWith(delete = { f ->
+            if (f == backup) atDelete = backup.readText() to primary.readText()
+            f.delete()
+        })
+        assertTrue(watching.write(json("new")))
+        assertEquals(json("old") to json("new"), atDelete)
+    }
+
+    @Test
+    fun `a refused move to bak writes nothing and keeps the old file`() {
         store.write(json("old"))
         val refusing = storeWith(rename = { _, _ -> false })
 
         assertFalse(refusing.write(json("new")))
-        assertEquals("no .new left behind (checked before load, which would clear it)", listOf("verso.json"), files())
-        assertEquals(listOf("old"), store.load()!!.favorites)
+        assertEquals(listOf("old"), store.load().favorites)
         assertTrue(logs.any { "save failed" in it })
+    }
+
+    /** The write itself fails once the old file is moved aside (here: a directory in its way). */
+    @Test
+    fun `a failed write leaves the bak and no half file, and the next load takes it back`() {
+        store.write(json("old"))
+        val blocked = storeWith(rename = { from, to -> from.renameTo(to).also { from.mkdirs() } })
+
+        assertFalse(blocked.write(json("new")))
+        assertEquals(listOf("verso.json.bak"), files())
+        assertEquals(listOf("old"), store.load().favorites)
+    }
+
+    /** A .bak already there is the last complete file: it is kept, the half verso.json goes. */
+    @Test
+    fun `with a bak already there the write keeps it and replaces verso json`() {
+        backup.writeText(json("old"))
+        primary.writeText("{ half wri")
+        assertTrue(store.write(json("new")))
+        assertEquals(listOf("verso.json"), files())
+        assertEquals(listOf("new"), store.load().favorites)
     }
 
     @Test
@@ -139,73 +170,6 @@ class ConfigStoreTest {
             tags = linkedMapOf("f/2" to mutableListOf("work")),
         )
         store.write(ConfigJson.serialize(original))
-        val loaded = store.load()!!
-        assertEquals(original, loaded)
-    }
-
-    // ---- setAsideUnreadable ----------------------------------------------------
-
-    @Test
-    fun `set aside renames the config, replaces an earlier copy, and the next load is fresh`() {
-        setAside.writeText("earlier")
-        primary.writeText("{ torn")
-
-        assertTrue(store.setAsideUnreadable())
-        assertEquals("{ torn", setAside.readText())
-        assertTrue(store.isFresh())
-        assertTrue(store.load()!!.favorites.isEmpty())
-    }
-
-    @Test
-    fun `set aside exports the config's text, then removes it — nothing stays local`() {
-        primary.writeText("{ torn")
-        val exported = mutableListOf<String>()
-        assertTrue(store.setAsideUnreadable { exported += it; true })
-        assertEquals(listOf("{ torn"), exported)
-        assertEquals(emptyList<String>(), files())
-        assertTrue(store.isFresh())
-        assertEquals("the removal survives power loss", 1, dirSyncs)
-    }
-
-    /** Reported as gone, the first load would start over as a fresh install over the real file. */
-    @Test
-    fun `an exported config that cannot be removed is not reported as gone`() {
-        primary.writeText("{ torn")
-        val refusing = storeWith(delete = { false })
-
-        assertFalse(refusing.setAsideUnreadable { true })
-        assertTrue(primary.isFile)
-        assertFalse(store.isFresh())
-        assertEquals(0, dirSyncs)
-        assertTrue(logs.any { "could not remove" in it })
-    }
-
-    @Test
-    fun `a failed export renames the config aside locally`() {
-        primary.writeText("{ torn")
-        assertTrue(store.setAsideUnreadable { false })
-        assertEquals("{ torn", setAside.readText())
-        assertFalse(primary.exists())
-        assertEquals("the rename survives power loss", 1, dirSyncs)
-    }
-
-    @Test
-    fun `bytes that cannot be read are not exported but renamed aside`() {
-        primary.writeText(json("a/1"))
-        var exports = 0
-        val failing = storeWith(readText = { throw java.io.IOException("EIO") })
-        assertTrue(failing.setAsideUnreadable { exports++; true })
-        assertEquals(0, exports)
-        assertTrue(setAside.isFile)
-    }
-
-    @Test
-    fun `a refused set-aside leaves the config in place`() {
-        primary.writeText("{ torn")
-        val refusing = storeWith(rename = { _, _ -> false })
-
-        assertFalse(refusing.setAsideUnreadable())
-        assertTrue(primary.isFile)
-        assertNull(store.load())
+        assertEquals(original, store.load())
     }
 }

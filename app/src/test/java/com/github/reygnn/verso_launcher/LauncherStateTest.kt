@@ -23,9 +23,6 @@ class LauncherStateTest {
 
     /** "The file on disk". NOT updated by writeConfig: a test that saves and then reloads must set it itself. */
     private var disk = VersoConfig()
-    private var diskUnreadable = false
-    private var setAsideWorks = true
-    private var setAsideCalls = 0
     private var loadConfigCalls = 0
 
     /** Reported without custom names and NOT sorted (reversed below), so the tests see LauncherState apply both. */
@@ -60,12 +57,7 @@ class LauncherStateTest {
     private val state = testLauncherState(
         io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
         main = { task -> mainQueue.addLast(task) },
-        loadConfig = { loadConfigCalls++; if (diskUnreadable) null else disk },
-        setAsideUnreadable = {
-            setAsideCalls++
-            if (setAsideWorks) { diskUnreadable = false; disk = VersoConfig(); fresh = true }
-            setAsideWorks
-        },
+        loadConfig = { loadConfigCalls++; disk },
         enumerateApps = {
             enumerations++
             // Sorted, as Apps.enumerate hands it over.
@@ -193,86 +185,17 @@ class LauncherStateTest {
         assertEquals("the system label stays on the entry", "Alpha", state.apps.last().systemLabel)
     }
 
-    // ---- an unreadable config: set aside on the first load, then a fresh start -----------
-
-    @Test fun `an unreadable config is set aside and the first load starts over with the defaults`() {
-        diskUnreadable = true
+    /**
+     * ConfigStore hands a file it cannot read over as the empty config (hard rule 4). It existed, so
+     * it is no fresh install: no defaults are seeded, and nothing is written on its own.
+     */
+    @Test fun `an empty config from a file that existed is taken as it is, without defaults`() {
+        disk = VersoConfig()
         state.refresh()
         runAll()
-        assertEquals(1, setAsideCalls)
         assertTrue(state.configLoaded)
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
-        assertEquals(1, written.size)
-        assertTrue("said once", state.takeStartedOver())
-        assertFalse(state.takeStartedOver())
-    }
-
-    @Test fun `if it cannot be set aside it stays not loaded, no edit, no save, and is retried`() {
-        diskUnreadable = true
-        setAsideWorks = false
-        state.refresh()
-        runAll()
-        assertFalse(state.configLoaded)
-        assertTrue(state.appsLoaded)
-        assertTrue(state.needsRefresh)
-        assertNull(state.loadedSnapshot())
-        assertNull("no edit", state.editPermit(gate.idle()!!))
-        state.save()
-        runAll()
+        assertTrue(state.config.favorites.isEmpty())
         assertTrue(written.isEmpty())
-        assertFalse(state.takeStartedOver())
-        setAsideWorks = true
-        state.refresh()  // a resume: needsRefresh
-        runAll()
-        assertTrue(state.configLoaded)
-    }
-
-    /** Superseded before its hand-off, the next load finds no verso.json: a plain fresh install. */
-    @Test fun `a start-over whose hand-off was lost is still said`() {
-        diskUnreadable = true
-        state.refresh()
-        runIo()                 // set aside; its hand-off is queued
-        state.refresh()         // supersedes it
-        runAll()
-        assertEquals(1, setAsideCalls)
-        assertTrue(state.configLoaded)
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
-        assertTrue("said", state.takeStartedOver())
-    }
-
-    @Test fun `a fresh install with nothing set aside is no start-over`() {
-        fresh = true
-        started()
-        assertFalse(state.takeStartedOver())
-    }
-
-    @Test fun `a start-over is said by the next instance when the first was recreated`() {
-        diskUnreadable = true
-        state.refresh()
-        runIo()
-        mainQueue.clear()       // onUi drops the hand-off for the destroyed instance
-        assertFalse("not loaded: not yet", state.takeStartedOver())
-        val next = testLauncherState(
-            io = { task -> ioQueue.addLast(task); true },
-            main = { task -> mainQueue.addLast(task) },
-            loadConfig = { disk },
-            enumerateApps = { Enumeration(installed, true) },
-            serialize = { "" },
-            writeConfig = { true },
-            onRefreshed = { _, _ -> },
-            process = process,
-        )
-        next.refresh()
-        runAll()
-        assertTrue(next.takeStartedOver())
-        assertFalse("said once", next.takeStartedOver())
-    }
-
-    @Test fun `a readable config is never set aside`() {
-        disk = VersoConfig(favorites = listOf(key("Bravo")))
-        started()
-        assertEquals(0, setAsideCalls)
-        assertFalse(state.takeStartedOver())
     }
 
     @Test fun `loadedSnapshot is a copy of the loaded config`() {
