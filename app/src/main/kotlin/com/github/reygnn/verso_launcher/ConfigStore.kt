@@ -5,14 +5,15 @@ import java.io.FileOutputStream
 
 /**
  * verso.json on disk, written atomically (hard rule 4); [ConfigJson] owns the JSON. Never throws.
- * [syncDir] fsyncs the directory so a rename survives a power cut; [rename] and [readText] are
- * test seams (root ignores chmod).
+ * [syncDir] fsyncs the directory so a rename survives a power cut; [rename], [delete] and
+ * [readText] are test seams (root ignores chmod).
  */
 internal class ConfigStore(
     private val dir: File,
     private val log: (String, Exception?) -> Unit,
     private val syncDir: (File) -> Unit,
     private val rename: (File, File) -> Boolean = File::renameTo,
+    private val delete: (File) -> Boolean = File::delete,
     private val readText: (File) -> String = { it.readText() },
 ) {
 
@@ -65,7 +66,7 @@ internal class ConfigStore(
             null
         }
         if (text != null && export(text)) {
-            primary.delete().also { if (it) syncDir(dir) else log("could not remove the exported config", null) }
+            delete(primary).also { if (it) syncDir(dir) else log("could not remove the exported config", null) }
         } else {
             rename(primary, setAside).also { if (it) syncDir(dir) else log("could not set the config aside", null) }
         }

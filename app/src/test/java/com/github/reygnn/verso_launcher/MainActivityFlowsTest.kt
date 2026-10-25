@@ -135,11 +135,49 @@ class MainActivityFlowsTest {
         assertTrue(someApp.key in savedFavorites())
     }
 
+    private val thirdApp = AppEntry("Xray", "com.xray", "com.xray.Main", "Xray")
+
+    private fun favorites(vararg entries: AppEntry) {
+        entries.forEach { tap(DrawerAction.ToggleFavorite(it)) }
+        settle()
+    }
+
+    @Test fun `!! moves the picked favorite to the one tapped next, and lets go of it`() {
+        started()
+        favorites(someApp, otherApp, thirdApp)
+        tap(DrawerAction.ReorderPick(thirdApp))
+        tap(DrawerAction.ReorderPick(someApp))
+        settle()
+        assertEquals(listOf(thirdApp.key, someApp.key, otherApp.key), savedFavorites())
+
+        tap(DrawerAction.ReorderPick(otherApp))
+        settle()
+        assertEquals("the next tap picks up, it moves nothing", listOf(thirdApp.key, someApp.key, otherApp.key), savedFavorites())
+    }
+
+    @Test fun `!! tapping the held favorite again lets go of it`() {
+        started()
+        favorites(someApp, otherApp)
+        tap(DrawerAction.ReorderPick(otherApp))
+        tap(DrawerAction.ReorderPick(otherApp))
+        tap(DrawerAction.ReorderPick(someApp))
+        settle()
+        assertEquals(listOf(someApp.key, otherApp.key), savedFavorites())
+    }
+
     @Test fun `no edit before the first load`() {
         holdIo()                                // the first load queues behind the hold
         controller.setup()
         tap(DrawerAction.ToggleFavorite(someApp))
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
+    }
+
+    /** A cached favorite can be held before the load: the dialog would open on the empty default. */
+    @Test fun `no rename dialog before the first load`() {
+        holdIo()
+        controller.setup()
+        activity.promptRename(someApp)
+        assertFalse(ShadowDialog.getLatestDialog()?.isShowing == true)
     }
 
     /** Before the load and while a command runs: a deliberate crash waits for nothing. */

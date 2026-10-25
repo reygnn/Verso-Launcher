@@ -33,8 +33,12 @@ class ConfigStoreTest {
 
     private fun storeWith(
         rename: (File, File) -> Boolean = File::renameTo,
+        delete: (File) -> Boolean = File::delete,
         readText: (File) -> String = { it.readText() },
-    ) = ConfigStore(dir = dir, log = { msg, _ -> logs += msg }, syncDir = { dirSyncs++ }, rename = rename, readText = readText)
+    ) = ConfigStore(
+        dir = dir, log = { msg, _ -> logs += msg }, syncDir = { dirSyncs++ },
+        rename = rename, delete = delete, readText = readText,
+    )
 
     private fun json(vararg favorites: String) = ConfigJson.serialize(cfg(*favorites))
 
@@ -161,6 +165,19 @@ class ConfigStoreTest {
         assertEquals(emptyList<String>(), files())
         assertTrue(store.isFresh())
         assertEquals("the removal survives power loss", 1, dirSyncs)
+    }
+
+    /** Reported as gone, the first load would start over as a fresh install over the real file. */
+    @Test
+    fun `an exported config that cannot be removed is not reported as gone`() {
+        primary.writeText("{ torn")
+        val refusing = storeWith(delete = { false })
+
+        assertFalse(refusing.setAsideUnreadable { true })
+        assertTrue(primary.isFile)
+        assertFalse(store.isFresh())
+        assertEquals(0, dirSyncs)
+        assertTrue(logs.any { "could not remove" in it })
     }
 
     @Test

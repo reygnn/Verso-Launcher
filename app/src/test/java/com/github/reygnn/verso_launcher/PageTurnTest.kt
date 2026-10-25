@@ -5,6 +5,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import android.widget.ListView
+import android.widget.TextView
 import android.window.BackEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -28,17 +30,23 @@ class PageTurnTest {
 
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
 
+    private val alpha = AppEntry("Alpha", "com.alpha", "com.alpha.Main", "Alpha")
+    private val bravo = AppEntry("Bravo", "com.bravo", "com.bravo.Main", "Bravo")
+
     private val state = testLauncherState(
         io = { task -> task.run(); true },
         main = { task -> task.run() },
         loadConfig = { VersoConfig() },
-        enumerateApps = { Enumeration(listOf(AppEntry("Alpha", "com.alpha", "com.alpha.Main", "Alpha")), true) },
+        enumerateApps = { Enumeration(listOf(alpha, bravo), true) },
         serialize = { "" },
         writeConfig = { true },
         onRefreshed = { _, _ -> },
+        // The drawer sorts by usage against the wall clock; a launch counted at 0 has decayed away.
+        now = System::currentTimeMillis,
     ).also { it.refresh() }
 
     private var dialogOpen = false
+    private var byUsage = false
     private var opened = 0
     private var closed = 0
 
@@ -62,7 +70,7 @@ class PageTurnTest {
             activity = activity,
             homePage = home,
             appDrawer = drawer,
-            byUsage = { false },
+            byUsage = { byUsage },
             dialogOpen = { dialogOpen },
             onOpen = { opened++ },
             onClose = { closed++ },
@@ -185,6 +193,32 @@ class PageTurnTest {
 
     @Test fun `home has no way back to close`() {
         assertNull(root.closeDirection())
+    }
+
+    private fun rows(): List<String> {
+        val list = drawer.view.collect<ListView>().single()
+        return (0 until list.adapter.count).map { (list.adapter.getView(it, null, list) as TextView).text.toString() }
+    }
+
+    /** "%" most used first, then Bravo launched while the drawer is out of sight. */
+    private fun bravoLaunchedOutOfSight() {
+        byUsage = true
+        state.toggleOrder(checkNotNull(state.editPermit(checkNotNull(CommandGate().idle()))))
+        drawer.refilter()
+        state.recordLaunch(bravo.key)
+        assertEquals("nothing re-sorts a drawer out of sight", listOf("Alpha", "Bravo"), rows())
+    }
+
+    @Test fun `opened, a drawer sorted most used first is re-sorted before it shows`() {
+        bravoLaunchedOutOfSight()
+        openSettled()
+        assertEquals(listOf("Bravo", "Alpha"), rows())
+    }
+
+    @Test fun `a drag up re-sorts a drawer sorted most used first as it starts`() {
+        bravoLaunchedOutOfSight()
+        root.onDragStart(SwipeDir.UP)
+        assertEquals(listOf("Bravo", "Alpha"), rows())
     }
 
     // ---- who may start a drag or a flick ----------------------------------------------
