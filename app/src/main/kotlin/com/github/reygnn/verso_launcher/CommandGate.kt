@@ -4,11 +4,15 @@ package com.github.reygnn.verso_launcher
  * The "~" commands, one at a time (hard rule 15). A command is a chain of steps; each step
  * holds the run and releases it on every way out, and the last release ends the run — there
  * is no "done" call a path could forget. Main thread only.
+ *
+ * One per process (VersoApp.gate), so a recreated activity sees a run its predecessor left
+ * going. A destroyed owner never gets its hand-backs (they are dropped), so it gives the run up
+ * with [abandon] once its IO steps are through (MainActivity.onDestroy queues that on the IO thread).
  */
 internal class CommandGate {
 
-    /** One run. Compared by identity. */
-    class Ticket internal constructor() {
+    /** One run, started by [owner]. Compared by identity. */
+    class Ticket internal constructor(internal val owner: Any) {
         internal var holds = 0
     }
 
@@ -28,10 +32,13 @@ internal class CommandGate {
     /** A permit to edit, or null while a run is going. */
     fun idle(): Idle? = if (busy) null else Idle(this, runs)
 
-    /** False if a run is going. Otherwise [first] runs at once; unless it [hold]s, the run ends as it returns or throws. */
-    fun start(first: (Ticket) -> Unit): Boolean {
+    /**
+     * False if a run is going. Otherwise [first] runs at once; unless it [hold]s, the run ends as it
+     * returns or throws. [owner] is whoever receives the run's hand-backs (see [abandon]).
+     */
+    fun start(owner: Any, first: (Ticket) -> Unit): Boolean {
         if (current != null) return false
-        val ticket = Ticket()
+        val ticket = Ticket(owner)
         ticket.holds = 1
         current = ticket
         runs++
@@ -80,6 +87,15 @@ internal class CommandGate {
             post { finish(ticket) { then(result) } }
         })
         if (!accepted) finish(ticket) { then(null) }
+    }
+
+    /**
+     * Ends the run [owner] started, whatever it still holds: its hand-backs will never come. Call it
+     * only once the owner's IO steps are through — behind them on the IO thread — or a new run's
+     * steps would interleave with the old one's. A late [finish] of that run is a no-op.
+     */
+    fun abandon(owner: Any) {
+        if (current?.owner === owner) current = null
     }
 
     private fun release(ticket: Ticket) {

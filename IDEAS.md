@@ -16,7 +16,7 @@ what is still open.
   persist on the IO thread like the restore does.
 - B1 rest: a recreation during `~restore`'s read, after the file read but before the adoption
   started, drops the run — nothing restored, nothing said; the user runs it again. (A failed read
-  and every adoption outcome are kept in `ProcessState.lastMessage` and shown.)
+  and every adoption outcome are queued in `ProcessState.messages` and shown.)
 - C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
   page" jump. Already guarded to fire only on the action change, not per keystroke
   (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
@@ -27,13 +27,22 @@ what is still open.
 
 ## Review of refactor/simple-gate (2026-10-17), below the merge threshold
 
-- An IO step stuck in a system service (no timeout) keeps the gate busy for that activity
-  instance: every further command is refused with "busy" until it ends.
+- An IO step stuck in a system service (no timeout) keeps the gate busy for the process
+  (`VersoApp.gate`, also across a recreation): every further command is refused with "busy"
+  until it ends. Before the gate was process-wide a recreation got a fresh one, but its commands
+  then queued behind the same stuck IO thread and never ran either.
 
 ## Second review of refactor/simple-gate (2026-10-17), left open
 
-- A `~restore-saf` pick read while a command runs is dropped with "busy" (by design); it could
-  wait for the gate instead.
+- A `~restore-saf` pick read while a command runs is dropped with "busy" (by design) — while
+  away silently, since a refusal is never queued. Letting it wait for the gate was weighed and
+  dropped: an automatic restore right behind another `~restore` sweeps the first one's undo point,
+  the config from before both. Planned instead (next step of the process-owned rewrite): the read
+  belongs to the process and locks only `~restore`/`~restore-saf` meanwhile — edits, `~backup` and
+  `~cleanup` go on — so waiting for the gate is safe again (no restore can be the run waited for),
+  and the adoption waits for the gate and for the first load instead of being refused. Today a
+  pick whose read lands before the first load (a process killed while the picker was open, the
+  user away again) is refused "not loaded" and, while away, dropped without a word.
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in.
 - The drawer rows' outline alpha is not pinned by a test of its own (home-favorite alpha is,
   in `HomePageAccessibilityTest`).

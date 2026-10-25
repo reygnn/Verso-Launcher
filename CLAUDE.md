@@ -156,9 +156,9 @@ Single `:app` module, one package:
 
 ```
 com.github.reygnn.verso_launcher/
-  VersoApp            process-wide: the IO executor, the ProcessState (recents, launches,
-                      the start-over and seed flags, the last ~backup/restore message),
-                      palette and badge-label caches;
+  VersoApp            process-wide: the IO executor, the command gate, the ProcessState
+                      (recents, launches, the start-over and seed flags, the queued
+                      ~backup/restore results), palette and badge-label caches;
                       installs Guru (onCreate)
   VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
   LauncherStateParts  what LauncherState is built from: ProcessState, ConfigFile,
@@ -234,7 +234,9 @@ thread.
    say what failed — never swallowed, no catch-all net.
 3. **One IO thread, process-wide** (`VersoApp.io`). Never create another executor,
    never shut it down. Main-thread state is mutated only on the main thread; hand-backs
-   go through `onUi`, which drops them for a destroyed instance — except Guru's alert
+   go through `onUi`, which drops them for a destroyed instance — except the release of a
+   destroyed instance's run (`VersoApp.onMain`, queued by `onDestroy` behind its IO steps; dropped
+   by `onUi`, it would leave the process's gate busy for good, hard rule 15) and Guru's alert
    (`showPending`), handed back with a plain `runOnUiThread`: Guru checks the destroyed
    activity itself and keeps the alert for the next call, which a dropped hand-back would lose. The one exception: the
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
@@ -326,14 +328,19 @@ thread.
     (`verso-pre-cleanup-…`), and — unless the config was replaced meanwhile — the removal
     of what was confirmed AND is still gone (`LauncherState.cleanup`). No undo point, no
     cleanup.
-15. **One `~` command at a time** (`CommandGate`): while one runs, a second is refused with
+15. **One `~` command at a time, process-wide** (`VersoApp.gate`, a `CommandGate`): while one
+    runs — also one a recreated predecessor started — a second is refused with
     a toast and stays in the prompt, and so is an edit — `LauncherState`'s edits take an
     `EditPermit`, made only from a `CommandGate.Idle` and void once a run has started since,
     so an edit path without the check does not compile — a save queued behind a restore's IO
     step would write the old config back over it. Nothing else is held back — no layer, no
     cancel; launching, typing and page turns go on. A run ends with its last step, never by
     a "done" call: every step holds it and releases it on every path (`CommandGate.io`
-    catches what its work throws; `LauncherState.cleanup` reports from a `finally`). No run
+    catches what its work throws; `LauncherState.cleanup` reports from a `finally`). A destroyed
+    instance never gets its hand-backs, so its `onDestroy` gives its run up (`abandon`, by an
+    owner token) behind the IO steps it queued — never sooner, or the next run's steps would
+    interleave with them. A result is queued (`ProcessState.messages`) and shown once an instance
+    is in front; a refusal ("busy", "not loaded") is shown in front or dropped, never queued. No run
     spans another activity or a dialog waiting on the user: the `~restore-saf` file is read
     before a run starts, only its adoption is one (`~restart` while it is read drops the
     pick, with a toast); the cleanup dialog ends its run, its OK starts a new one.

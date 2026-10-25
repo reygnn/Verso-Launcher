@@ -41,9 +41,12 @@ class MainActivityFlowsTest {
     private val controller = Robolectric.buildActivity(MainActivity::class.java)
     private val activity: MainActivity get() = controller.get()
     private val hold = CountDownLatch(1)
+    // A second hold for the IO thread alone, where a test must release a read before the IO step.
+    private val ioHold = CountDownLatch(1)
 
     @After fun release() {
         hold.countDown()
+        ioHold.countDown()
         // Else a read's or a command's hand-back lands on the main looper after the test, in the next one.
         joinReads()
         settle()
@@ -84,7 +87,8 @@ class MainActivityFlowsTest {
     }
 
     /** Whatever is queued after this waits, so a command stays running. */
-    private fun holdIo() = app.io.execute { hold.await(5, TimeUnit.SECONDS) }
+    // 30 s, like a hanging read: the hold must outlast a slow machine, and @After releases it anyway.
+    private fun holdIo() = app.io.execute { hold.await(30, TimeUnit.SECONDS) }
 
     private fun started(): MainActivity = controller.setup().get().also { settle() }
 
@@ -272,6 +276,64 @@ class MainActivityFlowsTest {
         settle()
         assertTrue("the restore was written", someApp.key in savedFavorites())
         assertRestoredToast()
+    }
+
+    /** The gate is the process's: a recreation finds the old run going until its IO step is through. */
+    @Test fun `a run outlives a recreation and refuses the new instance until its step ends`() {
+        started()
+        holdIo()
+        enter("~backup")                        // its IO step waits behind the hold
+        controller.recreate()                   // the old instance's hand-back will be dropped
+        shadowOf(Looper.getMainLooper()).idle()
+        ShadowToast.reset()
+        enter("~backup")
+        assertEquals(activity.getString(R.string.toast_busy), ShadowToast.getTextOfLatestToast())
+        assertEquals("~backup", prompt.text.toString())
+        hold.countDown()
+        settle()                                // the step, then the old instance's abandon behind it
+        enter("~backup")
+        assertEquals("accepted once the old run is given up", "", prompt.text.toString())
+    }
+
+    /**
+     * A refusal is no result: a pick refused while away is dropped, never queued, so it neither
+     * shows out of context nor competes with the result of the run that caused it.
+     */
+    @Test fun `a refusal while away is dropped and the running command's result still shows`() {
+        started()
+        pick("verso.json", hanging(configWith(someApp)))
+        // A latch of its own: the read must hand back while the backup's step still waits.
+        app.io.execute { ioHold.await(30, TimeUnit.SECONDS) }
+        enter("~backup")                        // runs while the pick is read
+        controller.pause().stop()
+        ShadowToast.reset()
+        hold.countDown()
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle() // the read's hand-back: refused, the backup runs
+        assertNull("no toast over another app", ShadowToast.getLatestToast())
+        assertTrue("the refusal is not queued", app.process.messages.isEmpty())
+        ioHold.countDown()
+        settle()
+        assertEquals("the backup's result is queued", 1, app.process.messages.size)
+        controller.restart()
+        assertEquals(1, ShadowToast.shownToastCount())
+        assertFalse(ShadowToast.showedToast(activity.getString(R.string.toast_busy)))
+        assertFalse("the refused pick is not adopted", someApp.key in savedFavorites())
+        controller.resume()
+    }
+
+    @Test fun `every queued result is shown at the next start, oldest first, once`() {
+        started()
+        controller.pause().stop()
+        app.process.messages.add("first")
+        app.process.messages.add("second")
+        ShadowToast.reset()
+        controller.restart()
+        assertEquals(2, ShadowToast.shownToastCount())
+        assertTrue(ShadowToast.showedToast("first"))
+        assertEquals("second", ShadowToast.getTextOfLatestToast())
+        assertTrue(app.process.messages.isEmpty())
+        controller.resume()
     }
 
     private fun startSwipeUp() {

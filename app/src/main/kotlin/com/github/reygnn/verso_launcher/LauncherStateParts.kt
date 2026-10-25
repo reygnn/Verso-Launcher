@@ -1,7 +1,7 @@
 package com.github.reygnn.verso_launcher
 
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 
 /** A value that outlives a [LauncherState], and whether its file was read into it yet. Main thread only. */
 internal class Kept<T>(var value: T, var loaded: Boolean = false)
@@ -17,15 +17,20 @@ internal class Kept<T>(var value: T, var loaded: Boolean = false)
  *   restore's write, hence atomic.
  * @param recents the "?" list, newest first, and whether recents.txt was read into it.
  * @param usage the "%" launches, and whether usage.txt was read into them.
- * @param lastMessage the last "~backup"/restore message not yet shown. Kept on the IO thread before
- *   the hand-back, which a recreation drops; shown once by whichever instance is in front first.
+ * @param messages the "~backup"/restore results not yet shown, oldest first. Added on the IO thread
+ *   before the hand-back, which a recreation drops; shown once each, in order, by whichever
+ *   instance is in front first. A queue, not one slot: a result never replaces another. Only
+ *   results go here — a refusal ("busy", "not loaded") is shown at once or not at all, since it
+ *   means nothing later. At most one result per run, and runs start from the front — the one
+ *   exception, a "~restore-saf" adoption, from a pick the user made there — so it stays short
+ *   without a cap.
  */
 internal class ProcessState(
     val startedOver: AtomicBoolean = AtomicBoolean(),
     val seedPending: AtomicBoolean = AtomicBoolean(),
     val recents: Kept<List<String>> = Kept(emptyList()),
     val usage: Kept<Map<String, Usage>> = Kept(emptyMap()),
-    val lastMessage: AtomicReference<String?> = AtomicReference(null),
+    val messages: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue(),
 )
 
 /**

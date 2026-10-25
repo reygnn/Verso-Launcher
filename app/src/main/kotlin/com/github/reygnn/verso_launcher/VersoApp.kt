@@ -1,6 +1,8 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.github.reygnn.guru.Guru
 import java.util.concurrent.ExecutorService
@@ -8,7 +10,7 @@ import java.util.concurrent.Executors
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
- * write verso.json concurrently), the [ProcessState] and the label/palette caches.
+ * write verso.json concurrently), the command gate, the [ProcessState] and the label/palette caches.
  */
 class VersoApp : Application() {
 
@@ -21,8 +23,22 @@ class VersoApp : Application() {
     /** Last applied wallpaper palette, so a recreated activity starts in the right colours. Main thread only. */
     internal var palette: Palette? = null
 
-    /** What a recreated LauncherState takes over: the recents, the launches, the two flags. */
+    /** What a recreated LauncherState takes over: the recents, the launches, the two flags, the messages. */
     internal val process = ProcessState()
+
+    /**
+     * The "~" commands, one at a time across activity instances (hard rule 15): a recreation
+     * finds a run its predecessor left going still going, and is refused until it ends. Main
+     * thread only.
+     */
+    internal val gate = CommandGate()
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** On the main thread for the process, never dropped — unlike MainActivity.onUi, which is per instance. */
+    internal fun onMain(block: () -> Unit) {
+        mainHandler.post { block() }
+    }
 
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 

@@ -41,9 +41,16 @@ class MainActivity : Activity() {
     private var launchedApp = false
     // Between onStart and onStop: the launcher can be seen (see cleanup).
     private var started = false
-    private val gate = CommandGate()
 
     private val app get() = VersoApp.from(this)
+
+    // The process's gate, not this instance's: a recreation must not find a fresh, idle gate
+    // while its predecessor's run still has IO steps queued (hard rule 15).
+    private val gate get() = app.gate
+
+    // Who started a run, for CommandGate.abandon. A token, not this activity, so the process's gate
+    // holds no instance. (A hanging step's own task still does, as before: its work and hand-back.)
+    private val runOwner = Any()
 
     // The process's IO thread, not this instance's: a recreated activity queues behind whatever
     // its predecessor left in flight instead of racing it (hard rule 3).
@@ -83,7 +90,7 @@ class MainActivity : Activity() {
                 if (configReplaced) dismissDialogs()
                 if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
                 // A recreated instance's first load queues behind its predecessor's last step.
-                showLastMessage()
+                showMessages()
                 if (listChanged) appDrawer.refilter()
             },
         )
@@ -181,7 +188,7 @@ class MainActivity : Activity() {
         super.onStart()
         started = true
         homePage.startBattery()
-        showLastMessage()
+        showMessages()
     }
 
     override fun onResume() {
@@ -267,9 +274,21 @@ class MainActivity : Activity() {
         commandDialog = null
         // No executor shutdown: work this instance queued (a save above all) must still run;
         // its hand-back is dropped by onUi.
+        abandonRunBehindIo()
         unwatchApps()
         unwatchWallpaper()
         super.onDestroy()
+    }
+
+    /**
+     * A run this instance started can no longer end by itself: from here on onUi drops its
+     * hand-backs, and with them every release. It is given up behind the IO steps it queued (one
+     * FIFO thread), so the next run's steps never interleave with them. Captures no activity.
+     */
+    private fun abandonRunBehindIo() {
+        val process = app
+        val owner = runOwner
+        if (!submitIo { process.onMain { process.gate.abandon(owner) } }) process.gate.abandon(owner)
     }
 
     /** Run [block] on the main thread for THIS instance — or not at all once it is destroyed. */
@@ -347,7 +366,7 @@ class MainActivity : Activity() {
         // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
         appDrawer.clearPrompt()
-        gate.start { t ->
+        gate.start(runOwner) { t ->
             when (command) {
                 Command.RESTART -> {
                     // A hung provider must not block ~restart; the bump voids a hand-back already queued.
@@ -382,7 +401,7 @@ class MainActivity : Activity() {
             )
         }) { kept ->
             // Nothing kept: the step threw.
-            if (kept == null) report(getString(R.string.toast_backup_failed)) else showLastMessage()
+            if (kept == null) report(getString(R.string.toast_backup_failed)) else showMessages()
         }
     }
 
@@ -426,7 +445,7 @@ class MainActivity : Activity() {
     }
 
     private fun runCleanup(confirmed: Set<String>) {
-        val accepted = gate.start { t ->
+        val accepted = gate.start(runOwner) { t ->
             gate.hold(t)
             state.cleanup(
                 confirmed = confirmed,
@@ -465,7 +484,7 @@ class MainActivity : Activity() {
             when {
                 // Nothing kept: the step threw.
                 read == null -> report(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                restored == null -> showLastMessage()
+                restored == null -> showMessages()
                 else -> adoptRestored(t, restored)
             }
         }
@@ -547,7 +566,7 @@ class MainActivity : Activity() {
         safReading = false
         if (restored == null) report(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
         // The adoption is a run of its own; with another one running, the pick is dropped.
-        else if (!gate.start { t -> adoptRestored(t, restored) }) report(getString(R.string.toast_busy))
+        else if (!gate.start(runOwner) { t -> adoptRestored(t, restored) }) refuse(getString(R.string.toast_busy))
     }
 
     /**
@@ -563,7 +582,7 @@ class MainActivity : Activity() {
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
         val outgoing = state.loadedSnapshot() ?: run {
-            report(getString(R.string.toast_not_loaded))
+            refuse(getString(R.string.toast_not_loaded))
             return
         }
         commandIo(t, work = {
@@ -583,7 +602,7 @@ class MainActivity : Activity() {
             // Cannot refuse: loaded was checked above. The message is the write's, so it stands
             // even for an instance that never gets this hand-back.
             if (outcome is RestoreSteps.Outcome.Done) state.adopt(restored)
-            showLastMessage()
+            showMessages()
         }
     }
 
@@ -619,22 +638,38 @@ class MainActivity : Activity() {
 
     /*
      * A "~backup"/restore result is never shown over another app and never lost: it waits in
-     * ProcessState.lastMessage until an instance is in front — shown in the step's hand-back, at
+     * ProcessState.messages until an instance is in front — shown in the step's hand-back, at
      * onStart (it finished after onStop), or at the first load of an instance that replaced the one
      * whose hand-back a recreation dropped (that load queues behind the step on the IO thread).
+     * A refusal is not a result: shown while in front, else dropped ([refuse]).
      */
 
-    /** On the IO thread, before the hand-back: keeps [text] as the last message and returns it. */
-    private fun keepMessage(text: String): String = text.also { app.process.lastMessage.set(it) }
+    /** On the IO thread, before the hand-back: queues [text] as a result and returns it. */
+    private fun keepMessage(text: String): String = text.also { app.process.messages.add(it) }
 
-    /** A message decided on the main thread: now if in front, else kept for the next start. */
+    /** A result decided on the main thread: now if in front, else queued for the next start. */
     private fun report(text: String, duration: Int = Toast.LENGTH_SHORT) {
-        if (started) toast(text, duration) else app.process.lastMessage.set(text)
+        if (started) toast(text, duration) else app.process.messages.add(text)
     }
 
-    /** The last message, once, while in front. */
-    private fun showLastMessage() {
-        if (started) app.process.lastMessage.getAndSet(null)?.let { toast(it, Toast.LENGTH_LONG) }
+    /**
+     * A refusal from a step that ran while the user may have left: shown if in front, else dropped —
+     * "busy" or "not loaded" hours later, out of context, would mean nothing, and kept it would
+     * compete with the very result of the run that caused it.
+     */
+    private fun refuse(text: String) {
+        if (started) toast(text)
+    }
+
+    /** Every queued result, oldest first, once each, while in front. */
+    private fun showMessages() {
+        if (!started) return
+        val queue = app.process.messages
+        var text = queue.poll()
+        while (text != null) {
+            toast(text, Toast.LENGTH_LONG)
+            text = queue.poll()
+        }
     }
 
     /** "%": saved at once like every edit; the prompt clears onto the drawer in its new order. */
