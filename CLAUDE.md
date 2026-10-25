@@ -267,8 +267,9 @@ thread.
    `VersoApp.io` would run. That write touches only `filesDir/guru/`; everything else Guru
    does (the exit records, saving each report to `Download/Guru` — a MediaStore insert and an
    fsync per report and the prune to its newest 32, queued at `install` and so ahead of Verso's
-   first load —, the alert's list) goes through `VersoApp.io`. Not a breach to
-   "fix".
+   first load —, the alert's list) goes through `VersoApp.io` — but for Verso's own version and
+   label, which `install` asks once on the main thread (both caught), so the dying thread never
+   asks the PackageManager. Not a breach to "fix".
 4. **One file, written atomically** (`ConfigStore.write`): `verso.json.new` + fsync →
    rename over `verso.json` → fsync dir. No `.bak`, no repair from older copies — the net
    is the user's `~backup`. `load()` is null — never an empty config — when `verso.json`
