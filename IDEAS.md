@@ -1,27 +1,34 @@
 # Ideas
 
 Not a plan — things seen and deliberately not built (yet). One line each, with where it came
-from. The feature freeze (see `CLAUDE.md`) holds back only the new user-facing features here;
-bugs and code improvements are fair game.
+from. The feature freeze is lifted (2026-10-25, see `CLAUDE.md`); new features are bounded by
+the project scope, not by a freeze.
+
+Reconciled against `cd0d505` on 2026-10-25: resolved points removed (D5 source guard; the
+Samsung-`null` wallpaper NPE — never was one, nullable receiver; the name field's control-char
+drop; `foldLabel` dropping U+0307, which is hard rule 9 by design), partial ones trimmed to
+what is still open.
 
 ## Review round 4 (2026-10-17), left open on purpose
 
 - A4: a recreation mid-`~cleanup` (after its undo point) has already swept the previous cleanup
-  undo point while removing nothing; the cleanup could persist its forget on the IO thread like
-  the restore does.
-- B1: a recreation mid-restore drops the result silently, toast included (a process-wide "last
-  outcome").
-- B2: `~backup`/restore toasts can appear over another app after onStop.
-- C1: the rename dialog's tag filter drops the IME's composing span (Samsung: "wwo"). Not
-  reproduced on 2026-10-24 (A17, Samsung Keyboard, Shift+letters, fast, after a comma): every
-  capital became one small letter. Only with a reproduction.
-- C2: the first `!`/`-` restarts the keyboard (GO↔DONE); likely the "symbol page" jump.
-- C5: pasted newlines stay in prompt/name; a dead key starting typing on home loses its
-  accent; hardware keys in the `?` view go nowhere; `foldLabel` drops every U+0307.
-- D4: `~cleanup`'s verdict for a profile that exists but is not listed is untested.
-- D5: no source guard for hard rules 1–3 (no `implementation` deps, `guarded(` around IO,
-  one executor).
-- D6: home's "ready" (config loaded) has no test of its own.
+  undo point while removing nothing; `forget` runs on main (`LauncherState.cleanup`) and could
+  persist on the IO thread like the restore does.
+- B1: a recreation mid-restore drops the result silently, toast included; a process-wide "last
+  outcome" would replay it. The data is already written, only the feedback is lost.
+- B2: `~backup`/restore toasts can appear over another app after onStop — they do not check
+  `started` the way cleanup does.
+- C1: the rename dialog's **tag** filter drops the IME's composing span (Samsung: "wwo"):
+  `foldLabel(sub)` returns a bare `String` on every capital. Fix: `SpannableString` +
+  `TextUtils.copySpansFrom`. (The name field is not affected — it returns `null` unless it
+  actually drops a char.) Not reproduced on 2026-10-24 (A17), but the cause is in the code.
+- C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
+  page" jump. Already guarded to fire only on the action change, not per keystroke
+  (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
+- C5: pasted newlines stay in the prompt; a dead key starting typing on home loses its accent;
+  hardware keys in the `?` view go nowhere.
+- D4: `~cleanup`'s verdict for a profile that exists but is not listed is untested
+  (`CleanupTest` covers "answered empty", not "not listed").
 
 ## Review of refactor/simple-gate (2026-10-17), below the merge threshold
 
@@ -33,19 +40,23 @@ bugs and code improvements are fair game.
 - A `~restore-saf` pick read while a command runs is dropped with "busy" (by design); it could
   wait for the gate instead.
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in.
-- The rows' outline alpha is not pinned by a test of its own.
+- The drawer rows' outline alpha is not pinned by a test of its own (home-favorite alpha is,
+  in `HomePageAccessibilityTest`).
 
 ## Review round 5 (2026-10-17), left open
 
 - A wallpaper colour change while the config is not loaded leaves the cached favorites in the
   old colour (HomePage.applyTextColor re-renders from an empty render).
-- Dimmed rows go through an offscreen layer every frame while scrolling; a row bind allocates a
-  ColorStateList even when nothing changed; the first wallpaper-colour query after boot
-  delays the first enumeration.
+- Dimmed rows go through an offscreen layer every frame while scrolling (`OutlinedViews`
+  `hasOverlappingRendering`); a row bind allocates a `ColorStateList` even when nothing changed
+  (`AppDrawer.kt:411-412`); the first wallpaper-colour query after boot delays the first
+  enumeration (both on the one IO thread).
 - A file another app plants in Download/Verso can be picked with ~restore-saf (hide or rename
   apps); a confirmation with counts before adopting a picked file would show it.
-- TalkBack: edit modes announce no state change, page turns no pane title, the empty-list
-  live region is likely silent, recents only by swipe, battery icons as separate stops.
+- TalkBack: still missing a pane title on page turns (`setAccessibilityPaneTitle`), the charging
+  / battery-protection icons as separate stops, and reaching recents other than by swipe. (The
+  empty-list live region, row/battery/favorite contentDescriptions and the home a11y actions
+  already exist.)
 - Home ignores the system font size (by design for the clock); paused/archived is shown by
   opacity alone.
 
@@ -62,7 +73,9 @@ bugs and code improvements are fair game.
 
 ## Seen on the A17
 
-- `BackupStoreInstrumentedTest` leaves empty `Download/VersoTest-…` folders behind.
+- `BackupStoreInstrumentedTest` may leave empty `Download/VersoTest-…` folders behind. A
+  `@After tearDown()` now deletes the file rows (`content delete … _data='$dir'`); only an empty
+  directory may survive.
 
 ## Deferred earlier
 
@@ -70,6 +83,7 @@ bugs and code improvements are fair game.
 - "First swipe after returning from an app does nothing" (A17): seen once, not reproduced. A
   late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
   workaround was tried and removed again — only with a real reproduction.
-- An app that switches its launcher activity loses its favorite/name/tags.
+- An app that switches its launcher activity loses its favorite/name/tags (would need a key
+  migration, hard rule 8).
 - Lint's version bumps: targetSdk 37 (with the whole family, tested on a device), Robolectric
   4.17 (only worth it with SDK 37), androidx.test runner 1.7.0.

@@ -36,21 +36,21 @@ profile and archived apps stay listed, dimmed (`AppStatus`), and a first tap bri
 them back; private space is not reachable (no `ACCESS_HIDDEN_PROFILES`). See
 `CAVEATS.md`.
 
-**Feature freeze since 0.2.12 (2026-10-18), for user-facing additions only.** No new
-user-facing feature, sigil, command or setting — not even a small one — unless the user lifts
-the freeze. Bugfixes, code improvements (simplification, refactoring, performance) and tests
-are not frozen; they must not regress anything, and a change may alter behaviour only to make
-it do what it already claims to do.
+**The feature freeze (in force 2026-10-18 to 2026-10-24, since 0.2.12) was lifted by the
+user on 2026-10-25.** New user-facing features, sigils, commands and settings are allowed
+again. What still bounds them is the scope above (the *Deliberately NOT* list, no production
+dependencies per hard rule 1, no settings screen), and the standing bar that a change must
+not regress anything.
 
-**Freeze exception (2026-10-23, lifted by the user): Guru**, the crash reporter. After a
-crash, the next start saves the report to `Download/Guru` without asking and shows Guru's
-alert saying so (hold: share the saved files with an app the user picks, double-tap or Back:
-close). It needs no permission and sends nothing on its own. The exception covers Guru and
-its updates, nothing else.
+The two features admitted during the freeze are now simply part of the app:
 
-**Freeze exception (2026-10-24, lifted by the user): `~crash`**, a deliberate crash for testing
-Guru and the crash-only paths — only in a daily-driver build (debug, or a release built with
-`-PdailyDriver`), compiled out of a public release, never abbreviated (`~c` stays `~cleanup`).
+- **Guru**, the crash reporter. After a crash, the next start saves the report to
+  `Download/Guru` without asking and shows Guru's alert saying so (hold: share the saved
+  files with an app the user picks, double-tap or Back: close). It needs no permission and
+  sends nothing on its own.
+- **`~crash`**, a deliberate crash for testing Guru and the crash-only paths — only in a
+  daily-driver build (debug, or a release built with `-PdailyDriver`), compiled out of a
+  public release, never abbreviated (`~c` stays `~cleanup`).
 
 Verso replaces Sigil Launcher, which it was cloned from. Sigil is discontinued (no
 longer maintained, its GitHub repo removed, October 2026) — never port anything back,
