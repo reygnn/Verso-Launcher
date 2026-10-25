@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 663 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 666 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -76,7 +76,9 @@ PageTurnTest                28  Robolectric: the page turn on real views — eac
                                 drag commit/cancel both ways, open ending a held drag, Back
                                 (home, prompt, recents, preview, cancel — also after HOME closed
                                 the drawer)
-AppDrawerTest               14  Robolectric: the back page — rows per prompt, a pasted line break
+AppDrawerTest               16  Robolectric: the back page — what a screen reader hears (the empty
+                                prompt's spoken hint naming the page, in node and focus event;
+                                the list named after what it shows), rows per prompt, a pasted line break
                                 turned into a space in the real field, a paused app's row dimmed
                                 (and a recycled command row not), edit-mode markers,
                                 the empty-list hint per mode, a palette switch, a tap handed on,
@@ -132,8 +134,9 @@ CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed be
                                 then a cold start: either config whole, nothing the user had lost,
                                 one undo point once through
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest   13  Robolectric: TalkBack click on clock/date/battery, the double
-                                tap, the "open all apps" and "open recent apps" actions, the
+HomePageAccessibilityTest   14  Robolectric: TalkBack click on clock/date/battery, the double
+                                tap, the page itself a stop for TalkBack, the "open all apps"
+                                and "open recent apps" actions, the
                                 battery line reading the charge state (its icons no stops of
                                 their own), the empty-favorites hint; a
                                 colour change redraws the favorites, also the cached ones of a

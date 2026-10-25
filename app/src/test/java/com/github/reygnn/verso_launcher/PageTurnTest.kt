@@ -99,10 +99,11 @@ class PageTurnTest {
     }
 
     /**
-     * TalkBack announces a pane title when its page turns up (each turn shows a page): home, all
-     * apps from below, the recents from the top — the same turn as the swipe down.
+     * Each page carries a pane title for screen readers that announce one as it turns up: home, all
+     * apps from below, the recents from the top — the same turn as the swipe down. (Samsung's
+     * TalkBack speaks the focused element instead; AppDrawerTest pins what that says.)
      */
-    @Test fun `each page carries the title TalkBack announces as it turns up`() {
+    @Test fun `each page carries the pane title of what turned up`() {
         assertEquals(activity.getString(R.string.a11y_home), home.view.accessibilityPaneTitle)
         openSettled()
         assertEquals(activity.getString(R.string.a11y_pane_drawer), drawer.view.accessibilityPaneTitle)

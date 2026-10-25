@@ -110,6 +110,36 @@ class AppDrawerTest {
         assertEquals(1f, recycled.alpha, 0f)
     }
 
+    /**
+     * On a page turn TalkBack speaks the focused field, not the pane title, and reads the visible
+     * hint's ">" as "greater than" (both heard on the A17): an empty field speaks a hint that names
+     * the page — in its node and in its focus event, which is what TalkBack spoke. Typed text stays.
+     */
+    @Test fun `the empty prompt speaks a hint that names the page, typed text stays as typed`() {
+        val spoken = activity.getString(R.string.a11y_prompt_hint)
+        drawer.setPrompt("")
+        val info = android.view.accessibility.AccessibilityNodeInfo()
+        prompt.onInitializeAccessibilityNodeInfo(info)
+        assertEquals(spoken, info.hintText)
+        assertEquals(spoken, info.text.toString())
+        val event = android.view.accessibility.AccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED)
+        prompt.onPopulateAccessibilityEvent(event)
+        assertEquals(listOf(spoken), event.text.map { it.toString() })
+
+        drawer.setPrompt("br")
+        val typed = android.view.accessibility.AccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED)
+        prompt.onPopulateAccessibilityEvent(typed)
+        assertEquals(listOf("br"), typed.text.map { it.toString() })
+    }
+
+    /** The recents open with focus on their first row, so the list's name says where that is (A17). */
+    @Test fun `the list is named after what it shows`() {
+        drawer.setPrompt("?")
+        assertEquals(activity.getString(R.string.a11y_pane_recents), list.contentDescription)
+        drawer.setPrompt("")
+        assertEquals(activity.getString(R.string.a11y_pane_drawer), list.contentDescription)
+    }
+
     /** Home re-renders from onFiltered: a search cannot change the favorites. */
     @Test fun `typing does not ask home to re-render, a refilter does`() {
         drawer.setPrompt("br")

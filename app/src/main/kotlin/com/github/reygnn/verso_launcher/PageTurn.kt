@@ -52,7 +52,8 @@ internal class PageTurn(
     private var dragOpens = false
 
     init {
-        // A pane title is what TalkBack announces as the page turns up (each turn shows a page).
+        // A pane title, for screen readers that announce a page as it turns up. Samsung's TalkBack
+        // (A17) speaks the newly focused element instead, which AppDrawer names (hint, list).
         home.accessibilityPaneTitle = activity.getString(R.string.a11y_home)
     }
 
@@ -247,7 +248,7 @@ internal class PageTurn(
     /** Where the closed drawer waits: above the page for the recents, below it otherwise. */
     private fun hiddenY(): Float = if (drawerFromTop) -pageHeight() else pageHeight()
 
-    /** Its pane title, set before it shows: TalkBack announces the recents from the top, all apps from below. */
+    /** Its pane title, set before it shows: the recents from the top, all apps from below. */
     private fun titleDrawer(fromTop: Boolean) {
         drawer.accessibilityPaneTitle =
             activity.getString(if (fromTop) R.string.a11y_pane_recents else R.string.a11y_pane_drawer)

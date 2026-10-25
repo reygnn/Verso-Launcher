@@ -18,6 +18,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
@@ -183,6 +185,27 @@ internal class AppDrawer(
             inputType = InputType.TYPE_CLASS_TEXT or
                 InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             imeOptions = EditorInfo.IME_ACTION_GO
+            // TalkBack reads the visible hint's ">" as "greater than", and on a page turn it speaks the
+            // focused field, not the pane title (seen on the A17): a spoken hint that names the page.
+            accessibilityDelegate = object : View.AccessibilityDelegate() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    val spoken = activity.getString(R.string.a11y_prompt_hint)
+                    info.hintText = spoken
+                    // Empty, the field reports its hint as its text too.
+                    if (info.isShowingHintText) info.text = spoken
+                }
+
+                // The focus event carries the visible hint as well, and that is what TalkBack speaks
+                // as the drawer opens (the node alone changed nothing on the A17).
+                override fun onPopulateAccessibilityEvent(host: View, event: AccessibilityEvent) {
+                    super.onPopulateAccessibilityEvent(host, event)
+                    if ((host as TextView).text.isNullOrEmpty()) {
+                        event.text.clear()
+                        event.text.add(activity.getString(R.string.a11y_prompt_hint))
+                    }
+                }
+            }
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
@@ -306,6 +329,9 @@ internal class AppDrawer(
         val q = raw.trim()
         val previous = mode
         mode = LauncherLogic.parseMode(q)
+        // The recents open with focus on their first row: the list's name says where that is.
+        val listName = activity.getString(if (mode == Mode.RECENTS) R.string.a11y_pane_recents else R.string.a11y_pane_drawer)
+        if (listView.contentDescription != listName) listView.contentDescription = listName
         // Only on change: restarting input on every keystroke makes the IME flicker.
         val wantedAction = if (LauncherLogic.isEditMode(mode)) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_GO
         if (prompt.imeOptions != wantedAction) {

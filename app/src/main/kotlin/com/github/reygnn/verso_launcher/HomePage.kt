@@ -156,8 +156,11 @@ internal class HomePage(
                 v.setPadding(i.left + pad, i.top + pad, i.right + pad, i.bottom + pad)
                 insets
             }
-            // The swipes are invisible to a screen reader.
+            // The swipes are invisible to a screen reader: the page itself is a stop (a touch on an
+            // empty spot lands on it) and carries them as actions. Seen on the A17: without it TalkBack
+            // found nothing there to focus, and the actions could not be reached.
             contentDescription = activity.getString(R.string.a11y_home)
+            isScreenReaderFocusable = true
             accessibilityDelegate = PageActions()
         }
     }

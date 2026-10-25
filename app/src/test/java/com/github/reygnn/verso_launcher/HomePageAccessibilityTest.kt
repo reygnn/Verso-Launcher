@@ -68,6 +68,17 @@ class HomePageAccessibilityTest {
         assertEquals(1, drawerOpened)
     }
 
+    /**
+     * The actions live on the page itself: it must be a stop TalkBack can land on, or a touch on an
+     * empty spot finds nothing and the actions cannot be reached (seen on the A17). The view's flag
+     * is what Verso sets; that TalkBack lands there was checked by ear on the A17 — Robolectric does
+     * not carry the flag into the AccessibilityNodeInfo.
+     */
+    @Test fun `the page is a stop for TalkBack, so its actions can be reached`() {
+        assertTrue(page.view.isScreenReaderFocusable)
+        assertEquals(activity.getString(R.string.a11y_home), page.view.contentDescription)
+    }
+
     /** The swipe down is invisible to a screen reader too: the recents get an action of their own. */
     @Test fun `the page offers 'open recent apps' as an accessibility action, and it works`() {
         val info = AccessibilityNodeInfo()

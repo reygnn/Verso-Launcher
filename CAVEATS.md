@@ -123,8 +123,12 @@ text gets it in the drawer, or through the display size setting, which scales bo
 
 The swipes are not available to a screen reader, so the front page exposes "Open all apps"
 and "Open recent apps" as custom accessibility actions (TalkBack's actions menu), and the
-empty-favorites hint is tappable. A page turn announces the page that came up (home, all apps,
-recent apps); the charge-state icons are read with the battery line, not as stops of their own.
+empty-favorites hint is tappable; the home page itself is a stop, so a touch on an empty spot
+reaches those actions. The pages carry titles for screen readers that announce them, but
+Samsung's TalkBack (heard on the A17) speaks the element that gets focus after a turn instead:
+so the search field says "Search all apps" (its visible hint starts with ">", read as "greater
+than") and the list names itself ("Recent apps", "All apps"). The charge-state icons are read
+with the battery line, not as stops of their own.
 
 ## A `~` command's result can come later
 

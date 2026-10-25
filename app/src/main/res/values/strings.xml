@@ -11,6 +11,8 @@
     <!-- Pane titles: what TalkBack announces when a page turns up. -->
     <string name="a11y_pane_drawer">All apps</string>
     <string name="a11y_pane_recents">Recent apps</string>
+    <!-- The command line's hint as a screen reader speaks it (the visible one starts with ">"). -->
+    <string name="a11y_prompt_hint">Search all apps</string>
     <!-- A dimmed app (AppStatus): what a screen reader says, and the toast once a paused one is back. -->
     <string name="a11y_app_paused">%1$s, paused. Double-tap to turn its work apps back on.</string>
     <string name="a11y_app_archived">%1$s, archived. Double-tap to restore it.</string>

@@ -11,6 +11,8 @@
     <!-- Seitentitel: was TalkBack ansagt, wenn eine Seite erscheint. -->
     <string name="a11y_pane_drawer">Alle Apps</string>
     <string name="a11y_pane_recents">Zuletzt verwendet</string>
+    <!-- Der Hinweis der Kommandozeile, wie ein Screenreader ihn spricht (der sichtbare beginnt mit ">"). -->
+    <string name="a11y_prompt_hint">Alle Apps durchsuchen</string>
     <!-- Eine abgedunkelte App (AppStatus): was der Screenreader sagt, und der Toast, sobald eine pausierte wieder da ist. -->
     <string name="a11y_app_paused">%1$s, pausiert. Doppeltippen, um die Arbeits-Apps wieder einzuschalten.</string>
     <string name="a11y_app_archived">%1$s, archiviert. Doppeltippen zum Wiederherstellen.</string>
