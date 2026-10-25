@@ -14,8 +14,9 @@ what is still open.
 - A4: a recreation mid-`~cleanup` (after its undo point) has already swept the previous cleanup
   undo point while removing nothing; `forget` runs on main (`LauncherState.cleanup`) and could
   persist on the IO thread like the restore does.
-- B1: a recreation mid-restore drops the result silently, toast included; a process-wide "last
-  outcome" would replay it. The data is already written, only the feedback is lost.
+- B1 rest: a recreation during `~restore`'s read, after the file read but before the adoption
+  started, drops the run — nothing restored, nothing said; the user runs it again. (A failed read
+  and every adoption outcome are kept in `ProcessState.lastMessage` and shown.)
 - C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
   page" jump. Already guarded to fire only on the action change, not per keystroke
   (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
