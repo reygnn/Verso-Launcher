@@ -73,7 +73,7 @@ class CrashPointsTest {
     )
 
     /** The next start: a fresh ConfigStore's load, which must give back a config the user had. */
-    private fun coldStart(dir: File): VersoConfig = storeIn(dir).load()
+    private fun coldStart(dir: File): VersoConfig = storeIn(dir).load() ?: VersoConfig()
 
     private fun List<VersoConfig>.holds(config: VersoConfig) = any { it == config }
 
@@ -102,7 +102,7 @@ class CrashPointsTest {
             val store = storeIn(dir, reaper)
             val point = try {
                 RestoreSteps.run(
-                    current = store.load(),
+                    current = store.load()!!,
                     restored = restored,
                     writeUndo = { payload -> downloads.write(BackupFiles.PRE_RESTORE_BASE, payload) },
                     writeConfig = store::write,

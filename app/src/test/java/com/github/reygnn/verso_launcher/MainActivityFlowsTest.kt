@@ -196,6 +196,16 @@ class MainActivityFlowsTest {
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
     }
 
+    /** Hard rule 4 loads it as empty all the same; the toast is what Core wires to the state. */
+    @Test fun `an unreadable verso json is said at the start, and the next change writes over it`() {
+        File(app.filesDir, "verso.json").writeText("{ torn")
+        started()
+        assertEquals(activity.getString(R.string.toast_config_unreadable), ShadowToast.getTextOfLatestToast())
+        tap(DrawerAction.ToggleFavorite(someApp))
+        settle()
+        assertEquals(listOf(someApp.key), savedFavorites())
+    }
+
     @Test fun `~restart while a picked file is read drops the pick and says so`() {
         started()
         pick("verso.json", hanging(configWith(someApp)))

@@ -214,7 +214,7 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`; and Guru's crash
   reports in `guru/` until the next start saves them, see "Crash reports"), kept the way
   Android keeps SharedPreferences (the last complete file waits as `verso.json.bak` until a
-  write is done; a file that cannot be read loads as empty) — your own `~backup`s are the
+  write is done; a file that cannot be read loads as empty, and a toast says so) — your own `~backup`s are the
   copies to fall back on; and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")

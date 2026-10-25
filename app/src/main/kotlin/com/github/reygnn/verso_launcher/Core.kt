@@ -77,6 +77,8 @@ internal class Core(private val app: VersoApp) {
             now = System::currentTimeMillis,
             // A result: said now if a window is in front, else queued for the next start.
             onSaveFailed = { app.results.report(app.getString(R.string.toast_save_failed)) },
+            // A result too: an empty start must not go unsaid while the next change would write over the file.
+            onConfigUnusable = { app.results.report(app.getString(R.string.toast_config_unreadable)) },
             // No window between a recreation's two halves: the next one renders the state anew.
             // A pick read before the first load waited for it: to be asked about, or to be adopted.
             onRefreshed = { configReplaced, listChanged ->

@@ -7,7 +7,8 @@ import java.io.FileOutputStream
  * verso.json on disk, on SharedPreferences' terms (hard rule 4); [ConfigJson] owns the JSON. Never
  * throws. A write first moves the last complete file to verso.json.bak (keeping one already there),
  * writes and fsyncs verso.json, then deletes the .bak; a load that finds a .bak takes it back, the
- * write before it was cut off. A file that cannot be read or parsed loads as the empty config.
+ * write before it was cut off. A file that cannot be read or parsed is [load]'s null: it loads as
+ * the empty config all the same (LauncherState), but the user is told.
  * [rename], [delete], [readText] and [writeSynced] are test seams (root ignores chmod).
  */
 internal class ConfigStore(
@@ -22,7 +23,8 @@ internal class ConfigStore(
     private val primary get() = File(dir, CONFIG_FILE)
     private val backup get() = File(dir, "$CONFIG_FILE.bak")
 
-    fun load(): VersoConfig {
+    /** Null when a file is there but cannot be read or parsed; no file is the empty config. */
+    fun load(): VersoConfig? {
         var source = primary
         if (backup.exists()) {
             delete(primary)
@@ -33,7 +35,7 @@ internal class ConfigStore(
             }
         }
         if (!source.isFile) return VersoConfig()
-        // hard rule 4: unreadable = empty, never a throw
+        // hard rule 4: unreadable = null, never a throw
         val text = @Suppress("TooGenericExceptionCaught") try {
             readText(source)
         } catch (e: Exception) {
@@ -42,7 +44,7 @@ internal class ConfigStore(
         }
         val parsed = text?.let(ConfigJson::parse)
         if (text != null && parsed == null) log("config unparseable, loaded as empty", null)
-        return parsed ?: VersoConfig()
+        return parsed
     }
 
     fun isFresh(): Boolean = !primary.exists() && !backup.exists()

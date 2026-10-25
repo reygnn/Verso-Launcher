@@ -2,6 +2,7 @@ package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -42,7 +43,7 @@ class ConfigStoreTest {
 
     @Test
     fun `a fresh install loads an empty config without logging`() {
-        assertTrue(store.load().favorites.isEmpty())
+        assertEquals(VersoConfig(), store.load())
         assertEquals(emptyList<String>(), logs)
     }
 
@@ -57,26 +58,26 @@ class ConfigStoreTest {
     }
 
     @Test
-    fun `a torn verso json loads as empty, logged, and stays until the next write`() {
+    fun `a torn verso json is null, logged, and stays until the next write`() {
         primary.writeText("{ torn")
-        assertTrue(store.load().favorites.isEmpty())
+        assertNull(store.load())
         assertTrue(logs.any { "unparseable" in it })
         assertFalse("a torn file is no fresh install", store.isFresh())
         assertEquals("{ torn", primary.readText())
     }
 
     @Test
-    fun `a verso json that cannot be read loads as empty, logged`() {
+    fun `a verso json that cannot be read is null, logged`() {
         primary.writeText(json("a/1"))
         val failing = storeWith(readText = { throw java.io.IOException("EIO") })
-        assertTrue(failing.load().favorites.isEmpty())
+        assertNull(failing.load())
         assertTrue(logs.any { "unreadable" in it })
     }
 
     @Test
     fun `a directory where verso json should be is treated as absent`() {
         primary.mkdirs()
-        assertTrue(store.load().favorites.isEmpty())
+        assertEquals(VersoConfig(), store.load())
     }
 
     /** A write cut off after the move to .bak: the half-written verso.json is not trusted. */
@@ -84,7 +85,7 @@ class ConfigStoreTest {
     fun `a bak left by a cut-off write is taken back over a half verso json`() {
         backup.writeText(json("old"))
         primary.writeText("{ half wri")
-        assertEquals(listOf("old"), store.load().favorites)
+        assertEquals(listOf("old"), store.load()!!.favorites)
         assertEquals(listOf("verso.json"), files())
     }
 
@@ -94,8 +95,16 @@ class ConfigStoreTest {
         backup.writeText(json("old"))
         primary.writeText("{ half wri")
         val refusing = storeWith(rename = { _, _ -> false })
-        assertEquals(listOf("old"), refusing.load().favorites)
+        assertEquals(listOf("old"), refusing.load()!!.favorites)
         assertTrue(logs.any { "take back" in it })
+    }
+
+    /** Read in place and torn too: nothing complete is left, and the caller must hear of it. */
+    @Test
+    fun `a bak that cannot be taken back and is torn is null`() {
+        backup.writeText("{ half wri")
+        val refusing = storeWith(rename = { _, _ -> false })
+        assertNull(refusing.load())
     }
 
     /** The parse of foreign files has limits; the app's own file has none of them. */
@@ -103,13 +112,13 @@ class ConfigStoreTest {
     fun `an own config beyond the limits of a foreign file loads whole`() {
         val many = (0..ConfigJson.MAX_ENTRIES).map { "h/$it" }
         store.write(ConfigJson.serialize(VersoConfig(hidden = LinkedHashSet(many))))
-        assertEquals(many.size, store.load().hidden.size)
+        assertEquals(many.size, store.load()!!.hidden.size)
     }
 
     @Test
     fun `a bak alone is taken back`() {
         backup.writeText(json("old"))
-        assertEquals(listOf("old"), store.load().favorites)
+        assertEquals(listOf("old"), store.load()!!.favorites)
         assertEquals(listOf("verso.json"), files())
     }
 
@@ -119,14 +128,14 @@ class ConfigStoreTest {
     fun `a write publishes the config and leaves no bak`() {
         assertTrue(store.write(json("f/1", "f/2")))
         assertEquals(listOf("verso.json"), files())
-        assertEquals(listOf("f/1", "f/2"), store.load().favorites)
+        assertEquals(listOf("f/1", "f/2"), store.load()!!.favorites)
     }
 
     @Test
     fun `a second write replaces the first`() {
         store.write(json("first"))
         store.write(json("second"))
-        assertEquals(listOf("second"), store.load().favorites)
+        assertEquals(listOf("second"), store.load()!!.favorites)
         assertEquals(listOf("verso.json"), files())
     }
 
@@ -149,7 +158,7 @@ class ConfigStoreTest {
         val refusing = storeWith(rename = { _, _ -> false })
 
         assertFalse(refusing.write(json("new")))
-        assertEquals(listOf("old"), store.load().favorites)
+        assertEquals(listOf("old"), store.load()!!.favorites)
         assertTrue(logs.any { "save failed" in it })
     }
 
@@ -161,7 +170,7 @@ class ConfigStoreTest {
 
         assertFalse(blocked.write(json("new")))
         assertEquals(listOf("verso.json.bak"), files())
-        assertEquals(listOf("old"), store.load().favorites)
+        assertEquals(listOf("old"), store.load()!!.favorites)
     }
 
     /** A .bak already there is the last complete file: it is kept, the half verso.json goes. */
@@ -177,7 +186,7 @@ class ConfigStoreTest {
         assertTrue(watching.write(json("new")))
         assertEquals("the .bak held the last complete file throughout", json("old"), bakAtDelete)
         assertEquals(listOf("verso.json"), files())
-        assertEquals(listOf("new"), store.load().favorites)
+        assertEquals(listOf("new"), store.load()!!.favorites)
     }
 
     /** It stands, and the next load would take it back over the newer file: at least it is logged. */
@@ -206,7 +215,7 @@ class ConfigStoreTest {
 
         assertFalse(full.write(json("new")))
         assertEquals(listOf("verso.json.bak"), files())
-        assertEquals(listOf("old"), store.load().favorites)
+        assertEquals(listOf("old"), store.load()!!.favorites)
     }
 
     @Test

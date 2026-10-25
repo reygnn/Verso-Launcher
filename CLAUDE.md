@@ -162,7 +162,8 @@ com.github.reygnn.verso_launcher/
   VersoApp            process-wide: the IO executor, Core, Commands, Results, the command
                       gate, the pending ~restore-saf pick, the live window (onCreate–onDestroy,
                       a LauncherWindow), the ProcessState (recents, launches, the seed flag,
-                      the queued results of ~backup, restore, cleanup and a failed save),
+                      the queued results of ~backup, restore, cleanup, a failed save and an
+                      unreadable verso.json),
                       palette and badge-label caches;
                       installs Guru (onCreate)
   VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
@@ -251,7 +252,9 @@ of the classes named.
    `runOnUiThread` (`VersoApp.onCreate`, `MainActivity.onCreate`).
 4. **`verso.json` on SharedPreferences' terms** (`ConfigStore`): the last complete file waits as
    `verso.json.bak` while a write runs and is taken back by the next load; a file that cannot be
-   read or parsed loads as the empty config. Fresh = neither file. The net is the backups.
+   read or parsed loads as the empty config, and a toast says so (`ConfigStore.load`'s null,
+   `LauncherState`'s `onConfigUnusable`) — only words, the files behave as before. Fresh = neither
+   file. The net is the backups.
 5. **Nothing is written before the config is loaded** — memory holds only the empty default
    until then. No `EditPermit` (`LauncherState.editPermit`, `SourceGuardTest`), no save, no `~`
    command but `~restart`; backups and undo points come from `loadedSnapshot`; home and its

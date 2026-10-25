@@ -25,6 +25,9 @@ package com.github.reygnn.verso_launcher
  * @param idle the command gate's permit, null while a "~" command runs: seeding the default
  *   favorites is an edit like any other (hard rule 15) — a restore's write must not be
  *   overwritten by it.
+ * @param onConfigUnusable verso.json was there but could not be read or parsed: it loaded as the
+ *   empty config (hard rule 4), and the next change writes over it. Called once per load that
+ *   lands, so the user hears of it before an edit does.
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
  *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
  *   called by [adopt], always (true, true).
@@ -41,6 +44,7 @@ internal class LauncherState(
     private val idle: () -> CommandGate.Idle?,
     private val now: () -> Long,
     private val onSaveFailed: () -> Unit,
+    private val onConfigUnusable: () -> Unit,
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
 ) {
     /** Immutable: every change goes through this class (and its save) as a new config. */
@@ -108,7 +112,10 @@ internal class LauncherState(
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             val fresh = loadConfigNow && configFile.isFresh()
-            val diskConfig = if (loadConfigNow) configFile.load() else null
+            val read = if (loadConfigNow) configFile.load() else null
+            // hard rule 4: what cannot be read or parsed loads as the empty config.
+            val diskConfig = if (loadConfigNow) read ?: VersoConfig() else null
+            val unusable = loadConfigNow && read == null
             val diskUsage = if (loadUsageNow) usageFile.read() else null
             val diskRecents = if (loadRecentsNow) recentsFile.read() else null
             val enumeration = enumerateApps()
@@ -167,6 +174,7 @@ internal class LauncherState(
                 }
                 if (changed) relabel()
                 onRefreshed(replaced, changed)
+                if (unusable) onConfigUnusable()
             })
         })
     }

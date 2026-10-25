@@ -14,11 +14,12 @@ package com.github.reygnn.verso_launcher
 internal fun testLauncherState(
     io: (Runnable) -> Boolean,
     main: (Runnable) -> Unit,
-    loadConfig: () -> VersoConfig,
+    loadConfig: () -> VersoConfig?,
     enumerateApps: () -> Enumeration?,
     serialize: (VersoConfig) -> String,
     writeConfig: (String) -> Boolean,
     onSaveFailed: () -> Unit = {},
+    onConfigUnusable: () -> Unit = {},
     onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
     isFreshInstall: () -> Boolean = { false },
     defaultFavoriteCandidates: () -> List<List<String>> = { emptyList() },
@@ -47,5 +48,6 @@ internal fun testLauncherState(
     idle = idle,
     now = now,
     onSaveFailed = onSaveFailed,
+    onConfigUnusable = onConfigUnusable,
     onRefreshed = onRefreshed,
 )

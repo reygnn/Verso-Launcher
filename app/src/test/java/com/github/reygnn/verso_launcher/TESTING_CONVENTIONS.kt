@@ -22,7 +22,8 @@ package com.github.reygnn.verso_launcher
  * fakes and manual queues:
  *
  *   LauncherState(io, main, configFile, enumerateApps, defaultFavoriteCandidates,
- *                 recentsFile, usageFile, process, idle, now, onSaveFailed, onRefreshed)
+ *                 recentsFile, usageFile, process, idle, now, onSaveFailed, onConfigUnusable,
+ *                 onRefreshed)
  *     — built in tests through testLauncherState (TestLauncherState.kt): flat
  *       parameters (loadConfig, writeConfig, loadRecents, …) with inert defaults,
  *       bundled there; the production constructor has no defaults. One shared

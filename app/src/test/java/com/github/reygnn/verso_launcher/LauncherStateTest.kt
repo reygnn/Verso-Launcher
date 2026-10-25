@@ -21,8 +21,9 @@ class LauncherStateTest {
     private val mainQueue = ArrayDeque<Runnable>()
     private var ioOpen = true
 
-    /** "The file on disk". NOT updated by writeConfig: a test that saves and then reloads must set it itself. */
-    private var disk = VersoConfig()
+    /** "The file on disk", null when it is there but cannot be read or parsed. NOT updated by writeConfig: a test
+     *  that saves and then reloads must set it itself. */
+    private var disk: VersoConfig? = VersoConfig()
     private var loadConfigCalls = 0
 
     /** Reported without custom names and NOT sorted (reversed below), so the tests see LauncherState apply both. */
@@ -48,6 +49,9 @@ class LauncherStateTest {
     private val gate = CommandGate()
     private val permit get() = state.editPermit(gate.idle()!!)!!
     private var saveFailures = 0
+    private var unusableReports = 0
+    /** Runs in onConfigUnusable: what the window sees when it says so. */
+    private var onUnusable: () -> Unit = {}
     /** Process-wide like VersoApp's: it outlives a LauncherState. */
     private val process = ProcessState()
     private val listChanges = mutableListOf<Boolean>()
@@ -71,6 +75,7 @@ class LauncherStateTest {
         },
         writeConfig = { payload -> written += payload; writeSucceeds },
         onSaveFailed = { saveFailures++ },
+        onConfigUnusable = { unusableReports++; onUnusable() },
         onRefreshed = { replaced, changed -> refreshed += replaced; listChanges += changed; onReport() },
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
@@ -156,6 +161,57 @@ class LauncherStateTest {
         runAll()
         assertEquals(1, loadConfigCalls)
         assertEquals(listOf(false), refreshed)
+    }
+
+    @Test fun `a config that cannot be read loads as empty, said once, and the next change writes over it`() {
+        disk = null
+        var loadedWhenSaid = false
+        onUnusable = { loadedWhenSaid = state.configLoaded && state.appsLoaded }
+
+        state.refresh()
+        runAll()
+        state.refresh()
+        runAll()
+
+        assertEquals(VersoConfig(), state.config)
+        assertEquals(1, unusableReports)
+        assertTrue("said once the empty config is in place", loadedWhenSaid)
+        assertEquals(listOf(true, false), refreshed)
+        state.toggleOrder(permit)
+        runAll()
+        assertEquals(1, written.size)
+    }
+
+    @Test fun `a readable config and a fresh install say nothing`() {
+        disk = VersoConfig(favorites = listOf(key("Charlie")))
+        started()
+        assertEquals(0, unusableReports)
+
+        fresh = true
+        val next = testLauncherState(
+            io = { task -> ioQueue.addLast(task); true },
+            main = { task -> mainQueue.addLast(task) },
+            loadConfig = { VersoConfig() },
+            enumerateApps = { Enumeration(installed, true) },
+            serialize = { "" },
+            writeConfig = { true },
+            onConfigUnusable = { unusableReports++ },
+            onRefreshed = { _, _ -> },
+            isFreshInstall = { fresh },
+        )
+        next.refresh()
+        runAll()
+        assertEquals(0, unusableReports)
+    }
+
+    @Test fun `an unusable config is said only by the load that lands`() {
+        disk = null
+        state.refresh()
+        runIo()
+        state.refresh()  // a resume supersedes the first load before its hand-off
+        runAll()
+        assertEquals(2, loadConfigCalls)
+        assertEquals(1, unusableReports)
     }
 
     /** A needless re-render would void a tap in flight. */

@@ -33,12 +33,13 @@ internal class ProcessState(
 /**
  * verso.json as [LauncherState] sees it (ConfigStore and ConfigJson behind it).
  *
- * @param load the config on disk; empty when there is none or it cannot be read (hard rule 4).
+ * @param load the config on disk; empty when there is none, null when it is there but cannot be
+ *   read or parsed — loaded as empty all the same (hard rule 4), and reported.
  * @param isFresh neither verso.json nor its .bak: a fresh install (hard rule 10).
  * @param write false if the write failed.
  */
 internal class ConfigFile(
-    val load: () -> VersoConfig,
+    val load: () -> VersoConfig?,
     val isFresh: () -> Boolean,
     val serialize: (VersoConfig) -> String,
     val write: (String) -> Boolean,
