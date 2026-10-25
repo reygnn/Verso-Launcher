@@ -1,0 +1,219 @@
+package com.github.reygnn.verso_launcher
+
+import android.net.Uri
+import android.util.Log
+
+/**
+ * The "~" commands' work, owned by the process (VersoApp.commands): "~backup", "~restore", a
+ * "~restore-saf" pick's read and adoption, the "~cleanup" check and its run. One at a time through
+ * the process's gate (hard rule 15); every step hands back to the process and reads the state
+ * from Core, so a run ends and lands whatever happens to the window that started it. Results go
+ * through [Results]; a window is reached only as a [LauncherWindow], the live one or none.
+ *
+ * What a window decides stays there (MainActivity): refusing a command up front (busy, not
+ * loaded, a pick pending), clearing the prompt, the picker, "~restart", the cleanup dialog.
+ *
+ * Main thread only, but for the work handed to [step] and the pick's read thread.
+ */
+internal class Commands(private val app: VersoApp) {
+
+    private val gate get() = app.gate
+    private val core get() = app.core
+    private val results get() = app.results
+    private val window get() = app.instance
+
+    /**
+     * One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. Handed back
+     * to the process, never dropped: the gate must be released (hard rule 15), and what [then] does
+     * to the shared state (a restore's adopt) must land, or memory and verso.json part ways.
+     */
+    private fun <T : Any> step(t: CommandGate.Ticket, work: () -> T?, then: (T?) -> Unit) =
+        gate.io(t, app::submitIo, app::onMain, work, { e -> Log.w("Verso", "command step failed", e) }, then)
+
+    /** "~backup": export the config in memory to Download/Verso (hard rule 6). */
+    fun backup() {
+        val payload = ConfigJson.serialize(core.state.loadedSnapshot() ?: return)
+        val store = core.backupStore
+        gate.start { t ->
+            step(t, work = {
+                val name = store.write(BackupFiles.BACKUP_BASE, payload)
+                results.keep(
+                    if (name != null) app.getString(R.string.toast_backup_ok, name) else app.getString(R.string.toast_backup_failed)
+                )
+            }) { kept ->
+                // Nothing kept: the step threw.
+                if (kept == null) results.report(app.getString(R.string.toast_backup_failed)) else results.flush()
+            }
+        }
+    }
+
+    /** "~restore": read and parse the newest own backup on the IO thread, then adopt it. */
+    fun restore() {
+        val store = core.backupStore
+        gate.start { t ->
+            step(t, work = {
+                val latest = store.lookupLatest(BackupFiles.BACKUP_BASE)
+                val text = (latest as? BackupStore.Latest.Found)?.let { store.readText(it.uri) }
+                val restored = text?.let { ConfigJson.parseForeign(it) }
+                if (restored == null) results.keep(readFailure(app, latest))
+                Read(restored)
+            }) { read ->
+                val restored = read?.restored
+                when {
+                    // Nothing kept: the step threw.
+                    read == null -> results.report(app.getString(R.string.toast_restore_failed))
+                    restored == null -> results.flush()
+                    else -> adopt(t, restored)
+                }
+            }
+        }
+    }
+
+    /** A "~restore" read: null if there was nothing to restore (its message is kept). */
+    private class Read(val restored: VersoConfig?)
+
+    /**
+     * "~restore-saf" after the picker answered: the pick is the process's from here (VersoApp.pick).
+     * Its own thread, not the IO thread (hard rule 3): a provider can block the read indefinitely.
+     * The thread holds the process only — the application's resolver, a hand-back to [pickRead].
+     */
+    fun readPick(uri: Uri) {
+        val number = app.pick.begin()
+        val store = core.backupStore
+        Thread(Guard.wrap("restore read", { msg, e -> Log.w("Verso", msg, e) }) {
+            val restored = store.readText(uri)?.let { ConfigJson.parseForeign(it) }
+            app.onMain { pickRead(number, restored) }
+        }, "verso-restore-read").start()
+    }
+
+    /**
+     * The read of pick [number] is back. A dropped or superseded pick is ignored. An unreadable file
+     * is a result of the user's pick; a config waits in VersoApp.pick for [adoptPendingPick].
+     */
+    private fun pickRead(number: Int, restored: VersoConfig?) {
+        if (!app.pick.arrived(number, restored)) return
+        if (restored == null) results.report(app.getString(R.string.toast_restore_failed)) else adoptPendingPick()
+    }
+
+    /**
+     * Adopts a "~restore-saf" pick that is read and waiting, once nothing stands in its way: no run
+     * and a loaded config (hard rule 5). Called when the read lands, when a run ends (the gate's
+     * onIdle) and when a load lands (Core) — whichever comes last adopts. It waits instead of being
+     * refused: while it is pending no restore can start (MainActivity.runCommand), so the run it
+     * waits for is a backup or a cleanup, never a restore whose undo point it would sweep.
+     */
+    fun adoptPendingPick() {
+        if (gate.busy || !core.state.configLoaded) return
+        val restored = app.pick.take() ?: return
+        gate.start { t -> adopt(t, restored) }
+    }
+
+    /**
+     * Adopt a config parsed with parseForeign (never the lenient parse, which turns any JSON
+     * object into an empty config). No undo point, no restore (hard rule 7). Both callers start it
+     * only with the config loaded; the check below stays as the last line of hard rule 5.
+     */
+    private fun adopt(t: CommandGate.Ticket, restored: VersoConfig) {
+        // So a "my favorites are gone" report can be settled from the log.
+        Log.i(
+            "Verso",
+            "restore: ${restored.favorites.size} favorites, ${restored.hidden.size} hidden, " +
+                "${restored.names.size} names, ${restored.tags.size} tagged",
+        )
+        val state = core.state
+        val store = core.backupStore
+        val outgoing = state.loadedSnapshot() ?: run {
+            results.refuse(app.getString(R.string.toast_not_loaded))
+            return
+        }
+        step(t, work = {
+            RestoreSteps.run(
+                current = outgoing,
+                restored = restored,
+                writeUndo = { payload -> store.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
+                writeConfig = state::writeRestored,
+                sweepUndo = { store.sweep(BackupFiles.PRE_RESTORE_BASE) },
+            ).also { outcome -> results.keep(restoreMessage(app, outcome)) }
+        }) { outcome ->
+            // Nothing kept: the step threw.
+            if (outcome == null) {
+                results.report(app.getString(R.string.toast_restore_undo_failed))
+                return@step
+            }
+            // Cannot refuse: loaded was checked above. The shared state, whatever the window does.
+            if (outcome is RestoreSteps.Outcome.Done) state.adopt(restored)
+            results.flush()
+        }
+    }
+
+    /**
+     * "~cleanup": check on the IO thread, then offer what is confirmed gone (hard rule 14). The
+     * answer is for the window that asked with [ticket], while it still asks — no dialog over a page
+     * that moved on, no toast over another app; else it is dropped (nothing was changed).
+     */
+    fun checkCleanup(ticket: Int) {
+        val asker = window
+        val snapshot = core.state.config
+        val apps = core.apps
+        gate.start { t ->
+            step(t, work = { apps.safeCleanupCheck(snapshot) }) { plan ->
+                val asked = window?.takeIf { it === asker && it.stillAsking(ticket) } ?: return@step
+                when (plan) {
+                    null -> asked.show(app.getString(R.string.toast_cleanup_not_run), long = false)
+                    CleanupPlan.Incomplete -> asked.show(app.getString(R.string.toast_cleanup_incomplete), long = false)
+                    CleanupPlan.NothingToDo -> asked.show(app.getString(R.string.toast_cleanup_none), long = false)
+                    // The dialog ends this run: no run waits on the user. Its OK starts a new one.
+                    is CleanupPlan.Offer -> asked.offerCleanup(plan.orphans)
+                }
+            }
+        }
+    }
+
+    /** The cleanup dialog's OK: false if another run is going (the window says so). */
+    fun runCleanup(confirmed: Set<String>): Boolean {
+        val state = core.state
+        val apps = core.apps
+        val store = core.backupStore
+        return gate.start { t ->
+            gate.hold(t)
+            state.cleanup(
+                confirmed = confirmed,
+                recheck = apps::safeCleanupCheck,
+                writeUndo = { payload -> store.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
+            ) { outcome -> gate.finish(t) { cleanupDone(outcome) } }
+        }
+    }
+
+    /** A confirmed run's outcome is a result: the live window redraws, the message waits if need be. */
+    private fun cleanupDone(outcome: CleanupOutcome) {
+        if (outcome is CleanupOutcome.Done) window?.cleanupApplied()
+        results.report(cleanupMessage(app, outcome))
+    }
+
+    /** The words for an outcome: lookups only, apart from the runs. */
+    private companion object {
+        fun readFailure(app: VersoApp, latest: BackupStore.Latest): String = app.getString(
+            when (latest) {
+                is BackupStore.Latest.Failed -> R.string.toast_restore_list_failed
+                is BackupStore.Latest.None -> R.string.toast_restore_none
+                is BackupStore.Latest.Found -> R.string.toast_restore_failed
+            }
+        )
+
+        fun restoreMessage(app: VersoApp, outcome: RestoreSteps.Outcome): String = when (outcome) {
+            RestoreSteps.Outcome.Unchanged -> app.getString(R.string.toast_restore_same)
+            RestoreSteps.Outcome.WriteFailed -> app.getString(R.string.toast_restore_write_failed)
+            RestoreSteps.Outcome.UndoFailed -> app.getString(R.string.toast_restore_undo_failed)
+            is RestoreSteps.Outcome.Done -> app.getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName))
+        }
+
+        fun cleanupMessage(app: VersoApp, outcome: CleanupOutcome): String = when (outcome) {
+            CleanupOutcome.Refused -> app.getString(R.string.toast_cleanup_not_run)
+            CleanupOutcome.Superseded -> app.getString(R.string.toast_cleanup_superseded)
+            CleanupOutcome.Incomplete -> app.getString(R.string.toast_cleanup_incomplete)
+            CleanupOutcome.NothingToDo -> app.getString(R.string.toast_cleanup_none)
+            CleanupOutcome.UndoFailed -> app.getString(R.string.toast_restore_undo_failed)
+            is CleanupOutcome.Done -> app.getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName))
+        }
+    }
+}

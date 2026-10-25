@@ -93,12 +93,15 @@ class SourceGuardTest {
         assertTrue("a \"/*\" in a string opens no comment", has(stripped, "writeConfig = w"))
     }
 
-    // Rule 7.
-    @Test fun `MainActivity reads outside files with parseForeign, never the lenient parse`() {
-        val activity = code("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        assertFalse(Regex("""ConfigJson\s*\.\s*parse\s*\(""").containsMatchIn(activity))
-        assertFalse(Regex("""ConfigJson\s*::\s*parse\b(?!Foreign)""").containsMatchIn(activity))
-        assertTrue(has(activity, "ConfigJson.parseForeign"))
+    // Rule 7: the commands read outside files (Commands); the window must not read one either.
+    @Test fun `outside files are read with parseForeign, never the lenient parse`() {
+        val commands = code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt")
+        for (path in listOf("MainActivity.kt", "Commands.kt")) {
+            val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$path")
+            assertFalse(path, Regex("""ConfigJson\s*\.\s*parse\s*\(""").containsMatchIn(text))
+            assertFalse(path, Regex("""ConfigJson\s*::\s*parse\b(?!Foreign)""").containsMatchIn(text))
+        }
+        assertTrue(has(commands, "ConfigJson.parseForeign"))
     }
 
     @Test fun `no string template reaches through an object without braces`() {
@@ -134,12 +137,12 @@ class SourceGuardTest {
         assertEquals(listOf("LauncherState.kt"), sites)
     }
 
-    /** What no JVM test reaches: the wiring of two rules into LauncherState (the Activity's and Core's). */
+    /** What no JVM test reaches: the wiring of two rules into LauncherState (Commands' and Core's). */
     @Test fun `the restore write and the command gate are wired into LauncherState`() {
-        val activity = code("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val commands = code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt")
         val core = code("src/main/kotlin/com/github/reygnn/verso_launcher/Core.kt")
         // Hard rule 10: a restore's write ends the wait to seed, even with its hand-back lost.
-        assertTrue(has(activity, "writeConfig = state::writeRestored"))
+        assertTrue(has(commands, "writeConfig = state::writeRestored"))
         // Hard rules 10 and 15: the seeding takes a permit from the real, process-wide gate.
         assertTrue(has(core, "idle = { app.gate.idle() }"))
     }

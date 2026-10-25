@@ -33,23 +33,30 @@ class VersoApp : Application() {
      * finds a run its predecessor left going still going, and is refused until it ends. Main
      * thread only. A run's end posts a look at a pick waiting for it ([pick]).
      */
-    internal val gate = CommandGate(onIdle = { onMain { instance?.adoptPendingPick() } })
+    internal val gate = CommandGate(onIdle = { onMain { commands.adoptPendingPick() } })
 
     /** The "~restore-saf" pick from the picker's answer until its adoption starts. Main thread only. */
     internal val pick = PendingPick()
 
     /**
-     * The live MainActivity, between its onCreate and its onDestroy, for what the process hands
-     * over: the state's refreshes and save failures (Core), a pick to adopt. Main thread only;
-     * never held past onDestroy, so it keeps no instance alive.
+     * The live window (MainActivity), between its onCreate and its onDestroy, for what the process
+     * hands over: the state's refreshes (Core), the commands' results and the cleanup offer
+     * (Commands, Results). Seen only as a [LauncherWindow]. Main thread only; never held past
+     * onDestroy, so it keeps no instance alive.
      */
-    internal var instance: MainActivity? = null
+    internal var instance: LauncherWindow? = null
 
     /**
      * The launcher's data — one LauncherState and its stores — shared by every activity instance;
      * "~restart" resets it. Built on first use (the first activity), from this Application alone.
      */
     internal val core by lazy { Core(this) }
+
+    /** The "~" commands' work, one at a time through [gate]; their results go through [results]. */
+    internal val commands by lazy { Commands(this) }
+
+    /** The commands' results, queued until a window is in front (ProcessState.messages). */
+    internal val results by lazy { Results(this) }
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -71,17 +78,6 @@ class VersoApp : Application() {
             Log.w("Verso", "IO task rejected (executor shut down)", e)
             false
         }
-
-    /**
-     * Main thread: the read of pick [number] is back. A dropped or superseded pick is ignored. An
-     * unreadable file is a result of the user's pick — queued, shown once an instance is in front;
-     * a config waits in [pick] for an idle gate and a loaded config (MainActivity.adoptPendingPick).
-     */
-    internal fun pickRead(number: Int, restored: VersoConfig?) {
-        if (!pick.arrived(number, restored)) return
-        if (restored == null) process.messages.add(getString(R.string.toast_restore_failed))
-        instance?.pickArrived()
-    }
 
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 

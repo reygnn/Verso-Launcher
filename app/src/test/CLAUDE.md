@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 636 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 640 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -46,6 +46,9 @@ CommandGateTest             12  one "~" command at a time: a run ends with its l
                                 refusal, hand-over, exceptions, the edit permit; an IO step for
                                 a run that is over queues nothing (logged); onIdle once per run
                                 end, not per release
+ResultsTest                  4  the commands' results with a fake window: queued while away or
+                                without a window, then shown once and in order; a refusal in
+                                front only, never queued
 PendingPickTest              6  a "~restore-saf" pick's states: read config taken once, an
                                 unreadable file, a dropped or superseded read landing late
 LauncherRowsTest            41  rowsFor per mode
@@ -126,10 +129,10 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest             12  source scans (snippets matched token by token, comments left out): no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest             12  source scans (snippets matched token by token, comments left out): no lenient ConfigJson.parse in MainActivity or Commands,
                                 no brace-less object templates, no density in configChanges,
                                 no default in LauncherState's constructor, no EditPermit built
-                                outside LauncherState (call or reference), MainActivity's
+                                outside LauncherState (call or reference), Commands'
                                 writeRestored and Core's gate wiring, a loaded state drawn in
                                 onCreate; Guru installed once from VersoApp
                                 behind Guard, showPending in onCreate (not through onUi),

@@ -79,12 +79,14 @@ internal class Core(private val app: VersoApp) {
             process = app.process,
             idle = { app.gate.idle() },
             now = System::currentTimeMillis,
-            // A result: said now if an instance is in front, else queued for the next start.
-            onSaveFailed = {
-                app.instance?.saveFailed() ?: app.process.messages.add(app.getString(R.string.toast_save_failed))
+            // A result: said now if a window is in front, else queued for the next start.
+            onSaveFailed = { app.results.report(app.getString(R.string.toast_save_failed)) },
+            // No window between a recreation's two halves: the next one renders the state anew.
+            // A pick read before the first load waited for it (Commands.adoptPendingPick).
+            onRefreshed = { configReplaced, listChanged ->
+                app.instance?.refreshed(built, configReplaced, listChanged)
+                app.commands.adoptPendingPick()
             },
-            // No instance between a recreation's two halves: the next one renders the state anew.
-            onRefreshed = { configReplaced, listChanged -> app.instance?.refreshed(built, configReplaced, listChanged) },
         )
         return built
     }

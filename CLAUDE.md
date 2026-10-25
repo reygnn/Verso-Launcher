@@ -168,8 +168,13 @@ com.github.reygnn.verso_launcher/
                       BackupStore, Apps), built from the Application; reset by ~restart
   LauncherStateParts  what LauncherState is built from: ProcessState, ConfigFile,
                       RecentsFile, UsageFile
-  MainActivity        the window: commands, backup/restore orchestration, edits, dialogs,
-                      launching
+  MainActivity        the window: what a command is refused for up front, the picker,
+                      ~restart, the cleanup dialog, edits, launching; reached by the process
+                      only as a LauncherWindow (a private object, VersoApp.instance)
+  Commands            the "~" commands' work, process-wide: ~backup, ~restore, a ~restore-saf
+                      pick's read and adoption, the ~cleanup check and run (Commands.step)
+  Results             their results, queued until a window is in front (ProcessState.messages)
+  LauncherWindow      what the process needs of the window: in front, show, the cleanup offer
   PageTurn            the page turn (hard rule 11): window root, drag, settle, Back
                       preview, the status bar per page
   Apps                the apps on the device (IO side): enumeration of every profile,
@@ -242,10 +247,10 @@ thread.
    never shut it down. Main-thread state is mutated only on the main thread. What belongs to
    the process is handed back with `VersoApp.onMain`, never dropped: the state's hand-backs
    (`Core`; dropped only once `~restart` replaced that state), every command step's
-   (`commandIo` — the gate must be released and a restore's `adopt` must reach the shared state,
+   (`Commands.step` — the gate must be released and a restore's `adopt` must reach the shared state,
    or memory and `verso.json` part ways), the gate's `onIdle` and a `~restore-saf` read's. What
-   touches a window goes to the live instance (`VersoApp.instance`, if any); a step's window
-   parts look at `started`. Only what belongs to one window goes through `onUi`, which drops it
+   touches a window goes to the live one (`VersoApp.instance`, a `LauncherWindow`, if any —
+   process code sees no Activity); results wait in `Results` until one is in front. Only what belongs to one window goes through `onUi`, which drops it
    for a destroyed instance (the home cache's first frame, the wallpaper palette). And Guru's alert
    (`showPending`), handed back with a plain `runOnUiThread`: Guru checks the destroyed
    activity itself and keeps the alert for the next call, which a dropped hand-back would lose. The one exception: the
@@ -348,7 +353,7 @@ thread.
     cancel; launching, typing and page turns go on. A run ends with its last step, never by
     a "done" call: every step holds it and releases it on every path (`CommandGate.io`
     catches what its work throws; `LauncherState.cleanup` reports from a `finally`), and every
-    step hands back to the process (`commandIo`; a cleanup through its `LauncherState`, dropped
+    step hands back to the process (`Commands.step`; a cleanup through its `LauncherState`, dropped
     only after a `~restart` reset, which starts only with no run going), so a run ends even when
     the instance that started it is gone; `CommandGate.io` queues nothing for a run that is over. A result is queued (`ProcessState.messages`) and shown once an instance
     is in front; a refusal ("busy", "not loaded") is shown in front or dropped, never queued. No run

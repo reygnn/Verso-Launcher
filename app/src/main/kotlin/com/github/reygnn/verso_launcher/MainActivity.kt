@@ -52,24 +52,38 @@ class MainActivity : Activity() {
     private val state: LauncherState by lazy { app.core.state }
 
     /**
-     * The state's hand-back after a refresh or a restore (Core sends it to the live instance). An
+     * The state's hand-back after a refresh or a restore (Core sends it to the live window). An
      * instance made with another state (a reset since) ignores it: the recreation renders anew.
      */
-    internal fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) {
+    private fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) {
         if (from !== state) return
         // An open rename dialog holds the OLD config and would write stale fields over the one
         // that just arrived.
         if (configReplaced) dismissDialogs()
         if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
-        // A recreated instance's first load queues behind its predecessor's last step.
-        showMessages()
-        // A pick read before the first load waited for it (adoptPendingPick).
-        adoptPendingPick()
+        // A recreated instance's first refresh: the results its predecessor's runs left.
+        app.results.flush()
         if (listChanged) appDrawer.refilter()
     }
 
-    /** A failed save of verso.json (Core): now if in front, else at the next start. */
-    internal fun saveFailed() = report(getString(R.string.toast_save_failed))
+    /**
+     * This window as the process sees it (VersoApp.instance): an object of its own, so the public
+     * Activity exposes none of the internal types, and the process holds it only until onDestroy.
+     */
+    private val launcherWindow = object : LauncherWindow {
+        override val inFront: Boolean get() = started
+
+        override fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) =
+            this@MainActivity.refreshed(from, configReplaced, listChanged)
+
+        override fun show(text: String, long: Boolean) = toast(text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT)
+
+        override fun stillAsking(ticket: Int): Boolean = started && ticket == cleanupTicket
+
+        override fun offerCleanup(orphans: Orphans) = this@MainActivity.offerCleanup(orphans)
+
+        override fun cleanupApplied() = appDrawer.refilter()
+    }
 
     // ---- the two pages ------------------------------------------------------
     private lateinit var homePage: HomePage
@@ -87,7 +101,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // The process hands a "~restore-saf" pick to whichever instance is alive (VersoApp.pick).
-        app.instance = this
+        app.instance = launcherWindow
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
         // ourselves. No scrim behind 3-button navigation: the wallpaper runs to the bottom edge.
@@ -168,7 +182,7 @@ class MainActivity : Activity() {
         super.onStart()
         started = true
         homePage.startBattery()
-        showMessages()
+        app.results.flush()
     }
 
     override fun onResume() {
@@ -253,8 +267,8 @@ class MainActivity : Activity() {
         renameDialog = null
         commandDialog = null
         // No executor shutdown: work this instance queued (a save above all) must still run. Its
-        // command steps hand back to the process (commandIo), so a run it started still ends.
-        if (app.instance === this) app.instance = null
+        // command steps hand back to the process (Commands), so a run it started still ends.
+        if (app.instance === launcherWindow) app.instance = null
         unwatchApps()
         unwatchWallpaper()
         super.onDestroy()
@@ -291,10 +305,6 @@ class MainActivity : Activity() {
 
     // ---- config -------------------------------------------------------------
 
-    // The process's stores (Core), built from the Application: a MediaStore call that hangs holds
-    // no activity.
-    private val backupStore get() = app.core.backupStore
-
     /** Run a "~" command, one at a time (hard rule 15); each reports its real result with a toast. */
     private fun runCommand(command: Command) {
         // Not a run: a deliberate crash, for Guru and the crash-only paths, at any time. The
@@ -313,25 +323,27 @@ class MainActivity : Activity() {
         // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
         appDrawer.clearPrompt()
-        gate.start { t ->
-            when (command) {
-                Command.RESTART -> {
-                    // A hung provider must not block ~restart: the pick is dropped, read or still
-                    // being read, and a read that lands later finds it gone.
-                    if (app.pick.drop()) toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
-                    // The repair by hand: a fresh state reads verso.json (and an unread recents.txt
-                    // or usage.txt) again, and the recreation builds every view anew around it.
-                    app.core.reset()
-                    recreate()
-                }
-                Command.BACKUP -> backup(t)
-                Command.RESTORE -> restoreConfig(t)
-                // Only the picker: it is another activity, so no run spans it (the adoption is one).
-                Command.RESTORE_SAF -> pickRestoreFile()
-                Command.CLEANUP -> cleanup(t)
-                Command.CRASH -> Unit // returned above
-            }
+        when (command) {
+            // A run of its own, so nothing else starts in the moment before the recreation.
+            Command.RESTART -> gate.start { restart() }
+            Command.BACKUP -> app.commands.backup()
+            Command.RESTORE -> app.commands.restore()
+            // Only the picker: it is another activity, so no run spans it (the adoption is one).
+            Command.RESTORE_SAF -> pickRestoreFile()
+            Command.CLEANUP -> app.commands.checkCleanup(cleanupTicket)
+            Command.CRASH -> Unit // returned above
         }
+    }
+
+    /** "~restart": the repair by hand. */
+    private fun restart() {
+        // A hung provider must not block ~restart: the pick is dropped, read or still being read,
+        // and a read that lands later finds it gone.
+        if (app.pick.drop()) toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
+        // A fresh state reads verso.json (and an unread recents.txt or usage.txt) again, and the
+        // recreation builds every view anew around it.
+        app.core.reset()
+        recreate()
     }
 
     /**
@@ -345,46 +357,8 @@ class MainActivity : Activity() {
         return true
     }
 
-    /**
-     * One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. Handed back
-     * to the process, never dropped — not even for a destroyed instance: the gate must be released
-     * (hard rule 15), and what [then] does to the shared state (a restore's adopt) must land, or
-     * memory and verso.json part ways. Its window parts look at [started] and stay out once stopped.
-     */
-    private fun <T : Any> commandIo(t: CommandGate.Ticket, work: () -> T?, then: (T?) -> Unit) =
-        gate.io(t, ::submitIo, app::onMain, work, { e -> Log.w("Verso", "command step failed", e) }, then)
-
-    /** "~backup": export the config in memory to Download/Verso (hard rule 6). */
-    private fun backup(t: CommandGate.Ticket) {
-        val payload = ConfigJson.serialize(state.loadedSnapshot() ?: return)
-        commandIo(t, work = {
-            val name = backupStore.write(BackupFiles.BACKUP_BASE, payload)
-            keepMessage(
-                if (name != null) getString(R.string.toast_backup_ok, name) else getString(R.string.toast_backup_failed)
-            )
-        }) { kept ->
-            // Nothing kept: the step threw.
-            if (kept == null) report(getString(R.string.toast_backup_failed)) else showMessages()
-        }
-    }
-
-    /** "~cleanup": check on the IO thread, then offer what is confirmed gone (hard rule 14). */
-    private fun cleanup(t: CommandGate.Ticket) {
-        val ticket = cleanupTicket
-        val snapshot = state.config
-        commandIo(t, work = { apps.safeCleanupCheck(snapshot) }) { plan ->
-            // Left meanwhile: no dialog over a page that moved on, no toast over another app.
-            if (started && ticket == cleanupTicket) when (plan) {
-                null -> toast(getString(R.string.toast_cleanup_not_run))
-                CleanupPlan.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
-                CleanupPlan.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
-                // The dialog ends this run: no run waits on the user. Its OK starts a new one.
-                is CleanupPlan.Offer -> confirmCleanup(plan.orphans)
-            }
-        }
-    }
-
-    private fun confirmCleanup(orphans: Orphans) {
+    /** A "~cleanup" check found [orphans] (Commands): the dialog; its OK starts the removal run. */
+    private fun offerCleanup(orphans: Orphans) {
         commandDialog?.dismiss()
         // One line per section that has entries — no "0" lines, and no plural to get wrong.
         val lines = buildList {
@@ -400,69 +374,14 @@ class MainActivity : Activity() {
         commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle(R.string.cleanup_title)
             .setMessage(lines.joinToString("\n"))
-            .setPositiveButton(R.string.cleanup_remove) { _, _ -> runCleanup(orphans.keys) }
+            .setPositiveButton(R.string.cleanup_remove) { _, _ ->
+                if (!app.commands.runCleanup(orphans.keys)) toast(getString(R.string.toast_busy))
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .create()
             .apply { setOnDismissListener { d -> if (commandDialog === d) commandDialog = null } }
         commandDialog?.show()
     }
-
-    private fun runCleanup(confirmed: Set<String>) {
-        val accepted = gate.start { t ->
-            gate.hold(t)
-            state.cleanup(
-                confirmed = confirmed,
-                recheck = apps::safeCleanupCheck,
-                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
-            ) { outcome -> gate.finish(t) { cleanupDone(outcome) } }
-        }
-        if (!accepted) toast(getString(R.string.toast_busy))
-    }
-
-    private fun cleanupDone(outcome: CleanupOutcome) {
-        if (outcome is CleanupOutcome.Done) appDrawer.refilter()
-        // The result stands, but no toast over another app.
-        if (!started) return
-        when (outcome) {
-            CleanupOutcome.Refused -> toast(getString(R.string.toast_cleanup_not_run))
-            CleanupOutcome.Superseded -> toast(getString(R.string.toast_cleanup_superseded))
-            CleanupOutcome.Incomplete -> toast(getString(R.string.toast_cleanup_incomplete))
-            CleanupOutcome.NothingToDo -> toast(getString(R.string.toast_cleanup_none))
-            CleanupOutcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed))
-            is CleanupOutcome.Done ->
-                toast(getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
-        }
-    }
-
-    /** "~restore": read and parse the newest own backup on the IO thread, then adopt it. */
-    private fun restoreConfig(t: CommandGate.Ticket) {
-        commandIo(t, work = {
-            val latest = backupStore.lookupLatest(BackupFiles.BACKUP_BASE)
-            val text = (latest as? BackupStore.Latest.Found)?.let { backupStore.readText(it.uri) }
-            val restored = text?.let { ConfigJson.parseForeign(it) }
-            if (restored == null) keepMessage(readFailure(latest))
-            Read(restored)
-        }) { read ->
-            val restored = read?.restored
-            when {
-                // Nothing kept: the step threw.
-                read == null -> report(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
-                restored == null -> showMessages()
-                else -> adoptRestored(t, restored)
-            }
-        }
-    }
-
-    /** A "~restore" read: null if there was nothing to restore (its message is kept). */
-    private class Read(val restored: VersoConfig?)
-
-    private fun readFailure(latest: BackupStore.Latest): String = getString(
-        when (latest) {
-            is BackupStore.Latest.Failed -> R.string.toast_restore_list_failed
-            is BackupStore.Latest.None -> R.string.toast_restore_none
-            is BackupStore.Latest.Found -> R.string.toast_restore_failed
-        }
-    )
 
     /**
      * "~restore-saf": the way a config moves between devices. Plain "~restore" only sees the app's
@@ -500,87 +419,9 @@ class MainActivity : Activity() {
         val uri = data?.data
         // Backing out of the picker is not an error — say nothing.
         if (resultCode != RESULT_OK || uri == null) return
-        // From here the pick is the process's (VersoApp.pick), so a recreation or a stop loses it
-        // no more. Its own thread, not the IO thread (hard rule 3): a provider can block the read
-        // indefinitely. The thread holds nothing of this activity — the application's resolver, a
-        // log of its own, a hand-back to the process — so a read that never returns keeps no
-        // destroyed instance alive.
-        val process = app
-        val number = process.pick.begin()
-        val reader = BackupStore(
-            resolver = applicationContext.contentResolver,
-            subDir = BackupFiles.DIR,
-            log = ::logWarning,
-            owner = packageName,
-        )
-        Thread(Guard.wrap("restore read", ::logWarning) {
-            val restored = reader.readText(uri)?.let { ConfigJson.parseForeign(it) }
-            process.onMain { process.pickRead(number, restored) }
-        }, "verso-restore-read").start()
-    }
-
-    /** The process handed over a pick's read (VersoApp.pickRead): its result if it failed, else the adoption. */
-    internal fun pickArrived() {
-        showMessages()
-        adoptPendingPick()
-    }
-
-    /**
-     * Adopts a "~restore-saf" pick that is read and waiting, once nothing stands in its way: no run
-     * (also none a predecessor left) and a loaded config (hard rule 5). Called when the read lands,
-     * when a run ends (the gate's onIdle) and when a load lands — whichever comes last adopts. It
-     * waits instead of being refused: while it is pending no restore can start (runCommand), so the
-     * run it waits for is a backup or a cleanup, never a restore whose undo point it would sweep.
-     */
-    internal fun adoptPendingPick() {
-        if (isDestroyed || gate.busy || !state.configLoaded) return
-        val restored = app.pick.take() ?: return
-        gate.start { t -> adoptRestored(t, restored) }
-    }
-
-    /**
-     * Adopt a config parsed with parseForeign (never the lenient parse, which turns any JSON
-     * object into an empty config). No undo point, no restore (hard rule 7). Both callers start it
-     * only with the config loaded (runCommand's editable, adoptPendingPick); the check below stays
-     * as the last line of hard rule 5.
-     */
-    private fun adoptRestored(t: CommandGate.Ticket, restored: VersoConfig) {
-        // So a "my favorites are gone" report can be settled from the log.
-        Log.i(
-            "Verso",
-            "restore: ${restored.favorites.size} favorites, ${restored.hidden.size} hidden, " +
-                "${restored.names.size} names, ${restored.tags.size} tagged",
-        )
-        val outgoing = state.loadedSnapshot() ?: run {
-            refuse(getString(R.string.toast_not_loaded))
-            return
-        }
-        commandIo(t, work = {
-            RestoreSteps.run(
-                current = outgoing,
-                restored = restored,
-                writeUndo = { payload -> backupStore.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
-                writeConfig = state::writeRestored,
-                sweepUndo = { backupStore.sweep(BackupFiles.PRE_RESTORE_BASE) },
-            ).also { outcome -> keepMessage(restoreMessage(outcome)) }
-        }) { outcome ->
-            // Nothing kept: the step threw.
-            if (outcome == null) {
-                report(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
-                return@commandIo
-            }
-            // Cannot refuse: loaded was checked above. The message is the write's, queued before
-            // this hand-back, which reaches the shared state even when this instance is gone.
-            if (outcome is RestoreSteps.Outcome.Done) state.adopt(restored)
-            showMessages()
-        }
-    }
-
-    private fun restoreMessage(outcome: RestoreSteps.Outcome): String = when (outcome) {
-        RestoreSteps.Outcome.Unchanged -> getString(R.string.toast_restore_same)
-        RestoreSteps.Outcome.WriteFailed -> getString(R.string.toast_restore_write_failed)
-        RestoreSteps.Outcome.UndoFailed -> getString(R.string.toast_restore_undo_failed)
-        is RestoreSteps.Outcome.Done -> getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName))
+        // From here the pick is the process's (VersoApp.pick): a recreation or a stop loses it no
+        // more, and the read thread holds nothing of this activity.
+        app.commands.readPick(uri)
     }
 
     /** No "~" command but ~restart before the config is loaded (hard rule 5); the toast says why. */
@@ -605,42 +446,6 @@ class MainActivity : Activity() {
 
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
         Toast.makeText(this, text, duration).show()
-
-    /*
-     * A "~backup"/restore result is never shown over another app and never lost: it waits in
-     * ProcessState.messages until an instance is in front — shown in the step's hand-back, at
-     * onStart (it finished after onStop), or at the first refresh of the instance a recreation
-     * made (the step's hand-back ran on the destroyed one, which shows nothing).
-     * A refusal is not a result: shown while in front, else dropped ([refuse]).
-     */
-
-    /** On the IO thread, before the hand-back: queues [text] as a result and returns it. */
-    private fun keepMessage(text: String): String = text.also { app.process.messages.add(it) }
-
-    /** A result decided on the main thread: now if in front, else queued for the next start. */
-    private fun report(text: String, duration: Int = Toast.LENGTH_SHORT) {
-        if (started) toast(text, duration) else app.process.messages.add(text)
-    }
-
-    /**
-     * A refusal from a step that ran while the user may have left: shown if in front, else dropped —
-     * "not loaded" hours later, out of context, would mean nothing. (A pick no longer meets "busy"
-     * or "not loaded": it waits for both, adoptPendingPick. This stays for a caller that breaks that.)
-     */
-    private fun refuse(text: String) {
-        if (started) toast(text)
-    }
-
-    /** Every queued result, oldest first, once each, while in front. */
-    private fun showMessages() {
-        if (!started) return
-        val queue = app.process.messages
-        var text = queue.poll()
-        while (text != null) {
-            toast(text, Toast.LENGTH_LONG)
-            text = queue.poll()
-        }
-    }
 
     /** "%": saved at once like every edit; the prompt clears onto the drawer in its new order. */
     private fun toggleOrder() {
@@ -883,7 +688,7 @@ class MainActivity : Activity() {
     private companion object {
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
 
-        /** In the companion, so a reference to it holds no activity (the "~restore-saf" read thread). */
+        /** In the companion, so a reference to it holds no activity (the wallpaper's IO question). */
         private fun logWarning(msg: String, e: Throwable?) {
             if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg)
         }
