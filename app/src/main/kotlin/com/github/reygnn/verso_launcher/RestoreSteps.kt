@@ -1,6 +1,10 @@
 package com.github.reygnn.verso_launcher
 
-/** The IO-thread half of a restore, in its load-bearing order (hard rule 7). */
+/**
+ * The IO-thread half of a restore, in its load-bearing order (hard rule 7). The restored config is
+ * written here, in the same IO task as its undo point, not after the hand-back: a restore must
+ * survive a hand-back that never lands.
+ */
 internal object RestoreSteps {
 
     sealed interface Outcome {

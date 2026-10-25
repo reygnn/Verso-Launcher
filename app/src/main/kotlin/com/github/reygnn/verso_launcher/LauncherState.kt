@@ -83,7 +83,9 @@ internal class LauncherState(
     /**
      * Proof an edit may run: the config was loaded when it was issued (hard rule 5; it never
      * unloads) and no "~" command runs (hard rule 15) — [current] is false once one has started
-     * since. Every edit takes one, so an edit path that skips either check does not compile.
+     * since. Every edit takes one, so an edit path that skips either check does not compile. Why
+     * no edit during a command: its save, queued behind a restore's IO step, would write the old
+     * config back over the restored one.
      */
     class EditPermit internal constructor(private val idle: CommandGate.Idle) {
         val current: Boolean get() = idle.current
