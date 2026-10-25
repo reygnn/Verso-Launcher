@@ -29,16 +29,17 @@ class GuruInstallTest {
 
     private val now get() = System.currentTimeMillis()
 
-    private fun exit(reason: Int, at: Long, description: String = "", dump: String? = null) =
-        exit(reason, at, description, dump?.byteInputStream())
+    private fun exit(reason: Int, at: Long, description: String = "", dump: String? = null, pid: Int = 0) =
+        exit(reason, at, description, dump?.byteInputStream(), pid)
 
-    private fun exit(reason: Int, at: Long, description: String, dump: InputStream?) {
+    private fun exit(reason: Int, at: Long, description: String, dump: InputStream?, pid: Int = 0) {
         val am = host.app.getSystemService(ActivityManager::class.java)
         val builder = ApplicationExitInfoBuilder.newBuilder()
             .setReason(reason)
             .setTimestamp(at)
             .setDescription(description)
             .setProcessName(host.app.packageName)
+            .setPid(pid)
         if (dump != null) builder.setTraceInputStream(dump)
         shadowOf(am).addApplicationExitInfo(builder.build())
     }
@@ -126,6 +127,34 @@ class GuruInstallTest {
         host.runIo()
 
         assertEquals(listOf(caught.id), host.store.pending().map { it.id })
+    }
+
+    /** One UI on the A17: the crashed process kept behind "keeps stopping", its close a minute later. */
+    @Test
+    fun `a crash recorded again when One UI's dialog closes is reported once`() {
+        host.store.markExitsSeen(now - 10 * GuruHostRule.MINUTE_MS)
+        val caught = host.crashed("0b6c2f8e-1d2a-4c3b-9e8f-000000000001", at = now - 3 * GuruHostRule.MINUTE_MS)
+        exit(ApplicationExitInfo.REASON_CRASH, caught.crashedAt + 22, "crash", pid = 27121)
+        exit(ApplicationExitInfo.REASON_CRASH, caught.crashedAt + GuruHostRule.MINUTE_MS, "crash", pid = 27121)
+
+        Guru.install(host.app, host.io)
+        host.runIo()
+
+        assertEquals(listOf(caught.id), host.store.pending().map { it.id })
+    }
+
+    /** The pid of the end just before, of any reason: a new process with another pid crashing is new. */
+    @Test
+    fun `a crash of the next process is still reported`() {
+        host.store.markExitsSeen(now - 10 * GuruHostRule.MINUTE_MS)
+        val caught = host.crashed("0b6c2f8e-1d2a-4c3b-9e8f-000000000001", at = now - 3 * GuruHostRule.MINUTE_MS)
+        exit(ApplicationExitInfo.REASON_CRASH, caught.crashedAt + 22, "crash", pid = 27121)
+        exit(ApplicationExitInfo.REASON_CRASH_NATIVE, caught.crashedAt + GuruHostRule.MINUTE_MS, "SIGSEGV", pid = 27500)
+
+        Guru.install(host.app, host.io)
+        host.runIo()
+
+        assertEquals(listOf(GuruKind.NATIVE, GuruKind.CRASH), host.store.pending().map { it.kind })
     }
 
     @Test

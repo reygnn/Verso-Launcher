@@ -45,11 +45,14 @@ class FakeMediaStore : ContentProvider() {
     fun pending(path: String, owner: String = context!!.packageName): Row =
         published(path, owner).also { it.values.put(MediaStore.MediaColumns.IS_PENDING, 1) }
 
-    /** A published file someone else may own, as an earlier install or the user leaves it. */
-    fun published(path: String, owner: String = context!!.packageName): Row {
+    /**
+     * A published file someone else may own, as an earlier install or the user leaves it; by
+     * default under a name Guru gives.
+     */
+    fun published(path: String, owner: String = context!!.packageName, name: String? = null): Row {
         val uri = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val row = Row(uri, uri.buildUpon().appendPath((++inserts).toString()).build(), ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "old-$inserts.json")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name ?: "Old-1.0-2026-10-01_12-00-00 ($inserts).json")
             put(MediaStore.MediaColumns.RELATIVE_PATH, path)
             put(MediaStore.MediaColumns.IS_PENDING, 0)
         }, File(context!!.cacheDir, "media-$inserts"), owner)
@@ -99,12 +102,15 @@ class FakeMediaStore : ContentProvider() {
         require(selection == expected) { "unexpected selection: $selection" }
         // As MediaStore: pending rows only when asked for, even for their owner.
         val withPending = queryArgs?.getInt(MediaStore.QUERY_ARG_MATCH_PENDING) == MediaStore.MATCH_INCLUDE
-        val cursor = MatrixCursor(arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.IS_PENDING))
+        val columns = requireNotNull(projection) { "Guru names its columns" }
+        val cursor = MatrixCursor(columns)
         rows.filter { row ->
             (withPending || row.values.getAsInteger(MediaStore.MediaColumns.IS_PENDING) == 0) &&
                 row.values.getAsString(MediaStore.MediaColumns.RELATIVE_PATH).trimEnd('/') + "/" == path &&
                 (owner == null || row.owner == owner)
-        }.forEach { cursor.addRow(arrayOf(it.id, it.values.getAsInteger(MediaStore.MediaColumns.IS_PENDING))) }
+        }.forEach { row ->
+            cursor.addRow(columns.map { if (it == MediaStore.MediaColumns._ID) row.id else row.values.get(it) }.toTypedArray())
+        }
         return cursor
     }
 

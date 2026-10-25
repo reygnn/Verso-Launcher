@@ -26,7 +26,10 @@ answers: an app that dies before its alert still has its reports in `Download/Gu
 alert that cannot be built (the host's texts throw) is logged and left out; one that
 crashes later, in layout or drawing, is left out at the next start — its crash, on the main
 thread with its root cause thrown in Guru's own code, is saved like any other, but gets no
-alert. No start loops on Guru's own alert. (A host's crash that merely passes through a Guru
+alert. What Guru cannot read from a trace — a native crash or an ANR while the alert is up —
+it knows from a mark in its store, written before the alert shows and cleared when it goes:
+found at the next start with new reports, that start saves them and shows no alert (one left
+behind by a process merely killed, nothing new, is cleared). No start loops on Guru's own alert. (A host's crash that merely passes through a Guru
 class further down — R8 merges lambdas across packages — still gets its alert.)
 
 Platform APIs and the Kotlin stdlib only, minSdk 36 like the rest of the family.
@@ -40,8 +43,10 @@ Platform APIs and the Kotlin stdlib only, minSdk 36 like the rest of the family.
 | Native crash | `#80000003` | `ApplicationExitInfo`, on the next start | description only (the tombstone is protobuf) |
 
 A Java crash shows up in `ApplicationExitInfo` too; it is dropped when the handler wrote
-a report within 10 s of it. On the very first start with Guru the exit history is only
-marked, not reported: it predates Guru.
+a report within 10 s of it. An exit with the pid of the exit just before it is the same
+process ending again — One UI keeps a crashed process alive behind its "keeps stopping"
+dialog and records a second crash when it is closed — and is no report. On the very first
+start with Guru the exit history is only marked, not reported: it predates Guru.
 
 **The number.** `#80000001` is the kind with the Amiga's dead-end bit. The second half
 is FNV-1a over the root cause's type and its first three frames, without messages and
@@ -62,8 +67,8 @@ thread's first three frames.
 `filesDir/guru/`: one `guru-<time>-<id>.txt` per report (`key=value`, readable with
 `adb`), written atomically (`.new` + fsync → rename → fsync dir) — only until the next
 start saves it to `Download/Guru/`. At most 8, the newest. A crash loop cannot fill the
-disk. Beside them: `installation-id`, `exits-seen` and `crashes-saved` (the times of the
-crashes saved, the newest 8).
+disk. Beside them: `installation-id`, `exits-seen`, `crashes-saved` (the times of the
+crashes saved, the newest 8) and, while an alert is up, `alert-up`.
 
 ## Saving
 
@@ -91,9 +96,9 @@ Of its own files in `Download/Guru/`, Guru keeps the newest 32 and removes the r
 saving, so a crash loop cannot fill the folder; a hidden file of ours left by a save that died
 halfway goes too (its report is still in the store and saved anew). Only files this app made are ever listed or
 removed: files the user put there, another app's, or an earlier install's are not touched.
-A file of Guru's that the user renames inside the folder still counts, and so does one of this
-app's own files moved into it; moved out, a file is the
-user's alone.
+And only under a name Guru gives — ending in the crash time and `.json`, ` (n)` allowed: one
+of this app's other files moved into the folder is not counted, and neither is a file of Guru's
+the user renames to anything else; moved out, a file is the user's alone.
 
 **The alert** then names the newest report's number and how many were saved — only what this
 start saved, and once it has been seen, never again: a second `showPending` shows nothing.
@@ -235,11 +240,12 @@ of its own and does not move.
 
 `library/src/test/java`: 190 tests, JUnit 4, no mocks, each mutation-checked.
 
-- **91 plain JVM tests.** Real files in a `TemporaryFolder`, and the real desktop
+- **97 plain JVM tests.** Real files in a `TemporaryFolder`, and the real desktop
   `org.json` for parsing the JSON back (the library Acrarium reads it with).
-- **99 Robolectric tests** for what the JVM alone cannot reach:
+- **108 Robolectric tests** for what the JVM alone cannot reach:
   - `Guru.install`: one handler, no receiver.
-  - Exit records via `ShadowActivityManager`, an unreadable ANR dump too.
+  - Exit records via `ShadowActivityManager`, an unreadable ANR dump too; a crash One UI
+    records again when its dialog closes, once.
   - Saving at the start through a fake MediaStore provider: one file per report in
     `Download/Guru`, hidden until complete, removed from Guru's store once saved; a refused,
     failed or throwing save keeps that report; the newest 32 of Guru's own files stay, no
@@ -276,16 +282,21 @@ plain application id, so install it with
 3. Crash, start; double-tap: the alert closes. Restart: no alert.
 4. Crash, start; while the alert is up, switch dark mode (or rotate): the recreated screen
    shows the alert again.
-5. "Crash twice", start (it crashes again before Guru saves), start again: "2 reports saved
+5. Crash, start; while the alert is up, kill the process with
+   `adb shell am crash com.github.reygnn.guru.sample`. One UI may first show "… wird
+   wiederholt beendet" and keep the process alive until "App schließen" is tapped — a start
+   before that starts nothing new; after several crashes device care may offer "Cache
+   leeren?" — cancel it. Start: no alert, the `am crash` report saved in `Download/Guru/`.
+6. "Crash twice", start (it crashes again before Guru saves), start again: "2 reports saved
    to Download/Guru"; hold: both files offered together; pick mail (or guru2acra, once it
    takes `.json`), it receives both.
-6. Press "ANR" and touch the screen until the system kills the app, restart:
+7. Press "ANR" and touch the screen until the system kills the app, restart:
    `#80000002`, the thread dump in the file.
-7. TalkBack in German: the hint, both actions and the "saved" line are read in German.
+8. TalkBack in German: the hint, both actions and the "saved" line are read in German.
    In every step: the strip at the top, the app slid down under it and, once the alert is
    closed, back exactly where it was — in portrait and landscape, and with "Remove
    animations" without the slide and the blink.
-8. `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew :library:connectedAndroidTest`: green.
+9. `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew :library:connectedAndroidTest`: green.
 
 ## Verified
 

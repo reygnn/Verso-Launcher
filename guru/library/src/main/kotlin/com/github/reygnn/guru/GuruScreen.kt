@@ -40,8 +40,18 @@ internal object GuruScreen {
     /** The slide down and back up. */
     const val SLIDE_MS = 220L
 
-    /** [onUnanswered]: the activity was destroyed while the alert was up and no one had answered it. */
-    fun show(activity: Activity, lines: List<String>, texts: GuruTexts, onShare: () -> Unit, onUnanswered: () -> Unit = {}): Dialog {
+    /**
+     * [onUnanswered]: the activity was destroyed while the alert was up and no one had answered it.
+     * [onGone]: the alert went, by any way out.
+     */
+    fun show(
+        activity: Activity,
+        lines: List<String>,
+        texts: GuruTexts,
+        onShare: () -> Unit,
+        onUnanswered: () -> Unit = {},
+        onGone: () -> Unit = {},
+    ): Dialog {
         val dialog = Dialog(activity, android.R.style.Theme_Material_NoActionBar_Fullscreen)
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -66,7 +76,10 @@ internal object GuruScreen {
         }
         view.onStrip = app::down
         // Every way out — a double-tap, Back, a hold, the activity's end — dismisses the dialog.
-        dialog.setOnDismissListener { app.back() }
+        dialog.setOnDismissListener {
+            app.back()
+            onGone()
+        }
         // Nothing slides before the view is measured, after show(): a show that throws leaves the
         // app where it was.
         dialog.setContentView(view)

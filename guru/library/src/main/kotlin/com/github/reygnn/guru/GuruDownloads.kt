@@ -86,12 +86,12 @@ internal class GuruDownloads(
     fun prune() {
         val own = listOwn() ?: return
         own.filter { it.pending }.forEach { remove(uriOf(it.id), "an unfinished report file") }
-        own.filterNot { it.pending }.map { it.id }.sortedDescending().drop(keep).forEach { id ->
+        own.filter { !it.pending && OWN_NAME.matches(it.name) }.map { it.id }.sortedDescending().drop(keep).forEach { id ->
             remove(uriOf(id), "an old report file")
         }
     }
 
-    private class Row(val id: Long, val pending: Boolean)
+    private class Row(val id: Long, val pending: Boolean, val name: String)
 
     private fun uriOf(id: Long) = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
 
@@ -111,9 +111,9 @@ internal class GuruDownloads(
             // MediaStore hides pending rows even from their owner.
             putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
         }
-        val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.IS_PENDING)
+        val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.IS_PENDING, MediaStore.MediaColumns.DISPLAY_NAME)
         resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, columns, query, null)
-            ?.use { c -> buildList { while (c.moveToNext()) add(Row(c.getLong(0), c.getInt(1) != 0)) } }
+            ?.use { c -> buildList { while (c.moveToNext()) add(Row(c.getLong(0), c.getInt(1) != 0, c.getString(2).orEmpty())) } }
             .orEmpty()
     } catch (e: Exception) {
         log("listing $relativePath failed", e)
@@ -136,6 +136,13 @@ internal class GuruDownloads(
         const val MIME = "application/json"
         const val MAX_LABEL = 40
         const val MAX_VERSION = 24
+
+        /**
+         * A name [baseName] gives, with MediaStore's " (1)" for a name taken: ends in the crash
+         * time and `.json`. The label may differ from today's (a language change), so only the end
+         * is checked.
+         */
+        val OWN_NAME = Regex("""(.+-)?\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}( \(\d+\))?\.json""")
 
         // Digits stay ASCII in any locale: DateTimeFormatter's default DecimalStyle is STANDARD.
         private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss", Locale.ROOT)

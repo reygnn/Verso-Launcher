@@ -1,6 +1,7 @@
 package com.github.reygnn.guru
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -54,6 +55,19 @@ class GuruDownloadsTest {
 
         assertEquals("崩".repeat(GuruDownloads.MAX_LABEL) + "-" + "版".repeat(GuruDownloads.MAX_VERSION) + "-2026-10-24_14-03-12", name)
         assertTrue("$name (99).json".toByteArray(Charsets.UTF_8).size <= 255)
+    }
+
+    /** The prune counts only these (Verso's audit 2026-10-24, B.9). */
+    @Test
+    fun `Guru's own names are known by their end`() {
+        val base = GuruDownloads.baseName("Guru Sample", crash, utc)
+        val noVersion = GuruDownloads.baseName("崩", report(crashedAt = at, env = testEnv.copy(versionName = "")), utc)
+        listOf("$base.json", "$base (1).json", "$base (12).json", "$noVersion.json").forEach {
+            assertTrue(it, GuruDownloads.OWN_NAME.matches(it))
+        }
+        listOf("Verso-backup.json", "$base.txt", "$base.json.txt", "$base (x).json", "Verso-2026-10-24.json").forEach {
+            assertFalse(it, GuruDownloads.OWN_NAME.matches(it))
+        }
     }
 
     @Test

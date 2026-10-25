@@ -265,6 +265,20 @@ class GuruSaveTest {
         assertTrue(media.rows.containsAll(foreign + elsewhere))
     }
 
+    /** Verso's audit 2026-10-24, B.9: a file of this app moved into the folder keeps its owner. */
+    @Test
+    fun `a file of ours under a name Guru does not give is never pruned`() {
+        val moved = listOf("Verso-backup.json", "notes.txt", "Guru-2026-10-01_12-00-00.json.txt")
+            .map { media.published("Download/Guru/", name = it) }
+        repeat(GuruDownloads.KEEP) { media.published("Download/Guru/") }
+        host.crashed(a)
+
+        start()
+
+        assertTrue(media.rows.containsAll(moved))
+        assertEquals(GuruDownloads.KEEP, ours().size - moved.size)
+    }
+
     @Test
     fun `nothing pending prunes nothing`() {
         repeat(GuruDownloads.KEEP + 1) { media.published("Download/Guru/") }

@@ -164,6 +164,31 @@ class GuruStoreTest {
         assertNull(store().exitsSeen())
     }
 
+    // ---- alert mark ---------------------------------------------------------------
+
+    @Test
+    fun `an alert mark is kept until its own token clears it`() {
+        val s = store()
+        assertTrue(s.markAlertUp("t1"))
+        assertTrue(s.markAlertUp("t2"))
+
+        s.clearAlertUp("t1")
+        assertEquals("t2", store().alertUp())
+
+        s.clearAlertUp("t2")
+        assertNull(store().alertUp())
+    }
+
+    @Test
+    fun `taking the alert mark tells once`() {
+        val s = store()
+        assertFalse(s.takeAlertUp())
+        s.markAlertUp("t1")
+
+        assertTrue(store().takeAlertUp())
+        assertFalse(store().takeAlertUp())
+    }
+
     // ---- installation id -----------------------------------------------------------
 
     @Test

@@ -26,7 +26,8 @@ import java.util.UUID
  *
  * Save first, then tell: at every start the reports go to Download/Guru before anything is
  * shown. The alert only says what this start saved, once; nothing waits on the user, so an app
- * that dies before its alert, or an alert that dies itself, loses nothing and loops nowhere.
+ * that dies before its alert, or an alert that dies itself, loses nothing. A process that died
+ * with its alert up gets none at the next start, so no alert can kill every start.
  */
 internal object Guru {
 
@@ -89,7 +90,9 @@ internal object Guru {
      * itself and keeps the alert for the next call, a block dropped would lose it.
      *
      * Left out when the newest report is a crash on the main thread inside Guru itself — the
-     * alert's own crash: showing it again would crash again, at every start. The files are saved.
+     * alert's own crash: showing it again would crash again, at every start. Left out, too, when
+     * the last process died with its alert up (a native crash, an ANR) and reports came since. The
+     * files are saved.
      */
     fun showPending(activity: Activity, onUi: (() -> Unit) -> Unit) {
         val s = setup ?: return
@@ -101,7 +104,13 @@ internal object Guru {
             when {
                 saved.isEmpty() -> Unit
                 GuruText.diedInGuru(saved.first().report) -> log("alert left out: the last crash was Guru's own", null)
-                else -> onUi { present(activity, s, saved) }
+                else -> {
+                    // On disk before the alert can be seen; whatever kills the process from here on
+                    // leaves it for the next start (save).
+                    val token = newId()
+                    s.store.markAlertUp(token)
+                    onUi { present(activity, s, saved, token) }
+                }
             }
         })
     }
@@ -110,9 +119,12 @@ internal object Guru {
     // alert is left out — the files are saved. What throws later, in layout or drawing, crashes
     // like anything on main, and the next start leaves the alert out (diedInGuru).
     @Suppress("TooGenericExceptionCaught")
-    private fun present(activity: Activity, s: Setup, saved: List<Saved>) {
+    private fun present(activity: Activity, s: Setup, saved: List<Saved>, token: String) {
+        // The alert is gone: its mark goes, unless a newer alert's took its place.
+        val release = { s.io(guarded("clearing the alert mark") { s.store.clearAlertUp(token) }) }
         if (activity.isFinishing || activity.isDestroyed) {
             keep(s, saved)
+            release()
             return
         }
         try {
@@ -122,9 +134,11 @@ internal object Guru {
                 s.texts,
                 onShare = { offer(activity, saved) },
                 onUnanswered = { keep(s, saved) },
+                onGone = release,
             )
         } catch (e: RuntimeException) {
             log("alert not shown", e)
+            release()
         }
     }
 
@@ -135,6 +149,8 @@ internal object Guru {
     // next is saved: a death in between repeats at most the one just saved (a second file, the
     // same REPORT_ID). One that fails stays for the next start.
     private fun save(s: Setup) {
+        // Taken at every start, reports or not: a mark left is the last process's.
+        val alertDied = s.store.takeAlertUp()
         val reports = s.store.pending()
         if (reports.isEmpty()) return
         val installation = s.store.installationId(::newId)
@@ -152,7 +168,13 @@ internal object Guru {
             }
         }
         s.downloads.prune()
-        s.saved = saved + s.saved
+        // Its alert up, the last process died — a native crash or an ANR the alert may have caused,
+        // which diedInGuru cannot see. Shown again, it could do so at every start.
+        if (alertDied && saved.isNotEmpty()) {
+            log("alert left out: the last process died with its alert up", null)
+        } else {
+            s.saved = saved + s.saved
+        }
     }
 
     // A chooser that cannot start (no app, or the system refuses) costs nothing: the files stay.
@@ -187,14 +209,19 @@ internal object Guru {
     // Only an ANR's dump is text; a native crash's is a protobuf tombstone and stays out.
     private fun collectExits(s: Setup) {
         val am = s.context.getSystemService(ActivityManager::class.java) ?: return
-        val records = am.getHistoricalProcessExitReasons(null, 0, EXIT_LOOKBACK).mapNotNull { info ->
+        val history = am.getHistoricalProcessExitReasons(null, 0, EXIT_LOOKBACK)
+        // No pid (0) is no process: such an exit is never taken for a second end.
+        val records = history.mapNotNull { info ->
             kindOf(info.reason)?.let { kind ->
-                ExitRecord(kind, info.timestamp, info.description.orEmpty()) { if (kind == GuruKind.ANR) dump(info) else null }
+                ExitRecord(kind, info.timestamp, info.description.orEmpty(), info.pid.takeIf { it > 0 }) {
+                    if (kind == GuruKind.ANR) dump(info) else null
+                }
             }
         }
         val seen = s.store.exitsSeen()
         val handlerTimes = s.store.pending().filter { it.kind == GuruKind.CRASH }.map { it.crashedAt } + s.store.crashesSaved()
-        val outcome = ExitSelection.select(records, seen, System.currentTimeMillis(), handlerTimes)
+        val ends = history.map { ProcessEnd(it.pid, it.timestamp) }
+        val outcome = ExitSelection.select(records, seen, System.currentTimeMillis(), handlerTimes, ends)
         outcome.report.forEach { s.store.write(s.process.exit(newId(), it)) }
         if (outcome.seen != seen) s.store.markExitsSeen(outcome.seen)
     }
