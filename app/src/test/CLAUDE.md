@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 666 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 672 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -55,9 +55,10 @@ PendingPickTest              9  a "~restore-saf" pick's states: a read config as
                                 unreadable file, a dropped (in any state) or superseded read
                                 landing late
 LauncherRowsTest            41  rowsFor per mode
-ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
+ConfigStoreTest             18  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
-                                (exported to Downloads, else renamed: one copy), a crash's .new ignored
+                                (exported to Downloads, else renamed: one copy; an export that
+                                cannot be removed is not gone), a crash's .new ignored
 ConfigJsonTest              32  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, lone surrogates, size limits
 LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, the "!!" tap
@@ -69,10 +70,11 @@ SwipeGestureTest            19  the page drag (direction, offset, release, home 
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
-PageTurnTest                28  Robolectric: the page turn on real views — each page's pane title
+PageTurnTest                30  Robolectric: the page turn on real views — each page's pane title
                                 (home, all apps, the recents), open/close (animated or
-                                not), the side it comes from and returns to (also caught
-                                mid-close), leaving "?", who may drag or flick (dialog, top band),
+                                not), a "%" drawer re-sorted before it shows (open, drag),
+                                the side it comes from and returns to (also caught mid-close),
+                                leaving "?", who may drag or flick (dialog, top band),
                                 drag commit/cancel both ways, open ending a held drag, Back
                                 (home, prompt, recents, preview, cancel — also after HOME closed
                                 the drawer)
@@ -84,8 +86,10 @@ AppDrawerTest               16  Robolectric: the back page — what a screen rea
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       31  Robolectric, the real Activity: a "~restore-saf" file is asked
-                                about before it is adopted — its counts shown (a planted file),
+MainActivityFlowsTest       34  Robolectric, the real Activity: "!!" moving a favorite and letting
+                                go of it; no rename dialog before the first load; a
+                                "~restore-saf" file is asked about before it is adopted — its
+                                counts shown (a planted file),
                                 Cancel adopts nothing and says nothing, a dialog left unanswered
                                 ends the pick with a toast, a file read while away is asked about
                                 at the next start; the state is the process's —
