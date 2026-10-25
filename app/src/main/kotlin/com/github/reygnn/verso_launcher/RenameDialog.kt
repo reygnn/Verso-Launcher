@@ -6,6 +6,9 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.text.InputFilter
 import android.text.InputType
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextUtils
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -19,6 +22,27 @@ import android.widget.TextView
  * [onCommit]; what an empty field means is the caller's decision.
  */
 internal object RenameDialog {
+
+    /**
+     * Folds a typed run to canonical tag form. On a rewrite it returns a Spannable and carries the
+     * IME's composing spans over — a bare String would strip them and the keyboard would double
+     * letters (Samsung: "wwo"). Spans are kept only on a length-preserving fold (the capital-letter
+     * case that triggers it); a length-changing one (NFC, a dropped mark) is rare and would risk a
+     * span past the end, so it drops them.
+     */
+    private fun tagFoldFilter() = InputFilter { source, start, end, _, _, _ ->
+        val sub = source.subSequence(start, end).toString()
+        val folded = LauncherLogic.foldLabel(sub)
+        if (folded == sub) {
+            null
+        } else {
+            SpannableString(folded).also { dest ->
+                if (source is Spanned && folded.length == sub.length) {
+                    TextUtils.copySpansFrom(source, start, end, null, dest, 0)
+                }
+            }
+        }
+    }
 
     /** The caller owns the returned dialog (dismiss on teardown). */
     fun show(
@@ -54,11 +78,7 @@ internal object RenameDialog {
             isSingleLine = true
             inputType = noSuggest
             // Not every keyboard honours "no caps"; the fold makes the field show what is stored.
-            filters = arrayOf(InputFilter { source, start, end, _, _, _ ->
-                val sub = source.subSequence(start, end).toString()
-                val folded = LauncherLogic.foldLabel(sub)
-                if (folded == sub) null else folded
-            })
+            filters = arrayOf(tagFoldFilter())
             setTokenizer(MultiAutoCompleteTextView.CommaTokenizer())
             threshold = 1
             // getView is fully overridden, so the layout id is never inflated.

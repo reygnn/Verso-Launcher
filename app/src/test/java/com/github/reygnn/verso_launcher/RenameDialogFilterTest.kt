@@ -4,6 +4,8 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.os.Looper
 import android.text.InputFilter
+import android.text.SpannableString
+import android.text.Spanned
 import android.view.View
 import android.widget.EditText
 import android.widget.MultiAutoCompleteTextView
@@ -89,6 +91,20 @@ class RenameDialogFilterTest {
         val filter = show().tagsField().filters.single()
         // Under tr, "I".lowercase() is the dotless "ı"; the field must show the ROOT fold.
         assertEquals("i", filter.filter("I", 0, 1, null, 0, 0).toString())
+    }
+
+    /** Dropping the span is the "wwo" bug: the IME loses the composing region and doubles letters. */
+    @Test fun `a folded run keeps the IME's composing span`() {
+        val filter = show().tagsField().filters.single()
+        val composing = Any()
+        val source = SpannableString("W").apply {
+            setSpan(composing, 0, 1, Spanned.SPAN_COMPOSING or Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val out = filter.filter(source, 0, 1, null, 0, 0)
+        assertEquals("w", out.toString())
+        assertTrue("a rewritten run must stay Spanned", out is Spanned)
+        out as Spanned
+        assertEquals(1, out.getSpans(0, out.length, Any::class.java).size)
     }
 
     /** NFC makes the fold shorter than its source ("e" + U+0301 -> "é"); the widget must not throw. */
