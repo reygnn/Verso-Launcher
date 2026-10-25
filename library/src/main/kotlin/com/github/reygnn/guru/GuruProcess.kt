@@ -3,14 +3,18 @@ package com.github.reygnn.guru
 /**
  * A process exit the system recorded ([android.app.ApplicationExitInfo]), already mapped to a
  * kind. [trace] reads the dump only when asked: most exits are older than the last look and are
- * never read.
+ * never read. [pid]: the process that ended; null when unknown.
  */
 internal class ExitRecord(
     val kind: GuruKind,
     val timestamp: Long,
     val description: String,
+    val pid: Int? = null,
     val trace: () -> String? = { null },
 )
+
+/** Any recorded end of a process of the app, whatever its reason — the timeline [ExitSelection] reads pids from. */
+internal class ProcessEnd(val pid: Int, val timestamp: Long)
 
 /** This process, as its reports describe it — pure, so the crash path is tested on the JVM. */
 internal class GuruProcess(val env: GuruEnv, val startedAt: Long) {

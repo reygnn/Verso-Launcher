@@ -141,9 +141,11 @@ class GuruShowPendingTest {
         val dialog = shown()
 
         dialog.guruView().performClick()
+        host.idleMain()
+        host.runIo()
 
         assertFalse(dialog.isShowing)
-        assertEquals(0, host.queuedIo())
+        assertNull(host.store.alertUp())
         assertEquals(1, media.rows.size)
         assertNull(shadowOf(host.activity().get()).nextStartedActivity)
     }
@@ -157,9 +159,11 @@ class GuruShowPendingTest {
         dialog.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
         dialog.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
         host.idleMain()
+        host.runIo()
 
         assertFalse(dialog.isShowing)
-        assertEquals(0, host.queuedIo())
+        assertNull(host.store.alertUp())
+        assertEquals(1, media.rows.size)
     }
 
     @Test
@@ -190,8 +194,10 @@ class GuruShowPendingTest {
 
         activity.finish()
         onUi.single()()
+        host.runIo()
 
         assertNull(ShadowDialog.getLatestDialog())
+        assertNull(host.store.alertUp())
     }
 
     @Test
@@ -220,9 +226,11 @@ class GuruShowPendingTest {
 
         host.runIo()
         host.idleMain()
+        host.runIo()
 
         assertNull(ShadowDialog.getLatestDialog())
         assertEquals(1, media.rows.size)
+        assertNull(host.store.alertUp())
     }
 
     @Test
@@ -246,6 +254,92 @@ class GuruShowPendingTest {
             trace = "java.lang.IllegalStateException: io\n\tat com.github.reygnn.guru.Guru.save(Guru.kt:1)"))
 
         assertTrue(shown().isShowing)
+    }
+
+    // ---- a process that died with its alert up (Verso's audit 2026-10-24, B.10) ----
+
+    /** The next "start": a new install over the same store, as after a process death. */
+    private fun nextStart(): Dialog? {
+        installed()
+        Guru.showPending(host.activity().get()) { it() }
+        host.runIo()
+        return ShadowDialog.getLatestDialog()
+    }
+
+    @Test
+    fun `the alert is marked while it is up`() {
+        host.crashed(a)
+        shown()
+
+        assertTrue(host.store.alertUp() != null)
+    }
+
+    /** A native crash or an ANR caused by the alert: diedInGuru cannot see it. */
+    @Test
+    fun `a process that died with its alert up gets none at the next start, the file is saved`() {
+        host.crashed(a)
+        val first = shown()
+        host.crashed(b, at = System.currentTimeMillis())
+
+        assertTrue(nextStart() === first)
+        assertEquals(1, ShadowDialog.getShownDialogs().size)
+        assertEquals(2, media.rows.size)
+        assertNull(host.store.alertUp())
+    }
+
+    @Test
+    fun `the start after that shows its alert again`() {
+        host.crashed(a)
+        shown()
+        host.crashed(b, at = System.currentTimeMillis())
+        nextStart()
+        host.crashed("0b6c2f8e-1d2a-4c3b-9e8f-00000000000c", at = System.currentTimeMillis())
+
+        assertTrue(nextStart()!!.isShowing)
+        assertEquals(2, ShadowDialog.getShownDialogs().size)
+    }
+
+    @Test
+    fun `a mark left with nothing new is cleared, and the next report gets its alert`() {
+        host.crashed(a)
+        shown()
+        nextStart()
+        assertNull(host.store.alertUp())
+        host.crashed(b, at = System.currentTimeMillis())
+
+        assertTrue(nextStart()!!.isShowing)
+        assertEquals(2, ShadowDialog.getShownDialogs().size)
+    }
+
+    @Test
+    fun `a closed alert leaves the next start's alert in`() {
+        host.crashed(a)
+        shown().guruView().performClick()
+        host.idleMain()
+        host.runIo()
+        host.crashed(b, at = System.currentTimeMillis())
+
+        assertTrue(nextStart()!!.isShowing)
+        assertEquals(2, ShadowDialog.getShownDialogs().size)
+    }
+
+    /** The old alert's dismissal comes after the new one is up: it must not clear the new mark. */
+    @Test
+    fun `an alert lost to a recreate leaves the new alert's mark`() {
+        host.crashed(a)
+        installed()
+        val controller = host.activity()
+        Guru.showPending(controller.get()) { it() }
+        host.runIo()
+        controller.pause().stop().destroy()
+        Guru.showPending(host.activity().get()) { it() }
+        host.runIo()
+
+        host.idleMain()
+        host.runIo()
+
+        assertTrue(ShadowDialog.getLatestDialog().isShowing)
+        assertTrue(host.store.alertUp() != null)
     }
 
     // ---- an alert lost before it was answered ------------------------------------

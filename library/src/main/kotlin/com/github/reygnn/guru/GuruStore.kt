@@ -7,13 +7,13 @@ import java.util.Locale
 /**
  * The reports in their own directory (filesDir/guru), one file each, written atomically
  * (.new + fsync → rename → fsync dir), at most [keep] — the newest — so a crash loop cannot
- * fill the disk. Beside them: the installation id, the exit mark and the times of the crashes
- * saved. Never throws; [log] is the error channel. [syncDir], [rename] and [now] are seams.
+ * fill the disk. Beside them: the installation id, the exit mark, the times of the crashes
+ * saved and the mark of an alert up. Never throws; [log] is the error channel. [syncDir], [rename] and [now] are seams.
  *
  * Called from the IO thread, and from a crashing thread in the handler — each write goes to a
  * name of its own, so the two never touch the same file.
  */
-// The store is the directory: a read and a write for each of its four kinds of file, plus the
+// The store is the directory: a read and a write for each of its five kinds of file, plus the
 // atomic write they share — split up, each part would hold one pair.
 @Suppress("TooManyFunctions")
 internal class GuruStore(
@@ -78,6 +78,28 @@ internal class GuruStore(
     fun markExitsSeen(timestamp: Long): Boolean = writeAtomically(File(dir, EXITS_SEEN), timestamp.toString())
 
     /**
+     * The token of the alert up right now, written before it is shown and cleared when it goes:
+     * found at the next start, the process died with its alert up. Unreadable = none.
+     */
+    fun alertUp(): String? = read(File(dir, ALERT_UP))?.trim()
+
+    fun markAlertUp(token: String): Boolean = writeAtomically(File(dir, ALERT_UP), token)
+
+    /** Only [token]'s own mark: an alert that goes after a newer one came up leaves the newer one's. */
+    fun clearAlertUp(token: String) {
+        val file = File(dir, ALERT_UP)
+        if (alertUp() == token && !file.delete()) log("could not clear ${file.name}", null)
+    }
+
+    /** Whether the last process left its alert up; the mark is gone afterwards. */
+    fun takeAlertUp(): Boolean {
+        val file = File(dir, ALERT_UP)
+        val up = file.isFile
+        if (up && !file.delete()) log("could not clear ${file.name}", null)
+        return up
+    }
+
+    /**
      * ACRA's INSTALLATION_ID (Acrarium requires it and counts affected installs by it): made once
      * with [create], kept until the app's data is cleared. If it cannot be stored, a fresh one
      * per call — the report still goes through.
@@ -132,6 +154,7 @@ internal class GuruStore(
         const val EXITS_SEEN = "exits-seen"
         const val CRASHES_SAVED = "crashes-saved"
         const val INSTALLATION = "installation-id"
+        const val ALERT_UP = "alert-up"
         private const val PREFIX = "guru-"
         private const val SUFFIX = ".txt"
         private const val PENDING = ".new"

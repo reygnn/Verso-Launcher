@@ -21,7 +21,8 @@ import java.util.UUID
 /**
  * What only a device shows about Download/Guru: MediaStore publishes the file under its name,
  * adds " (1)" to a name already taken, lists only the rows of their owner — and so pruning
- * never touches a file someone else put there — and hands a hidden pending row of ours to a
+ * never touches a file someone else put there, nor one of ours under a name Guru does not give —
+ * and hands a hidden pending row of ours to a
  * query that asks for it, so a save that died halfway is cleared.
  *
  * A row we do NOT own is made by the shell, whose files land in MediaStore under the shell's
@@ -83,14 +84,19 @@ class GuruDownloadsInstrumentedTest {
         assertEquals(listOf("Guru-2026-10-24_14-03-12 (1).json"), ownNames())
     }
 
+    /** Ours under a name Guru does not give ("notes", a file of this app moved in) is not counted either. */
     @Test fun pruneKeepsTheNewestOwnFilesAndNoneOfSomeoneElses() {
         shell("touch $dirPath/foreign.json")
         val d = downloads(keep = 2)
-        listOf("a", "b", "c").forEach { d.save(it, JSON_A) }
+        d.save("notes", JSON_A)
+        listOf("a", "b", "c").forEach { d.save("Guru-$it-2026-10-24_14-03-12", JSON_A) }
 
         d.prune()
 
-        assertEquals(setOf("b.json", "c.json"), ownNames().toSet())
+        assertEquals(
+            setOf("notes.json", "Guru-b-2026-10-24_14-03-12.json", "Guru-c-2026-10-24_14-03-12.json"),
+            ownNames().toSet(),
+        )
         assertTrue(shell("ls $dirPath").contains("foreign.json"))
         assertTrue(logs.toString(), logs.isEmpty())
     }

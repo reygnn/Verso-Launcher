@@ -12,14 +12,15 @@ purpose: no coroutines, no MockK — see "deliberately not".
 
 ## What exists
 
-Unit tests (`library/src/test`, `./gradlew :library:testDebugUnitTest`, 190 tests):
+Unit tests (`library/src/test`, `./gradlew :library:testDebugUnitTest`, 205 tests):
 
 ```
-GuruStoreTest       19  reports on real files: atomic write (.new, rename, dir fsync), newest
+GuruStoreTest       21  reports on real files: atomic write (.new, rename, dir fsync), newest
                         first, at most 8, a refused rename, ASCII names in any locale, remove
                         by whole id only,
                         exits-seen, installation-id, the saved crash times (newest, distinct,
-                        unreadable = none)
+                        unreadable = none); the alert mark cleared only by its own token,
+                        taken once
 GuruNumberTest      16  the number: kind with the dead-end bit, FNV-1a over the UTF-8 bytes of
                         the root cause's type (the last "Caused by:", a space before the colon
                         ignored) and first three frames, stable across messages and line
@@ -35,18 +36,21 @@ GuruTextTest        11  cap and readCapped at their limit (surrogate pairs whole
                         a package below
 AcraJsonTest         7  the ACRA fields Acrarium requires, USER_CRASH_DATE's format, read back
                         with the real org.json
-ExitSelectionTest    7  which exit records become reports: the first look only sets the
+ExitSelectionTest   10  which exit records become reports: the first look only sets the
                         mark, oldest first, a Java crash the handler caught not twice, an ANR
-                        beside it still reported, the mark moved even past a dropped crash
-GuruDownloadsTest    7  the file's name: app, version, local crash time; unsafe characters
+                        beside it still reported, the mark moved even past a dropped crash;
+                        a second end of the same process (the pid of the end just before, of
+                        any reason) is no report, a pid reused later is
+GuruDownloadsTest    8  the file's name: app, version, local crash time; unsafe characters
                         to `_`, dashes kept, empty parts left out, ASCII digits in any locale,
-                        the calendar year, label and version cut under 255 bytes
+                        the calendar year, label and version cut under 255 bytes; Guru's own
+                        names known by their end (" (n)" too) for the prune
 GuruProcessTest      6  building a report from a crash (trace capped) or an exit record; the
                         kind codes are fixed
 GuruHandlerTest      5  one capture per process, a failing capture swallowed, the previous
                         handler always reached with the original throwable
 GuruTextsTest        3  the English defaults; a host overrides only what it translates
-GuruSaveTest        29  Robolectric + FakeMediaStore: saving at the start, after the exit
+GuruSaveTest        30  Robolectric + FakeMediaStore: saving at the start, after the exit
                         look on io; one .json per report in the Downloads collection,
                         Download/Guru (name, MIME), hidden until all bytes are in, its own
                         report's ACRA JSON, the installation's one id, a trace beyond ASCII
@@ -57,12 +61,13 @@ GuruSaveTest        29  Robolectric + FakeMediaStore: saving at the start, after
                         next start; a crash the handler caught saved once, also when its
                         exit record shows up a start later — an ANR's time hides no crash;
                         pruning keeps the newest 32 own files, never another owner's or
-                        another folder's, nothing when nothing was pending, also when
-                        nothing could be saved, and a failing listing or delete stops no
+                        another folder's or one of ours under a name Guru does not give,
+                        nothing when nothing was pending, also when nothing could be saved,
+                        and a failing listing or delete stops no
                         save and no alert; an exit look that throws stops neither io nor the
                         save; a hidden row of ours left halfway is cleared, not counted among
                         the 32, another owner's or folder's stays
-GuruShowPendingTest 22  Robolectric: the alert only for what this start saved, after the save,
+GuruShowPendingTest 28  Robolectric: the alert only for what this start saved, after the save,
                         on the host's main; nothing saved queues nothing; the newest's number
                         and how many; once seen, never again; a double-tap or Back only
                         closes; a destroyed or finishing activity gets none, the files are
@@ -71,18 +76,23 @@ GuruShowPendingTest 22  Robolectric: the alert only for what this start saved, a
                         that throw cost the alert, not the host; Guru's own crash on main
                         leaves the next alert out, a crash below Guru's package or off main
                         does not, and only the newest report decides; an activity recreated
-                        or finishing before its io turn leaves the alert to the next call
+                        or finishing before its io turn leaves the alert to the next call;
+                        the alert marked while up, the mark cleared on every way out (an old
+                        alert's dismissal leaves a newer one's); a process that died with its
+                        alert up gets none at the next start, the start after does, a mark
+                        with nothing new is just cleared
 GuruShareTest        5  Robolectric: a hold offers one file (SEND) or several (SEND_MULTIPLE),
                         read access but no write for the chooser and the app picked, in a
                         new task, under the newest's subject; only what was saved; a chooser
                         that cannot start costs nothing
-GuruInstallTest     11  Robolectric (every save refused, so reports stay readable): a second
+GuruInstallTest     13  Robolectric (every save refused, so reports stay readable): a second
                         install keeps one handler; no receiver; exit records
                         (ShadowActivityManager) — the look waits for io, the first start only
                         marks, an ANR with its dump, a caught Java crash not twice, old exits
                         and other reasons stay out, an unreadable dump (checked or unchecked)
                         still a report and the mark moved, a native tombstone stays out, an
-                        ANR report hides no crash exit
+                        ANR report hides no crash exit; One UI's second crash record of a
+                        process once, the next process's crash still reported
 GuruScreenTest       9  Robolectric: close shares nothing, share acts once (the hold
                         consumed); TalkBack's action labels and description from GuruTexts;
                         the alert closes with its activity; a long host line shrinks only
@@ -103,7 +113,7 @@ GuruTouchTest       11  Robolectric, real MotionEvents: a double-tap closes, a s
 On a device (`library/src/androidTest`, `./gradlew :library:connectedAndroidTest`, 5 tests):
 `GuruDownloadsInstrumentedTest` — real MediaStore: the file published under its name and
 readable back, " (1)" for a name taken by ours or the shell's, pruning keeps the newest own
-files and leaves the shell's, a hidden row of ours left halfway is cleared. The only androidTest set: what Robolectric cannot show.
+files (only under Guru's names) and leaves the shell's, a hidden row of ours left halfway is cleared. The only androidTest set: what Robolectric cannot show.
 
 `sample/src/test`: `SampleGuruTextsTest` (2) — the sample's `GuruTexts` from `values` and
 `values-de`.
@@ -112,8 +122,9 @@ Shared: `GuruFixtures.kt` (`testEnv`, `report(...)`, `GuruLocaleRule`) and, for 
 Robolectric tests, `GuruHostRule.kt` (the Application, `io` as a manual FIFO, the store,
 the default handler restored afterwards) and `FakeMediaStore.kt` (a provider under the
 `media` authority: rows in memory, bytes in real files, the values as inserted; a refused
-or throwing insert, a refused write (all, or one file's) or publish, a throwing query or
-delete; only Guru's own query selection accepted).
+or throwing insert, a refused write (all, or one file's) or publish, a throwing query
+(`throwOnQuery`) or delete (`throwOnDelete`); only Guru's own query selection accepted;
+`published`/`pending` seed rows, under a Guru name unless one is given).
 
 Left to the device (README): the real MediaStore (and its on-device tests) and chooser, a
 real process death, the blink. Not observable in any test: that the file is fsynced.
