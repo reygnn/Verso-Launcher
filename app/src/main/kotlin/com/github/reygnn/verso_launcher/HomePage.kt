@@ -35,6 +35,7 @@ internal class HomePage(
     private val onLaunch: (AppEntry) -> Unit,
     private val onEdit: (AppEntry) -> Unit,
     private val onOpenDrawer: () -> Unit,
+    private val onOpenRecents: () -> Unit,
 ) {
     private val density get() = activity.resources.displayMetrics.density
     private val outlinePx get() = HomeStyle.OUTLINE_DP * density
@@ -113,8 +114,8 @@ internal class HomePage(
             setPadding(infoPad, infoPad, infoPad, infoPad)
             onDoubleTap(R.string.a11y_open_battery) { openBatteryUsage() }
         }
-        chargingIcon = stateIcon(R.drawable.ic_bolt_outlined, R.string.a11y_charging)
-        protectedIcon = stateIcon(R.drawable.ic_shield_outlined, R.string.a11y_battery_protected)
+        chargingIcon = stateIcon(R.drawable.ic_bolt_outlined)
+        protectedIcon = stateIcon(R.drawable.ic_shield_outlined)
 
         val iconSize = HomeStyle.ICON_SIZE_DP.dp()
         val infoRow = LinearLayout(activity).apply {
@@ -157,7 +158,7 @@ internal class HomePage(
             }
             // The swipes are invisible to a screen reader.
             contentDescription = activity.getString(R.string.a11y_home)
-            accessibilityDelegate = OpenDrawerAction()
+            accessibilityDelegate = PageActions()
         }
     }
 
@@ -255,16 +256,22 @@ internal class HomePage(
             )
         )
         // The broadcast repeats while charging; each setText would re-lay out the page.
-        if (batteryText.text.toString() != label) {
-            batteryText.text = label
-            batteryText.contentDescription = activity.getString(R.string.a11y_battery, label)
-        }
+        if (batteryText.text.toString() != label) batteryText.text = label
         val state = BatteryInfo.chargeState(
             intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1),
             intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0),
         )
         chargingIcon.visibility = if (state == ChargeState.CHARGING) View.VISIBLE else View.GONE
         protectedIcon.visibility = if (state == ChargeState.PROTECTED) View.VISIBLE else View.GONE
+        // One stop for TalkBack: the icons are none, their state is read here.
+        batteryText.contentDescription = activity.getString(
+            when (state) {
+                ChargeState.CHARGING -> R.string.a11y_battery_charging
+                ChargeState.PROTECTED -> R.string.a11y_battery_protected
+                ChargeState.NONE -> R.string.a11y_battery
+            },
+            label,
+        )
     }
 
     // ---- double-tap targets ---------------------------------------------------------
@@ -293,12 +300,13 @@ internal class HomePage(
 
     // ---- helpers --------------------------------------------------------------------
 
-    private fun stateIcon(res: Int, description: Int) = OutlinedImageView(activity).apply {
+    /** The state is read with the battery line (showBattery): no stop of its own for TalkBack. */
+    private fun stateIcon(res: Int) = OutlinedImageView(activity).apply {
         setImageResource(res)
         setColors(textColor, outlineColor)
         val p = HomeStyle.ICON_PADDING_DP.dp()
         setPadding(p, p, p, p)
-        contentDescription = activity.getString(description)
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         visibility = View.GONE
     }
 
@@ -344,23 +352,22 @@ internal class HomePage(
     private fun localPattern(skeleton: String): String =
         android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), skeleton)
 
-    private inner class OpenDrawerAction : View.AccessibilityDelegate() {
+    /** The page swipes as actions in TalkBack's menu: up to all apps, down to the recent ones. */
+    private inner class PageActions : View.AccessibilityDelegate() {
         override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
             super.onInitializeAccessibilityNodeInfo(host, info)
             info.addAction(
-                AccessibilityNodeInfo.AccessibilityAction(
-                    R.id.action_open_drawer,
-                    activity.getString(R.string.a11y_open_drawer),
-                )
+                AccessibilityNodeInfo.AccessibilityAction(R.id.action_open_drawer, activity.getString(R.string.a11y_open_drawer))
+            )
+            info.addAction(
+                AccessibilityNodeInfo.AccessibilityAction(R.id.action_open_recents, activity.getString(R.string.a11y_open_recents))
             )
         }
 
-        override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
-            if (action == R.id.action_open_drawer) {
-                onOpenDrawer()
-                return true
-            }
-            return super.performAccessibilityAction(host, action, args)
+        override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean = when (action) {
+            R.id.action_open_drawer -> true.also { onOpenDrawer() }
+            R.id.action_open_recents -> true.also { onOpenRecents() }
+            else -> super.performAccessibilityAction(host, action, args)
         }
     }
 

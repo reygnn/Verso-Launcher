@@ -55,7 +55,7 @@ class PageTurnTest {
         onModeChanged = { pageTurn.modeChanged(it) },
     )
 
-    private val home = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { pageTurn.open() })
+    private val home = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { pageTurn.open() }, onOpenRecents = { pageTurn.openRecents() })
 
     init {
         pageTurn = PageTurn(
@@ -96,6 +96,22 @@ class PageTurnTest {
         assertEquals(View.INVISIBLE, home.view.visibility)
         pageTurn.open()
         assertEquals(1, opened)
+    }
+
+    /**
+     * TalkBack announces a pane title when its page turns up (each turn shows a page): home, all
+     * apps from below, the recents from the top — the same turn as the swipe down.
+     */
+    @Test fun `each page carries the title TalkBack announces as it turns up`() {
+        assertEquals(activity.getString(R.string.a11y_home), home.view.accessibilityPaneTitle)
+        openSettled()
+        assertEquals(activity.getString(R.string.a11y_pane_drawer), drawer.view.accessibilityPaneTitle)
+        pageTurn.close()
+        settle()
+        pageTurn.openRecents()
+        settle()
+        assertEquals(activity.getString(R.string.a11y_pane_recents), drawer.view.accessibilityPaneTitle)
+        assertEquals("the recents", "?", prompt)
     }
 
     @Test fun `close turns back home, clears the prompt and says so once`() {

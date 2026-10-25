@@ -133,6 +133,7 @@ class MainActivity : Activity() {
             onLaunch = ::launch,
             onEdit = { if (editPermit() != null) promptRename(it) },
             onOpenDrawer = { pageTurn.open() },
+            onOpenRecents = { pageTurn.openRecents() },
         )
 
         pageTurn = PageTurn(

@@ -28,7 +28,7 @@ class HomePageStartGuardTest {
     }
 
     private val activity = Robolectric.buildActivity(RefusingActivity::class.java).setup().get()
-    private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = {})
+    private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = {}, onOpenRecents = {})
 
     private val clock: View get() = page.view.collect<TextClock>().first()
     private val date: View get() = page.view.collect<TextClock>()[1]

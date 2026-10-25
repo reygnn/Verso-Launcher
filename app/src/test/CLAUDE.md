@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 660 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 663 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -69,7 +69,8 @@ SwipeGestureTest            19  the page drag (direction, offset, release, home 
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
-PageTurnTest                27  Robolectric: the page turn on real views — open/close (animated or
+PageTurnTest                28  Robolectric: the page turn on real views — each page's pane title
+                                (home, all apps, the recents), open/close (animated or
                                 not), the side it comes from and returns to (also caught
                                 mid-close), leaving "?", who may drag or flick (dialog, top band),
                                 drag commit/cancel both ways, open ending a held drag, Back
@@ -131,8 +132,10 @@ CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed be
                                 then a cold start: either config whole, nothing the user had lost,
                                 one undo point once through
 BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest   11  Robolectric: TalkBack click on clock/date/battery, the double
-                                tap, the "open all apps" action, the empty-favorites hint; a
+HomePageAccessibilityTest   13  Robolectric: TalkBack click on clock/date/battery, the double
+                                tap, the "open all apps" and "open recent apps" actions, the
+                                battery line reading the charge state (its icons no stops of
+                                their own), the empty-favorites hint; a
                                 colour change redraws the favorites, also the cached ones of a
                                 cold start before the config has loaded
 HomePageStartGuardTest       4  Robolectric: clock, date and battery each guarded; a refused intent

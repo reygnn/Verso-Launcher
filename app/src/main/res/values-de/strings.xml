@@ -7,6 +7,10 @@
     <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nFür Favoriten hier: in der App-Liste ! ins Suchfeld tippen und Apps antippen. !! sortiert sie.</string>
     <string name="a11y_home">Startbildschirm</string>
     <string name="a11y_open_drawer">Alle Apps öffnen</string>
+    <string name="a11y_open_recents">Zuletzt verwendete Apps öffnen</string>
+    <!-- Seitentitel: was TalkBack ansagt, wenn eine Seite erscheint. -->
+    <string name="a11y_pane_drawer">Alle Apps</string>
+    <string name="a11y_pane_recents">Zuletzt verwendet</string>
     <!-- Eine abgedunkelte App (AppStatus): was der Screenreader sagt, und der Toast, sobald eine pausierte wieder da ist. -->
     <string name="a11y_app_paused">%1$s, pausiert. Doppeltippen, um die Arbeits-Apps wieder einzuschalten.</string>
     <string name="a11y_app_archived">%1$s, archiviert. Doppeltippen zum Wiederherstellen.</string>
@@ -16,8 +20,9 @@
     <string name="a11y_open_calendar">Kalender öffnen</string>
     <string name="a11y_open_battery">Akkuverbrauch öffnen</string>
     <string name="a11y_battery">Akku %1$s</string>
-    <string name="a11y_charging">Lädt</string>
-    <string name="a11y_battery_protected">Akkuschutz: Ladung wird gehalten</string>
+    <!-- Der Ladezustand, mit der Akkuzeile gelesen (ihre Icons sind keine eigenen Stopps). -->
+    <string name="a11y_battery_charging">Akku %1$s, lädt</string>
+    <string name="a11y_battery_protected">Akku %1$s, Akkuschutz: Ladung wird gehalten</string>
     <string name="toast_no_app">Keine passende App auf diesem Gerät</string>
     <string name="hint_rename_name">Name</string>
     <string name="hint_rename_tags">Tags (kommagetrennt)</string>

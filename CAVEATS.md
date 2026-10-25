@@ -121,9 +121,10 @@ The home text sizes are fixed in dp, so they ignore the system font size (the dr
 rows do follow it). Chosen for a stable layout like Kolibri's; someone who needs larger
 text gets it in the drawer, or through the display size setting, which scales both.
 
-The swipe is not available to a screen reader, so the front page exposes an
-"Open all apps" custom accessibility action (TalkBack's actions menu), and the
-empty-favorites hint is tappable.
+The swipes are not available to a screen reader, so the front page exposes "Open all apps"
+and "Open recent apps" as custom accessibility actions (TalkBack's actions menu), and the
+empty-favorites hint is tappable. A page turn announces the page that came up (home, all apps,
+recent apps); the charge-state icons are read with the battery line, not as stops of their own.
 
 ## A `~` command's result can come later
 

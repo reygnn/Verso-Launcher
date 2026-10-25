@@ -7,6 +7,10 @@
     <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nTo put apps here, type ! in the drawer\'s search line and tap them. !! reorders them.</string>
     <string name="a11y_home">Home screen</string>
     <string name="a11y_open_drawer">Open all apps</string>
+    <string name="a11y_open_recents">Open recent apps</string>
+    <!-- Pane titles: what TalkBack announces when a page turns up. -->
+    <string name="a11y_pane_drawer">All apps</string>
+    <string name="a11y_pane_recents">Recent apps</string>
     <!-- A dimmed app (AppStatus): what a screen reader says, and the toast once a paused one is back. -->
     <string name="a11y_app_paused">%1$s, paused. Double-tap to turn its work apps back on.</string>
     <string name="a11y_app_archived">%1$s, archived. Double-tap to restore it.</string>
@@ -17,8 +21,9 @@
     <string name="a11y_open_battery">open battery usage</string>
     <!-- What a screen reader says for the battery text; %1$s is its percentage label. -->
     <string name="a11y_battery">battery %1$s</string>
-    <string name="a11y_charging">Charging</string>
-    <string name="a11y_battery_protected">Battery protection: charge is being held</string>
+    <!-- The charge state, read with the battery line (its icons are no stops of their own). -->
+    <string name="a11y_battery_charging">battery %1$s, charging</string>
+    <string name="a11y_battery_protected">battery %1$s, battery protection: charge is being held</string>
     <string name="toast_no_app">no app for that on this device</string>
     <string name="hint_rename_name">Name</string>
     <string name="hint_rename_tags">Tags (comma-separated)</string>

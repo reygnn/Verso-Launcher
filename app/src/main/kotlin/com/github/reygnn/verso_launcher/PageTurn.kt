@@ -51,6 +51,11 @@ internal class PageTurn(
     // Whether the running drag (or Back preview) set out to open the drawer.
     private var dragOpens = false
 
+    init {
+        // A pane title is what TalkBack announces as the page turns up (each turn shows a page).
+        home.accessibilityPaneTitle = activity.getString(R.string.a11y_home)
+    }
+
     /** The window root: both pages, and the swipe watched in its dispatchTouchEvent. */
     val root: SwipeFrame = SwipeFrame(activity).apply {
         addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -67,7 +72,7 @@ internal class PageTurn(
         onSwipe = { dir ->
             when {
                 dir == SwipeDir.UP && !isOpen -> open()
-                dir == SwipeDir.DOWN && !isOpen -> open(RECENTS_PROMPT, fromTop = true)
+                dir == SwipeDir.DOWN && !isOpen -> openRecents()
             }
         }
         closeDirection = { if (isOpen) closeDir() else null }
@@ -133,6 +138,9 @@ internal class PageTurn(
         }
     }
 
+    /** The recents, down from the top: the swipe down, and TalkBack's action for it. */
+    fun openRecents() = open(RECENTS_PROMPT, fromTop = true)
+
     /**
      * Turn to the drawer with [initialPrompt]: "?" opens the recents WITHOUT the keyboard, "" with
      * it. Set even when it looks unneeded: [close] clears the old one only once the page is gone.
@@ -148,6 +156,7 @@ internal class PageTurn(
         drawer.animate().cancel()
         drawer.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         val fromHidden = drawer.visibility != View.VISIBLE
+        titleDrawer(fromTop)
         drawer.visibility = View.VISIBLE
         drawer.alpha = 1f
         // The parent's height, not the drawer's: a drawer that was GONE has not been measured yet.
@@ -238,6 +247,12 @@ internal class PageTurn(
     /** Where the closed drawer waits: above the page for the recents, below it otherwise. */
     private fun hiddenY(): Float = if (drawerFromTop) -pageHeight() else pageHeight()
 
+    /** Its pane title, set before it shows: TalkBack announces the recents from the top, all apps from below. */
+    private fun titleDrawer(fromTop: Boolean) {
+        drawer.accessibilityPaneTitle =
+            activity.getString(if (fromTop) R.string.a11y_pane_recents else R.string.a11y_pane_drawer)
+    }
+
     /** Back toward the side the drawer came from. */
     private fun closeDir(): SwipeDir = if (drawerFromTop) SwipeDir.UP else SwipeDir.DOWN
 
@@ -286,6 +301,7 @@ internal class PageTurn(
         } else if (appDrawer.promptText != prompt) {
             appDrawer.setPrompt(prompt)
         }
+        titleDrawer(fromTop)
         drawer.visibility = View.VISIBLE
         drawer.alpha = 1f
         return height - abs(drawer.translationY)

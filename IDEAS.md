@@ -41,10 +41,6 @@ what is still open.
 - Dimmed rows go through an offscreen layer every frame while scrolling (`OutlinedViews`
   `hasOverlappingRendering`); the first wallpaper-colour query after boot delays the first
   enumeration (both on the one IO thread).
-- TalkBack: still missing a pane title on page turns (`setAccessibilityPaneTitle`), the charging
-  / battery-protection icons as separate stops, and reaching recents other than by swipe. (The
-  empty-list live region, row/battery/favorite contentDescriptions and the home a11y actions
-  already exist.)
 - Home ignores the system font size (by design for the clock); paused/archived is shown by
   opacity alone.
 

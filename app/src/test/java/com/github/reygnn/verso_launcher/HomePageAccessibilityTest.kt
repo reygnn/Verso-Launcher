@@ -1,6 +1,9 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
+import android.content.Intent
+import android.os.BatteryManager
+import android.os.Looper
 import android.provider.AlarmClock
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
@@ -20,7 +23,10 @@ class HomePageAccessibilityTest {
 
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
     private var drawerOpened = 0
-    private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { drawerOpened++ })
+    private var recentsOpened = 0
+    private val page = HomePage(
+        activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { drawerOpened++ }, onOpenRecents = { recentsOpened++ },
+    )
 
     private val clock: View get() = page.view.collect<TextClock>().first()
 
@@ -60,6 +66,49 @@ class HomePageAccessibilityTest {
         assertEquals(activity.getString(R.string.a11y_open_drawer), action.label)
         assertTrue(page.view.performAccessibilityAction(R.id.action_open_drawer, null))
         assertEquals(1, drawerOpened)
+    }
+
+    /** The swipe down is invisible to a screen reader too: the recents get an action of their own. */
+    @Test fun `the page offers 'open recent apps' as an accessibility action, and it works`() {
+        val info = AccessibilityNodeInfo()
+        page.view.onInitializeAccessibilityNodeInfo(info)
+        val action = info.actionList.single { it.id == R.id.action_open_recents }
+        assertEquals(activity.getString(R.string.a11y_open_recents), action.label)
+        assertTrue(page.view.performAccessibilityAction(R.id.action_open_recents, null))
+        assertEquals(1, recentsOpened)
+        assertEquals("not the drawer", 0, drawerOpened)
+    }
+
+    private fun batteryLine(status: Int, plugged: Int): android.widget.TextView {
+        activity.sendBroadcast(
+            Intent(Intent.ACTION_BATTERY_CHANGED)
+                .putExtra(BatteryManager.EXTRA_LEVEL, 74)
+                .putExtra(BatteryManager.EXTRA_SCALE, 100)
+                .putExtra(BatteryManager.EXTRA_STATUS, status)
+                .putExtra(BatteryManager.EXTRA_PLUGGED, plugged)
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        val label = BatteryInfo.label(BatteryInfo.percent(74, 100))
+        return page.view.collect<android.widget.TextView>().single { it.text.toString() == label }
+    }
+
+    /** One stop, not three: the charge-state icons are none of their own, the battery line reads their state. */
+    @Test fun `the battery line reads the charge state, its icons are no stops of their own`() {
+        page.startBattery()
+        try {
+            val label = BatteryInfo.label(BatteryInfo.percent(74, 100))
+            val charging = batteryLine(BatteryManager.BATTERY_STATUS_CHARGING, BatteryManager.BATTERY_PLUGGED_AC)
+            assertEquals(activity.getString(R.string.a11y_battery_charging, label), charging.contentDescription)
+            val held = batteryLine(BatteryManager.BATTERY_STATUS_NOT_CHARGING, BatteryManager.BATTERY_PLUGGED_AC)
+            assertEquals(activity.getString(R.string.a11y_battery_protected, label), held.contentDescription)
+            val plain = batteryLine(BatteryManager.BATTERY_STATUS_DISCHARGING, 0)
+            assertEquals(activity.getString(R.string.a11y_battery, label), plain.contentDescription)
+            val icons = page.view.collect<OutlinedImageView>()
+            assertEquals("the bolt and the shield", 2, icons.size)
+            assertTrue(icons.all { it.importantForAccessibility == View.IMPORTANT_FOR_ACCESSIBILITY_NO })
+        } finally {
+            page.stopBattery()
+        }
     }
 
     @Test fun `with no favorites the hint is shown, and tapping it opens the drawer`() {
