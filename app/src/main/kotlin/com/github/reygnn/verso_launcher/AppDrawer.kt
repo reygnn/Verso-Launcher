@@ -22,6 +22,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.AbsListView
 import android.widget.BaseAdapter
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -119,6 +120,17 @@ internal class AppDrawer(
                 }
                 false
             }
+            // A touch that became a scroll makes no click: it must leave no mark that would void
+            // the next click without a touch (keyboard, Switch Access).
+            setOnScrollListener(object : AbsListView.OnScrollListener {
+                override fun onScrollStateChanged(view: AbsListView, scrollState: Int) {
+                    if (scrollState == AbsListView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL) {
+                        touchDownGeneration = TapGuard.NO_TOUCH
+                    }
+                }
+
+                override fun onScroll(view: AbsListView, first: Int, visible: Int, total: Int) = Unit
+            })
             setOnItemClickListener { _, _, position, _ ->
                 if (!clickStillValid()) return@setOnItemClickListener
                 // getOrNull: a load may have shrunk shown before this posted click runs.

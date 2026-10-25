@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 666 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 668 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -78,12 +78,14 @@ PageTurnTest                30  Robolectric: the page turn on real views — eac
                                 drag commit/cancel both ways, open ending a held drag, Back
                                 (home, prompt, recents, preview, cancel — also after HOME closed
                                 the drawer)
-AppDrawerTest               16  Robolectric: the back page — what a screen reader hears (the empty
+AppDrawerTest               18  Robolectric: the back page — what a screen reader hears (the empty
                                 prompt's spoken hint naming the page, in node and focus event;
                                 the list named after what it shows), rows per prompt, a pasted line break
                                 turned into a space in the real field, a paused app's row dimmed
                                 (and a recycled command row not), edit-mode markers,
-                                the empty-list hint per mode, a palette switch, a tap handed on,
+                                the empty-list hint per mode, a palette switch, a tap handed on
+                                (dropped when its list was replaced meanwhile; a click without a
+                                touch after a scroll is not),
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
 MainActivityFlowsTest       37  Robolectric, the real Activity: "!!" moving a favorite and letting

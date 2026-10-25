@@ -4,6 +4,8 @@ import android.app.Activity
 import android.graphics.Typeface
 import android.text.Spanned
 import android.text.style.StyleSpan
+import android.view.MotionEvent
+import android.widget.AbsListView
 import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
@@ -13,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.util.ReflectionHelpers
 
 /** A real [LauncherState] whose IO and main "threads" run inline. */
 @RunWith(RobolectricTestRunner::class)
@@ -193,6 +196,35 @@ class AppDrawerTest {
         drawer.setPrompt("br")
         list.performItemClick(null, 0, 0)
         assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+    }
+
+    /** A finger down and up on the list; [scrolled]: it moved far enough to scroll, as the list reports it. */
+    private fun touch(scrolled: Boolean) {
+        list.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 10f, 10f, 0))
+        if (scrolled) {
+            // The list's own report; a Robolectric list is never laid out tall enough to scroll.
+            ReflectionHelpers.getField<AbsListView.OnScrollListener?>(list, "mOnScrollListener")
+                ?.onScrollStateChanged(list, AbsListView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL)
+        }
+        list.dispatchTouchEvent(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 10f, 10f, 0))
+    }
+
+    /** A scroll makes no click, so it leaves no mark: keyboard, Switch Access and Voice Access click without a touch. */
+    @Test fun `a click without a touch after a scroll and a new list goes through`() {
+        drawer.setPrompt("")
+        touch(scrolled = true)
+        drawer.setPrompt("br")
+        list.performItemClick(null, 0, 0)
+        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+    }
+
+    /** The guard itself: a tap whose list was replaced before its click lands on no other row. */
+    @Test fun `the click of a tap whose list was replaced meanwhile is dropped`() {
+        drawer.setPrompt("")
+        touch(scrolled = false)
+        drawer.setPrompt("br")
+        list.performItemClick(null, 0, 0)
+        assertEquals(emptyList<DrawerAction<AppEntry>>(), taps)
     }
 
     private val permit: LauncherState.EditPermit get() = checkNotNull(state.editPermit(checkNotNull(CommandGate().idle())))
