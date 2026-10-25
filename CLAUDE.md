@@ -78,8 +78,8 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
   launch counts behind the `%` order, and `recents.txt` (`RecentsLog`), the `?` list —
   disposable too, never in a backup — and `filesDir/guru/`, Guru's: at most 8 crash
-  reports waiting for the next start, `installation-id`, `exits-seen` and `crashes-saved`, never in a backup
-  and excluded from a device transfer (`data_extraction_rules.xml`). Off-device backups in
+  reports waiting for the next start, `installation-id`, `exits-seen`, `crashes-saved` and, while
+  its alert is up, `alert-up`, never in a backup and excluded from a device transfer (`data_extraction_rules.xml`). Off-device backups in
   `Download/Verso/` via MediaStore (`BackupStore`); Guru saves its reports to
   `Download/Guru/` the same way (its own newest 32 kept).
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath (android.jar's is a
