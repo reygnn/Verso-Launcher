@@ -23,8 +23,9 @@ internal class Commands(private val app: VersoApp) {
     private val window get() = app.instance
 
     /**
-     * Bumped whenever a window turns away from the page it asked on (the drawer closed, onStop,
-     * HOME, a new window): a "~cleanup" check's answer must still match it to be shown.
+     * Bumped whenever a window turns away from the page it asked on (the drawer closed, HOME,
+     * onStop — which a recreation passes through too): a "~cleanup" check's answer must still match
+     * it to be shown.
      * A number, not the window, so a check waiting behind a stuck IO thread holds no activity.
      */
     var pageTurns = 0

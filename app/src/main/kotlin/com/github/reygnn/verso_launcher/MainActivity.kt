@@ -101,8 +101,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // The process hands a "~restore-saf" pick to whichever instance is alive (VersoApp.pick).
         app.instance = launcherWindow
-        // A new window asked nothing: a "~cleanup" check its predecessor started answers no one.
-        app.commands.pageTurns++
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
         // ourselves. No scrim behind 3-button navigation: the wallpaper runs to the bottom edge.
