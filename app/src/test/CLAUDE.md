@@ -46,7 +46,7 @@ CommandGateTest             12  one "~" command at a time: a run ends with its l
                                 refusal, hand-over, exceptions, the edit permit; an IO step for
                                 a run that is over queues nothing (logged); onIdle once per run
                                 end, not per release
-ResultsTest                  4  the commands' results with a fake window: queued while away or
+ResultsTest                  4  the commands' results on the JVM, a fake window: queued while away or
                                 without a window, then shown once and in order; a refusal in
                                 front only, never queued
 PendingPickTest              6  a "~restore-saf" pick's states: read config taken once, an

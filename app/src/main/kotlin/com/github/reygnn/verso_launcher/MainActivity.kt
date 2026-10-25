@@ -78,8 +78,6 @@ class MainActivity : Activity() {
 
         override fun show(text: String, long: Boolean) = toast(text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT)
 
-        override fun stillAsking(ticket: Int): Boolean = started && ticket == cleanupTicket
-
         override fun offerCleanup(orphans: Orphans) = this@MainActivity.offerCleanup(orphans)
 
         override fun cleanupApplied() = appDrawer.refilter()
@@ -95,13 +93,16 @@ class MainActivity : Activity() {
     // Tracked so they can be dismissed on teardown: an undismissed dialog leaks its window.
     private var renameDialog: AlertDialog? = null
     private var commandDialog: AlertDialog? = null
-    // Bumped whenever the page turns away: a "~cleanup" check's result must still match it to be shown.
-    private var cleanupTicket = 0
+    // Set by "~restart" until the recreation replaces this window: the process's state is already the
+    // fresh one, this window's is not, so it takes no more commands or edits.
+    private var restarting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // The process hands a "~restore-saf" pick to whichever instance is alive (VersoApp.pick).
         app.instance = launcherWindow
+        // A new window asked nothing: a "~cleanup" check its predecessor started answers no one.
+        app.commands.pageTurns++
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
         // ourselves. No scrim behind 3-button navigation: the wallpaper runs to the bottom edge.
@@ -253,7 +254,7 @@ class MainActivity : Activity() {
 
     /** The user left the page they acted on: a dialog opened there and a pending "~cleanup" offer are void. */
     private fun turnAway() {
-        cleanupTicket++
+        app.commands.pageTurns++
         dismissDialogs()
     }
 
@@ -324,13 +325,13 @@ class MainActivity : Activity() {
         // back to NORMAL before the command runs.
         appDrawer.clearPrompt()
         when (command) {
-            // A run of its own, so nothing else starts in the moment before the recreation.
+            // A run of its own, so no command step is in flight when the state is replaced.
             Command.RESTART -> gate.start { restart() }
             Command.BACKUP -> app.commands.backup()
             Command.RESTORE -> app.commands.restore()
             // Only the picker: it is another activity, so no run spans it (the adoption is one).
             Command.RESTORE_SAF -> pickRestoreFile()
-            Command.CLEANUP -> app.commands.checkCleanup(cleanupTicket)
+            Command.CLEANUP -> app.commands.checkCleanup()
             Command.CRASH -> Unit // returned above
         }
     }
@@ -341,7 +342,9 @@ class MainActivity : Activity() {
         // and a read that lands later finds it gone.
         if (app.pick.drop()) toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
         // A fresh state reads verso.json (and an unread recents.txt or usage.txt) again, and the
-        // recreation builds every view anew around it.
+        // recreation builds every view anew around it. Until that recreation lands this window still
+        // holds the old state, so it takes nothing more (editable, editPermit).
+        restarting = true
         app.core.reset()
         recreate()
     }
@@ -426,6 +429,8 @@ class MainActivity : Activity() {
 
     /** No "~" command but ~restart before the config is loaded (hard rule 5); the toast says why. */
     private fun editable(): Boolean {
+        // ~restart: the window is about to be replaced; nothing to say, the new one comes at once.
+        if (restarting) return false
         if (state.configLoaded) return true
         toast(getString(R.string.toast_not_loaded))
         return false
@@ -433,6 +438,7 @@ class MainActivity : Activity() {
 
     /** Not while a "~" command runs (hard rule 15), nor before the config is loaded (hard rule 5); a toast says which. */
     private fun editPermit(): LauncherState.EditPermit? {
+        if (restarting) return null
         val idle = gate.idle()
         if (idle == null) {
             toast(getString(R.string.toast_busy))

@@ -158,10 +158,11 @@ Single `:app` module, one package:
 
 ```
 com.github.reygnn.verso_launcher/
-  VersoApp            process-wide: the IO executor, the command gate, the pending
-                      ~restore-saf pick, the live instance (onCreate–onDestroy), the
-                      ProcessState (recents, launches, the start-over and seed flags, the
-                      queued ~backup/restore results), palette and badge-label caches;
+  VersoApp            process-wide: the IO executor, Core, Commands, Results, the command
+                      gate, the pending ~restore-saf pick, the live window (onCreate–onDestroy,
+                      a LauncherWindow), the ProcessState (recents, launches, the start-over
+                      and seed flags, the queued results of ~backup, restore, cleanup and a
+                      failed save), palette and badge-label caches;
                       installs Guru (onCreate)
   VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
   Core                the process's data: the one LauncherState and its stores (ConfigStore,
@@ -257,7 +258,7 @@ thread.
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
    content provider (an offline cloud drive) can block that read indefinitely, and it
    touches no file of the app's own, nor anything of the activity (the application's resolver,
-   a hand-back to the process, `VersoApp.pickRead`), so a read that never returns keeps no
+   a hand-back to the process, `Commands.readPick`), so a read that never returns keeps no
    destroyed instance alive; the undo
    point and the adoption still go through
    `VersoApp.io`. The second exception: Guru's uncaught-exception handler writes its crash
@@ -368,7 +369,10 @@ thread.
     and its stores), `Commands`, `Results`, the gate and the pending pick live in `VersoApp`,
     built from the Application alone. They reach the window only as a `LauncherWindow`
     (`VersoApp.instance`: a private object of `MainActivity`, set in `onCreate`, cleared in
-    `onDestroy`) — never an Activity or its Context (`SourceGuardTest`), so nothing of the
+    `onDestroy`) — never an Activity or its Context: their constructors take `VersoApp`, the
+    window's own parts stay in `MainActivity`, and `SourceGuardTest` scans their files for
+    `MainActivity` and `android.app.Activity`. Nor do they keep a `LauncherWindow` past the call
+    it came with (a `~cleanup` answer compares a number, `Commands.pageTurns`), so nothing of the
     process keeps an instance alive or needs one to land. A recreation shares the loaded state
     and draws it in `onCreate`; only `~restart` resets it (`Core.reset`). What a window decides
     stays in `MainActivity`: refusing a command up front, the prompt, the picker, `~restart`,

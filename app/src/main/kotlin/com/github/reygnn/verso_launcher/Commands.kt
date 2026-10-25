@@ -23,6 +23,13 @@ internal class Commands(private val app: VersoApp) {
     private val window get() = app.instance
 
     /**
+     * Bumped whenever a window turns away from the page it asked on (the drawer closed, onStop,
+     * HOME, a new window): a "~cleanup" check's answer must still match it to be shown.
+     * A number, not the window, so a check waiting behind a stuck IO thread holds no activity.
+     */
+    var pageTurns = 0
+
+    /**
      * One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. Handed back
      * to the process, never dropped: the gate must be released (hard rule 15), and what [then] does
      * to the shared state (a restore's adopt) must land, or memory and verso.json part ways.
@@ -148,16 +155,16 @@ internal class Commands(private val app: VersoApp) {
 
     /**
      * "~cleanup": check on the IO thread, then offer what is confirmed gone (hard rule 14). The
-     * answer is for the window that asked with [ticket], while it still asks — no dialog over a page
-     * that moved on, no toast over another app; else it is dropped (nothing was changed).
+     * answer is for the page that asked, while it still asks — no dialog over a page that moved on
+     * or a window made since, no toast over another app; else it is dropped (nothing was changed).
      */
-    fun checkCleanup(ticket: Int) {
-        val asker = window
+    fun checkCleanup() {
+        val ticket = pageTurns
         val snapshot = core.state.config
         val apps = core.apps
         gate.start { t ->
             step(t, work = { apps.safeCleanupCheck(snapshot) }) { plan ->
-                val asked = window?.takeIf { it === asker && it.stillAsking(ticket) } ?: return@step
+                val asked = window?.takeIf { it.inFront && ticket == pageTurns } ?: return@step
                 when (plan) {
                     null -> asked.show(app.getString(R.string.toast_cleanup_not_run), long = false)
                     CleanupPlan.Incomplete -> asked.show(app.getString(R.string.toast_cleanup_incomplete), long = false)

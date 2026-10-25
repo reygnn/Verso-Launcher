@@ -7,7 +7,7 @@ package com.github.reygnn.verso_launcher
  *
  * One per process (VersoApp.gate), so a recreated activity sees a run its predecessor left
  * going. Every step hands back to the process, never to an instance that a recreation could take
- * away — commandIo through VersoApp.onMain, a "~cleanup" through its LauncherState (Core, dropped
+ * away — Commands.step through VersoApp.onMain, a "~cleanup" through its LauncherState (Core, dropped
  * only after a "~restart" reset, which starts only with no run going) — so every run ends by itself.
  *
  * @param onIdle called each time a run ends (its last release): something may have

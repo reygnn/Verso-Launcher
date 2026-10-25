@@ -56,7 +56,7 @@ class VersoApp : Application() {
     internal val commands by lazy { Commands(this) }
 
     /** The commands' results, queued until a window is in front (ProcessState.messages). */
-    internal val results by lazy { Results(this) }
+    internal val results by lazy { Results(process.messages) { instance } }
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
