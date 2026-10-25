@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.MotionEvent
 import android.view.VelocityTracker
@@ -15,28 +16,36 @@ import android.widget.FrameLayout
  * ACTION_CANCEL. [canDrag] is asked on every move, so a list scrolled to its end hands over
  * to the drag in the same gesture.
  */
-internal class SwipeFrame(context: Context) : FrameLayout(context) {
+// Built in code only (PageTurn), never inflated: the host is part of the view.
+@SuppressLint("ViewConstructor")
+internal class SwipeFrame(context: Context, val host: Host) : FrameLayout(context) {
 
-    /** Is this flick ours? Direction and the y of the down. */
-    var claims: (SwipeDir, Float) -> Boolean = { _, _ -> false }
+    /**
+     * What the page turn answers and does. No member has a default, so a wiring left out does not
+     * compile (PageTurn is the one host; SwipeFrameTest has its own).
+     */
+    interface Host {
+        /** Is this flick ours? Direction and the y of the down. */
+        fun claims(dir: SwipeDir, downY: Float): Boolean
 
-    var onSwipe: (SwipeDir) -> Unit = {}
+        fun onSwipe(dir: SwipeDir)
 
-    /** Toward the side the open drawer came from; null while it is closed. */
-    var closeDirection: () -> SwipeDir? = { null }
+        /** Toward the side the open drawer came from; null while it is closed. */
+        fun closeDirection(): SwipeDir?
 
-    /** Direction and the y of the down. False while the content under the finger can still
-     *  scroll that way, or a dialog is open. */
-    var canDrag: (SwipeDir, Float) -> Boolean = { _, _ -> false }
+        /** Direction and the y of the down. False while the content under the finger can still
+         *  scroll that way, or a dialog is open. */
+        fun canDrag(dir: SwipeDir, downY: Float): Boolean
 
-    var pageHeight: () -> Float = { height.toFloat() }
+        fun pageHeight(): Float
 
-    /** Returns the start offset: non-zero when it grabs a page still moving from an earlier turn. */
-    var onDragStart: (SwipeDir) -> Float = { 0f }
+        /** Returns the start offset: non-zero when it grabs a page still moving from an earlier turn. */
+        fun onDragStart(dir: SwipeDir): Float
 
-    var onDrag: (SwipeDir, Float) -> Unit = { _, _ -> }
+        fun onDrag(dir: SwipeDir, offset: Float)
 
-    var onDragEnd: (SwipeDir, DragEnd) -> Unit = { _, _ -> }
+        fun onDragEnd(dir: SwipeDir, end: DragEnd)
+    }
 
     private val config = ViewConfiguration.get(context)
     private val slop = config.scaledTouchSlop.toFloat()
@@ -82,30 +91,30 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                     val delta = if (dir == SwipeDir.UP) lastY - ev.y else ev.y - lastY
                     lastY = ev.y
                     dragOffset = SwipeGesture.dragOffset(dragOffset, delta, dragLimit)
-                    onDrag(dir, dragOffset)
+                    host.onDrag(dir, dragOffset)
                     return true
                 }
                 lastY = ev.y
                 if (watching && !triggered) {
                     val dx = ev.x - downX
                     val dy = ev.y - downY
-                    val drag = SwipeGesture.dragDirection(closeDirection(), dx, dy, slop)
-                    if (drag != null && canDrag(drag, downY)) {
+                    val drag = SwipeGesture.dragDirection(host.closeDirection(), dx, dy, slop)
+                    if (drag != null && host.canDrag(drag, downY)) {
                         triggered = true
                         dragDir = drag
                         cancelChildren(ev)
                         // Start where the page is: the slop travelled is not added, so it does not jump.
-                        val start = onDragStart(drag).coerceAtLeast(0f)
+                        val start = host.onDragStart(drag).coerceAtLeast(0f)
                         dragLimit = maxOf(dragMax(), start)
                         dragOffset = start
-                        onDrag(drag, dragOffset)
+                        host.onDrag(drag, dragOffset)
                         return true
                     }
                     val flick = SwipeGesture.decisive(dx, dy, ev.eventTime - downTime, minDistance)
-                    if (flick != null && claims(flick, downY)) {
+                    if (flick != null && host.claims(flick, downY)) {
                         triggered = true
                         cancelChildren(ev)
-                        onSwipe(flick)
+                        host.onSwipe(flick)
                         return true
                     }
                 }
@@ -120,7 +129,7 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
                         vt.computeCurrentVelocity(1000)
                         toward = if (dir == SwipeDir.UP) -vt.yVelocity else vt.yVelocity
                     }
-                    endDrag(SwipeGesture.dragEnd(dragOffset, pageHeight(), toward, dragFlingVelocity))
+                    endDrag(SwipeGesture.dragEnd(dragOffset, host.pageHeight(), toward, dragFlingVelocity))
                     return true
                 }
             }
@@ -134,7 +143,7 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
 
     /** A closing pull stops short of the edge (Unity's cap); the release slides the rest. */
     private fun dragMax(): Float =
-        if (closeDirection() == null) pageHeight() else pageHeight() * SwipeGesture.DRAG_MAX_CLOSE_FRACTION
+        if (host.closeDirection() == null) host.pageHeight() else host.pageHeight() * SwipeGesture.DRAG_MAX_CLOSE_FRACTION
 
     val isDragging: Boolean get() = dragDir != null
 
@@ -147,7 +156,7 @@ internal class SwipeFrame(context: Context) : FrameLayout(context) {
     private fun endDrag(end: DragEnd) {
         val dir = dragDir ?: return
         dragDir = null
-        onDragEnd(dir, end)
+        host.onDragEnd(dir, end)
     }
 
     private fun cancelChildren(source: MotionEvent) {

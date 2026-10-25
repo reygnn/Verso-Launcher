@@ -58,28 +58,29 @@ internal class PageTurn(
     }
 
     /** The window root: both pages, and the swipe watched in its dispatchTouchEvent. */
-    val root: SwipeFrame = SwipeFrame(activity).apply {
-        addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
-        addView(drawer, FrameLayout.LayoutParams(MATCH, MATCH))
-        claims = claims@{ dir, downY ->
+    val root: SwipeFrame = SwipeFrame(activity, object : SwipeFrame.Host {
+        override fun claims(dir: SwipeDir, downY: Float): Boolean {
             // A long-press that opened a dialog can carry on into a drag with the finger still down.
-            if (dialogOpen()) return@claims false
+            if (dialogOpen()) return false
             // A flick down on favorites scrolled down scrolls them back, not to the recents.
-            if (dir == SwipeDir.DOWN && !isOpen && homePage.scroller.canScrollVertically(-1)) return@claims false
-            SwipeGesture.claims(isOpen, dir, downY, topExclusionPx())
+            if (dir == SwipeDir.DOWN && !isOpen && homePage.scroller.canScrollVertically(-1)) return false
+            return SwipeGesture.claims(isOpen, dir, downY, topExclusionPx())
         }
+
         // Up is normally a drag; the flick opens the drawer when the favorites could still
         // scroll and no drag started.
-        onSwipe = { dir ->
+        override fun onSwipe(dir: SwipeDir) {
             when {
                 dir == SwipeDir.UP && !isOpen -> open()
                 dir == SwipeDir.DOWN && !isOpen -> openRecents()
             }
         }
-        closeDirection = { if (isOpen) closeDir() else null }
-        canDrag = canDrag@{ dir, downY ->
-            if (dialogOpen()) return@canDrag false
-            when {
+
+        override fun closeDirection(): SwipeDir? = if (isOpen) closeDir() else null
+
+        override fun canDrag(dir: SwipeDir, downY: Float): Boolean {
+            if (dialogOpen()) return false
+            return when {
                 isOpen && drawerFromTop -> appDrawer.listAtBottom
                 isOpen -> appDrawer.listAtTop
                 dir == SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
@@ -87,10 +88,17 @@ internal class PageTurn(
                 else -> downY >= topExclusionPx() && !homePage.scroller.canScrollVertically(-1)
             }
         }
-        pageHeight = ::pageHeight
-        onDragStart = ::beginDrag
-        onDrag = { _, offset -> drag(offset) }
-        onDragEnd = { _, end -> endDrag(end) }
+
+        override fun pageHeight(): Float = this@PageTurn.pageHeight()
+
+        override fun onDragStart(dir: SwipeDir): Float = beginDrag(dir)
+
+        override fun onDrag(dir: SwipeDir, offset: Float) = drag(offset)
+
+        override fun onDragEnd(dir: SwipeDir, end: DragEnd) = endDrag(end)
+    }).apply {
+        addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
+        addView(drawer, FrameLayout.LayoutParams(MATCH, MATCH))
     }
 
     /**

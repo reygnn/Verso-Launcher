@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 668 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 669 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -70,11 +70,12 @@ SwipeGestureTest            19  the page drag (direction, offset, release, home 
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
                                 velocity signs, limits, second finger, abortDrag, drag vs flick
-PageTurnTest                30  Robolectric: the page turn on real views — each page's pane title
+PageTurnTest                31  Robolectric: the page turn on real views — each page's pane title
                                 (home, all apps, the recents), open/close (animated or
                                 not), a "%" drawer re-sorted before it shows (open, drag),
                                 the side it comes from and returns to (also caught mid-close),
-                                leaving "?", who may drag or flick (dialog, top band),
+                                leaving "?", who may drag or flick (dialog, top band), a flick
+                                opening the drawer up and the recents down,
                                 drag commit/cancel both ways, open ending a held drag, Back
                                 (home, prompt, recents, preview, cancel — also after HOME closed
                                 the drawer)

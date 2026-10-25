@@ -84,7 +84,7 @@ class PageTurnTest {
     private fun settle() = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
 
     private val root: SwipeFrame get() = pageTurn.root
-    private val height: Float get() = root.pageHeight()
+    private val height: Float get() = root.host.pageHeight()
     private val prompt: String get() = drawer.promptText
 
     private fun back(progress: Float) = BackEvent(0f, 0f, progress, BackEvent.EDGE_LEFT)
@@ -152,7 +152,7 @@ class PageTurnTest {
         pageTurn.open()
         assertEquals("starts below the page", height, drawer.view.translationY, 0.5f)
         settle()
-        assertEquals(SwipeDir.DOWN, root.closeDirection())
+        assertEquals(SwipeDir.DOWN, root.host.closeDirection())
         pageTurn.close()
         settle()
         assertEquals(height, drawer.view.translationY, 0.5f)
@@ -163,7 +163,7 @@ class PageTurnTest {
         assertEquals("?", prompt)
         assertEquals("starts above the page", -height, drawer.view.translationY, 0.5f)
         settle()
-        assertEquals(SwipeDir.UP, root.closeDirection())
+        assertEquals(SwipeDir.UP, root.host.closeDirection())
         pageTurn.close()
         settle()
         assertEquals(-height, drawer.view.translationY, 0.5f)
@@ -172,7 +172,7 @@ class PageTurnTest {
     @Test fun `leaving the recents makes it the plain drawer, which goes back down`() {
         openSettled("?", fromTop = true)
         drawer.setPrompt("a")
-        assertEquals(SwipeDir.DOWN, root.closeDirection())
+        assertEquals(SwipeDir.DOWN, root.host.closeDirection())
         pageTurn.close()
         settle()
         assertEquals(height, drawer.view.translationY, 0.5f)
@@ -188,11 +188,11 @@ class PageTurnTest {
         pageTurn.open()
         assertEquals(height, drawer.view.translationY, 0.5f)
         settle()
-        assertEquals(SwipeDir.DOWN, root.closeDirection())
+        assertEquals(SwipeDir.DOWN, root.host.closeDirection())
     }
 
     @Test fun `home has no way back to close`() {
-        assertNull(root.closeDirection())
+        assertNull(root.host.closeDirection())
     }
 
     private fun rows(): List<String> {
@@ -217,7 +217,7 @@ class PageTurnTest {
 
     @Test fun `a drag up re-sorts a drawer sorted most used first as it starts`() {
         bravoLaunchedOutOfSight()
-        root.onDragStart(SwipeDir.UP)
+        root.host.onDragStart(SwipeDir.UP)
         assertEquals(listOf("Bravo", "Alpha"), rows())
     }
 
@@ -225,35 +225,49 @@ class PageTurnTest {
 
     @Test fun `an open dialog blocks both drag and flick`() {
         dialogOpen = true
-        assertFalse(root.canDrag(SwipeDir.UP, height / 2))
-        assertFalse(root.claims(SwipeDir.UP, height / 2))
+        assertFalse(root.host.canDrag(SwipeDir.UP, height / 2))
+        assertFalse(root.host.claims(SwipeDir.UP, height / 2))
         dialogOpen = false
-        assertTrue(root.canDrag(SwipeDir.UP, height / 2))
-        assertTrue(root.claims(SwipeDir.UP, height / 2))
+        assertTrue(root.host.canDrag(SwipeDir.UP, height / 2))
+        assertTrue(root.host.claims(SwipeDir.UP, height / 2))
     }
 
     @Test fun `a pull down is the shade's in the top band, the recents' from its edge on`() {
         val band = SwipeGesture.TOP_EXCLUSION_DP * activity.resources.displayMetrics.density
-        assertFalse(root.canDrag(SwipeDir.DOWN, band - 1f))
-        assertTrue(root.canDrag(SwipeDir.DOWN, band))
-        assertFalse(root.claims(SwipeDir.DOWN, band - 1f))
-        assertTrue(root.claims(SwipeDir.DOWN, band))
+        assertFalse(root.host.canDrag(SwipeDir.DOWN, band - 1f))
+        assertTrue(root.host.canDrag(SwipeDir.DOWN, band))
+        assertFalse(root.host.claims(SwipeDir.DOWN, band - 1f))
+        assertTrue(root.host.claims(SwipeDir.DOWN, band))
     }
 
     /** The drawer takes no flick: closing it is a drag. */
     @Test fun `an open drawer claims no flick`() {
         openSettled()
-        assertFalse(root.claims(SwipeDir.DOWN, height / 2))
+        assertFalse(root.host.claims(SwipeDir.DOWN, height / 2))
+    }
+
+    /** The flick is the open fallback (hard rule 11): up opens the drawer, down the recents. */
+    @Test fun `a flick on home opens the drawer upward and the recents downward`() {
+        root.host.onSwipe(SwipeDir.UP)
+        settle()
+        assertTrue(pageTurn.isOpen)
+        assertEquals("", prompt)
+        pageTurn.close()
+        settle()
+        root.host.onSwipe(SwipeDir.DOWN)
+        settle()
+        assertTrue(pageTurn.isOpen)
+        assertEquals("?", prompt)
     }
 
     // ---- the drag ----------------------------------------------------------------------
 
     @Test fun `a drag up from home follows the finger and commits to the drawer`() {
-        assertEquals(0f, root.onDragStart(SwipeDir.UP), 0.5f)
-        root.onDrag(SwipeDir.UP, height / 3)
+        assertEquals(0f, root.host.onDragStart(SwipeDir.UP), 0.5f)
+        root.host.onDrag(SwipeDir.UP, height / 3)
         assertEquals(height - height / 3, drawer.view.translationY, 0.5f)
         assertTrue("home fades", home.view.alpha < 1f)
-        root.onDragEnd(SwipeDir.UP, DragEnd.COMMIT)
+        root.host.onDragEnd(SwipeDir.UP, DragEnd.COMMIT)
         settle()
         assertTrue(pageTurn.isOpen)
         assertEquals(1, opened)
@@ -261,9 +275,9 @@ class PageTurnTest {
     }
 
     @Test fun `a drag that does not commit falls back home and opens nothing`() {
-        root.onDragStart(SwipeDir.UP)
-        root.onDrag(SwipeDir.UP, height / 10)
-        root.onDragEnd(SwipeDir.UP, DragEnd.CANCEL)
+        root.host.onDragStart(SwipeDir.UP)
+        root.host.onDrag(SwipeDir.UP, height / 10)
+        root.host.onDragEnd(SwipeDir.UP, DragEnd.CANCEL)
         settle()
         assertFalse(pageTurn.isOpen)
         assertEquals(View.GONE, drawer.view.visibility)
@@ -272,33 +286,33 @@ class PageTurnTest {
     }
 
     @Test fun `a pull down reveals the recents, and one that falls back leaves no question mark`() {
-        root.onDragStart(SwipeDir.DOWN)
+        root.host.onDragStart(SwipeDir.DOWN)
         assertEquals("?", prompt)
         assertEquals(-height, drawer.view.translationY, 0.5f)
-        root.onDrag(SwipeDir.DOWN, height / 10)
+        root.host.onDrag(SwipeDir.DOWN, height / 10)
         assertEquals(-height + height / 10, drawer.view.translationY, 0.5f)
-        root.onDragEnd(SwipeDir.DOWN, DragEnd.CANCEL)
+        root.host.onDragEnd(SwipeDir.DOWN, DragEnd.CANCEL)
         settle()
         assertEquals("", prompt)
         assertEquals(View.GONE, drawer.view.visibility)
     }
 
     @Test fun `a pull down that commits opens the recents from the top`() {
-        root.onDragStart(SwipeDir.DOWN)
-        root.onDrag(SwipeDir.DOWN, height / 2)
-        root.onDragEnd(SwipeDir.DOWN, DragEnd.COMMIT)
+        root.host.onDragStart(SwipeDir.DOWN)
+        root.host.onDrag(SwipeDir.DOWN, height / 2)
+        root.host.onDragEnd(SwipeDir.DOWN, DragEnd.COMMIT)
         settle()
         assertTrue(pageTurn.isOpen)
         assertEquals("?", prompt)
-        assertEquals(SwipeDir.UP, root.closeDirection())
+        assertEquals(SwipeDir.UP, root.host.closeDirection())
     }
 
     @Test fun `a drag toward its side closes the drawer`() {
         openSettled()
-        assertEquals(0f, root.onDragStart(SwipeDir.DOWN), 0.5f)
-        root.onDrag(SwipeDir.DOWN, height / 3)
+        assertEquals(0f, root.host.onDragStart(SwipeDir.DOWN), 0.5f)
+        root.host.onDrag(SwipeDir.DOWN, height / 3)
         assertEquals(height / 3, drawer.view.translationY, 0.5f)
-        root.onDragEnd(SwipeDir.DOWN, DragEnd.COMMIT)
+        root.host.onDragEnd(SwipeDir.DOWN, DragEnd.COMMIT)
         settle()
         assertFalse(pageTurn.isOpen)
         assertEquals(1, closed)
@@ -306,9 +320,9 @@ class PageTurnTest {
 
     @Test fun `a closing drag that does not commit puts the drawer back`() {
         openSettled()
-        root.onDragStart(SwipeDir.DOWN)
-        root.onDrag(SwipeDir.DOWN, height / 10)
-        root.onDragEnd(SwipeDir.DOWN, DragEnd.CANCEL)
+        root.host.onDragStart(SwipeDir.DOWN)
+        root.host.onDrag(SwipeDir.DOWN, height / 10)
+        root.host.onDragEnd(SwipeDir.DOWN, DragEnd.CANCEL)
         settle()
         assertTrue(pageTurn.isOpen)
         assertEquals(0f, drawer.view.translationY, 0.5f)
@@ -320,7 +334,7 @@ class PageTurnTest {
         openSettled()
         drawer.setPrompt("al")
         pageTurn.close()  // still sliding, the prompt still "al"
-        root.onDragStart(SwipeDir.DOWN)
+        root.host.onDragStart(SwipeDir.DOWN)
         assertEquals("?", prompt)
     }
 

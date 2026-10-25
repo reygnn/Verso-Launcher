@@ -16,8 +16,6 @@ import org.robolectric.RobolectricTestRunner
 class SwipeFrameTest {
 
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-    private val frame = SwipeFrame(activity)
-
     private var closeDir: SwipeDir? = null
     private var dragAllowed = true
     private var startOffset = 0f
@@ -25,16 +23,16 @@ class SwipeFrameTest {
     private val ends = mutableListOf<Pair<SwipeDir, DragEnd>>()
     private val flicks = mutableListOf<SwipeDir>()
 
-    init {
-        frame.closeDirection = { closeDir }
-        frame.canDrag = { _, _ -> dragAllowed }
-        frame.pageHeight = { HEIGHT }
-        frame.onDragStart = { startOffset }
-        frame.onDrag = { dir, offset -> drags += dir to offset }
-        frame.onDragEnd = { dir, end -> ends += dir to end }
-        frame.claims = { _, _ -> true }
-        frame.onSwipe = { flicks += it }
-    }
+    private val frame = SwipeFrame(activity, object : SwipeFrame.Host {
+        override fun claims(dir: SwipeDir, downY: Float) = true
+        override fun onSwipe(dir: SwipeDir) { flicks += dir }
+        override fun closeDirection() = closeDir
+        override fun canDrag(dir: SwipeDir, downY: Float) = dragAllowed
+        override fun pageHeight() = HEIGHT
+        override fun onDragStart(dir: SwipeDir) = startOffset
+        override fun onDrag(dir: SwipeDir, offset: Float) { drags += dir to offset }
+        override fun onDragEnd(dir: SwipeDir, end: DragEnd) { ends += dir to end }
+    })
 
     private var downTime = 0L
 
