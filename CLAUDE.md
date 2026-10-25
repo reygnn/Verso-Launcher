@@ -25,8 +25,9 @@ plus command line — search, the edit sigils (`-` hide, `!` favorite, `!!` reor
 `#`/`##` tags, `?` recents, `%` drawer order A–Z ↔ most used) and the `~` commands
 (`~restart`, `~backup`, `~restore`, `~restore-saf`, `~cleanup`; `~crash` in a daily-driver
 build). Every change is saved at
-once — there is no `~save`; `~restart` recreates the activity, which reads the config
-afresh. Default favorites (phone, messenger, email, browser, camera) are seeded once, on a
+once — there is no `~save`; `~restart` resets the process's state (`Core`) and recreates
+the activity, so the config is read afresh (a recreation alone — a language, font or display-size
+change — keeps what was loaded). Default favorites (phone, messenger, email, browser, camera) are seeded once, on a
 fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look
@@ -68,9 +69,10 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   built in Kotlin code (no XML layouts). Theme parent is the platform
   `Theme.Material.NoActionBar` with the wallpaper shown through the window.
 - **No coroutines / Flows / ViewModel.** One process-wide single-thread executor
-  (`VersoApp.io`) does all disk and PackageManager work; results come back via
-  `runOnUiThread` (`MainActivity.onUi`). `LauncherState` plays the ViewModel role
-  as plain Kotlin.
+  (`VersoApp.io`) does all disk and PackageManager work; results come back to the process's
+  main thread (`VersoApp.onMain`) or, for what belongs to one window only, to that instance
+  (`MainActivity.onUi`). `LauncherState` plays the ViewModel role as plain Kotlin, one per
+  process (`Core`), shared by every activity instance.
 - **Persistence:** one JSON file, `filesDir/verso.json`, via `ConfigStore` — not
   SharedPreferences, not DataStore. Beside it only `home-cache.txt` (`HomeCache`), a
   disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
@@ -162,6 +164,8 @@ com.github.reygnn.verso_launcher/
                       queued ~backup/restore results), palette and badge-label caches;
                       installs Guru (onCreate)
   VersoGuruTexts      Guru's words from Verso's resources (guru_* in values, values-de)
+  Core                the process's data: the one LauncherState and its stores (ConfigStore,
+                      BackupStore, Apps), built from the Application; reset by ~restart
   LauncherStateParts  what LauncherState is built from: ProcessState, ConfigFile,
                       RecentsFile, UsageFile
   MainActivity        the window: commands, backup/restore orchestration, edits, dialogs,
@@ -235,12 +239,14 @@ thread.
    failure into its own message. Main-thread catches always log, and where the user acted
    say what failed — never swallowed, no catch-all net.
 3. **One IO thread, process-wide** (`VersoApp.io`). Never create another executor,
-   never shut it down. Main-thread state is mutated only on the main thread; hand-backs
-   go through `onUi`, which drops them for a destroyed instance — except what belongs to the
-   process, posted with `VersoApp.onMain`: the release of a destroyed instance's run (queued by
-   `onDestroy` behind its IO steps; dropped by `onUi`, it would leave the process's gate busy for
-   good, hard rule 15), the gate's `onIdle` and a `~restore-saf` read's hand-back (both to the live
-   instance, `VersoApp.instance`, if any — a pick waits in `VersoApp.pick`); and Guru's alert
+   never shut it down. Main-thread state is mutated only on the main thread. What belongs to
+   the process is handed back with `VersoApp.onMain`, never dropped: the state's hand-backs
+   (`Core`; dropped only once `~restart` replaced that state), every command step's
+   (`commandIo` — the gate must be released and a restore's `adopt` must reach the shared state,
+   or memory and `verso.json` part ways), the gate's `onIdle` and a `~restore-saf` read's. What
+   touches a window goes to the live instance (`VersoApp.instance`, if any); a step's window
+   parts look at `started`. Only what belongs to one window goes through `onUi`, which drops it
+   for a destroyed instance (the home cache's first frame, the wallpaper palette). And Guru's alert
    (`showPending`), handed back with a plain `runOnUiThread`: Guru checks the destroyed
    activity itself and keeps the alert for the next call, which a dropped hand-back would lose. The one exception: the
    document a `~restore-saf` pick points at is read on its own short-lived thread — a
@@ -341,10 +347,10 @@ thread.
     step would write the old config back over it. Nothing else is held back — no layer, no
     cancel; launching, typing and page turns go on. A run ends with its last step, never by
     a "done" call: every step holds it and releases it on every path (`CommandGate.io`
-    catches what its work throws; `LauncherState.cleanup` reports from a `finally`). A destroyed
-    instance never gets its hand-backs, so its `onDestroy` gives its run up (`abandon`, by an
-    owner token) behind the IO steps it queued — never sooner, or the next run's steps would
-    interleave with them. A result is queued (`ProcessState.messages`) and shown once an instance
+    catches what its work throws; `LauncherState.cleanup` reports from a `finally`), and every
+    step hands back to the process (`commandIo`; a cleanup through its `LauncherState`, dropped
+    only after a `~restart` reset, which starts only with no run going), so a run ends even when
+    the instance that started it is gone; `CommandGate.io` queues nothing for a run that is over. A result is queued (`ProcessState.messages`) and shown once an instance
     is in front; a refusal ("busy", "not loaded") is shown in front or dropped, never queued. No run
     spans another activity or a dialog waiting on the user: a `~restore-saf` pick is the
     process's (`VersoApp.pick`, `PendingPick`) from the picker's answer until its adoption

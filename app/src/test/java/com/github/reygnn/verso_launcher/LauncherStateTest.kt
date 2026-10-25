@@ -49,8 +49,6 @@ class LauncherStateTest {
     private val refreshed = mutableListOf<Boolean>()
     /** An edit permit, as MainActivity takes one from its gate before every edit. */
     private val gate = CommandGate()
-    // Who started a run (CommandGate.abandon); the tests here never abandon one.
-    private val owner = Any()
     private val permit get() = state.editPermit(gate.idle()!!)!!
     private var saveFailures = 0
     /** Process-wide like VersoApp's: it outlives a LauncherState. */
@@ -692,7 +690,7 @@ class LauncherStateTest {
     @Test fun `a permit from before a command is void even once it ended, a fresh one edits`() {
         started()
         val before = permit
-        gate.start(owner) { }
+        gate.start { }
         state.toggleFavorite(before, key("Alpha"))
         assertTrue(state.config.favorites.isEmpty())
         state.toggleFavorite(permit, key("Alpha"))
@@ -776,7 +774,7 @@ class LauncherStateTest {
         disk = VersoConfig(favorites = listOf(key("Alpha"), key("Bravo")))
         started()
         val stale = permit
-        gate.start(owner) {
+        gate.start {
             state.toggleFavorite(stale, key("Charlie"))
             state.toggleHidden(stale, key("Alpha"))
             state.toggleTag(stale, key("Alpha"), "work")
@@ -1102,7 +1100,7 @@ class LauncherStateTest {
     @Test fun `while a command runs nothing is seeded, and a later refresh seeds`() {
         freshStartWithoutAList()
         var running: CommandGate.Ticket? = null
-        gate.start(owner) { t -> gate.hold(t); running = t }
+        gate.start { t -> gate.hold(t); running = t }
         state.refresh()
         runAll()
         assertTrue(state.config.favorites.isEmpty())

@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 639 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 636 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -42,11 +42,10 @@ LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
                                 an unreadable config (set aside, a fresh start, said once — also after a
                                 dropped hand-off or a recreation;
                                 if it cannot be moved: not loaded, no edit, retried)
-CommandGateTest             17  one "~" command at a time: a run ends with its last step,
-                                refusal, hand-over, exceptions, the edit permit; abandon (only
-                                its owner's run, a late finish harmless, a permit stays void);
-                                an IO step for an abandoned or ended run queues nothing (logged);
-                                onIdle once per run end (also on abandon), not per release
+CommandGateTest             12  one "~" command at a time: a run ends with its last step,
+                                refusal, hand-over, exceptions, the edit permit; an IO step for
+                                a run that is over queues nothing (logged); onIdle once per run
+                                end, not per release
 PendingPickTest              6  a "~restore-saf" pick's states: read config taken once, an
                                 unreadable file, a dropped or superseded read landing late
 LauncherRowsTest            41  rowsFor per mode
@@ -74,7 +73,8 @@ AppDrawerTest               12  Robolectric: the back page — rows per prompt, 
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       20  Robolectric, the real Activity: ~crash throws at once (before the
+MainActivityFlowsTest       21  Robolectric, the real Activity: the state is the process's —
+                                a recreation keeps the loaded config, ~restart reads it again; ~crash throws at once (before the
                                 first load too); a second command and an edit
                                 refused while one runs (prompt kept; the rename OK says why),
                                 also on the instance a recreation made, until the old step ends;
@@ -84,8 +84,8 @@ MainActivityFlowsTest       20  Robolectric, the real Activity: ~crash throws at
                                 a recreation (the new instance adopts it); a second restore
                                 refused while a pick is pending, other commands go on;
                                 a restore's message never over another app and never lost
-                                (after onStop: at the next start; after a recreation dropped
-                                the hand-back: on the new instance's first load),
+                                (after onStop: at the next start; across a recreation: adopted
+                                into the shared state and said by the new instance),
                                 ~restart dropping a pick still being read (said; other
                                 commands ran meanwhile) or one whose hand-back is already
                                 queued (not adopted), and dropping nothing after it; ~restart
@@ -126,11 +126,12 @@ EnumerationTest             13  the enumeration with faked profiles: null when t
                                 empty work profiles, status
 CleanupTest                 10  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
                                 a key with the launcher's own serial
-SourceGuardTest             11  source scans (snippets matched token by token, comments left out): no lenient ConfigJson.parse in MainActivity,
+SourceGuardTest             12  source scans (snippets matched token by token, comments left out): no lenient ConfigJson.parse in MainActivity,
                                 no brace-less object templates, no density in configChanges,
                                 no default in LauncherState's constructor, no EditPermit built
                                 outside LauncherState (call or reference), MainActivity's
-                                writeRestored and gate wiring; Guru installed once from VersoApp
+                                writeRestored and Core's gate wiring, a loaded state drawn in
+                                onCreate; Guru installed once from VersoApp
                                 behind Guard, showPending in onCreate (not through onUi),
                                 guru/ out of backup and transfer, R8 keeping names
 RestoreReadLeakTest          1  Robolectric: a "~restore-saf" read that never returns keeps no

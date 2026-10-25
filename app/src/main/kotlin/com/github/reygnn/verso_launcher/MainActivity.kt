@@ -17,14 +17,12 @@ import android.os.SystemClock
 import android.os.UserHandle
 import android.os.UserManager
 import android.provider.DocumentsContract
-import android.provider.Telephony
 import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import com.github.reygnn.guru.Guru
-import java.util.concurrent.RejectedExecutionException
 
 /**
  * The launcher's single window: the home page (recto) in front, the drawer with Sigil's command
@@ -47,55 +45,31 @@ class MainActivity : Activity() {
     // while its predecessor's run still has IO steps queued (hard rule 15).
     private val gate get() = app.gate
 
-    // Who started a run, for CommandGate.abandon. A token, not this activity, so the process's gate
-    // holds no instance. (A hanging step's own task still does, as before: its work and hand-back.)
-    private val runOwner = Any()
-
-    // The process's IO thread, not this instance's: a recreated activity queues behind whatever
-    // its predecessor left in flight instead of racing it (hard rule 3).
-    private val ioExecutor get() = app.io
-
     // ---- the data ---------------------------------------------------------------
-    private val state: LauncherState by lazy {
-        LauncherState(
-            io = ::submitIo,
-            main = { task -> onUi { task.run() } },
-            configFile = ConfigFile(
-                load = { store.load() },
-                setAsideUnreadable = {
-                    store.setAsideUnreadable { text -> backupStore.write(BackupFiles.UNREADABLE_BASE, text) != null }
-                },
-                isFresh = { store.isFresh() },
-                serialize = ConfigJson::serialize,
-                write = { payload -> store.write(payload) },
-            ),
-            enumerateApps = { apps.enumerate() },
-            defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
-            recentsFile = RecentsFile(
-                read = { RecentsLog.read(filesDir, LauncherState.RECENTS_KEPT, ::logWarning) },
-                write = { keys -> RecentsLog.write(filesDir, keys) },
-            ),
-            usageFile = UsageFile(
-                read = { UsageLog.read(filesDir, ::logWarning) },
-                write = { log, at -> UsageLog.write(filesDir, log, at) },
-            ),
-            process = app.process,
-            idle = { gate.idle() },
-            now = System::currentTimeMillis,
-            onSaveFailed = { toast(getString(R.string.toast_save_failed)) },
-            onRefreshed = { configReplaced, listChanged ->
-                // An open rename dialog holds the OLD config and would write stale fields over
-                // the one that just arrived.
-                if (configReplaced) dismissDialogs()
-                if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
-                // A recreated instance's first load queues behind its predecessor's last step.
-                showMessages()
-                // A pick read before the first load waited for it (adoptPendingPick).
-                adoptPendingPick()
-                if (listChanged) appDrawer.refilter()
-            },
-        )
+    // The process's state (VersoApp.core), shared with every other instance. Taken once: after a
+    // "~restart" reset this instance stays with the old state (whose hand-backs are dropped) until
+    // the recreation that follows replaces it.
+    private val state: LauncherState by lazy { app.core.state }
+
+    /**
+     * The state's hand-back after a refresh or a restore (Core sends it to the live instance). An
+     * instance made with another state (a reset since) ignores it: the recreation renders anew.
+     */
+    internal fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) {
+        if (from !== state) return
+        // An open rename dialog holds the OLD config and would write stale fields over the one
+        // that just arrived.
+        if (configReplaced) dismissDialogs()
+        if (state.takeStartedOver()) toast(getString(R.string.toast_config_reset), Toast.LENGTH_LONG)
+        // A recreated instance's first load queues behind its predecessor's last step.
+        showMessages()
+        // A pick read before the first load waited for it (adoptPendingPick).
+        adoptPendingPick()
+        if (listChanged) appDrawer.refilter()
     }
+
+    /** A failed save of verso.json (Core): now if in front, else at the next start. */
+    internal fun saveFailed() = report(getString(R.string.toast_save_failed))
 
     // ---- the two pages ------------------------------------------------------
     private lateinit var homePage: HomePage
@@ -160,6 +134,9 @@ class MainActivity : Activity() {
             OnBackInvokedDispatcher.PRIORITY_DEFAULT,
             pageTurn.backCallback,
         )
+        // A recreation finds the process's state loaded: draw it now. Its next refresh may bring
+        // the same list, which re-renders nothing (listChanged false).
+        if (state.appsLoaded) appDrawer.refilter()
 
         watchApps()
 
@@ -275,41 +252,19 @@ class MainActivity : Activity() {
         dismissDialogs()
         renameDialog = null
         commandDialog = null
-        // No executor shutdown: work this instance queued (a save above all) must still run;
-        // its hand-back is dropped by onUi.
-        abandonRunBehindIo()
+        // No executor shutdown: work this instance queued (a save above all) must still run. Its
+        // command steps hand back to the process (commandIo), so a run it started still ends.
         if (app.instance === this) app.instance = null
         unwatchApps()
         unwatchWallpaper()
         super.onDestroy()
     }
 
-    /**
-     * A run this instance started can no longer end by itself: from here on onUi drops its
-     * hand-backs, and with them every release. It is given up behind the IO steps it queued (one
-     * FIFO thread), so the next run's steps never interleave with them. Captures no activity.
-     */
-    private fun abandonRunBehindIo() {
-        val process = app
-        val owner = runOwner
-        if (!submitIo { process.onMain { process.gate.abandon(owner) } }) process.gate.abandon(owner)
-    }
-
     /** Run [block] on the main thread for THIS instance — or not at all once it is destroyed. */
     private fun onUi(block: () -> Unit) = runOnUiThread { if (!isDestroyed) block() }
 
-    /** For the executor and the SAF read thread: an escape there kills the process on every start. */
-    private fun guarded(what: String, task: Runnable) = Guard.wrap(what, ::logWarning, task)
-
-    /** A refused task is reported as false, never thrown (the executor is never shut down, but a HOME app must not crash). */
-    private fun submitIo(task: Runnable): Boolean =
-        try {
-            ioExecutor.execute(guarded("IO task", task))
-            true
-        } catch (e: RejectedExecutionException) {
-            Log.w("Verso", "IO task rejected (executor shut down)", e)
-            false
-        }
+    /** The process's IO thread, behind Guard (VersoApp.submitIo): false if refused, never a throw. */
+    private fun submitIo(task: Runnable): Boolean = app.submitIo(task)
 
     /** A hardware keyboard on home: typing (or Search) opens the drawer with that character in the prompt. */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -336,22 +291,9 @@ class MainActivity : Activity() {
 
     // ---- config -------------------------------------------------------------
 
-    private val store by lazy {
-        ConfigStore(
-            dir = filesDir,
-            log = ::logWarning,
-            syncDir = { dir -> fsyncDir(dir, ::logWarning) },
-        )
-    }
-
-    private val backupStore by lazy {
-        BackupStore(
-            resolver = contentResolver,
-            subDir = BackupFiles.DIR,
-            log = ::logWarning,
-            owner = packageName,
-        )
-    }
+    // The process's stores (Core), built from the Application: a MediaStore call that hangs holds
+    // no activity.
+    private val backupStore get() = app.core.backupStore
 
     /** Run a "~" command, one at a time (hard rule 15); each reports its real result with a toast. */
     private fun runCommand(command: Command) {
@@ -371,12 +313,15 @@ class MainActivity : Activity() {
         // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
         appDrawer.clearPrompt()
-        gate.start(runOwner) { t ->
+        gate.start { t ->
             when (command) {
                 Command.RESTART -> {
                     // A hung provider must not block ~restart: the pick is dropped, read or still
                     // being read, and a read that lands later finds it gone.
                     if (app.pick.drop()) toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
+                    // The repair by hand: a fresh state reads verso.json (and an unread recents.txt
+                    // or usage.txt) again, and the recreation builds every view anew around it.
+                    app.core.reset()
                     recreate()
                 }
                 Command.BACKUP -> backup(t)
@@ -400,9 +345,14 @@ class MainActivity : Activity() {
         return true
     }
 
-    /** One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. */
+    /**
+     * One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. Handed back
+     * to the process, never dropped — not even for a destroyed instance: the gate must be released
+     * (hard rule 15), and what [then] does to the shared state (a restore's adopt) must land, or
+     * memory and verso.json part ways. Its window parts look at [started] and stay out once stopped.
+     */
     private fun <T : Any> commandIo(t: CommandGate.Ticket, work: () -> T?, then: (T?) -> Unit) =
-        gate.io(t, ::submitIo, { block -> onUi(block) }, work, { e -> Log.w("Verso", "command step failed", e) }, then)
+        gate.io(t, ::submitIo, app::onMain, work, { e -> Log.w("Verso", "command step failed", e) }, then)
 
     /** "~backup": export the config in memory to Download/Verso (hard rule 6). */
     private fun backup(t: CommandGate.Ticket) {
@@ -458,7 +408,7 @@ class MainActivity : Activity() {
     }
 
     private fun runCleanup(confirmed: Set<String>) {
-        val accepted = gate.start(runOwner) { t ->
+        val accepted = gate.start { t ->
             gate.hold(t)
             state.cleanup(
                 confirmed = confirmed,
@@ -585,7 +535,7 @@ class MainActivity : Activity() {
     internal fun adoptPendingPick() {
         if (isDestroyed || gate.busy || !state.configLoaded) return
         val restored = app.pick.take() ?: return
-        gate.start(runOwner) { t -> adoptRestored(t, restored) }
+        gate.start { t -> adoptRestored(t, restored) }
     }
 
     /**
@@ -619,8 +569,8 @@ class MainActivity : Activity() {
                 report(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
                 return@commandIo
             }
-            // Cannot refuse: loaded was checked above. The message is the write's, so it stands
-            // even for an instance that never gets this hand-back.
+            // Cannot refuse: loaded was checked above. The message is the write's, queued before
+            // this hand-back, which reaches the shared state even when this instance is gone.
             if (outcome is RestoreSteps.Outcome.Done) state.adopt(restored)
             showMessages()
         }
@@ -659,8 +609,8 @@ class MainActivity : Activity() {
     /*
      * A "~backup"/restore result is never shown over another app and never lost: it waits in
      * ProcessState.messages until an instance is in front — shown in the step's hand-back, at
-     * onStart (it finished after onStop), or at the first load of an instance that replaced the one
-     * whose hand-back a recreation dropped (that load queues behind the step on the IO thread).
+     * onStart (it finished after onStop), or at the first refresh of the instance a recreation
+     * made (the step's hand-back ran on the destroyed one, which shows nothing).
      * A refusal is not a result: shown while in front, else dropped ([refuse]).
      */
 
@@ -782,18 +732,8 @@ class MainActivity : Activity() {
     private val launcherApps: LauncherApps by lazy { getSystemService(LauncherApps::class.java) }
     private val userManager: UserManager by lazy { getSystemService(UserManager::class.java) }
 
-    private val apps by lazy {
-        Apps(
-            launcherApps = launcherApps,
-            userManager = userManager,
-            pm = packageManager,
-            ownPackage = packageName,
-            badgedLabels = app.badgedLabels,
-            // The badge is localized: part of its cache key, read fresh for each enumeration.
-            locale = { resources.configuration.locales[0].toLanguageTag() },
-            defaultSmsPackage = { Telephony.Sms.getDefaultSmsPackage(this) },
-        )
-    }
+    // The process's app list (Core): enumeration, the cleanup check, a profile's user.
+    private val apps get() = app.core.apps
 
     private val appsChanged = object : LauncherApps.Callback() {
         override fun onPackageAdded(packageName: String, user: UserHandle) = appsMaybeChanged()

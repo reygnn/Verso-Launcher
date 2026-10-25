@@ -13,7 +13,9 @@ import android.widget.EditText
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -265,8 +267,12 @@ class MainActivityFlowsTest {
         controller.resume()
     }
 
-    /** B1: the new instance's onStart comes before the step ends; its first load queues behind it. */
-    @Test fun `a restore whose hand-back a recreation dropped is reported by the new instance`() {
+    /**
+     * B1: a recreation in the middle of a restore. The step's hand-back is the process's, so the
+     * restore lands in the shared state too — not only on disk, or the next edit would write the
+     * old config back over it — and the new instance says so.
+     */
+    @Test fun `a restore across a recreation lands in memory and is reported by the new instance`() {
         started()
         holdIo()                                // the adoption's IO step waits behind the hold
         pick("verso.json", configWith(someApp))
@@ -280,6 +286,7 @@ class MainActivityFlowsTest {
         hold.countDown()
         settle()
         assertTrue("the restore was written", someApp.key in savedFavorites())
+        assertTrue("and adopted: memory matches the file", someApp.key in app.core.state.config.favorites)
         assertRestoredToast()
     }
 
@@ -288,17 +295,37 @@ class MainActivityFlowsTest {
         started()
         holdIo()
         enter("~backup")                        // its IO step waits behind the hold
-        controller.recreate()                   // the old instance's hand-back will be dropped
+        controller.recreate()                   // the step's hand-back goes to the process
         shadowOf(Looper.getMainLooper()).idle()
         ShadowToast.reset()
         enter("~backup")
         assertEquals(activity.getString(R.string.toast_busy), ShadowToast.getTextOfLatestToast())
         assertEquals("~backup", prompt.text.toString())
         hold.countDown()
-        settle()                                // the step, then the old instance's abandon behind it
+        settle()                                // the step and its hand-back, which ends the run
         enter("~backup")
-        assertEquals("accepted once the old run is given up", "", prompt.text.toString())
+        assertEquals("accepted once the old run ended", "", prompt.text.toString())
     }
+
+    /**
+     * The state is the process's: a recreation keeps what was loaded and does not read verso.json
+     * again — only "~restart", the repair by hand, gives a fresh state that does.
+     */
+    @Test fun `a recreation keeps the loaded config, ~restart reads it again`() {
+        started()
+        val loaded = app.core.state
+        // Changed behind the launcher's back, as a hand edit of verso.json would.
+        File(activity.filesDir, "verso.json").writeText(ConfigJson.serialize(VersoConfig(favorites = listOf(someApp.key))))
+        controller.recreate()
+        settle()
+        assertSame("one state for both instances", loaded, app.core.state)
+        assertFalse("not read again", someApp.key in app.core.state.config.favorites)
+        enter("~restart")
+        settle()
+        assertNotSame("a fresh state", loaded, app.core.state)
+        assertTrue("read again", someApp.key in app.core.state.config.favorites)
+    }
+
 
     /** A pick read while a command runs waits for it, then is adopted — even while away. */
     @Test fun `a pick read while a command runs is adopted once it ends`() {
@@ -359,11 +386,11 @@ class MainActivityFlowsTest {
         hold.countDown()
         joinReads()
         shadowOf(Looper.getMainLooper()).idle() // read, waiting for the backup
-        controller.recreate()                   // the backup's hand-back will be dropped
+        controller.recreate()                   // the backup's hand-back goes to the process
         shadowOf(Looper.getMainLooper()).idle()
         ShadowToast.reset()
         ioHold.countDown()
-        settle()                                // the step, the old run given up, the new load
+        settle()                                // the step, its hand-back ending the run, the new load
         assertTrue("adopted by the new instance", someApp.key in savedFavorites())
         assertRestoredToast()                   // after the backup's result, which the new load shows
     }

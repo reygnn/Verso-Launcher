@@ -6,17 +6,18 @@ package com.github.reygnn.verso_launcher
  * is no "done" call a path could forget. Main thread only.
  *
  * One per process (VersoApp.gate), so a recreated activity sees a run its predecessor left
- * going. A destroyed owner never gets its hand-backs (they are dropped), so it gives the run up
- * with [abandon] once its IO steps are through (MainActivity.onDestroy queues that on the IO thread).
+ * going. Every step hands back to the process, never to an instance that a recreation could take
+ * away — commandIo through VersoApp.onMain, a "~cleanup" through its LauncherState (Core, dropped
+ * only after a "~restart" reset, which starts only with no run going) — so every run ends by itself.
  *
- * @param onIdle called each time a run ends (its last release, or [abandon]): something may have
+ * @param onIdle called each time a run ends (its last release): something may have
  *   waited for the gate (a "~restore-saf" pick, VersoApp). Called in the middle of the release, so
  *   it must not start a run itself — it posts.
  */
 internal class CommandGate(private val onIdle: () -> Unit = {}) {
 
-    /** One run, started by [owner]. Compared by identity. */
-    class Ticket internal constructor(internal val owner: Any) {
+    /** One run. Compared by identity. */
+    class Ticket internal constructor() {
         internal var holds = 0
     }
 
@@ -36,13 +37,10 @@ internal class CommandGate(private val onIdle: () -> Unit = {}) {
     /** A permit to edit, or null while a run is going. */
     fun idle(): Idle? = if (busy) null else Idle(this, runs)
 
-    /**
-     * False if a run is going. Otherwise [first] runs at once; unless it [hold]s, the run ends as it
-     * returns or throws. [owner] is whoever receives the run's hand-backs (see [abandon]).
-     */
-    fun start(owner: Any, first: (Ticket) -> Unit): Boolean {
+    /** False if a run is going. Otherwise [first] runs at once; unless it [hold]s, the run ends as it returns or throws. */
+    fun start(first: (Ticket) -> Unit): Boolean {
         if (current != null) return false
-        val ticket = Ticket(owner)
+        val ticket = Ticket()
         ticket.holds = 1
         current = ticket
         runs++
@@ -71,8 +69,8 @@ internal class CommandGate(private val onIdle: () -> Unit = {}) {
      * [work] on the IO thread, [then] with its result back on main. A refused task or a [work]
      * that throws gives [then] null — a bug must not leave the gate shut for good.
      *
-     * Only for the run going: a stale [ticket] (an abandoned or ended run) queues nothing and gets
-     * no [then] — its hand-back belongs to an instance that is gone, or to a run that is over. It
+     * Only for the run going: a stale [ticket] (a run that is over) queues nothing and gets no
+     * [then] — its hand-back would belong to nothing. It
      * is logged, not thrown (a HOME app must not crash, hard rule 2), and not silent, since only a
      * bug gets here: every legal call comes from a step of the run, while it still holds it.
      */
@@ -100,17 +98,6 @@ internal class CommandGate(private val onIdle: () -> Unit = {}) {
             post { finish(ticket) { then(result) } }
         })
         if (!accepted) finish(ticket) { then(null) }
-    }
-
-    /**
-     * Ends the run [owner] started, whatever it still holds: its hand-backs will never come. Call it
-     * only once the owner's IO steps are through — behind them on the IO thread — or a new run's
-     * steps would interleave with the old one's. A late [finish] of that run is a no-op.
-     */
-    fun abandon(owner: Any) {
-        if (current?.owner !== owner) return
-        current = null
-        onIdle()
     }
 
     private fun release(ticket: Ticket) {

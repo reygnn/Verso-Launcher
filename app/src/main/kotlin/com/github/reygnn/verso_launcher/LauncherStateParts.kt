@@ -18,9 +18,9 @@ internal class Kept<T>(var value: T, var loaded: Boolean = false)
  * @param recents the "?" list, newest first, and whether recents.txt was read into it.
  * @param usage the "%" launches, and whether usage.txt was read into them.
  * @param messages the "~backup"/restore results not yet shown, oldest first. Added on the IO thread
- *   before the hand-back, which a recreation drops; shown once each, in order, by whichever
- *   instance is in front first. A queue, not one slot: a result never replaces another. Only
- *   results go here — a refusal ("busy", "not loaded") is shown at once or not at all, since it
+ *   before the hand-back, which may land on an instance that is gone or stopped; shown once each,
+ *   in order, by whichever instance is in front first. A queue, not one slot: a result never
+ *   replaces another. Only results go here — a refusal ("busy", "not loaded") is shown at once or not at all, since it
  *   means nothing later. At most one result per run, and runs start from the front — the one
  *   exception, a "~restore-saf" adoption, from a pick the user made there — so it stays short
  *   without a cap.

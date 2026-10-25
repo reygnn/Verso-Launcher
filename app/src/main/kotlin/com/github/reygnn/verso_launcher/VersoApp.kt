@@ -7,10 +7,12 @@ import android.util.Log
 import com.github.reygnn.guru.Guru
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
- * write verso.json concurrently), the command gate, the [ProcessState] and the label/palette caches.
+ * write verso.json concurrently), the launcher's data ([core]), the command gate, the pending
+ * pick, the [ProcessState] and the label/palette caches.
  */
 class VersoApp : Application() {
 
@@ -38,9 +40,16 @@ class VersoApp : Application() {
 
     /**
      * The live MainActivity, between its onCreate and its onDestroy, for what the process hands
-     * over: a pick to adopt. Main thread only; never held past onDestroy, so it keeps no instance alive.
+     * over: the state's refreshes and save failures (Core), a pick to adopt. Main thread only;
+     * never held past onDestroy, so it keeps no instance alive.
      */
     internal var instance: MainActivity? = null
+
+    /**
+     * The launcher's data — one LauncherState and its stores — shared by every activity instance;
+     * "~restart" resets it. Built on first use (the first activity), from this Application alone.
+     */
+    internal val core by lazy { Core(this) }
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -48,6 +57,20 @@ class VersoApp : Application() {
     internal fun onMain(block: () -> Unit) {
         mainHandler.post { block() }
     }
+
+    /**
+     * Queues [task] on [io] behind Guard (hard rule 2: an escape there kills the process on every
+     * start). A refused task is reported as false, never thrown — the executor is never shut down,
+     * but a HOME app must not crash.
+     */
+    internal fun submitIo(task: Runnable): Boolean =
+        try {
+            io.execute(Guard.wrap("IO task", { msg, e -> Log.w("Verso", msg, e) }, task))
+            true
+        } catch (e: RejectedExecutionException) {
+            Log.w("Verso", "IO task rejected (executor shut down)", e)
+            false
+        }
 
     /**
      * Main thread: the read of pick [number] is back. A dropped or superseded pick is ignored. An

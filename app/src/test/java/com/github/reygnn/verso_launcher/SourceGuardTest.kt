@@ -134,13 +134,14 @@ class SourceGuardTest {
         assertEquals(listOf("LauncherState.kt"), sites)
     }
 
-    /** What no JVM test reaches: the Activity's wiring of two rules into LauncherState. */
-    @Test fun `MainActivity wires the restore write and the command gate into LauncherState`() {
+    /** What no JVM test reaches: the wiring of two rules into LauncherState (the Activity's and Core's). */
+    @Test fun `the restore write and the command gate are wired into LauncherState`() {
         val activity = code("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val core = code("src/main/kotlin/com/github/reygnn/verso_launcher/Core.kt")
         // Hard rule 10: a restore's write ends the wait to seed, even with its hand-back lost.
         assertTrue(has(activity, "writeConfig = state::writeRestored"))
-        // Hard rules 10 and 15: the seeding takes a permit from the real gate.
-        assertTrue(has(activity, "idle = { gate.idle() }"))
+        // Hard rules 10 and 15: the seeding takes a permit from the real, process-wide gate.
+        assertTrue(has(core, "idle = { app.gate.idle() }"))
     }
 
     // Rule 13.
@@ -167,6 +168,18 @@ class SourceGuardTest {
             Regex("""\bGuru\s*\.\s*install\s*\(""").findAll(f.readText()).map { f.name }
         }.toList()
         assertEquals(listOf("VersoApp.kt"), sites)
+    }
+
+    /**
+     * A recreation finds the process's state loaded, and its own first refresh may bring the same
+     * list and re-render nothing: onCreate must draw the loaded state itself, unconditionally on
+     * anything but that. Robolectric lists no apps (no LauncherApps activities), so appsLoaded never
+     * turns true there and no flow test can see a blank drawer; this pin is the guard.
+     */
+    @Test fun `MainActivity draws a loaded state in onCreate`() {
+        val activity = code("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
+        val onCreate = activity.substringAfter("override fun onCreate(").substringBefore("\n    override fun ")
+        assertTrue(has(onCreate, "if (state.appsLoaded) appDrawer.refilter()"))
     }
 
     /**
