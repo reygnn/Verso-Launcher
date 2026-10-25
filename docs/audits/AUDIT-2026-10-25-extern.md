@@ -25,7 +25,10 @@ dokumentiert oder in Kotlin so nicht umsetzbar.
 
 ## A. Daten
 
-### 1. `~backup` nach einem Neustart vernichtet das letzte gute Backup — ⬜ offen
+### 1. `~backup` nach einem Neustart vernichtet das letzte gute Backup — überholt durch `27df7ad`
+- **Stand:** Backups nach MediaStore-Regeln, Verso löscht keine mehr (harte Regel 6). Ein `~backup`
+  nach einem leeren Start ist das neueste und wird von `~restore` genommen; die älteren bleiben
+  und sind mit `~restore-saf` erreichbar (`CAVEATS.md`).
 - **Stelle:** `BackupStore` (genau ein aktuelles Backup, harte Regel 6), Toast
   `toast_config_reset` („config unreadable — started over. ~restore brings a backup back“).
 - **Nachgeprüft:** ja. Ist `verso.json` unlesbar, startet Verso mit Standard-Favoriten neu. Tippt
@@ -35,7 +38,10 @@ dokumentiert oder in Kotlin so nicht umsetzbar.
   wiederhergestellt wurde (das Prozess-Kennzeichen `startedOver` gibt es schon). Alternative des
   Reviewers: die letzten N Backups behalten (ändert harte Regel 6).
 
-### 2. Ein vorübergehender Lesefehler legt eine intakte Konfiguration beiseite — ⬜ offen
+### 2. Ein vorübergehender Lesefehler legt eine intakte Konfiguration beiseite — überholt durch `5dfa971`
+- **Stand:** `verso.json` nach SharedPreferences-Regeln (harte Regel 4): kein Beiseitelegen, kein
+  Export mehr. Ein Lesefehler lädt leer, die nächste Änderung schreibt darüber — wie bei
+  SharedPreferences, bewusst übernommen; das Netz sind die Backups (`CAVEATS.md`).
 - **Stelle:** `ConfigStore.load` / `setAsideUnreadable`, `LauncherState.kt:115-117`.
 - **Nachgeprüft:** ja. `load()` gibt für „nicht lesbar“ (IO-Fehler) und „nicht parsebar“ gleich
   `null`. `setAsideUnreadable` liest erneut, parst aber nicht. Gelingt der zweite Lesezugriff,
@@ -44,7 +50,10 @@ dokumentiert oder in Kotlin so nicht umsetzbar.
 - **Vorschlag:** den zweiten Lesezugriff parsen; ist die Datei in Ordnung, laden statt
   beiseitelegen.
 
-### 3. `ConfigJson.parse` fängt jede `Exception` — ⬜ offen
+### 3. `ConfigJson.parse` fängt jede `Exception` — überholt durch `5dfa971`
+- **Stand:** nach den neuen Regeln lädt jeder Parse-Fehler leer, wie SharedPreferences (das selbst
+  breit fängt). Ein deterministischer Bug verschöbe keine Dateien mehr; er würde die Datei bei der
+  nächsten Änderung überschreiben, das Netz sind die Backups.
 - **Stelle:** `ConfigJson.kt:26-34`.
 - **Nachgeprüft:** teilweise. Wirft eine eigene Hilfsfunktion beim Parsen deterministisch, gilt
   jede gültige Konfiguration als kaputt und wird bei jedem Start beiseitegelegt (exportiert, also
@@ -127,6 +136,6 @@ bis `until`.
 
 ## Empfehlung
 
-Umsetzen: **1, 2, 3, 5**, je auf einem Branch, mit Test und Mutationsprobe. Danach **6b** (mit
+1–3 überholt durch die Plattform-Regeln (`27df7ad`, `5dfa971`). Umsetzen: **5**, auf einem Branch, mit Test und Mutationsprobe. Danach **6b** (mit
 TalkBack auf dem A17) und die `SwipeFrame`-Defaults. Offen zur Wahl: `Superseded` behalten oder
 entfernen.
