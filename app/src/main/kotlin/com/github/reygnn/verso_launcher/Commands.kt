@@ -130,7 +130,7 @@ internal class Commands(private val app: VersoApp) {
      * loaded config (hard rule 5). Called on the OK, when a run ends (the gate's onIdle) and when a
      * load lands (Core) — whichever comes last adopts. It waits instead of being refused: while it
      * is pending no restore can start (MainActivity.runCommand), so the run it waits for is a backup
-     * or a cleanup, never a restore whose undo point it would sweep.
+     * or a cleanup, never a restore it would replace right after.
      */
     fun adoptPendingPick() {
         if (gate.busy || !core.state.configLoaded) return
@@ -160,9 +160,8 @@ internal class Commands(private val app: VersoApp) {
             RestoreSteps.run(
                 current = outgoing,
                 restored = restored,
-                writeUndo = { payload -> store.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
+                writeUndo = { payload -> store.write(BackupFiles.PRE_RESTORE_BASE, payload) },
                 writeConfig = state::writeRestored,
-                sweepUndo = { store.sweep(BackupFiles.PRE_RESTORE_BASE) },
             ).also { outcome -> results.keep(restoreMessage(app, outcome)) }
         }) { outcome ->
             // Nothing kept: the step threw.

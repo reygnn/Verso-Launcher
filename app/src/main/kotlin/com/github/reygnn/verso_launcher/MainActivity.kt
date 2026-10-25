@@ -356,7 +356,7 @@ class MainActivity : Activity() {
 
     /**
      * A restore while a pick is read or waits to be adopted (PendingPick) is refused, with a toast:
-     * the automatic adoption behind it would sweep its undo point. The prompt stays, to send again.
+     * the automatic adoption behind it would replace what it brought. The prompt stays, to send again.
      */
     private fun heldBackByPick(command: Command): Boolean {
         val restore = command == Command.RESTORE || command == Command.RESTORE_SAF

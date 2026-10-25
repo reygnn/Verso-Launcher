@@ -136,12 +136,11 @@ keyboard, no prompt:
       `verso.json` by hand, or when something looks stale). It also retries
       `recents.txt` and `usage.txt` if they could not be read
     - `~backup` — export the config to `Download/Verso/`, named after the moment it
-      was taken (`verso-2026-10-13_120745.json`). It replaces the previous one, but
-      only after the new one is safely written: a failed or interrupted backup never
-      costs you the old one. Always just the one current backup, never a pile. An
-      ordinary file: it survives an uninstall and can be copied off the device
-      (that's how you move a config to another phone) — the only copy besides
-      `verso.json` itself
+      was taken (`verso-2026-10-13_120745.json`). Every backup is a new file, and Verso
+      never deletes one: a failed or interrupted backup leaves the older ones as they
+      were. Clear out old ones with a file manager. An ordinary file: it survives an
+      uninstall and can be copied off the device (that's how you move a config to
+      another phone) — the only copy besides `verso.json` itself
     - `~restore` — adopt the newest of those backups again. No file picker. The
       config being replaced is first written next to it as
       `verso-pre-restore-<date>_<time>.json`; if that fails, the restore is

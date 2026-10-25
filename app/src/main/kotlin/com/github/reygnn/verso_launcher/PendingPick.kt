@@ -11,8 +11,8 @@ package com.github.reygnn.verso_launcher
  *
  * While a pick is pending, `~restore` and `~restore-saf` are refused (MainActivity.runCommand),
  * nothing else: edits and the other commands go on, so a read that hangs on a slow provider
- * blocks only a second restore. That is what makes waiting for the gate safe — the run waited for
- * can never be a restore, whose undo point an automatic restore right behind it would sweep.
+ * blocks only a second restore. So the run waited for is never a restore: the pick's adoption
+ * right behind it would replace what that restore brought.
  *
  * Main thread only. Pure, so the states are JVM-testable.
  */

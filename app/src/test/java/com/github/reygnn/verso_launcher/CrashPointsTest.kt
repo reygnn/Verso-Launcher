@@ -13,12 +13,12 @@ import java.time.LocalDateTime
  * Crash-only: the process may die between any two steps of a restore or a "~cleanup", and the next
  * start must find a disk it can use, with nothing the user had lost. Each test runs the operation
  * once per crash point until a run gets through: verso.json is real files (ConfigStore on a
- * TemporaryFolder), Download/Verso a list of rows that outlives the process and is swept by
- * BackupFiles' own rules, and the death is a thrown Error — no catch in the code under test takes
- * one, as none takes a SIGKILL on a device. The cold start is a fresh ConfigStore's load.
+ * TemporaryFolder), Download/Verso a list of rows that outlives the process (Verso never deletes
+ * one), and the death is a thrown Error — no catch in the code under test takes one, as none takes
+ * a SIGKILL on a device. The cold start is a fresh ConfigStore's load.
  *
- * BackupStore's own crash points (between its publish and its sweep, a temp left behind) are
- * MediaStore behaviour and stay in BackupStoreInstrumentedTest; here a backup write is one step.
+ * BackupStore's own crash point (a pending row left behind) is MediaStore behaviour and stays in
+ * BackupStoreInstrumentedTest; here a backup write is one step.
  */
 class CrashPointsTest {
 
@@ -42,20 +42,12 @@ class CrashPointsTest {
         private val rows = linkedMapOf<Long, Row>()
         lateinit var reaper: Reaper
 
-        fun write(base: String, payload: String, sweep: Boolean = true): String {
+        fun write(base: String, payload: String): String {
             reaper.step("publish $base")
             val id = nextId++
             val name = BackupFiles.publishedName(base, LocalDateTime.of(2026, 10, 19, 12, 0, id.toInt()))
             rows[id] = Row(name, payload)
-            if (sweep) sweep(base)
             return name
-        }
-
-        fun sweep(base: String) {
-            reaper.step("sweep $base")
-            val own = rows.map { (id, row) -> BackupFiles.Entry(id, row.name) }
-            val newest = BackupFiles.latestToRestore(base, own) ?: return
-            BackupFiles.replacedBy(base, newest.id, own).forEach { rows.remove(it.id) }
         }
 
         fun configs(base: String): List<VersoConfig> =
@@ -104,9 +96,8 @@ class CrashPointsTest {
                 RestoreSteps.run(
                     current = store.load()!!,
                     restored = restored,
-                    writeUndo = { payload -> downloads.write(BackupFiles.PRE_RESTORE_BASE, payload, sweep = false) },
+                    writeUndo = { payload -> downloads.write(BackupFiles.PRE_RESTORE_BASE, payload) },
                     writeConfig = { payload -> reaper.step("write verso.json.new"); store.write(payload) },
-                    sweepUndo = { downloads.sweep(BackupFiles.PRE_RESTORE_BASE) },
                 )
                 "no death"
             } catch (death: ProcessDeath) {
@@ -132,13 +123,13 @@ class CrashPointsTest {
         assertEquals(
             listOf(
                 "publish verso-pre-restore", "write verso.json.new", "rename verso.json.new",
-                "fsync the directory", "sweep verso-pre-restore", "no death",
+                "fsync the directory", "no death",
             ),
             points,
         )
     }
 
-    /** "~restore-saf" of the last undo point: the file being restored is the one the sweep removes. */
+    /** "~restore-saf" of the last undo point. */
     @Test fun `a restore of the previous undo point killed at any step never loses that config`() {
         restoreAtEveryCrashPoint(previousUndo) { point, onDisk, undoPoints, _ ->
             assertTrue("$point: the restored config is gone", onDisk == previousUndo || undoPoints.holds(previousUndo))
@@ -146,12 +137,11 @@ class CrashPointsTest {
         }
     }
 
-    @Test fun `a restore that gets through keeps exactly one undo point, the replaced config`() {
+    @Test fun `a restore that gets through adds its undo point and removes none`() {
         restoreAtEveryCrashPoint(backup) { point, onDisk, undoPoints, backups ->
             if (point != "no death") return@restoreAtEveryCrashPoint
             assertEquals(backup, onDisk)
-            assertEquals(1, undoPoints.size)
-            assertEquals(outgoing, undoPoints.single())
+            assertEquals(listOf(previousUndo, outgoing), undoPoints)
             assertEquals("the backup itself is never touched", backup, backups.single())
         }
     }
@@ -237,20 +227,19 @@ class CrashPointsTest {
         }
         assertEquals(
             listOf(
-                "recheck", "publish verso-pre-cleanup", "sweep verso-pre-cleanup", "write verso.json.new",
+                "recheck", "publish verso-pre-cleanup", "write verso.json.new",
                 "rename verso.json.new", "fsync the directory", "cleanup reported", "no death",
             ),
             points,
         )
     }
 
-    @Test fun `a cleanup that gets through keeps exactly one undo point, the config before it`() {
+    @Test fun `a cleanup that gets through adds its undo point and removes none`() {
         cleanupAtEveryCrashPoint { point, onDisk, undoPoints ->
             if (point != "no death") return@cleanupAtEveryCrashPoint
             assertEquals(listOf(alpha.key), onDisk.favorites)
             assertEquals(mapOf(alpha.key to "Mine"), onDisk.names)
-            assertEquals(1, undoPoints.size)
-            assertEquals(beforeCleanup, undoPoints.single())
+            assertEquals(listOf(previousUndo, beforeCleanup), undoPoints)
         }
     }
 }

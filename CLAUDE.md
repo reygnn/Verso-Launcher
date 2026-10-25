@@ -289,20 +289,19 @@ thread.
    (`loadedSnapshot`). If the files cannot even be set aside, the config stays not loaded
    and every resume tries again. Home is drawn and its cache written only from a loaded
    config.
-6. **Backups: never delete the old one before the new one is published.** MediaStore owns
-   the namespace: names are timestamped (`verso-<date>_<time>.json`), a backup is
-   recognised by pattern, a restore takes the newest own row by `_ID`, never a fixed name.
-   Exactly one current backup and one undo point per kind (`verso-pre-restore-…`,
-   `verso-pre-cleanup-…`), and one set-aside unreadable config (`verso-unreadable-…`). A
-   restore's undo point is written without the sweep; the old one goes only once the
-   restored config is saved (it may be the very file restored).
+6. **Backups on MediaStore's terms: every backup is a new file, and Verso never deletes
+   one.** Each `~backup`, each undo point (`verso-pre-restore-…`, `verso-pre-cleanup-…`) and a
+   set-aside unreadable config (`verso-unreadable-…`) is a pending row under its timestamped
+   name (`verso-<date>_<time>.json`), written and fsynced, then published; a failure removes
+   only its own pending row. MediaStore owns the namespace: a backup is recognised by pattern,
+   a restore takes the newest own row by `_ID`, never a fixed name. Clearing out old files is
+   the user's, with a file manager.
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient `parse`
    for outside files) → for a `~restore-saf` pick, the user's OK on what it sets (hard rule 15)
-   → if it equals the current config, stop (an undo point would replace
-   the real one) → write the undo point → write the restored config to `verso.json` in the
-   same IO task (the restore must survive a lost hand-back; a failed write adopts nothing)
-   → sweep the old undo point → `adopt` (memory only, no second write). No undo point, no
-   restore.
+   → if it equals the current config, stop (nothing to undo) → write the undo point → write
+   the restored config to `verso.json` in the same IO task (the restore must survive a lost
+   hand-back; a failed write adopts nothing) → `adopt` (memory only, no second write). No undo
+   point, no restore.
 8. **Config keys are `package/class`** (`ComponentName.flattenToString()`) for the
    personal profile, so configs and backups written by earlier Verso versions stay
    readable; an app of another profile is `package/class#<profile serial>`
@@ -368,8 +367,8 @@ thread.
     the pick quietly, leaving the dialog unanswered ends it with a toast), then, once confirmed,
     waiting for an idle gate and a loaded config, adopted by whichever instance is alive; only
     the adoption is a run. Meanwhile `~restore` and
-    `~restore-saf` are refused (a restore the adoption waited behind would lose its undo point
-    to it), everything else goes on; `~restart` drops the pick, with a toast. The cleanup dialog
+    `~restore-saf` are refused (the adoption right behind it would replace what it brought),
+    everything else goes on; `~restart` drops the pick, with a toast. The cleanup dialog
     ends its run, its OK starts a new one.
 16. **The process owns the data; an activity is a window.** `Core` (the one `LauncherState`
     and its stores), `Commands`, `Results`, the gate and the pending pick live in `VersoApp`,

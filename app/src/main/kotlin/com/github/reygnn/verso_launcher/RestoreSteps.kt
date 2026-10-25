@@ -11,21 +11,16 @@ internal object RestoreSteps {
         data class Done(val undoName: String) : Outcome
     }
 
-    /**
-     * Sweep the old undo point only after the restored config is saved: it may be the very file
-     * being restored ("~restore-saf" of a verso-pre-restore file).
-     */
+    /** The undo point first: no undo point, no restore. */
     fun run(
         current: VersoConfig,
         restored: VersoConfig,
         writeUndo: (String) -> String?,
         writeConfig: (String) -> Boolean,
-        sweepUndo: () -> Unit,
     ): Outcome {
         if (current == restored) return Outcome.Unchanged
         val undo = writeUndo(ConfigJson.serialize(current)) ?: return Outcome.UndoFailed
         if (!writeConfig(ConfigJson.serialize(restored))) return Outcome.WriteFailed
-        sweepUndo()
         return Outcome.Done(undo)
     }
 }

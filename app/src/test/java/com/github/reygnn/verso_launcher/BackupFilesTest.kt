@@ -40,21 +40,19 @@ class BackupFilesTest {
         assertTrue(BackupFiles.isPublished(pre, "verso-pre-restore-2026-10-13_120745 (2).json"))
     }
 
-    @Test fun `the earlier fixed names still count, so old backups are restored and swept`() {
+    @Test fun `the earlier fixed names still count, so old backups are restored`() {
         assertTrue(BackupFiles.isPublished(base, "verso.json"))
         assertTrue(BackupFiles.isPublished(base, "verso (1).json"))
         assertTrue(BackupFiles.isPublished(base, "verso (12).json"))
         assertTrue(BackupFiles.isPublished(pre, "verso-pre-restore (2).json"))
     }
 
-    @Test fun `the two bases never claim each other's files, nor temps`() {
+    @Test fun `the two bases never claim each other's files, nor an old temp`() {
         assertFalse(BackupFiles.isPublished(base, "verso-pre-restore.json"))
         assertFalse(BackupFiles.isPublished(base, "verso-pre-restore-2026-10-13_120745.json"))
         assertFalse(BackupFiles.isPublished(pre, "verso.json"))
         assertFalse(BackupFiles.isPublished(pre, "verso-2026-10-13_120745.json"))
         assertFalse(BackupFiles.isPublished(base, "verso.tmp.json"))
-        assertFalse(BackupFiles.isTemp(base, "verso-pre-restore.tmp.json"))
-        assertFalse(BackupFiles.isTemp(base, "verso.json"))
     }
 
     @Test fun `every base is distinct and claims no other base's files`() {
@@ -63,7 +61,6 @@ class BackupFilesTest {
         for (a in bases) for (b in bases) if (a != b) {
             assertFalse("$a claims $b", BackupFiles.isPublished(a, "$b-2026-10-13_120745.json"))
             assertFalse("$a claims $b (1)", BackupFiles.isPublished(a, "$b-2026-10-13_120745 (1).json"))
-            assertFalse("$a claims $b's temp", BackupFiles.isTemp(a, "$b.tmp.json"))
         }
     }
 
@@ -87,20 +84,6 @@ class BackupFilesTest {
         assertFalse(BackupFiles.isPublished(base, "verso-2026-10-13_1207.json"))
     }
 
-    @Test fun `temps include the numbered dodge and the pre-fix name`() {
-        assertTrue(BackupFiles.isTemp(base, BackupFiles.tempName(base)))
-        assertTrue(BackupFiles.isTemp(base, "verso.tmp (1).json"))
-        // MediaStore's rename of a "verso.json.tmp".
-
-        assertTrue(BackupFiles.isTemp(base, "verso.json.tmp.json"))
-        assertTrue(BackupFiles.isTemp(pre, "verso-pre-restore.json.tmp.json"))
-    }
-
-    @Test fun `temp names end in json, so MediaStore keeps them as given`() {
-        assertTrue(BackupFiles.tempName(base).endsWith(".json"))
-        assertFalse(BackupFiles.isPublished(base, BackupFiles.tempName(base)))
-    }
-
     @Test fun `a restore takes the newest published backup, by id, whatever its name`() {
         val own = listOf(
             Entry(5, "verso (1).json"),                     // from before the timestamps
@@ -110,38 +93,14 @@ class BackupFilesTest {
         assertEquals(Entry(9, "verso-2026-10-13_120745.json"), BackupFiles.latestToRestore(base, own))
     }
 
-    @Test fun `a published backup beats a newer stranded temp`() {
-        val own = listOf(Entry(3, "verso.json"), Entry(8, "verso.tmp.json"))
-        assertEquals(Entry(3, "verso.json"), BackupFiles.latestToRestore(base, own))
-    }
-
-    @Test fun `with nothing published, the newest temp is the interrupted first backup`() {
-        val own = listOf(Entry(2, "verso.json.tmp.json"), Entry(4, "verso.tmp.json"), Entry(6, "verso-pre-restore.json"))
-        assertEquals(Entry(4, "verso.tmp.json"), BackupFiles.latestToRestore(base, own))
+    /** Earlier versions wrote a temp and renamed it; one left behind is no backup. */
+    @Test fun `a temp an earlier version left behind is never restored`() {
+        assertEquals(Entry(3, "verso.json"), BackupFiles.latestToRestore(base, listOf(Entry(3, "verso.json"), Entry(8, "verso.tmp.json"))))
+        assertNull(BackupFiles.latestToRestore(base, listOf(Entry(2, "verso.json.tmp.json"), Entry(4, "verso.tmp.json"))))
     }
 
     @Test fun `a restore never reads the undo point, and none at all gives null`() {
         assertNull(BackupFiles.latestToRestore(base, listOf(Entry(1, "verso-pre-restore.json"))))
         assertNull(BackupFiles.latestToRestore(base, emptyList()))
-    }
-
-    @Test fun `a new backup replaces older copies and temps of its base only`() {
-        val own = listOf(
-            Entry(1, "verso.json"),
-            Entry(2, "verso.tmp.json"),
-            Entry(3, "verso-pre-restore.json"),
-            Entry(4, "verso.json.tmp.json"),
-            Entry(5, "verso-2026-10-13_120745.json"),  // the one just published
-            Entry(6, "notes.txt"),
-            Entry(7, "verso-pre-restore-2026-10-13_120000.json"),
-        )
-        assertEquals(
-            listOf(1L, 2L, 4L),
-            BackupFiles.replacedBy(base, keepId = 5, own = own).map { it.id },
-        )
-    }
-
-    @Test fun `the just-published backup is never in its own replacement list`() {
-        assertEquals(emptyList<Entry>(), BackupFiles.replacedBy(base, 1, listOf(Entry(1, "verso.json"))))
     }
 }

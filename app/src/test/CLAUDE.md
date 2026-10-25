@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 672 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 667 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -65,7 +65,8 @@ LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, th
                                 (pick up, let go, move)
 HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
-BackupFilesTest             17  backup naming: timestamps, patterns, restore pick, sweep
+BackupFilesTest             12  backup naming: timestamps, patterns, restore pick (an old temp
+                                never)
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
@@ -131,12 +132,12 @@ UsageLogTest                12  the "%" order: decay, a launch, merge, sort, a c
                                 unreadable: not loaded, too large)
 RecentsLogTest               5  the "?" list's recents.txt: merge, parse, round-trip, too large,
                                 unreadable: null
-RestoreStepsTest             4  the restore's IO order: undo point, config, then the old undo
-                                point swept; no-op restore; a failed write
+RestoreStepsTest             4  the restore's IO order: undo point, then config; no-op restore;
+                                a failed write
 CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed before every step
-                                (real verso.json files, Download/Verso swept by BackupFiles' rules),
-                                then a cold start: either config whole, nothing the user had lost,
-                                one undo point once through
+                                (real verso.json files, Download/Verso rows that are never
+                                deleted), then a cold start: either config whole, nothing the user
+                                had lost, every undo point kept
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   14  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the page itself a stop for TalkBack, the "open all apps"
@@ -177,10 +178,10 @@ Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
 with a device attached, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
 
 ```
-BackupStoreInstrumentedTest  BackupStore against the REAL MediaStore: publish, replace,
-                             names taken by rows we don't own, failed/crashed publish,
-                             a crash between publish and sweep, a vanished temp, a write
-                             whose sweep waits (a restore's undo point)
+BackupStoreInstrumentedTest  BackupStore against the REAL MediaStore: publish, every backup
+                             kept and the newest restored, the name MediaStore really gave,
+                             names taken by rows we don't own, failed/crashed publish (a
+                             pending row stays hidden), a vanished pending row
 ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limit)
 ```
 

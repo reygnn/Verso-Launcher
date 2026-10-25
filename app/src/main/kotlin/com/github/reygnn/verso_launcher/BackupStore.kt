@@ -14,9 +14,10 @@ import java.io.InputStream
 import java.time.LocalDateTime
 
 /**
- * The backups in Download/[subDir] via MediaStore; the naming rules are [BackupFiles]. Never
+ * The backups in Download/[subDir] via MediaStore, on MediaStore's own terms (hard rule 6): every
+ * backup is a new file, and Verso never deletes one. The naming rules are [BackupFiles]. Never
  * throws — [log] is its error channel. [beforePublish] is a test seam to fail between the
- * complete temp and its publish.
+ * complete pending file and its publish.
  */
 internal class BackupStore(
     private val resolver: ContentResolver,
@@ -30,75 +31,56 @@ internal class BackupStore(
     private val relativePath get() = "${Environment.DIRECTORY_DOWNLOADS}/$subDir"
 
     /**
-     * Returns the published name (MediaStore may add " (n)"), or null. Hard rule 6: a pending
-     * temp is written + fsynced, published by one rename-and-unpend update, and only then are
-     * the old copies swept; a crash leaves the temp for the next sweep. [sweep] false: for a
-     * restore's undo point, whose predecessor may be the very file being restored.
+     * Returns the published name (MediaStore may add " (n)"), or null. A pending row under its
+     * final name is written and fsynced, then made visible — never seen half written. A failure
+     * removes only that pending row; one a crash leaves behind stays hidden until MediaStore
+     * expires it.
      */
-    fun write(base: String, payload: String, sweep: Boolean = true): String? {
-        var tmp: Uri? = null
+    fun write(base: String, payload: String): String? {
+        var pending: Uri? = null
         val wanted = BackupFiles.publishedName(base, now())
         // hard rule 2: a failed backup is a message (on a val: detekt ignores it behind `return`)
-        val name = @Suppress("TooGenericExceptionCaught") try {
-            tmp = resolver.insert(
+        val published = @Suppress("TooGenericExceptionCaught") try {
+            val row = resolver.insert(
                 MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                 ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, BackupFiles.tempName(base))
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, wanted)
                     put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
                     put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 },
-            ) ?: throw IOException("MediaStore refused a temp entry for $base")
-            // fsync before publishing: the rename must not reach disk ahead of the bytes.
-            resolver.openFileDescriptor(tmp, "w")?.use { pfd ->
+            ) ?: throw IOException("MediaStore refused an entry for $base")
+            pending = row
+            // fsync before publishing: the file must not show ahead of its bytes.
+            resolver.openFileDescriptor(row, "w")?.use { pfd ->
                 val out = FileOutputStream(pfd.fileDescriptor)
                 out.write(payload.toByteArray(Charsets.UTF_8))
                 out.flush()
                 Os.fsync(pfd.fileDescriptor)
-            } ?: throw IOException("no descriptor for $tmp")
+            } ?: throw IOException("no descriptor for $row")
             beforePublish()
             val updated = resolver.update(
-                tmp,
-                ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, wanted)
-                    put(MediaStore.MediaColumns.IS_PENDING, 0)
-                },
+                row,
+                ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
                 null,
                 null,
             )
-            // Zero rows leaves the temp pending, i.e. due for MediaStore's pending-expiry sweep.
             if (updated != 1) throw IOException("publish of $base updated $updated rows")
-            val published = tmp
-            tmp = null  // published: the catch must not delete it
-            val id = ContentUris.parseId(published)
-            val own = listOwn().orEmpty()
-            if (sweep) remove(BackupFiles.replacedBy(base, id, own))
-            own.firstOrNull { it.id == id }?.name ?: wanted
+            pending = null  // published: the catch must not delete it
+            row
         } catch (e: Exception) {
             log("backup of $base to Downloads failed", e)
-            tmp?.let { runCatching { resolver.delete(it, null, null) } }
+            pending?.let { runCatching { resolver.delete(it, null, null) } }
             null
         }
-        return name
+        return published?.let { nameOf(it) ?: wanted }
     }
 
-    /** [write]'s deferred sweep: remove what the newest backup of [base] replaces. */
-    fun sweep(base: String) {
-        val own = listOwn() ?: return
-        val newest = BackupFiles.latestToRestore(base, own) ?: return
-        remove(BackupFiles.replacedBy(base, newest.id, own))
-    }
-
-    private fun remove(rows: List<BackupFiles.Entry>) {
-        for (old in rows) {
-            // hard rule 2: the new backup stands
-            @Suppress("TooGenericExceptionCaught") try {
-                resolver.delete(uriOf(old.id), null, null)
-            } catch (e: Exception) {
-                log("backup: could not remove the replaced ${old.name}", e)
-            }
-        }
-    }
+    /** The name MediaStore gave [uri] (a taken one gets " (n)"); null if it cannot tell. */
+    private fun nameOf(uri: Uri): String? = runCatching {
+        resolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null)
+            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull()
 
     /** Rows of an earlier install are orphaned by the uninstall and invisible here; "~restore-saf" reaches them. */
     fun lookupLatest(base: String): Latest {
@@ -113,8 +95,7 @@ internal class BackupStore(
         data object Failed : Latest
     }
 
-    /** Null if the query failed. MATCH_INCLUDE: MediaStore hides pending rows even from their
-     *  owner, and a stranded temp is what the sweep and the restore fallback need to see. */
+    /** Null if the query failed. Pending rows — a backup not yet complete — are not listed. */
     // hard rule 2: unlistable = null
     @Suppress("TooGenericExceptionCaught")
     private fun listOwn(): List<BackupFiles.Entry>? = try {
@@ -127,7 +108,6 @@ internal class BackupStore(
             // RELATIVE_PATH is stored with a trailing slash. Without a storage permission only own
             // rows come back anyway; the owner check holds should that change.
             putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, listOfNotNull("$relativePath/", owner).toTypedArray())
-            putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
         }
         resolver.query(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI,
