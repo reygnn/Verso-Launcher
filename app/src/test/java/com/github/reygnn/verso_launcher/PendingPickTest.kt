@@ -6,20 +6,58 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** A "~restore-saf" pick's states: reading, ready, gone — and a read that lands too late. */
+/** A "~restore-saf" pick's states: reading, read, asked, confirmed, gone — and a read that lands too late. */
 class PendingPickTest {
 
     private val pick = PendingPick()
     private val config = VersoConfig(favorites = listOf("com.zulu/com.zulu.Main"))
 
-    @Test fun `a read config waits until it is taken, once`() {
+    /** A planted file must not be adopted unseen: nothing to take until the user said OK. */
+    @Test fun `a read config is asked about once and taken only once confirmed`() {
         val n = pick.begin()
         assertTrue("reading counts as pending", pick.pending)
-        assertNull("nothing to take while reading", pick.take())
+        assertNull("nothing to ask about while reading", pick.ask())
         assertTrue(pick.arrived(n, config))
-        assertTrue("ready counts as pending", pick.pending)
+        assertTrue("read counts as pending", pick.pending)
+        assertNull("not taken unconfirmed", pick.take())
+        assertEquals(config, pick.ask())
+        assertNull("asked once", pick.ask())
+        assertNull("not taken while asked", pick.take())
+        assertTrue("asked counts as pending", pick.pending)
+        assertTrue(pick.answer(confirmed = true))
+        assertTrue("confirmed counts as pending", pick.pending)
         assertEquals(config, pick.take())
         assertFalse(pick.pending)
+        assertNull(pick.take())
+    }
+
+    @Test fun `a no ends the pick, with nothing to take`() {
+        pick.arrived(pick.begin(), config)
+        pick.ask()
+        assertTrue(pick.answer(confirmed = false))
+        assertFalse(pick.pending)
+        assertNull(pick.take())
+    }
+
+    @Test fun `an answer counts only while asked, and only once`() {
+        assertFalse("nobody asked", pick.answer(confirmed = true))
+        pick.arrived(pick.begin(), config)
+        assertFalse("read, not yet asked", pick.answer(confirmed = true))
+        pick.ask()
+        assertTrue(pick.answer(confirmed = true))
+        assertFalse("the dismissal after an OK changes nothing", pick.answer(confirmed = false))
+        assertEquals(config, pick.take())
+    }
+
+    @Test fun `an asked or confirmed pick is dropped too`() {
+        pick.arrived(pick.begin(), config)
+        pick.ask()
+        assertTrue(pick.drop())
+        assertFalse(pick.answer(confirmed = true))
+        pick.arrived(pick.begin(), config)
+        pick.ask()
+        pick.answer(confirmed = true)
+        assertTrue(pick.drop())
         assertNull(pick.take())
     }
 
@@ -38,10 +76,10 @@ class PendingPickTest {
         assertNull(pick.take())
     }
 
-    @Test fun `a ready pick is dropped too`() {
+    @Test fun `a read pick is dropped too`() {
         pick.arrived(pick.begin(), config)
         assertTrue(pick.drop())
-        assertNull(pick.take())
+        assertNull(pick.ask())
     }
 
     @Test fun `nothing pending, nothing to drop`() {

@@ -154,10 +154,12 @@ keyboard, no prompt:
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
-      it; this is the way in for those. One dialog, no permission. If a command is still
-      running, or Verso has not finished starting, the picked file waits and is restored right
-      after; meanwhile `~restore` and `~restore-saf` say a file is still being restored, and
-      everything else goes on. A `~restart` before then drops the pick (a toast says so)
+      it; this is the way in for those. No permission. Before anything changes, a dialog shows
+      what the file sets — favorites, hidden apps, custom names, tag lists — and only its OK
+      restores it (any file can be picked, also one another app put there). If a command is
+      still running, the confirmed file waits and is restored right after; meanwhile `~restore`
+      and `~restore-saf` say a file is still being restored, and everything else goes on. A
+      `~restart` before then drops the pick (a toast says so)
     - `~cleanup` — remove what the config still keeps for apps that are no longer
       installed (their favorite slot, hidden mark, custom name and tags; kept on
       purpose until then, so a reinstalled app gets them back). A dialog shows how

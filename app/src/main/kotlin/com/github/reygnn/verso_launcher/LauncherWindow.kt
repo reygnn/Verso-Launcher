@@ -21,4 +21,7 @@ internal interface LauncherWindow {
 
     /** A "~cleanup" removed entries from the state: draw the list again. */
     fun cleanupApplied()
+
+    /** A "~restore-saf" file was read: show what it would set (the dialog answers Commands.answerPick). */
+    fun offerRestore(restored: VersoConfig)
 }

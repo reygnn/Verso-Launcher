@@ -241,6 +241,8 @@ class MainActivityFlowsTest {
         assertTrue(dialog.isShowing)
         pick("verso.json", configWith(someApp))
         joinReads()
+        shadowOf(Looper.getMainLooper()).idle() // the read lands: the restore dialog asks
+        answerRestore()
         settle()
         assertTrue("restored", someApp.key in savedFavorites())
         assertFalse(dialog.isShowing)
@@ -252,19 +254,92 @@ class MainActivityFlowsTest {
         assertTrue("expected \"$prefix…\", got \"$shown\"", shown?.startsWith(prefix) == true)
     }
 
+    /** The "~restore-saf" confirmation in front, or null. */
+    private fun restoreDialog(): AlertDialog? = (ShadowDialog.getLatestDialog() as? AlertDialog)
+        ?.takeIf { it.isShowing && shadowOf(it).title == activity.getString(R.string.restore_title) }
+
+    /** Answers the restore dialog (it must be up) and lets the answer's hand-backs run. */
+    private fun answerRestore(ok: Boolean = true) {
+        val dialog = checkNotNull(restoreDialog()) { "no restore dialog in front" }
+        dialog.getButton(if (ok) DialogInterface.BUTTON_POSITIVE else DialogInterface.BUTTON_NEGATIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun savedConfig(): VersoConfig? =
+        File(activity.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText()) }
+
     /** B2: the hand-back lands after onStop — no toast over another app, but none lost either. */
     @Test fun `a restore finishing after onStop says so at the next start`() {
         started()
-        controller.pause().stop()
-        ShadowToast.reset()
+        holdIo()                                // the adoption's IO step waits behind the hold
         pick("verso.json", configWith(someApp))
         joinReads()
+        shadowOf(Looper.getMainLooper()).idle()
+        answerRestore()
+        controller.pause().stop()
+        ShadowToast.reset()
+        hold.countDown()
         settle()
         assertTrue("the restore still happened", someApp.key in savedFavorites())
         assertNull("no toast over the app now in front", ShadowToast.getLatestToast())
         controller.restart()
         assertRestoredToast()
         controller.resume()
+    }
+
+    /** A file read while away is not adopted unseen: the next start asks about it. */
+    @Test fun `a pick read while away is asked about at the next start`() {
+        started()
+        controller.pause().stop()
+        pick("verso.json", configWith(someApp))
+        joinReads()
+        settle()
+        assertNull("no dialog over another app", restoreDialog())
+        assertFalse("nothing adopted unasked", someApp.key in savedFavorites())
+        controller.restart()
+        answerRestore()
+        settle()
+        assertTrue(someApp.key in savedFavorites())
+        assertRestoredToast()
+        controller.resume()
+    }
+
+    /**
+     * A file another app planted in Download/Verso can hide or rename apps: the dialog shows what it
+     * sets — zeros too — and Cancel adopts nothing, says nothing, and frees ~restore-saf again.
+     */
+    @Test fun `the restore dialog shows the file's counts, and Cancel adopts nothing`() {
+        started()
+        val planted = VersoConfig(hidden = setOf(someApp.key, otherApp.key), names = mapOf(someApp.key to "Bank"))
+        pick("planted.json", ConfigJson.serialize(planted).byteInputStream())
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle()
+        val message = shadowOf(checkNotNull(restoreDialog())).message.toString()
+        assertTrue(message, activity.getString(R.string.cleanup_favorites, 0) in message)
+        assertTrue(message, activity.getString(R.string.cleanup_hidden, 2) in message)
+        assertTrue(message, activity.getString(R.string.cleanup_names, 1) in message)
+        ShadowToast.reset()
+        answerRestore(ok = false)
+        settle()
+        assertTrue("nothing hidden", savedConfig()?.hidden.orEmpty().isEmpty())
+        assertNull("Cancel says nothing", ShadowToast.getLatestToast())
+        enter("~restore-saf")
+        assertTrue("the pick is over: a new one may start", shadowOf(activity).nextStartedActivityForResult != null)
+    }
+
+    /** A question the user turned away from is void, like every dialog left behind (turnAway). */
+    @Test fun `a restore dialog left unanswered ends the pick and says so`() {
+        started()
+        pick("verso.json", configWith(someApp))
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle()
+        checkNotNull(restoreDialog())
+        controller.newIntent(home)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNull(restoreDialog())
+        assertEquals(activity.getString(R.string.toast_restore_saf_dropped), ShadowToast.getTextOfLatestToast())
+        settle()
+        assertFalse(someApp.key in savedFavorites())
     }
 
     /**
@@ -277,7 +352,8 @@ class MainActivityFlowsTest {
         holdIo()                                // the adoption's IO step waits behind the hold
         pick("verso.json", configWith(someApp))
         joinReads()
-        shadowOf(Looper.getMainLooper()).idle() // the read's hand-back starts the adoption
+        shadowOf(Looper.getMainLooper()).idle() // the read lands: the restore dialog asks
+        answerRestore()                         // the OK starts the adoption
         val before = activity
         before.recreate()
         shadowOf(Looper.getMainLooper()).idle()
@@ -327,35 +403,31 @@ class MainActivityFlowsTest {
     }
 
 
-    /** A pick read while a command runs waits for it, then is adopted — even while away. */
-    @Test fun `a pick read while a command runs is adopted once it ends`() {
+    /** A pick confirmed while a command runs waits for it, then is adopted. */
+    @Test fun `a pick confirmed while a command runs is adopted once it ends`() {
         started()
         pick("verso.json", hanging(configWith(someApp)))
         // A latch of its own: the read must land while the backup's step still waits.
         app.io.execute { ioHold.await(30, TimeUnit.SECONDS) }
         enter("~backup")                        // runs while the pick is read
-        controller.pause().stop()
-        ShadowToast.reset()
         hold.countDown()
         joinReads()
-        shadowOf(Looper.getMainLooper()).idle() // the read lands: it waits for the backup
+        shadowOf(Looper.getMainLooper()).idle() // the read lands: asked about, gate or not
+        answerRestore()
         assertFalse("not adopted while the backup runs", someApp.key in savedFavorites())
-        assertNull("no toast over another app", ShadowToast.getLatestToast())
+        ShadowToast.reset()
         ioHold.countDown()
         settle()                                // the backup ends, the adoption runs
         assertTrue("adopted after it", someApp.key in savedFavorites())
-        assertEquals("both results queued", 2, app.process.messages.size)
-        controller.restart()
-        assertEquals(2, ShadowToast.shownToastCount())
         assertRestoredToast()
-        controller.resume()
     }
 
     /**
      * A picker's answer can reach an instance whose first load has not landed (the process was
-     * killed while the picker was open): the pick waits for the load instead of being refused.
+     * killed while the picker was open): the pick waits for the load instead of being refused, and
+     * is asked about only then — a load landing under an open dialog would void it.
      */
-    @Test fun `a pick read before the first load is adopted once it lands`() {
+    @Test fun `a pick read before the first load is asked about once it lands`() {
         holdIo()                                // the first load queues behind the hold
         controller.setup()
         val picked = Uri.parse("content://cloud/verso.json")
@@ -366,26 +438,28 @@ class MainActivityFlowsTest {
         shadowOf(activity).receiveResult(request, Activity.RESULT_OK, Intent().setData(picked))
         joinReads()
         shadowOf(Looper.getMainLooper()).idle()
-        assertFalse("not before the load", otherApp.key in savedFavorites())
+        assertNull("not asked before the load", restoreDialog())
         hold.countDown()
         settle()
-        assertTrue("adopted once loaded", otherApp.key in savedFavorites())
+        answerRestore()
+        settle()
+        assertTrue("adopted once loaded and confirmed", otherApp.key in savedFavorites())
         assertRestoredToast()
     }
 
     /**
-     * The pick is the process's: a recreation while it waits hands it to the new instance, which
-     * adopts it at its first load. (The live-instance hand-over on a run's end, VersoApp.instance and
-     * onIdle, is the path of "a pick read while a command runs".)
+     * The pick is the process's: a recreation while a confirmed pick waits for a run hands it to the
+     * new instance, which adopts it when the run ends.
      */
-    @Test fun `a waiting pick survives a recreation and the new instance adopts it`() {
+    @Test fun `a confirmed pick survives a recreation and is adopted`() {
         started()
         pick("verso.json", hanging(configWith(someApp)))
         app.io.execute { ioHold.await(30, TimeUnit.SECONDS) }
         enter("~backup")
         hold.countDown()
         joinReads()
-        shadowOf(Looper.getMainLooper()).idle() // read, waiting for the backup
+        shadowOf(Looper.getMainLooper()).idle()
+        answerRestore()                         // confirmed, waiting for the backup
         controller.recreate()                   // the backup's hand-back goes to the process
         shadowOf(Looper.getMainLooper()).idle()
         ShadowToast.reset()

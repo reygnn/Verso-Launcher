@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 648 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 654 tests):
 
 ```
 LauncherLogicTest          152  modes, commands (~crash daily-driver only, never abbreviated),
@@ -49,8 +49,10 @@ CommandGateTest             12  one "~" command at a time: a run ends with its l
 ResultsTest                  4  the commands' results on the JVM, a fake window: queued while away or
                                 without a window, then shown once and in order; a refusal in
                                 front only, never queued
-PendingPickTest              6  a "~restore-saf" pick's states: read config taken once, an
-                                unreadable file, a dropped or superseded read landing late
+PendingPickTest              9  a "~restore-saf" pick's states: a read config asked about once and
+                                taken only once confirmed, a no, an answer only while asked, an
+                                unreadable file, a dropped (in any state) or superseded read
+                                landing late
 LauncherRowsTest            41  rowsFor per mode
 ConfigStoreTest             17  verso.json on real temp files: .new + rename, no leftovers,
                                 torn or unreadable is null — not empty, isFresh, set aside
@@ -76,7 +78,11 @@ AppDrawerTest               12  Robolectric: the back page — rows per prompt, 
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       28  Robolectric, the real Activity: the state is the process's —
+MainActivityFlowsTest       31  Robolectric, the real Activity: a "~restore-saf" file is asked
+                                about before it is adopted — its counts shown (a planted file),
+                                Cancel adopts nothing and says nothing, a dialog left unanswered
+                                ends the pick with a toast, a file read while away is asked about
+                                at the next start; the state is the process's —
                                 a recreation keeps the loaded config, ~restart reads it again;
                                 with no window at all (destroyed, no successor yet) a run still
                                 ends, its result waits for the next window, and a load lands;

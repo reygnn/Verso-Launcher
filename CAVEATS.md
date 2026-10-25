@@ -129,9 +129,11 @@ empty-favorites hint is tappable.
 
 A `~backup`, `~restore` or `~cleanup` result is never shown over another app: if you leave
 Verso before it ends, the toast waits and appears when you come back — sometimes much later.
-A file picked with `~restore-saf` waits too while a command is still running or Verso is still
-starting, and is restored right after; meanwhile `~restore` and `~restore-saf` say a file is
-still being restored. The pick lives in memory only: if the system ends Verso's process before
+A file picked with `~restore-saf` is shown in a dialog before it is restored; read while you
+were away or while Verso was still starting, the dialog comes when you are back, and leaving it
+unanswered drops the pick (a toast says so). Confirmed while a command is still running, the
+file is restored right after it; meanwhile `~restore` and `~restore-saf` say a file is still
+being restored. The pick lives in memory only: if the system ends Verso's process before
 it is restored — say while a provider is slow to hand the file over or never does — it is gone
 without a word. Pick it again.
 

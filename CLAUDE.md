@@ -296,7 +296,8 @@ thread.
    restore's undo point is written without the sweep; the old one goes only once the
    restored config is saved (it may be the very file restored).
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient `parse`
-   for outside files) → if it equals the current config, stop (an undo point would replace
+   for outside files) → for a `~restore-saf` pick, the user's OK on what it sets (hard rule 15)
+   → if it equals the current config, stop (an undo point would replace
    the real one) → write the undo point → write the restored config to `verso.json` in the
    same IO task (the restore must survive a lost hand-back; a failed write adopts nothing)
    → sweep the old undo point → `adopt` (memory only, no second write). No undo point, no
@@ -361,8 +362,11 @@ thread.
     is in front; a refusal ("busy", "not loaded") is shown in front or dropped, never queued. No run
     spans another activity or a dialog waiting on the user: a `~restore-saf` pick is the
     process's (`VersoApp.pick`, `PendingPick`) from the picker's answer until its adoption
-    starts — read before any run, then waiting for an idle gate and a loaded config, adopted by
-    whichever instance is alive; only the adoption is a run. Meanwhile `~restore` and
+    starts — read before any run, then asked about (a dialog with its counts, shown by the window
+    in front once the config is loaded: a picked file may be one another app planted; Cancel ends
+    the pick quietly, leaving the dialog unanswered ends it with a toast), then, once confirmed,
+    waiting for an idle gate and a loaded config, adopted by whichever instance is alive; only
+    the adoption is a run. Meanwhile `~restore` and
     `~restore-saf` are refused (a restore the adoption waited behind would lose its undo point
     to it), everything else goes on; `~restart` drops the pick, with a toast. The cleanup dialog
     ends its run, its OK starts a new one.

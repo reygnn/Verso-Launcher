@@ -47,8 +47,6 @@ what is still open.
 - Dimmed rows go through an offscreen layer every frame while scrolling (`OutlinedViews`
   `hasOverlappingRendering`); the first wallpaper-colour query after boot delays the first
   enumeration (both on the one IO thread).
-- A file another app plants in Download/Verso can be picked with ~restore-saf (hide or rename
-  apps); a confirmation with counts before adopting a picked file would show it.
 - TalkBack: still missing a pane title on page turns (`setAccessibilityPaneTitle`), the charging
   / battery-protection icons as separate stops, and reaching recents other than by swipe. (The
   empty-list live region, row/battery/favorite contentDescriptions and the home a11y actions

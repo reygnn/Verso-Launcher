@@ -83,32 +83,54 @@ internal class Commands(private val app: VersoApp) {
     /**
      * "~restore-saf" after the picker answered: the pick is the process's from here (VersoApp.pick).
      * Its own thread, not the IO thread (hard rule 3): a provider can block the read indefinitely.
-     * The thread holds the process only — the application's resolver, a hand-back to [pickRead].
+     * The thread holds the process only — the application's resolver, a hand-back to the process.
+     * Back on main, a dropped or superseded pick is ignored; an unreadable file is a result of the
+     * user's pick; a config waits in VersoApp.pick to be asked about ([offerPendingPick]).
      */
     fun readPick(uri: Uri) {
         val number = app.pick.begin()
         val store = core.backupStore
         Thread(Guard.wrap("restore read", ::logWarning) {
             val restored = store.readText(uri)?.let { ConfigJson.parseForeign(it) }
-            app.onMain { pickRead(number, restored) }
+            app.onMain {
+                if (app.pick.arrived(number, restored)) {
+                    if (restored == null) results.report(app.getString(R.string.toast_restore_failed)) else offerPendingPick()
+                }
+            }
         }, "verso-restore-read").start()
     }
 
     /**
-     * The read of pick [number] is back. A dropped or superseded pick is ignored. An unreadable file
-     * is a result of the user's pick; a config waits in VersoApp.pick for [adoptPendingPick].
+     * Asks the user about a read pick: the window in front shows what the file would set. Only with
+     * the config loaded — a first load would replace the config under the open dialog and void it
+     * (hard rule 5). Called when the read lands, when a window comes in front (onStart) and when a
+     * load lands (Core).
      */
-    private fun pickRead(number: Int, restored: VersoConfig?) {
-        if (!app.pick.arrived(number, restored)) return
-        if (restored == null) results.report(app.getString(R.string.toast_restore_failed)) else adoptPendingPick()
+    fun offerPendingPick() {
+        if (!core.state.configLoaded) return
+        val front = window?.takeIf { it.inFront } ?: return
+        val restored = app.pick.ask() ?: return
+        front.offerRestore(restored)
     }
 
     /**
-     * Adopts a "~restore-saf" pick that is read and waiting, once nothing stands in its way: no run
-     * and a loaded config (hard rule 5). Called when the read lands, when a run ends (the gate's
-     * onIdle) and when a load lands (Core) — whichever comes last adopts. It waits instead of being
-     * refused: while it is pending no restore can start (MainActivity.runCommand), so the run it
-     * waits for is a backup or a cleanup, never a restore whose undo point it would sweep.
+     * The restore dialog's answer: OK adopts (once the gate is idle). Cancel ends the pick without a
+     * word; a dialog gone unanswered (the page turned, the window left) ends it with one, a result.
+     */
+    fun answerPick(confirmed: Boolean, byCancel: Boolean) {
+        if (!app.pick.answer(confirmed)) return
+        when {
+            confirmed -> adoptPendingPick()
+            !byCancel -> results.report(app.getString(R.string.toast_restore_saf_dropped))
+        }
+    }
+
+    /**
+     * Adopts a "~restore-saf" pick the user confirmed, once nothing stands in its way: no run and a
+     * loaded config (hard rule 5). Called on the OK, when a run ends (the gate's onIdle) and when a
+     * load lands (Core) — whichever comes last adopts. It waits instead of being refused: while it
+     * is pending no restore can start (MainActivity.runCommand), so the run it waits for is a backup
+     * or a cleanup, never a restore whose undo point it would sweep.
      */
     fun adoptPendingPick() {
         if (gate.busy || !core.state.configLoaded) return

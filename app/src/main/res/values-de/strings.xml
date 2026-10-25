@@ -56,6 +56,11 @@
     <string name="cleanup_names">Eigene Namen: %1$d</string>
     <string name="cleanup_tags">Tag-Listen: %1$d</string>
     <string name="cleanup_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-cleanup).</string>
+    <!-- Die Bestätigung von ~restore-saf: die Zähler unter der Einleitung nutzen die cleanup_*-Texte. -->
+    <string name="restore_title">Diese Datei übernehmen?</string>
+    <string name="restore_apply">Übernehmen</string>
+    <string name="restore_intro">Sie ersetzt die ganze Konfiguration durch:</string>
+    <string name="restore_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-restore).</string>
     <string name="toast_cleanup_not_run">Nichts geändert — bitte nochmal versuchen</string>
     <string name="toast_cleanup_superseded">Nichts geändert — Konfiguration wurde inzwischen ersetzt</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>

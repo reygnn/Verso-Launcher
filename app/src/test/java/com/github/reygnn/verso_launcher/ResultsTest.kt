@@ -21,6 +21,7 @@ class ResultsTest {
         }
         override fun offerCleanup(orphans: Orphans) = Unit
         override fun cleanupApplied() = Unit
+        override fun offerRestore(restored: VersoConfig) = Unit
     }
 
     @Test fun `a result while no window is in front waits, then shows once, in order`() {

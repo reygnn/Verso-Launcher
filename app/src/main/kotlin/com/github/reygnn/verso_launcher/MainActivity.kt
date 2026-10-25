@@ -81,6 +81,8 @@ class MainActivity : Activity() {
         override fun offerCleanup(orphans: Orphans) = this@MainActivity.offerCleanup(orphans)
 
         override fun cleanupApplied() = appDrawer.refilter()
+
+        override fun offerRestore(restored: VersoConfig) = this@MainActivity.offerRestore(restored)
     }
 
     // ---- the two pages ------------------------------------------------------
@@ -182,6 +184,8 @@ class MainActivity : Activity() {
         started = true
         homePage.startBattery()
         app.results.flush()
+        // A pick read while away is asked about now.
+        app.commands.offerPendingPick()
     }
 
     override fun onResume() {
@@ -383,6 +387,41 @@ class MainActivity : Activity() {
             .setNegativeButton(android.R.string.cancel, null)
             .create()
             .apply { setOnDismissListener { d -> if (commandDialog === d) commandDialog = null } }
+        commandDialog?.show()
+    }
+
+    /**
+     * A "~restore-saf" file was read (Commands): what it would set, all four counts — zeros too, a
+     * planted file that empties the favorites or hides apps must show — and the undo point. Only OK
+     * adopts; Cancel ends the pick quietly, and a dialog the page turned away from or the window
+     * left ends it with a word (Commands.answerPick).
+     */
+    private fun offerRestore(restored: VersoConfig) {
+        commandDialog?.dismiss()
+        // The same labels as the cleanup dialog's.
+        val lines = listOf(
+            getString(R.string.restore_intro),
+            "",
+            getString(R.string.cleanup_favorites, restored.favorites.size),
+            getString(R.string.cleanup_hidden, restored.hidden.size),
+            getString(R.string.cleanup_names, restored.names.size),
+            getString(R.string.cleanup_tags, restored.tags.size),
+            "",
+            getString(R.string.restore_undo_note),
+        )
+        commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(R.string.restore_title)
+            .setMessage(lines.joinToString("\n"))
+            .setPositiveButton(R.string.restore_apply) { _, _ -> app.commands.answerPick(confirmed = true, byCancel = false) }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> app.commands.answerPick(confirmed = false, byCancel = true) }
+            .create()
+            .apply {
+                setOnDismissListener { d ->
+                    if (commandDialog === d) commandDialog = null
+                    // After OK or Cancel nobody is asked any more: a no-op. Else the dialog went unanswered.
+                    app.commands.answerPick(confirmed = false, byCancel = false)
+                }
+            }
         commandDialog?.show()
     }
 

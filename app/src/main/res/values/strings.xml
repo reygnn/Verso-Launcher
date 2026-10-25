@@ -57,6 +57,11 @@
     <string name="cleanup_names">custom names: %1$d</string>
     <string name="cleanup_tags">tag lists: %1$d</string>
     <string name="cleanup_undo_note">The current config is saved first (verso-pre-cleanup).</string>
+    <!-- The ~restore-saf confirmation: the counts below the intro reuse the cleanup_* labels. -->
+    <string name="restore_title">Restore this file?</string>
+    <string name="restore_apply">Restore</string>
+    <string name="restore_intro">It replaces the whole config with:</string>
+    <string name="restore_undo_note">The current config is saved first (verso-pre-restore).</string>
     <string name="toast_cleanup_not_run">nothing changed — try again</string>
     <string name="toast_cleanup_superseded">nothing changed — the config was replaced meanwhile</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>

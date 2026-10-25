@@ -3,7 +3,11 @@ package com.github.reygnn.verso_launcher
 /**
  * A "~restore-saf" pick, from the moment the picker answers until its adoption starts. Held by
  * the process (VersoApp.pick), not by an activity: a recreation or a stop in between loses
- * nothing, and whichever instance is alive adopts it once the gate is idle and the config loaded.
+ * nothing, and whichever instance is alive asks the user and adopts it.
+ *
+ * A picked file is any file, also one another app planted in Download/Verso to hide or rename
+ * apps: so it is read, then shown with its counts and adopted only on the user's OK, then waits
+ * for an idle gate and a loaded config.
  *
  * While a pick is pending, `~restore` and `~restore-saf` are refused (MainActivity.runCommand),
  * nothing else: edits and the other commands go on, so a read that hangs on a slow provider
@@ -18,15 +22,19 @@ internal class PendingPick {
         data object None : State
         /** The picked file is being read on its own thread (hard rule 3). */
         data class Reading(val pick: Int) : State
-        /** Read and parsed; waits for an idle gate and a loaded config. */
-        data class Ready(val restored: VersoConfig) : State
+        /** Read and parsed; waits for a window in front and a loaded config to ask the user. */
+        data class Read(val restored: VersoConfig) : State
+        /** The user is being asked (a dialog with the counts). */
+        data class Asked(val restored: VersoConfig) : State
+        /** Confirmed; waits for an idle gate and a loaded config. */
+        data class Confirmed(val restored: VersoConfig) : State
     }
 
     private var state: State = State.None
     // Counts picks, so a read that was dropped or superseded meanwhile is recognised when it lands.
     private var picks = 0
 
-    /** A pick is being read or waits to be adopted: `~restore` and `~restore-saf` wait for it. */
+    /** A pick is being read, asked about or waits to be adopted: `~restore` and `~restore-saf` wait for it. */
     val pending: Boolean get() = state != State.None
 
     /** The picker answered: a read of the returned number starts. */
@@ -43,17 +51,31 @@ internal class PendingPick {
     fun arrived(pick: Int, restored: VersoConfig?): Boolean {
         val reading = state as? State.Reading
         if (reading?.pick != pick) return false
-        state = if (restored == null) State.None else State.Ready(restored)
+        state = if (restored == null) State.None else State.Read(restored)
         return true
     }
 
-    /** The read config, once, for the adoption about to start; null if none is ready. */
-    fun take(): VersoConfig? {
-        val ready = state as? State.Ready ?: return null
-        state = State.None
-        return ready.restored
+    /** The read config, once, for the dialog about to ask the user; null if none waits to be asked. */
+    fun ask(): VersoConfig? {
+        val read = state as? State.Read ?: return null
+        state = State.Asked(read.restored)
+        return read.restored
     }
 
-    /** "~restart": forget the pick, read or still reading. True if there was one (it says so). */
+    /** The user's answer: OK confirms, anything else ends the pick. False if nobody was being asked. */
+    fun answer(confirmed: Boolean): Boolean {
+        val asked = state as? State.Asked ?: return false
+        state = if (confirmed) State.Confirmed(asked.restored) else State.None
+        return true
+    }
+
+    /** The confirmed config, once, for the adoption about to start; null if none is confirmed. */
+    fun take(): VersoConfig? {
+        val confirmed = state as? State.Confirmed ?: return null
+        state = State.None
+        return confirmed.restored
+    }
+
+    /** "~restart": forget the pick, whatever its state. True if there was one (it says so). */
     fun drop(): Boolean = pending.also { state = State.None }
 }
