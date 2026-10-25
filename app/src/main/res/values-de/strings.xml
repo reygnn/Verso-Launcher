@@ -13,9 +13,7 @@
     <string name="a11y_pane_recents">Zuletzt verwendet</string>
     <!-- Der Hinweis der Kommandozeile, wie ein Screenreader ihn spricht (der sichtbare beginnt mit ">"). -->
     <string name="a11y_prompt_hint">Alle Apps durchsuchen</string>
-    <!-- Eine abgedunkelte App (AppStatus): was der Screenreader sagt, und der Toast, sobald eine pausierte wieder da ist. -->
-    <string name="a11y_app_paused">%1$s, pausiert. Doppeltippen, um die Arbeits-Apps wieder einzuschalten.</string>
-    <string name="a11y_app_archived">%1$s, archiviert. Doppeltippen zum Wiederherstellen.</string>
+    <!-- Eine pausierte App ist wieder da (AppStatus). -->
     <string name="toast_app_ready">%1$s ist bereit — zum Starten antippen</string>
     <!-- Die Doppeltipp-Ziele auf Home: was TalkBack beim Aktivieren ansagt. -->
     <string name="a11y_open_alarms">Wecker öffnen</string>
@@ -69,18 +67,29 @@
     <string name="restore_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-restore).</string>
     <string name="toast_cleanup_not_run">Nichts geändert — bitte nochmal versuchen</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
-    <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
-    <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>
-    <string name="a11y_hidden_off">Sichtbar: %1$s. Zum Ausblenden doppeltippen.</string>
-    <string name="a11y_fav_on">Favorit: %1$s. Zum Entfernen doppeltippen.</string>
-    <string name="a11y_fav_off">Kein Favorit: %1$s. Zum Hinzufügen doppeltippen.</string>
-    <!-- Tag-Massenbearbeitung ("##tag"). %1$s = App-Name, %2$s = Tag. -->
-    <string name="a11y_tag_on">Mit %2$s getaggt: %1$s. Zum Entfernen doppeltippen.</string>
-    <string name="a11y_tag_off">Nicht mit %2$s getaggt: %1$s. Zum Hinzufügen doppeltippen.</string>
-    <!-- Favoriten-Sortiermodus (die »-Aufnahme-Markierung wird nicht sinnvoll vorgelesen). -->
-    <string name="a11y_reorder_pick">%1$s. Zum Aufnehmen doppeltippen.</string>
-    <string name="a11y_reorder_picked">Aufgenommen: %1$s. Zum Abbrechen doppeltippen.</string>
-    <string name="a11y_reorder_drop">%1$s. Zum Hierher-Verschieben doppeltippen.</string>
+    <!-- Eine Zeile oder ein Favorit, wie ein Screenreader sie nimmt: der App-Name, daneben der
+         Zustand (stateDescription), und was Doppeltippen tut (die Beschriftung des Klicks;
+         TalkBack setzt "Doppeltippen zum" davor). %1$s in den Tag-Texten ist der Tag. -->
+    <string name="a11y_state_hidden">ausgeblendet</string>
+    <string name="a11y_state_visible">sichtbar</string>
+    <string name="a11y_state_favorite">Favorit</string>
+    <string name="a11y_state_not_favorite">kein Favorit</string>
+    <string name="a11y_state_tagged">mit %1$s getaggt</string>
+    <string name="a11y_state_not_tagged">nicht mit %1$s getaggt</string>
+    <string name="a11y_state_picked_up">aufgenommen</string>
+    <string name="a11y_state_paused">pausiert</string>
+    <string name="a11y_state_archived">archiviert</string>
+    <string name="a11y_do_unhide">einblenden</string>
+    <string name="a11y_do_hide">ausblenden</string>
+    <string name="a11y_do_favorite">zu den Favoriten</string>
+    <string name="a11y_do_unfavorite">aus den Favoriten entfernen</string>
+    <string name="a11y_do_tag">Tag hinzufügen</string>
+    <string name="a11y_do_untag">Tag entfernen</string>
+    <string name="a11y_do_pick_up">zum Verschieben aufnehmen</string>
+    <string name="a11y_do_put_back">zurücklegen</string>
+    <string name="a11y_do_move_here">aufgenommenen Favoriten hierher verschieben</string>
+    <string name="a11y_do_turn_on_work">Arbeits-Apps wieder einschalten</string>
+    <string name="a11y_do_unarchive">App wiederherstellen</string>
 
     <!-- Was eine leere App-Liste sagt (LauncherLogic.emptyHint). -->
     <string name="empty_no_match">Keine App passt</string>

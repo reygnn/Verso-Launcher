@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import android.text.Spanned
 import android.text.style.StyleSpan
 import android.view.MotionEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.AbsListView
 import android.widget.EditText
 import android.widget.ListView
@@ -196,6 +197,51 @@ class AppDrawerTest {
         drawer.setPrompt("br")
         list.performItemClick(null, 0, 0)
         assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+    }
+
+    private fun rowView(position: Int): TextView = list.adapter.getView(position, null, list) as TextView
+
+    /** What TalkBack would say a double-tap on row [position] does; null for its own words. */
+    private fun clickLabel(position: Int): CharSequence? {
+        val info = AccessibilityNodeInfo()
+        list.onInitializeAccessibilityNodeInfoForItem(rowView(position), position, info)
+        return info.actionList.firstOrNull { it.id == AccessibilityNodeInfo.ACTION_CLICK }?.label
+    }
+
+    /** The name is the app's (no "[x]"), the state stands beside it, the double-tap says what it does. */
+    @Test fun `a row in an edit mode tells its state and what a double-tap does`() {
+        drawer.setPrompt("-")                     // Alpha, Bravo, Charlie: none hidden
+        assertEquals("Alpha", rowView(0).contentDescription)
+        assertEquals(activity.getString(R.string.a11y_state_visible), rowView(0).stateDescription)
+        assertEquals(activity.getString(R.string.a11y_do_hide), clickLabel(0))
+
+        drawer.setPrompt("!")                     // Bravo is the favorite
+        assertEquals(activity.getString(R.string.a11y_state_favorite), rowView(1).stateDescription)
+        assertEquals(activity.getString(R.string.a11y_do_unfavorite), clickLabel(1))
+        assertEquals(activity.getString(R.string.a11y_state_not_favorite), rowView(0).stateDescription)
+        assertEquals(activity.getString(R.string.a11y_do_favorite), clickLabel(0))
+
+        drawer.setPrompt("##work")
+        assertEquals(activity.getString(R.string.a11y_state_not_tagged, "work"), rowView(0).stateDescription)
+        assertEquals(activity.getString(R.string.a11y_do_tag), clickLabel(0))
+    }
+
+    @Test fun `in the reorder mode the held favorite says so, the others where it goes`() {
+        drawer.setPrompt("!!")
+        assertEquals(activity.getString(R.string.a11y_do_pick_up), clickLabel(0))
+        drawer.pickUp(installed[1].key)
+        assertEquals(activity.getString(R.string.a11y_state_picked_up), rowView(0).stateDescription)
+        assertEquals(activity.getString(R.string.a11y_do_put_back), clickLabel(0))
+    }
+
+    @Test fun `a plain row says nothing beyond its label, and a recycled row forgets its state`() {
+        drawer.setPrompt("-")
+        val recycled = rowView(0)
+        drawer.setPrompt("")
+        val row = list.adapter.getView(0, recycled, list) as TextView
+        assertNull(row.contentDescription)
+        assertNull(row.stateDescription)
+        assertNull(clickLabel(0))
     }
 
     /** A finger down and up on the list; [scrolled]: it moved far enough to scroll, as the list reports it. */

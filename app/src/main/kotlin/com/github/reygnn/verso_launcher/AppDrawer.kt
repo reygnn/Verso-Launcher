@@ -91,7 +91,15 @@ internal class AppDrawer(
             descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         }
 
-        listView = ListView(activity).apply {
+        // Labels the click of a row for screen readers ("double-tap to hide"), keeping the list's own
+        // item click: a delegate on the row would replace the one the list sets there.
+        listView = object : ListView(activity) {
+            override fun onInitializeAccessibilityNodeInfoForItem(view: View, position: Int, info: AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfoForItem(view, position, info)
+                val entry = (shown.getOrNull(position) as? AppRow)?.entry ?: return
+                rowA11y(entry).second?.let { info.addAction(AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, it)) }
+            }
+        }.apply {
             divider = null
             // A hardware keyboard's focus can land in the list: send typing back to the prompt.
             setOnKeyListener { _, _, event ->
@@ -471,6 +479,7 @@ internal class AppDrawer(
             tv.typeface = face
             tv.text = text
             tv.contentDescription = null
+            tv.stateDescription = null
             tv.alpha = 1f
         }
 
@@ -487,32 +496,38 @@ internal class AppDrawer(
             tv.typeface = if (marker.isEmpty()) listTypeface else Typeface.MONOSPACE
             tv.text = marker + entry.label
             tv.alpha = HomeStyle.rowAlpha(entry.status)
-            // "[x]" reads as punctuation: speak the state instead. Set on every bind (recycling).
-            tv.contentDescription = when (mode) {
-                Mode.HIDDEN_EDIT -> activity.getString(
-                    if (key in state.config.hidden) R.string.a11y_hidden_on else R.string.a11y_hidden_off,
-                    entry.label,
-                )
-                Mode.FAV_EDIT -> activity.getString(
-                    if (key in state.config.favorites) R.string.a11y_fav_on else R.string.a11y_fav_off,
-                    entry.label,
-                )
-                Mode.FAV_REORDER -> activity.getString(
-                    when {
-                        reorderPick == null -> R.string.a11y_reorder_pick
-                        key == reorderPick  -> R.string.a11y_reorder_picked
-                        else                -> R.string.a11y_reorder_drop
-                    },
-                    entry.label,
-                )
-                Mode.TAG_EDIT -> activity.getString(
-                    if (tagEditTag in state.config.tags[key].orEmpty()) R.string.a11y_tag_on
-                    else R.string.a11y_tag_off,
-                    entry.label,
-                    tagEditTag.orEmpty(),
-                )
-                Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND, Mode.ORDER -> unavailableDescription(activity, entry)
+            // "[x]" reads as punctuation: the name alone, the state beside it. Set on every bind (recycling).
+            tv.contentDescription = if (marker.isEmpty()) null else entry.label
+            tv.stateDescription = rowA11y(entry).first
+        }
+    }
+
+    /**
+     * A row as a screen reader takes it: its state ("hidden") and what a double-tap does ("unhide"),
+     * both null where there is nothing to say. Pure but for the strings.
+     */
+    private fun rowA11y(entry: AppEntry): Pair<String?, String?> {
+        val key = entry.key
+        fun s(id: Int, vararg args: Any) = activity.getString(id, *args)
+        return when (mode) {
+            Mode.HIDDEN_EDIT ->
+                if (key in state.config.hidden) s(R.string.a11y_state_hidden) to s(R.string.a11y_do_unhide)
+                else s(R.string.a11y_state_visible) to s(R.string.a11y_do_hide)
+            Mode.FAV_EDIT ->
+                if (key in state.config.favorites) s(R.string.a11y_state_favorite) to s(R.string.a11y_do_unfavorite)
+                else s(R.string.a11y_state_not_favorite) to s(R.string.a11y_do_favorite)
+            Mode.FAV_REORDER -> when {
+                reorderPick == null -> null to s(R.string.a11y_do_pick_up)
+                key == reorderPick -> s(R.string.a11y_state_picked_up) to s(R.string.a11y_do_put_back)
+                else -> null to s(R.string.a11y_do_move_here)
             }
+            Mode.TAG_EDIT -> {
+                val tag = tagEditTag.orEmpty()
+                if (tag in state.config.tags[key].orEmpty()) s(R.string.a11y_state_tagged, tag) to s(R.string.a11y_do_untag)
+                else s(R.string.a11y_state_not_tagged, tag) to s(R.string.a11y_do_tag)
+            }
+            Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND, Mode.ORDER ->
+                statusState(activity, entry.status) to statusAction(activity, entry.status)
         }
     }
 

@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 668 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 671 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -79,7 +79,9 @@ PageTurnTest                31  Robolectric: the page turn on real views — eac
                                 drag commit/cancel both ways, open ending a held drag, Back
                                 (home, prompt, recents, preview, cancel — also after HOME closed
                                 the drawer)
-AppDrawerTest               18  Robolectric: the back page — what a screen reader hears (the empty
+AppDrawerTest               21  Robolectric: the back page — what a screen reader hears (a row's
+                                name, state and labelled double-tap per edit mode, reset on a
+                                recycled row; the empty
                                 prompt's spoken hint naming the page, in node and focus event;
                                 the list named after what it shows), rows per prompt, a pasted line break
                                 turned into a space in the real field, a paused app's row dimmed
@@ -147,7 +149,8 @@ HomePageAccessibilityTest   14  Robolectric: TalkBack click on clock/date/batter
                                 tap, the page itself a stop for TalkBack, the "open all apps"
                                 and "open recent apps" actions, the
                                 battery line reading the charge state (its icons no stops of
-                                their own), the empty-favorites hint; a
+                                their own), the empty-favorites hint; a paused favorite's state
+                                and labelled double-tap (gone once it is ready); a
                                 colour change redraws the favorites, also the cached ones of a
                                 cold start before the config has loaded
 HomePageStartGuardTest       4  Robolectric: clock, date and battery each guarded; a refused intent

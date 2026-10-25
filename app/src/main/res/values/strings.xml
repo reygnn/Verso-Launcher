@@ -13,9 +13,7 @@
     <string name="a11y_pane_recents">Recent apps</string>
     <!-- The command line's hint as a screen reader speaks it (the visible one starts with ">"). -->
     <string name="a11y_prompt_hint">Search all apps</string>
-    <!-- A dimmed app (AppStatus): what a screen reader says, and the toast once a paused one is back. -->
-    <string name="a11y_app_paused">%1$s, paused. Double-tap to turn its work apps back on.</string>
-    <string name="a11y_app_archived">%1$s, archived. Double-tap to restore it.</string>
+    <!-- A paused app back again (AppStatus). -->
     <string name="toast_app_ready">%1$s is ready — tap to open it</string>
     <!-- The double-tap targets on home: what TalkBack announces for activating them. -->
     <string name="a11y_open_alarms">open alarms</string>
@@ -70,19 +68,29 @@
     <string name="restore_undo_note">The current config is saved first (verso-pre-restore).</string>
     <string name="toast_cleanup_not_run">nothing changed — try again</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
-    <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
-         read aloud sensibly). %1$s is the app label. -->
-    <string name="a11y_hidden_on">Hidden: %1$s. Double-tap to unhide.</string>
-    <string name="a11y_hidden_off">Visible: %1$s. Double-tap to hide.</string>
-    <string name="a11y_fav_on">Favorite: %1$s. Double-tap to remove.</string>
-    <string name="a11y_fav_off">Not a favorite: %1$s. Double-tap to add.</string>
-    <!-- Bulk tag editing ("##tag"). %1$s is the app label, %2$s the tag. -->
-    <string name="a11y_tag_on">Tagged %2$s: %1$s. Double-tap to remove the tag.</string>
-    <string name="a11y_tag_off">Not tagged %2$s: %1$s. Double-tap to add the tag.</string>
-    <!-- Reorder-favorites mode (the "»" grab marker doesn't read aloud sensibly). -->
-    <string name="a11y_reorder_pick">%1$s. Double-tap to pick up for reordering.</string>
-    <string name="a11y_reorder_picked">Picked up: %1$s. Double-tap to cancel.</string>
-    <string name="a11y_reorder_drop">%1$s. Double-tap to move the picked favorite here.</string>
+    <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
+         (stateDescription), and what a double-tap does (the click's label; TalkBack adds
+         "double-tap to"). %1$s in the tag ones is the tag. -->
+    <string name="a11y_state_hidden">hidden</string>
+    <string name="a11y_state_visible">visible</string>
+    <string name="a11y_state_favorite">favorite</string>
+    <string name="a11y_state_not_favorite">not a favorite</string>
+    <string name="a11y_state_tagged">tagged %1$s</string>
+    <string name="a11y_state_not_tagged">not tagged %1$s</string>
+    <string name="a11y_state_picked_up">picked up</string>
+    <string name="a11y_state_paused">paused</string>
+    <string name="a11y_state_archived">archived</string>
+    <string name="a11y_do_unhide">unhide</string>
+    <string name="a11y_do_hide">hide</string>
+    <string name="a11y_do_favorite">add to favorites</string>
+    <string name="a11y_do_unfavorite">remove from favorites</string>
+    <string name="a11y_do_tag">add the tag</string>
+    <string name="a11y_do_untag">remove the tag</string>
+    <string name="a11y_do_pick_up">pick up to reorder</string>
+    <string name="a11y_do_put_back">put back</string>
+    <string name="a11y_do_move_here">move the picked favorite here</string>
+    <string name="a11y_do_turn_on_work">turn work apps back on</string>
+    <string name="a11y_do_unarchive">restore the app</string>
 
     <!-- What an empty drawer list says (LauncherLogic.emptyHint). -->
     <string name="empty_no_match">no app matches</string>

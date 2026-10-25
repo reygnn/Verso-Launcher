@@ -209,7 +209,8 @@ internal class HomePage(
                 setPadding(padH, padV, padH, padV)
                 outlined()
                 alpha = HomeStyle.rowAlpha(entry.status)
-                contentDescription = unavailableDescription(activity, entry)
+                stateDescription = statusState(activity, entry.status)
+                statusAction(activity, entry.status)?.let { accessibilityDelegate = labeledClick(it) }
                 setOnClickListener { onLaunch(entry) }
                 setOnLongClickListener { onEdit(entry); true }
             }, LinearLayout.LayoutParams(WRAP, WRAP))
@@ -350,6 +351,14 @@ internal class HomePage(
         }
     }
 
+    /** Names what a double-tap does ("restore"); the click itself stays the view's own. */
+    private fun labeledClick(label: String) = object : View.AccessibilityDelegate() {
+        override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+            super.onInitializeAccessibilityNodeInfo(host, info)
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, label))
+        }
+    }
+
     private fun Int.dp(): Int = activity.dp(this)
 
     private fun localPattern(skeleton: String): String =
@@ -380,9 +389,16 @@ internal class HomePage(
     }
 }
 
-internal fun unavailableDescription(context: android.content.Context, entry: AppEntry): String? =
-    when (entry.status) {
-        AppStatus.READY -> null
-        AppStatus.PAUSED -> context.getString(R.string.a11y_app_paused, entry.label)
-        AppStatus.ARCHIVED -> context.getString(R.string.a11y_app_archived, entry.label)
-    }
+/** A dimmed app's state as a screen reader says it beside the name (AppStatus); null when ready. */
+internal fun statusState(context: android.content.Context, status: AppStatus): String? = when (status) {
+    AppStatus.READY -> null
+    AppStatus.PAUSED -> context.getString(R.string.a11y_state_paused)
+    AppStatus.ARCHIVED -> context.getString(R.string.a11y_state_archived)
+}
+
+/** What a double-tap on a dimmed app does; null when it just opens it. */
+internal fun statusAction(context: android.content.Context, status: AppStatus): String? = when (status) {
+    AppStatus.READY -> null
+    AppStatus.PAUSED -> context.getString(R.string.a11y_do_turn_on_work)
+    AppStatus.ARCHIVED -> context.getString(R.string.a11y_do_unarchive)
+}

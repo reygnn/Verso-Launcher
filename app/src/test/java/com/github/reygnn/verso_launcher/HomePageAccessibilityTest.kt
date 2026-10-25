@@ -134,13 +134,21 @@ class HomePageAccessibilityTest {
         val paused = AppEntry("Gmail (Work)", "com.g", "com.g.Main", "Gmail (Work)", profile = 10, status = AppStatus.PAUSED)
         page.render(favs = listOf(paused), loaded = true)
         assertEquals(HomeStyle.UNAVAILABLE_ALPHA, favorite("Gmail (Work)").alpha, 0f)
-        assertEquals(activity.getString(R.string.a11y_app_paused, "Gmail (Work)"), favorite("Gmail (Work)").contentDescription)
+        // Its name stays the label; the state beside it, and a double-tap that says what it does.
+        assertNull(favorite("Gmail (Work)").contentDescription)
+        assertEquals(activity.getString(R.string.a11y_state_paused), favorite("Gmail (Work)").stateDescription)
+        assertEquals(activity.getString(R.string.a11y_do_turn_on_work), clickLabel(favorite("Gmail (Work)")))
 
         // Same key and label: the page must not skip the rebuild.
         page.render(favs = listOf(paused.copy(status = AppStatus.READY)), loaded = true)
         assertEquals(1f, favorite("Gmail (Work)").alpha, 0f)
-        assertNull(favorite("Gmail (Work)").contentDescription)
+        assertNull(favorite("Gmail (Work)").stateDescription)
+        assertNull("a plain click: TalkBack's own words", clickLabel(favorite("Gmail (Work)")))
     }
+
+    private fun clickLabel(view: android.view.View): CharSequence? =
+        view.createAccessibilityNodeInfo().actionList
+            .firstOrNull { it.id == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK }?.label
 
     @Test fun `switching the text colour redraws the favorites in it`() {
         val gmail = AppEntry("Gmail", "com.g", "com.g.Main", "Gmail")
