@@ -13,6 +13,7 @@ import android.widget.EditText
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -232,6 +233,19 @@ class MainActivityFlowsTest {
         settle()
         assertTrue("restored", someApp.key in savedFavorites())
         assertFalse(dialog.isShowing)
+    }
+
+    /** B2: a restore hands back after onStop — the data lands, but its toast must not show over another app. */
+    @Test fun `a restore finishing after onStop shows no toast`() {
+        started()
+        controller.pause().stop()               // onStop: started = false
+        ShadowToast.reset()
+        pick("verso.json", configWith(someApp))
+        joinReads()
+        settle()
+        assertTrue("the restore still happened", someApp.key in savedFavorites())
+        assertNull("no toast over the app now in front", ShadowToast.getLatestToast())
+        controller.destroy()                     // valid from stopped; @After then skips its own stop
     }
 
     private fun startSwipeUp() {

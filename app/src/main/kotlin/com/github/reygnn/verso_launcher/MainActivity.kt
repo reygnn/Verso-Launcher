@@ -373,8 +373,8 @@ class MainActivity : Activity() {
     private fun backup(t: CommandGate.Ticket) {
         val payload = ConfigJson.serialize(state.loadedSnapshot() ?: return)
         commandIo(t, work = { backupStore.write(BackupFiles.BACKUP_BASE, payload) }) { name ->
-            if (name != null) toast(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
-            else toast(getString(R.string.toast_backup_failed))
+            if (name != null) toastIfStarted(getString(R.string.toast_backup_ok, name), Toast.LENGTH_LONG)
+            else toastIfStarted(getString(R.string.toast_backup_failed))
         }
     }
 
@@ -454,10 +454,10 @@ class MainActivity : Activity() {
             val (latest, restored) = read ?: (null to null)
             when {
                 latest is BackupStore.Latest.Failed ->
-                    toast(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
+                    toastIfStarted(getString(R.string.toast_restore_list_failed), Toast.LENGTH_LONG)
                 latest is BackupStore.Latest.None ->
-                    toast(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
-                restored == null -> toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+                    toastIfStarted(getString(R.string.toast_restore_none), Toast.LENGTH_LONG)
+                restored == null -> toastIfStarted(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
                 else -> adoptRestored(t, restored)
             }
         }
@@ -526,9 +526,9 @@ class MainActivity : Activity() {
     private fun restoreRead(pick: Int, restored: VersoConfig?) = onUi {
         if (pick != restorePick) return@onUi
         safReading = false
-        if (restored == null) toast(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
+        if (restored == null) toastIfStarted(getString(R.string.toast_restore_failed), Toast.LENGTH_LONG)
         // The adoption is a run of its own; with another one running, the pick is dropped.
-        else if (!gate.start { t -> adoptRestored(t, restored) }) toast(getString(R.string.toast_busy))
+        else if (!gate.start { t -> adoptRestored(t, restored) }) toastIfStarted(getString(R.string.toast_busy))
     }
 
     /**
@@ -544,7 +544,7 @@ class MainActivity : Activity() {
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
         val outgoing = state.loadedSnapshot() ?: run {
-            toast(getString(R.string.toast_not_loaded))
+            toastIfStarted(getString(R.string.toast_not_loaded))
             return
         }
         commandIo(t, work = {
@@ -557,11 +557,11 @@ class MainActivity : Activity() {
             )
         }) { outcome ->
             when (outcome) {
-                RestoreSteps.Outcome.Unchanged -> toast(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
-                RestoreSteps.Outcome.WriteFailed -> toast(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
-                null, RestoreSteps.Outcome.UndoFailed -> toast(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
+                RestoreSteps.Outcome.Unchanged -> toastIfStarted(getString(R.string.toast_restore_same), Toast.LENGTH_LONG)
+                RestoreSteps.Outcome.WriteFailed -> toastIfStarted(getString(R.string.toast_restore_write_failed), Toast.LENGTH_LONG)
+                null, RestoreSteps.Outcome.UndoFailed -> toastIfStarted(getString(R.string.toast_restore_undo_failed), Toast.LENGTH_LONG)
                 is RestoreSteps.Outcome.Done -> if (state.adopt(restored)) {
-                    toast(getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
+                    toastIfStarted(getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName)), Toast.LENGTH_LONG)
                 }
             }
         }
@@ -589,6 +589,14 @@ class MainActivity : Activity() {
 
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
         Toast.makeText(this, text, duration).show()
+
+    /**
+     * A toast only while the launcher is in front: a ~backup or restore step hands back on the main
+     * thread and may land after onStop, where the toast would show over whatever app is now on top.
+     */
+    private fun toastIfStarted(text: String, duration: Int = Toast.LENGTH_SHORT) {
+        if (started) toast(text, duration)
+    }
 
     /** "%": saved at once like every edit; the prompt clears onto the drawer in its new order. */
     private fun toggleOrder() {
