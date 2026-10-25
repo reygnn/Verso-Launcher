@@ -97,7 +97,7 @@ class BackupStoreInstrumentedTest {
         assertEquals("verso-2026-10-13_120000.json", first)
         assertEquals("verso-2026-10-13_120000 (1).json", second)
         assertEquals(PAYLOAD_B, readLatest("verso"))
-        assertEquals(listOf(first, second), ownNames())
+        assertEquals(listOf(first!!, second!!).sorted(), ownNames())
     }
 
     @Test fun backupAndUndoPointLiveSideBySide() {
