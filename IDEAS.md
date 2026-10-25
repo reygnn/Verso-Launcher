@@ -16,12 +16,6 @@ what is still open.
   persist on the IO thread like the restore does.
 - B1: a recreation mid-restore drops the result silently, toast included; a process-wide "last
   outcome" would replay it. The data is already written, only the feedback is lost.
-- B2: `~backup`/restore toasts can appear over another app after onStop — they do not check
-  `started` the way cleanup does.
-- C1: the rename dialog's **tag** filter drops the IME's composing span (Samsung: "wwo"):
-  `foldLabel(sub)` returns a bare `String` on every capital. Fix: `SpannableString` +
-  `TextUtils.copySpansFrom`. (The name field is not affected — it returns `null` unless it
-  actually drops a char.) Not reproduced on 2026-10-24 (A17), but the cause is in the code.
 - C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
   page" jump. Already guarded to fire only on the action change, not per keystroke
   (`AppDrawer.applyFilter`); only with a reproduction is the single restart worth removing.
@@ -48,8 +42,7 @@ what is still open.
 - A wallpaper colour change while the config is not loaded leaves the cached favorites in the
   old colour (HomePage.applyTextColor re-renders from an empty render).
 - Dimmed rows go through an offscreen layer every frame while scrolling (`OutlinedViews`
-  `hasOverlappingRendering`); a row bind allocates a `ColorStateList` even when nothing changed
-  (`AppDrawer.kt:411-412`); the first wallpaper-colour query after boot delays the first
+  `hasOverlappingRendering`); the first wallpaper-colour query after boot delays the first
   enumeration (both on the one IO thread).
 - A file another app plants in Download/Verso can be picked with ~restore-saf (hide or rename
   apps); a confirmation with counts before adopting a picked file would show it.
