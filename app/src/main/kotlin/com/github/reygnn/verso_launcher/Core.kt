@@ -3,7 +3,6 @@ package com.github.reygnn.verso_launcher
 import android.content.pm.LauncherApps
 import android.os.UserManager
 import android.provider.Telephony
-import android.util.Log
 
 /**
  * The launcher's data, owned by the process (VersoApp.core): one [LauncherState] and the stores
@@ -89,11 +88,5 @@ internal class Core(private val app: VersoApp) {
             },
         )
         return built
-    }
-
-    private companion object {
-        fun logWarning(msg: String, e: Throwable?) {
-            if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg)
-        }
     }
 }

@@ -88,7 +88,7 @@ internal class Commands(private val app: VersoApp) {
     fun readPick(uri: Uri) {
         val number = app.pick.begin()
         val store = core.backupStore
-        Thread(Guard.wrap("restore read", { msg, e -> Log.w("Verso", msg, e) }) {
+        Thread(Guard.wrap("restore read", ::logWarning) {
             val restored = store.readText(uri)?.let { ConfigJson.parseForeign(it) }
             app.onMain { pickRead(number, restored) }
         }, "verso-restore-read").start()

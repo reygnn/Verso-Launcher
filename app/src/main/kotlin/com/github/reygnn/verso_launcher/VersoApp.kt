@@ -72,7 +72,7 @@ class VersoApp : Application() {
      */
     internal fun submitIo(task: Runnable): Boolean =
         try {
-            io.execute(Guard.wrap("IO task", { msg, e -> Log.w("Verso", msg, e) }, task))
+            io.execute(Guard.wrap("IO task", ::logWarning, task))
             true
         } catch (e: RejectedExecutionException) {
             Log.w("Verso", "IO task rejected (executor shut down)", e)
@@ -90,7 +90,7 @@ class VersoApp : Application() {
         super.onCreate()
         Guru.install(
             this,
-            io = { task -> io.execute(Guard.wrap("Guru", { msg, e -> Log.w("Verso", msg, e) }, task)) },
+            io = { task -> io.execute(Guard.wrap("Guru", ::logWarning, task)) },
             texts = VersoGuruTexts(this),
         )
     }

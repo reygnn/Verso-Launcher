@@ -113,7 +113,7 @@ internal class Apps(
                 badgedLabels.getOrPut(VersoApp.BadgeKey(serial, raw, locale)) { pm.getUserBadgedLabel(raw, user).toString() }
             },
             ownPackage = ownPackage,
-            log = { msg, e -> Log.w("Verso", msg, e) },
+            log = ::logWarning,
         )
     }
 

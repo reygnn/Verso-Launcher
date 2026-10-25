@@ -694,10 +694,6 @@ class MainActivity : Activity() {
     private companion object {
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
 
-        /** In the companion, so a reference to it holds no activity (the wallpaper's IO question). */
-        private fun logWarning(msg: String, e: Throwable?) {
-            if (e != null) Log.w("Verso", msg, e) else Log.w("Verso", msg)
-        }
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
         /** How long a paused profile's "ready" toast stays expected after the tap. */
