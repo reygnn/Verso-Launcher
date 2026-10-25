@@ -132,7 +132,7 @@ Verso before it ends, the toast waits and appears when you come back — sometim
 A file picked with `~restore-saf` waits too while a command is still running or Verso is still
 starting, and is restored right after; meanwhile `~restore` and `~restore-saf` say a file is
 still being restored. The pick lives in memory only: if the system ends Verso's process before
-it is restored — say while the file is still being read from an offline cloud drive — it is gone
+it is restored — say while a provider is slow to hand the file over or never does — it is gone
 without a word. Pick it again.
 
 ## Leaving the launcher resets to the front page
