@@ -22,14 +22,19 @@ internal class ConfigStore(
     private val backup get() = File(dir, "$CONFIG_FILE.bak")
 
     fun load(): VersoConfig {
+        var source = primary
         if (backup.exists()) {
             delete(primary)
-            if (!rename(backup, primary)) log("could not take back ${backup.name}", null)
+            // Read in place, or the next write would delete the only complete copy.
+            if (!rename(backup, primary)) {
+                log("could not take back ${backup.name}, reading it in place", null)
+                source = backup
+            }
         }
-        if (!primary.isFile) return VersoConfig()
+        if (!source.isFile) return VersoConfig()
         // hard rule 4: unreadable = empty, never a throw
         val text = @Suppress("TooGenericExceptionCaught") try {
-            readText(primary)
+            readText(source)
         } catch (e: Exception) {
             log("config unreadable, loaded as empty", e)
             null
@@ -60,7 +65,7 @@ internal class ConfigStore(
                 out.flush()
                 out.fd.sync()
             }
-            delete(backup)
+            if (backup.exists() && !delete(backup)) log("could not delete ${backup.name}: the next load takes it back", null)
             true
         } catch (e: Exception) {
             log("config save failed", e)

@@ -152,6 +152,7 @@ class BackupStoreInstrumentedTest {
         assertNull(name)
         assertEquals(PAYLOAD_A, readLatest("verso"))
         assertEquals(listOf(old), ownNames())
+        assertEquals("the failed write removed its pending row", 0, ownPendingIds().size)
         assertTrue(logs.any { "failed" in it })
     }
 
@@ -177,6 +178,7 @@ class BackupStoreInstrumentedTest {
         assertNull(name)
         assertEquals(PAYLOAD_A, readLatest("verso"))
         assertEquals(listOf(old), ownNames())
+        assertEquals(0, ownPendingIds().size)
         assertTrue(logs.toString(), logs.any { "failed" in it })
     }
 

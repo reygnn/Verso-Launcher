@@ -93,7 +93,6 @@ class BackupFilesTest {
         assertEquals(Entry(9, "verso-2026-10-13_120745.json"), BackupFiles.latestToRestore(base, own))
     }
 
-    /** Earlier versions wrote a temp and renamed it; one left behind is no backup. */
     @Test fun `a temp an earlier version left behind is never restored`() {
         assertEquals(Entry(3, "verso.json"), BackupFiles.latestToRestore(base, listOf(Entry(3, "verso.json"), Entry(8, "verso.tmp.json"))))
         assertNull(BackupFiles.latestToRestore(base, listOf(Entry(2, "verso.json.tmp.json"), Entry(4, "verso.tmp.json"))))

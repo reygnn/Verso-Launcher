@@ -6,7 +6,7 @@ import java.time.format.DateTimeFormatter
 /**
  * The pure naming rules of the Download/Verso backups; [BackupStore] does the MediaStore I/O.
  *
- * Names are timestamped because MediaStore owns the namespace: a clash with a row we cannot see
+ * Names are timestamped because MediaStore owns the namespace: a clash with any row, ours or not,
  * is resolved as "verso (1).json", and a name whose extension does not match the MIME type gets
  * ".json" appended. So a backup is recognised by pattern, and "newest" is the highest _ID
  * (DATE_MODIFIED has 1 s resolution).
@@ -34,7 +34,7 @@ internal object BackupFiles {
     fun isPublished(base: String, name: String) =
         Regex("""${Regex.escape(base)}(-\d{4}-\d{2}-\d{2}_\d{6})?( \(\d+\))?\.json""").matches(name)
 
-    /** The newest backup of [base] (a temp an earlier version left behind is none). */
+    /** The newest backup of [base]: only published names count. */
     fun latestToRestore(base: String, own: List<Entry>): Entry? =
         own.filter { isPublished(base, it.name) }.maxByOrNull { it.id }
 }

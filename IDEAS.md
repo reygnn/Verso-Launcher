@@ -40,8 +40,6 @@ points after measuring; Guru's own points belong in Guru's repo.
 - The `~restore-saf` toast's wording (audit 2026-10-21 (2) #24, "nothing changed — …" like the
   other failures): it now says "dropped — the picked file was not restored yet", which says as
   much.
-- A4 rest (a process killed mid-`~cleanup` swept the previous undo point while removing
-  nothing): gone since Verso deletes no backup (hard rule 6, 2026-10-25).
 - C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
   page" jump. Guarded to fire only on the action change, not per keystroke
   (`AppDrawer.applyFilter`). Discarded until a reproduction shows the single restart hurts.

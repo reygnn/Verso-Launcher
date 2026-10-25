@@ -34,7 +34,7 @@ internal class ProcessState(
  * verso.json as [LauncherState] sees it (ConfigStore and ConfigJson behind it).
  *
  * @param load the config on disk; empty when there is none or it cannot be read (hard rule 4).
- * @param isFresh no verso.json yet: a fresh install (hard rule 10).
+ * @param isFresh neither verso.json nor its .bak: a fresh install (hard rule 10).
  * @param write false if the write failed.
  */
 internal class ConfigFile(

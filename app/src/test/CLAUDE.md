@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 659 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 664 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -22,7 +22,7 @@ LauncherLogicTest          154  modes, commands (~crash daily-driver only, never
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           88  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           87  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an
@@ -39,8 +39,7 @@ LauncherStateTest           88  the concurrency rules: refresh/rename/adopt
                                 recents (recents.txt read once, never written over
                                 unread, the read handed to a recreated instance, two instances
                                 merging the files in once), reports that
-                                come even when a step throws (a "~cleanup" waits for it),
-                                an empty config from a file that existed (no defaults)
+                                come even when a step throws (a "~cleanup" waits for it)
 CommandGateTest             12  one "~" command at a time: a run ends with its last step,
                                 refusal, hand-over, exceptions, the edit permit; an IO step for
                                 a run that is over queues nothing (logged); onIdle once per run
@@ -53,10 +52,12 @@ PendingPickTest              9  a "~restore-saf" pick's states: a read config as
                                 unreadable file, a dropped (in any state) or superseded read
                                 landing late
 LauncherRowsTest            41  rowsFor per mode
-ConfigStoreTest             15  verso.json on real temp files, SharedPreferences' terms: the old
-                                file kept as .bak until the new one is written, a failed write
-                                leaves the .bak, a load takes a .bak back over a half file, torn
-                                or unreadable loads as empty, isFresh
+ConfigStoreTest             19  verso.json on real temp files, SharedPreferences' terms: the old
+                                file kept as .bak until the new one is written (also one already
+                                there), a failed write leaves the .bak, a .bak that cannot be
+                                deleted logged, a load takes a .bak back over a half file (or reads
+                                it in place), torn or unreadable loads as empty, an own file beyond
+                                parseForeign's limits loads whole, isFresh
 ConfigJsonTest              32  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
                                 hostile nesting, look-alike characters, lone surrogates, size limits
 LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, the "!!" tap
@@ -85,8 +86,9 @@ AppDrawerTest               16  Robolectric: the back page — what a screen rea
                                 the empty-list hint per mode, a palette switch, a tap handed on,
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       34  Robolectric, the real Activity: "!!" moving a favorite and letting
-                                go of it; no rename dialog before the first load; a
+MainActivityFlowsTest       36  Robolectric, the real Activity: "!!" moving a favorite and letting
+                                go of it; no rename dialog before the first load; ~backup says
+                                where it wrote; a restore's undo point never named as a backup; a
                                 "~restore-saf" file is asked about before it is adopted — its
                                 counts shown (a planted file),
                                 Cancel adopts nothing and says nothing, a dialog left unanswered
@@ -204,7 +206,8 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the
   backup layer is tested on a device instead. The one provider here, `GuruWiringTest`'s, models
-  no MediaStore rule: it only takes Guru's save, so the test can see that Guru runs at all.
+  no MediaStore rule: it only takes a save and keeps the names asked for, so a test can see that
+  Guru runs at all, and which name a restore's undo point asks for (`MainActivityFlowsTest`).
 
 ---
 

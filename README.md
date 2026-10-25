@@ -148,7 +148,8 @@ keyboard, no prompt:
       backup that doesn't parse changes nothing. To undo a restore, run
       `~restore-saf` and pick that `verso-pre-restore-…` file. If `verso.json` itself
       can't be read when Verso starts, Verso starts empty, as an app does whose settings
-      are lost; `~restore` brings your config back from the last `~backup`.
+      are lost; try `~restart` first (a passing read error leaves the file as it was),
+      else `~restore` brings your config back from the last `~backup`.
     - `~restore-saf` — the same, but you pick the file in the system document
       picker. Plain `~restore` only sees files this app itself wrote, so a config
       carried over from another phone (or surviving a reinstall) is invisible to
@@ -164,8 +165,8 @@ keyboard, no prompt:
       many entries of each kind it would remove and asks first; on OK it checks
       again, and the current config is saved as `verso-pre-cleanup-<date>_<time>.json`
       before anything goes. `~restore-saf` with that file undoes it — it brings back
-      the whole config as it was then, so later changes go too; and the next
-      `~cleanup` replaces that undo point (also one that removed nothing in the end). Only apps gone from the device count: a
+      the whole config as it was then, so later changes go too; each `~cleanup` adds
+      its own undo point, and none is deleted. Only apps gone from the device count: a
       disabled app, one with its icon switched off, one on an unmounted card, a system
       app removed only for you, or one in a profile Verso cannot list (or that shows no
       apps right now) keeps its entries; an entry whose launcher activity an update
@@ -212,8 +213,8 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
   instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`; and Guru's crash
   reports in `guru/` until the next start saves them, see "Crash reports"), kept the way
-  Android keeps SharedPreferences (the last complete file waits as `verso.json.bak` while a
-  write is under way; a file that cannot be read loads as empty) — your own `~backup`s are the
+  Android keeps SharedPreferences (the last complete file waits as `verso.json.bak` until a
+  write is done; a file that cannot be read loads as empty) — your own `~backup`s are the
   copies to fall back on; and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")

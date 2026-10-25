@@ -31,8 +31,8 @@ internal class BackupStore(
     private val relativePath get() = "${Environment.DIRECTORY_DOWNLOADS}/$subDir"
 
     /**
-     * Returns the published name (MediaStore may add " (n)"), or null. A pending row under its
-     * final name is written and fsynced, then made visible — never seen half written. A failure
+     * Returns the published name (MediaStore settles it at publish, a taken one gets " (n)"), or
+     * null. A pending row is written and fsynced, then made visible — never seen half written. A failure
      * removes only that pending row; one a crash leaves behind stays hidden until MediaStore
      * expires it.
      */
@@ -77,10 +77,15 @@ internal class BackupStore(
     }
 
     /** The name MediaStore gave [uri] (a taken one gets " (n)"); null if it cannot tell. */
-    private fun nameOf(uri: Uri): String? = runCatching {
+    // hard rule 2: the backup stands, only its name in the message may be the one asked for
+    @Suppress("TooGenericExceptionCaught")
+    private fun nameOf(uri: Uri): String? = try {
         resolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null)
             ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-    }.getOrNull()
+    } catch (e: Exception) {
+        log("backup: cannot read the name of $uri", e)
+        null
+    }
 
     /** Rows of an earlier install are orphaned by the uninstall and invisible here; "~restore-saf" reaches them. */
     fun lookupLatest(base: String): Latest {

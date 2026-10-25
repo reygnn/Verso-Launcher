@@ -23,9 +23,11 @@ Verso keeps `verso.json` the way Android keeps an app's SharedPreferences: a wri
 halfway is undone from `verso.json.bak` at the next start. But a file that cannot be read —
 broken later, or a read error the system reports, which looks the same — loads as an empty
 config, without a word: no favorites, nothing hidden, and the next change writes over it. No
-default favorites either, since it is no fresh install. Your config comes back from your own
-backups (`~restore`; `~restore-saf` on another phone). A power cut right after a change can
-also cost that change; the file before it stays whole.
+default favorites either, since it is no fresh install. If it was a passing read error, the
+file is still there until you change something: run `~restart` first, before anything else.
+Otherwise your config comes back from your own backups (`~restore`; `~restore-saf` on another
+phone). A crash or a power cut right after a change can also cost that change; the file before
+it stays whole.
 
 If you ran `~backup` after such an empty start, that empty backup is the newest, and `~restore`
 takes it. The older backups are all still in `Download/Verso/` — Verso deletes none: pick the

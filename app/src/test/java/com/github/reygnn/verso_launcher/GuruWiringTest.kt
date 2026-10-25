@@ -96,16 +96,22 @@ class GuruWiringTest {
         assertEquals(1, ShadowDialog.getShownDialogs().size)
     }
 
-    /** MediaStore for Robolectric, which has none: what Guru's save needs, its bytes in real files. */
+    /**
+     * MediaStore for Robolectric, which has none: what a save needs, its bytes in real files, and the
+     * names asked for (MainActivityFlowsTest reads them).
+     */
     class Downloads : ContentProvider() {
         private val pending = mutableMapOf<Uri, Int>()
+        val names = mutableListOf<String>()
 
         fun published() = pending.values.count { it == 0 }
 
         override fun onCreate() = true
 
-        override fun insert(uri: Uri, values: ContentValues?): Uri =
-            uri.buildUpon().appendPath((pending.size + 1).toString()).build().also { pending[it] = 1 }
+        override fun insert(uri: Uri, values: ContentValues?): Uri {
+            names += values?.getAsString(MediaStore.MediaColumns.DISPLAY_NAME).orEmpty()
+            return uri.buildUpon().appendPath((pending.size + 1).toString()).build().also { pending[it] = 1 }
+        }
 
         override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor = ParcelFileDescriptor.open(
             File(context!!.cacheDir, "download-${uri.lastPathSegment}"),

@@ -87,6 +87,24 @@ class ConfigStoreTest {
         assertEquals(listOf("verso.json"), files())
     }
 
+    /** Read in place: deleted after the next write, the .bak would be gone with nothing beside it. */
+    @Test
+    fun `a bak that cannot be taken back is read where it is`() {
+        backup.writeText(json("old"))
+        primary.writeText("{ half wri")
+        val refusing = storeWith(rename = { _, _ -> false })
+        assertEquals(listOf("old"), refusing.load().favorites)
+        assertTrue(logs.any { "take back" in it })
+    }
+
+    /** The parse of foreign files has limits; the app's own file has none of them. */
+    @Test
+    fun `an own config beyond the limits of a foreign file loads whole`() {
+        val many = (0..ConfigJson.MAX_ENTRIES).map { "h/$it" }
+        store.write(ConfigJson.serialize(VersoConfig(hidden = LinkedHashSet(many))))
+        assertEquals(many.size, store.load().hidden.size)
+    }
+
     @Test
     fun `a bak alone is taken back`() {
         backup.writeText(json("old"))
@@ -150,9 +168,30 @@ class ConfigStoreTest {
     fun `with a bak already there the write keeps it and replaces verso json`() {
         backup.writeText(json("old"))
         primary.writeText("{ half wri")
-        assertTrue(store.write(json("new")))
+        var bakAtDelete: String? = null
+        val watching = storeWith(delete = { f ->
+            if (f == backup) bakAtDelete = backup.readText()
+            f.delete()
+        })
+        assertTrue(watching.write(json("new")))
+        assertEquals("the .bak held the last complete file throughout", json("old"), bakAtDelete)
         assertEquals(listOf("verso.json"), files())
         assertEquals(listOf("new"), store.load().favorites)
+    }
+
+    /** It stands, and the next load would take it back over the newer file: at least it is logged. */
+    @Test
+    fun `a bak that cannot be deleted after a write is logged`() {
+        store.write(json("old"))
+        val keeping = storeWith(delete = { f -> if (f == backup) false else f.delete() })
+        assertTrue(keeping.write(json("new")))
+        assertTrue(logs.any { "could not delete" in it })
+    }
+
+    @Test
+    fun `a first write with no bak to delete logs nothing`() {
+        assertTrue(store.write(json("first")))
+        assertEquals(emptyList<String>(), logs)
     }
 
     @Test

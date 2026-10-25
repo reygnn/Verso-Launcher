@@ -75,7 +75,7 @@ is a release APK with **no dependencies**: Kotlin stdlib and platform APIs only.
   process (`Core`), shared by every activity instance.
 - **Persistence:** one JSON file, `filesDir/verso.json`, via `ConfigStore` — not
   SharedPreferences, not DataStore, but on SharedPreferences' terms (hard rule 4; a
-  `verso.json.bak` only while a write is under way). Beside it only `home-cache.txt` (`HomeCache`), a
+  `verso.json.bak` while a write is under way or after one failed). Beside it only `home-cache.txt` (`HomeCache`), a
   disposable copy of the favorites for the cold-start frame, `usage.txt` (`UsageLog`), the
   launch counts behind the `%` order, and `recents.txt` (`RecentsLog`), the `?` list —
   disposable too, never in a backup — and `filesDir/guru/`, Guru's: at most 8 crash
@@ -209,7 +209,7 @@ com.github.reygnn.verso_launcher/
                       Enter/tap actions, tags, default favorites
   AppEntry, VersoConfig   the data; a VersoConfig is immutable (an edit is a new one)
   ConfigJson          verso.json <-> VersoConfig (parse / parseForeign / serialize)
-  ConfigStore         verso.json on disk, on SharedPreferences' terms (.bak while writing)
+  ConfigStore         verso.json on disk, on SharedPreferences' terms (.bak)
   BackupStore         Download/Verso via MediaStore
   BackupFiles         pure backup naming rules
   RestoreSteps        the IO half of a restore, in its load-bearing order
@@ -274,11 +274,12 @@ thread.
    complete `verso.json` to `verso.json.bak` (a `.bak` already there is kept and `verso.json`
    deleted), writes and fsyncs `verso.json`, then deletes the `.bak`; a failed write deletes
    its half file and leaves the `.bak`. A load first takes a `.bak` back (the write before it
-   was cut off), then reads and parses; a file that cannot be read or parsed loads as the
+   was cut off; if that rename fails, the `.bak` is read in place), then reads and parses; a file that cannot be read or parsed loads as the
    empty config — logged, nothing more, and the next edit writes over it. The net is the
    backups, never deleted (hard rule 6). Fresh = neither file.
-5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — the
-   empty default must never be written over the real file or a backup. `LauncherState`
+5. **No edit, no save, no `~` command (but `~restart`) before the config is loaded** — until
+   then memory holds only the empty default, which must never be written over the real file
+   or a backup. `LauncherState`
    issues no `EditPermit` (every edit takes one, so an edit path without the check does not
    compile, and only `LauncherState.editPermit` builds one — `SourceGuardTest`) and refuses
    saves until then; the Activity says why (`editPermit()`,
@@ -286,8 +287,9 @@ thread.
    (`loadedSnapshot`). Home is drawn and its cache written only from a loaded config.
 6. **Backups on MediaStore's terms: every backup is a new file, and Verso never deletes
    one.** Each `~backup` and each undo point (`verso-pre-restore-…`, `verso-pre-cleanup-…`)
-   is a pending row under its timestamped name (`verso-<date>_<time>.json`), written and fsynced, then published; a failure removes
-   only its own pending row. MediaStore owns the namespace: a backup is recognised by pattern,
+   is a pending row asking for its timestamped name (`verso-<date>_<time>.json`), written and
+   fsynced, then published — MediaStore settles the name then (a taken one gets " (n)"); a
+   failure removes only its own pending row. MediaStore owns the namespace: a backup is recognised by pattern,
    a restore takes the newest own row by `_ID`, never a fixed name. Clearing out old files is
    the user's, with a file manager.
 7. **Restore order:** read + `parseForeign` off the main thread (never the lenient `parse`

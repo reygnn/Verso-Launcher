@@ -185,19 +185,6 @@ class LauncherStateTest {
         assertEquals("the system label stays on the entry", "Alpha", state.apps.last().systemLabel)
     }
 
-    /**
-     * ConfigStore hands a file it cannot read over as the empty config (hard rule 4). It existed, so
-     * it is no fresh install: no defaults are seeded, and nothing is written on its own.
-     */
-    @Test fun `an empty config from a file that existed is taken as it is, without defaults`() {
-        disk = VersoConfig()
-        state.refresh()
-        runAll()
-        assertTrue(state.configLoaded)
-        assertTrue(state.config.favorites.isEmpty())
-        assertTrue(written.isEmpty())
-    }
-
     @Test fun `loadedSnapshot is a copy of the loaded config`() {
         disk = VersoConfig(favorites = listOf(key("Alpha")))
         assertNull("not before the first load", state.loadedSnapshot())

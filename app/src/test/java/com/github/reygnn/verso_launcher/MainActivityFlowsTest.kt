@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -223,8 +224,8 @@ class MainActivityFlowsTest {
     }
 
     /**
-     * While a pick is read or waits, no second restore starts: an automatic adoption behind it would
-     * sweep its undo point. Only those two wait — the other commands (and edits) go on.
+     * While a pick is read or waits, no second restore starts: the automatic adoption behind it would
+     * replace what that restore brought. Only those two wait — the other commands (and edits) go on.
      */
     @Test fun `a second restore while a pick is pending is refused and says why`() {
         started()
@@ -284,6 +285,31 @@ class MainActivityFlowsTest {
         settle()
         assertTrue("restored", someApp.key in savedFavorites())
         assertFalse(dialog.isShowing)
+    }
+
+    @Test fun `~backup says where it wrote`() {
+        started()
+        enter("~backup")
+        settle()
+        val prefix = activity.getString(R.string.toast_backup_ok, "")
+        val shown = ShadowToast.getTextOfLatestToast().orEmpty()
+        assertTrue("expected \"$prefix…\", got \"$shown\"", shown.startsWith(prefix))
+        assertTrue(shown, BackupFiles.isPublished(BackupFiles.BACKUP_BASE, shown.removePrefix(prefix)))
+    }
+
+    /** Named as a backup, the undo point would be the newest one, and the next ~restore would take it. */
+    @Test fun `a restore's undo point is never named as a backup`() {
+        val media = Robolectric.setupContentProvider(GuruWiringTest.Downloads::class.java, MediaStore.AUTHORITY)
+        started()
+        pick("verso.json", configWith(someApp))
+        joinReads()
+        shadowOf(Looper.getMainLooper()).idle()
+        answerRestore()
+        settle()
+        assertTrue("restored", someApp.key in savedFavorites())
+        val names = media.names
+        assertTrue(names.toString(), names.any { BackupFiles.isPublished(BackupFiles.PRE_RESTORE_BASE, it) })
+        assertFalse(names.toString(), names.any { BackupFiles.isPublished(BackupFiles.BACKUP_BASE, it) })
     }
 
     private fun assertRestoredToast() {
