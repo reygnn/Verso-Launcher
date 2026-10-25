@@ -69,7 +69,6 @@
     <string name="restore_intro">It replaces the whole config with:</string>
     <string name="restore_undo_note">The current config is saved first (verso-pre-restore).</string>
     <string name="toast_cleanup_not_run">nothing changed — try again</string>
-    <string name="toast_cleanup_superseded">nothing changed — the config was replaced meanwhile</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
     <!-- Spoken row descriptions for the edit modes (the "[x]"/"[ ]" glyph is not
          read aloud sensibly). %1$s is the app label. -->

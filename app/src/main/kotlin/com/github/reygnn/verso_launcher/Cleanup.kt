@@ -20,8 +20,6 @@ internal sealed interface CleanupOutcome {
     data object Refused : CleanupOutcome
     data object Incomplete : CleanupOutcome
     data object NothingToDo : CleanupOutcome
-    /** A restore replaced the config meanwhile: the confirmed counts were for the old one. */
-    data object Superseded : CleanupOutcome
     data object UndoFailed : CleanupOutcome
     data class Done(val undoName: String, val keys: Set<String>) : CleanupOutcome
 }

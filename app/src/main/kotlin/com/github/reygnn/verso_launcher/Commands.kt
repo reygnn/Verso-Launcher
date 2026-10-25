@@ -238,7 +238,6 @@ internal class Commands(private val app: VersoApp) {
 
         fun cleanupMessage(app: VersoApp, outcome: CleanupOutcome): String = when (outcome) {
             CleanupOutcome.Refused -> app.getString(R.string.toast_cleanup_not_run)
-            CleanupOutcome.Superseded -> app.getString(R.string.toast_cleanup_superseded)
             CleanupOutcome.Incomplete -> app.getString(R.string.toast_cleanup_incomplete)
             CleanupOutcome.NothingToDo -> app.getString(R.string.toast_cleanup_none)
             CleanupOutcome.UndoFailed -> app.getString(R.string.toast_restore_undo_failed)

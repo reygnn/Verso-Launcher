@@ -68,7 +68,6 @@
     <string name="restore_intro">Sie ersetzt die ganze Konfiguration durch:</string>
     <string name="restore_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-restore).</string>
     <string name="toast_cleanup_not_run">Nichts geändert — bitte nochmal versuchen</string>
-    <string name="toast_cleanup_superseded">Nichts geändert — Konfiguration wurde inzwischen ersetzt</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Gesprochene Zeilenbeschreibung für die Bearbeitungsmodi. %1$s = App-Name. -->
     <string name="a11y_hidden_on">Ausgeblendet: %1$s. Zum Einblenden doppeltippen.</string>

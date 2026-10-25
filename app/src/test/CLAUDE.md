@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 669 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 668 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -22,7 +22,7 @@ LauncherLogicTest          154  modes, commands (~crash daily-driver only, never
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           87  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           86  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an

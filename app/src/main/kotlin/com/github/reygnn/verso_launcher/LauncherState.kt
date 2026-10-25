@@ -47,10 +47,6 @@ internal class LauncherState(
     val config: VersoConfig get() = cfg
     private var cfg: VersoConfig = VersoConfig()
 
-    // Counts restores (adopt): a restore replaces the config, an edit only changes it — a
-    // "~cleanup" still lands on top of an edit, never on top of a restore.
-    private var adoptions = 0
-
     /** [enumerated] under the live custom names, in drawer order. */
     var apps: List<AppEntry> = emptyList()
         private set
@@ -253,7 +249,10 @@ internal class LauncherState(
         relabel()
     }
 
-    /** A confirmed "~cleanup" (hard rule 14): recheck and undo point on IO, then [forget] on main. */
+    /**
+     * A confirmed "~cleanup" (hard rule 14): recheck and undo point on IO, then [forget] on main. No
+     * restore lands in between: the run holds the gate throughout (hard rule 15).
+     */
     fun cleanup(
         confirmed: Set<String>,
         recheck: (VersoConfig) -> CleanupPlan,
@@ -264,7 +263,6 @@ internal class LauncherState(
             onDone(CleanupOutcome.Refused)
             return
         }
-        val base = adoptions
         val snapshot = cfg
         val payload = configFile.serialize(cfg)
         val accepted = io(Runnable {
@@ -283,14 +281,8 @@ internal class LauncherState(
             } finally {
                 val result = outcome
                 main(Runnable {
-                    when {
-                        result !is CleanupOutcome.Done -> onDone(result)
-                        adoptions != base -> onDone(CleanupOutcome.Superseded)
-                        else -> {
-                            forget(result.keys)
-                            onDone(result)
-                        }
-                    }
+                    if (result is CleanupOutcome.Done) forget(result.keys)
+                    onDone(result)
                 })
             }
         })
@@ -336,7 +328,6 @@ internal class LauncherState(
     fun adopt(restored: VersoConfig): Boolean {
         if (!configLoaded) return false
         cfg = restored
-        adoptions++
         // The restored favorites, or none, are the user's.
         process.seedPending.set(false)
         relabel()
