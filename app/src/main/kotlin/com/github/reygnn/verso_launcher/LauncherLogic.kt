@@ -202,9 +202,39 @@ internal object LauncherLogic {
     }
 
     fun <T : Ordered> search(all: List<T>, needle: String): List<T> {
-        val n = foldLabel(needle)
-        return if (n.isEmpty()) all else all.filter { it.labelLower.contains(n) }
+        val n = matchForm(foldLabel(needle))
+        return if (n.isEmpty()) all else all.filter { matchForm(it.labelLower).contains(n) }
     }
+
+    /**
+     * [found] (a [search]'s result, in drawer order) ranked by where [needle] matches: at the
+     * label's start last, nearest the prompt where Enter launches it; at a later word's start above
+     * it; inside a word on top. Each group keeps the drawer order.
+     */
+    fun <T : Ordered> ranked(found: List<T>, needle: String): List<T> {
+        val n = matchForm(foldLabel(needle))
+        if (n.isEmpty()) return found
+        return found.sortedBy { entry ->
+            val label = matchForm(entry.labelLower)
+            when {
+                label.startsWith(n) -> 2
+                WORD_START.findAll(label).any { label.startsWith(n, it.range.first) } -> 1
+                else -> 0
+            }
+        }
+    }
+
+    /**
+     * A folded label or needle without Latin, Greek and Cyrillic accents (U+0300–U+036F after
+     * NFD), so "uber" finds "Über". Only for matching: tags and names keep [foldLabel]'s form.
+     * Other scripts' marks stay — a Japanese dakuten or a Devanagari vowel sign makes another word.
+     */
+    private fun matchForm(folded: String): String =
+        // Composed again: decomposed, "\u304B" would be a substring of "\u304C" (+ U+3099).
+        nfc(Normalizer.normalize(folded, Normalizer.Form.NFD).filterNot { it in '\u0300'..'\u036F' })
+
+    /** A letter or digit after anything else: where a later word starts. */
+    private val WORD_START = Regex("""(?<=[^\p{L}\p{N}])[\p{L}\p{N}]""")
 
     fun <T : Ordered> favoritesInDisplayOrder(all: List<T>, favorites: Collection<String>): List<T> {
         val rank = favorites.withIndex().associate { (i, p) -> p to i }
@@ -244,9 +274,9 @@ internal object LauncherLogic {
         favorites: Collection<String>,
         prefix: String,
     ): List<T> {
-        val p = foldLabel(prefix)
+        val p = matchForm(foldLabel(prefix))
         val base = drawer(all, hidden, favorites)
-        val narrowed = if (p.isEmpty()) base else base.filter { it.labelLower.startsWith(p) }
+        val narrowed = if (p.isEmpty()) base else base.filter { matchForm(it.labelLower).startsWith(p) }
         return orderWithFavorites(narrowed, favorites)
     }
 
@@ -467,7 +497,7 @@ internal object LauncherLogic {
                         .let { if (byUsage) UsageLog.byUsage(it, usage, now) else it }
                     wildcard != null -> drawerStartingWith(allApps, hidden, favorites, wildcard)
                     // Plain search spans ALL apps, so a hidden app stays reachable by name.
-                    else -> search(allApps, trimmed)
+                    else -> ranked(search(allApps, trimmed), trimmed)
                 }
             }
         }

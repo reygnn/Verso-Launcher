@@ -246,6 +246,23 @@ class LauncherRowsTest {
         assertEquals("!work", LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##!work"))
     }
 
+    /** Enter launches the row nearest the prompt: the best match, not the alphabetically last. */
+    @Test fun `a plain search ranks a name's start nearest the prompt`() {
+        // "a": Alpha starts with it, Bravo and Charlie hold it inside.
+        assertEquals(listOf("com.b/B", "com.c/C", "com.a/A"), appKeys(rowsFor(Mode.NORMAL, "a")))
+        assertEquals(
+            "Enter takes it",
+            DrawerAction.Launch(apps[0]),
+            LauncherLogic.enterAction(Mode.NORMAL, null, promptBlank = false, lastRow = rowsFor(Mode.NORMAL, "a").last()),
+        )
+    }
+
+    /** "*text" means "starts with" already; "-" and "!" list to toggle, not to launch. */
+    @Test fun `star prefix and the edit modes keep the drawer order`() {
+        assertEquals(listOf("com.a/A", "com.b/B", "com.c/C"), appKeys(rowsFor(Mode.FAV_EDIT, "!a")))
+        assertEquals(listOf("com.a/A", "com.b/B", "com.c/C"), appKeys(rowsFor(Mode.HIDDEN_EDIT, "-a")))
+    }
+
     // ---- RECENTS / FAV_REORDER / edit modes ----------------------------------
 
     @Test fun `recents are reversed so the most recent sits nearest the prompt`() {

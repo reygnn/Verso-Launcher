@@ -144,8 +144,9 @@ only) → main thread, the newest load generation wins; custom names come from t
 8. **Config keys are `package/class`**, `package/class#<serial>` for another profile
    (`AppEntry.keyOf`); launch and app info go through `LauncherApps` with the entry's profile. No
    change to the key or the JSON shape without a migration.
-9. **`LauncherLogic.foldLabel` is the only fold** for labels, needles and tags; lists sort with
-   the device locale's `Collator`, never by code point.
+9. **`LauncherLogic.foldLabel` is the only fold** for labels, needles and tags; matching alone
+   also drops Latin, Greek and Cyrillic accents (`matchForm`), never what is stored. Lists sort
+   with the device locale's `Collator`, never by code point.
 10. **Default favorites only on a fresh install** (`ConfigStore.isFresh`) and only into a config
     with none. The seeding is an edit (it waits for an idle gate) and may wait for a first list
     (`ProcessState.seedPending`).

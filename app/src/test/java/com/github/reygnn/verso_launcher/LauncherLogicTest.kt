@@ -659,6 +659,55 @@ class LauncherLogicTest {
         assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
     }
 
+    @Test fun `search ignores Latin, Greek and Cyrillic accents both ways`() {
+        val all = listOf(orderedFake("p/uber", "Über"), orderedFake("p/cafe", "Café"), orderedFake("p/athens", "Αθήνα"))
+        assertEquals(listOf("p/uber"), LauncherLogic.search(all, "uber").keys())
+        assertEquals(listOf("p/cafe"), LauncherLogic.search(all, "CAFE").keys())
+        assertEquals(listOf("p/athens"), LauncherLogic.search(all, "αθηνα").keys())
+        val plain = listOf(orderedFake("p/uber", "Uber"))
+        assertEquals("a typed accent finds the plain name too", listOf("p/uber"), LauncherLogic.search(plain, "über").keys())
+    }
+
+    /** A dakuten or a Devanagari vowel sign makes another word: those marks must still count. */
+    @Test fun `search keeps the marks of other scripts`() {
+        val all = listOf(orderedFake("p/ga", "\u304C"), orderedFake("p/ku", "\u0915\u0941"))
+        assertEquals(emptyList<String>(), LauncherLogic.search(all, "\u304B").keys())   // か does not find が
+        assertEquals(emptyList<String>(), LauncherLogic.search(all, "\u0915\u0947").keys())
+        assertEquals(listOf("p/ga"), LauncherLogic.search(all, "\u304C").keys())
+    }
+
+    /** The match form is for matching only: a stored tag keeps its accent. */
+    @Test fun `accents stay in tags`() {
+        assertEquals("café", LauncherLogic.canonicalTag("Café"))
+    }
+
+    // ---- ranked --------------------------------------------------------------
+
+    /** The list is bottom-anchored: the last row sits nearest the prompt, and Enter launches it. */
+    @Test fun `ranked puts a label's start last, a word's start above it, a match inside a word on top`() {
+        val found = listOf(
+            orderedFake("p/gmail", "Gmail"),
+            orderedFake("p/google-maps", "Google Maps"),
+            orderedFake("p/mail", "Mail"),
+            orderedFake("p/maps", "Maps"),
+            orderedFake("p/samsung", "Samsung Max"),
+        )
+        assertEquals(
+            listOf("p/gmail", "p/google-maps", "p/samsung", "p/mail", "p/maps"),
+            LauncherLogic.ranked(LauncherLogic.search(found, "ma"), "ma").keys(),
+        )
+    }
+
+    @Test fun `ranked counts a word after any non-letter, and ignores accents like search`() {
+        val found = listOf(orderedFake("p/a", "Wär-Über"), orderedFake("p/b", "Ubernatural"), orderedFake("p/c", "Rubber"))
+        assertEquals(listOf("p/c", "p/a", "p/b"), LauncherLogic.ranked(LauncherLogic.search(found, "ub"), "ub").keys())
+    }
+
+    @Test fun `ranked with an empty needle keeps the list`() {
+        val found = listOf(OrderedFake("b"), OrderedFake("a"))
+        assertSame(found, LauncherLogic.ranked(found, ""))
+    }
+
     // ---- favoritesInDisplayOrder --------------------------------------------
 
     @Test fun `favoritesInDisplayOrder keeps favorites in config order and drops the rest`() {
@@ -779,6 +828,11 @@ class LauncherLogicTest {
         assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "IN").keys())
         Locale.setDefault(Locale.of("tr", "TR"))
         assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "I").keys())
+    }
+
+    @Test fun `drawerStartingWith ignores accents like search`() {
+        val all = listOf(orderedFake("p/uber", "\u00DCber"), orderedFake("p/rub", "Rubber"))
+        assertEquals(listOf("p/uber"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "ub").keys())
     }
 
     @Test fun `drawerStartingWith over an empty app list is empty`() {

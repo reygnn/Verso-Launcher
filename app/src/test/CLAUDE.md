@@ -16,7 +16,8 @@ JVM tests: `./gradlew testDebugUnitTest`. Robolectric classes are marked (R).
 ```
 Pure logic
   LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
-                           (Turkish, İ, NFC), Collator sort, tags, reorder, recents,
+                           (Turkish, İ, NFC, accents, other scripts' marks), the ranking,
+                           Collator sort, tags, reorder, recents,
                            default favorites
   CommandDialogTextTest    what the ~cleanup and ~restore-saf dialogs say
   LauncherRowsTest         rowsFor per mode
