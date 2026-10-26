@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 689 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 749 tests):
 
 ```
 LauncherLogicTest          156  modes, commands (~crash daily-driver only, never abbreviated;
@@ -153,6 +153,14 @@ CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed be
                                 (real verso.json files, Download/Verso rows that are never
                                 deleted), then a cold start: either config whole, nothing the user
                                 had lost, every undo point kept
+RestoreMatrixTest            4  docs/spec/restore-matrix.md on the JVM (the table: RestoreMatrix.kt):
+                                all 2 700 cells of command × verso.json × loaded × Download/Verso ×
+                                content × fault, held to the hard rules; each again killed before
+                                every step; every sequence of up to four commands against the
+                                spec's own model (~undo ~undo is the identity)
+RestoreMatrixFlowsTest      56  Robolectric, one per cell a user can reach: the same table through
+                                the real Activity and Commands — the toast, memory, verso.json and
+                                the rows of a listing Download/Verso (ListingDownloads)
 BackupStoreTest              5  readCapped (the bounded restore read)
 HomePageAccessibilityTest   14  Robolectric: TalkBack click on clock/date/battery, the double
                                 tap, the page itself a stop for TalkBack, the "open all apps"
@@ -221,9 +229,11 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
   only what neither a type nor a test reaches.
 - **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
   renaming and ownership rules — that is exactly what broke the backups — so the
-  backup layer is tested on a device instead. The one provider here, `GuruWiringTest`'s, models
-  no MediaStore rule: it only takes a save and keeps the names asked for, so a test can see that
+  backup layer is tested on a device instead. `GuruWiringTest`'s provider models no MediaStore
+  rule: it only takes a save and keeps the names asked for, so a test can see that
   Guru runs at all, and which name a restore's undo point asks for (`MainActivityFlowsTest`).
+  `RestoreMatrixFlowsTest`'s `ListingDownloads` lists rows by `_ID` and name and fails on
+  demand — no renaming, no owner, no rule of MediaStore's; those stay on the device.
 
 ---
 
@@ -253,6 +263,8 @@ ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limi
 - Config shape → `ConfigJsonTest` (and keep older `verso.json` files parsing).
 - Save/load durability → `ConfigStoreTest`; backup naming → `BackupFilesTest`,
   backup I/O → `BackupStoreInstrumentedTest`.
+- A change to `~backup`, `~restore`, `~restore-saf`, `~undo` or `~cleanup` → first the table in
+  `docs/spec/restore-matrix.md`, then `RestoreMatrix.kt` to match; both matrix tests follow it.
 
 ---
 
