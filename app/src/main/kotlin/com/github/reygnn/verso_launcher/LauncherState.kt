@@ -32,8 +32,7 @@ import java.util.concurrent.atomic.AtomicReference
  *   empty config (hard rule 4), and the next change writes over it. Called once per load that
  *   lands, so the user hears of it before an edit does.
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
- *   listChanged false: nothing to re-render (a re-render would void a tap in flight). Also
- *   called by [adopt], always (true, true).
+ *   listChanged false: nothing to re-render (a re-render would void a tap in flight).
  */
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
@@ -367,7 +366,6 @@ internal class LauncherState(
 
     private fun List<String>.toggled(key: String): List<String> = if (key in this) this - key else this + key
 
-    /** An empty list removes the key: the file drops empty lists, memory must match. */
     private fun Map<String, List<String>>.withList(key: String, list: List<String>): Map<String, List<String>> =
         if (list.isEmpty()) this - key else this + (key to list.toList())
 
@@ -381,7 +379,7 @@ internal class LauncherState(
         /** How many "?" shows. */
         const val RECENTS_LIMIT = 8
 
-        /** How many recents.txt keeps: an app that is gone takes no place among the shown (Kolibri's × 4). */
+        /** How many recents.txt keeps: an app that is gone takes no place among the shown. */
         const val RECENTS_KEPT = 4 * RECENTS_LIMIT
     }
 }
