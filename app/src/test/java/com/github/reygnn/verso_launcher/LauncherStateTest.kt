@@ -6,6 +6,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The IO thread and the main thread are two manual FIFO queues, so a test decides exactly when
@@ -718,6 +722,70 @@ class LauncherStateTest {
         state.toggleFavorite(permit, key("Bravo"))   // refused: it will never run
         runAll()
         assertEquals(listOf("fav=${key("Alpha")};hid=;names=;tags="), written)
+    }
+
+    // ---- flushSave: QueuedWork.waitToFinish's part (hard rule 4) ---------------------------------
+
+    @Test fun `a stop writes a save the IO thread has not run, and its task then writes nothing`() {
+        started()
+        val before = written.size
+        state.toggleFavorite(permit, key("Alpha"))
+        state.toggleFavorite(permit, key("Bravo"))
+        state.flushSave()
+        assertEquals("only the newest state", listOf("fav=${key("Alpha")},${key("Bravo")};hid=;names=;tags="), written.drop(before))
+        runAll()
+        assertEquals(before + 1, written.size)
+        assertEquals(0, saveFailures)
+    }
+
+    @Test fun `a stop with nothing unsaved writes nothing and says nothing`() {
+        started()
+        state.toggleFavorite(permit, key("Alpha"))
+        runAll()
+        val before = written.size
+        state.flushSave()
+        assertEquals(before, written.size)
+        assertEquals(0, saveFailures)
+    }
+
+    @Test fun `a write failed at the stop is reported at once`() {
+        started()
+        writeSucceeds = false
+        state.toggleFavorite(permit, key("Alpha"))
+        state.flushSave()
+        assertEquals(1, saveFailures)
+        runAll()
+        assertEquals("the IO task found nothing left to write", 1, saveFailures)
+    }
+
+    /** A real IO thread in the middle of a write: the stop must not return before the file is on disk. */
+    @Test fun `a stop waits for a write the IO thread has begun`() {
+        val inWrite = CountDownLatch(1)
+        val finish = CountDownLatch(1)
+        val done = AtomicBoolean(false)
+        val ioThreadQueue = LinkedBlockingQueue<Runnable>()
+        val blocking = testLauncherState(
+            io = { task -> ioThreadQueue.add(task) },
+            main = { task -> task.run() },
+            loadConfig = { VersoConfig() },
+            enumerateApps = { Enumeration(installed, true) },
+            serialize = { "s" },
+            writeConfig = { inWrite.countDown(); finish.await(5, TimeUnit.SECONDS); done.set(true); true },
+            onRefreshed = { _, _ -> },
+        )
+        blocking.refresh()
+        ioThreadQueue.take().run()
+        blocking.toggleFavorite(blocking.editPermit(gate.idle()!!)!!, key("Alpha"))
+        val ioThread = Thread { ioThreadQueue.take().run() }.apply { start() }
+        assertTrue(inWrite.await(5, TimeUnit.SECONDS))
+        val stop = Thread { blocking.flushSave() }.apply { start() }
+        stop.join(200)
+        assertTrue("the stop waits while the write runs", stop.isAlive)
+        finish.countDown()
+        stop.join(5000)
+        ioThread.join(5000)
+        assertFalse(stop.isAlive)
+        assertTrue(done.get())
     }
 
     // ---- toggles ----------------------------------------------------------------

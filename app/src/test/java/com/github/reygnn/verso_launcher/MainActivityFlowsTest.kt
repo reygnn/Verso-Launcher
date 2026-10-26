@@ -136,6 +136,16 @@ class MainActivityFlowsTest {
         assertTrue(someApp.key in savedFavorites())
     }
 
+    /** SharedPreferences' apply is on disk once onStop is through (QueuedWork); so is a change here. */
+    @Test fun `a change the IO thread has not written yet is on disk once the stop is through`() {
+        started()
+        holdIo()
+        tap(DrawerAction.ToggleFavorite(someApp))
+        assertFalse("the save waits behind the hold", someApp.key in savedFavorites())
+        controller.pause().stop()
+        assertTrue(someApp.key in savedFavorites())
+    }
+
     private val thirdApp = AppEntry("Xray", "com.xray", "com.xray.Main", "Xray")
 
     private fun favorites(vararg entries: AppEntry) {

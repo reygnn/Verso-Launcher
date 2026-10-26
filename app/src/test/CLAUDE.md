@@ -13,7 +13,7 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 677 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 682 tests):
 
 ```
 LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
@@ -22,7 +22,7 @@ LauncherLogicTest          154  modes, commands (~crash daily-driver only, never
                                 star prefix, drawer/favorites order, Collator sort,
                                 custom names applied (named), tags, reorder, recents,
                                 default favorites
-LauncherStateTest           89  the concurrency rules: refresh/rename/adopt
+LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
                                 interleavings driven as manual IO/main queues (adopt
                                 refused before the first load, reports once in place, a
                                 refresh still lands after it), seeding (also from an
@@ -33,7 +33,9 @@ LauncherStateTest           89  the concurrency rules: refresh/rename/adopt
                                 a rename's untouched OK (a label longer than a name may be,
                                 bidi isolates) is no custom name,
                                 save-before-load, no edit permit before the load nor
-                                past a command, a failed save reported, an unreadable config
+                                past a command, a failed save reported, a save on disk once
+                                the stop is through (written on main, or waited for while
+                                the IO thread writes it), an unreadable config
                                 loaded as empty and said once (only by the load that lands,
                                 never for a readable one or a fresh install), needsRefresh
                                 (also after an incomplete enumeration, which a complete one
@@ -94,9 +96,10 @@ AppDrawerTest               22  Robolectric: the back page — what a screen rea
                                 touch after a scroll or a long press is not),
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       38  Robolectric, the real Activity: "!!" moving a favorite and letting
+MainActivityFlowsTest       39  Robolectric, the real Activity: "!!" moving a favorite and letting
                                 go of it; no rename dialog before the first load; an unreadable
-                                verso.json said at the start, the next change saved over it; ~backup says
+                                verso.json said at the start, the next change saved over it; a change
+                                held behind the IO thread on disk once onStop is through; ~backup says
                                 where it wrote; a restore's undo point never named as a backup, one
                                 whose config cannot be written adopts nothing; a
                                 "~restore-saf" file is asked about before it is adopted — its

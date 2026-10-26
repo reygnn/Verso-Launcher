@@ -252,6 +252,8 @@ class MainActivity : Activity() {
         pageTurn.close(animate = false)
         homePage.stopBattery()
         super.onStop()
+        // After onStop, where Android waits for SharedPreferences' writes too (hard rule 4).
+        state.flushSave()
     }
 
     /** The user left the page they acted on: a dialog opened there and a pending "~cleanup" offer are void. */

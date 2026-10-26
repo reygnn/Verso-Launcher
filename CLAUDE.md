@@ -246,15 +246,18 @@ of the classes named.
 3. **One IO thread, process-wide** (`VersoApp.io`): never another executor, never shut down.
    Main-thread state is touched only on main. Hand-backs: what belongs to the process through
    `VersoApp.onMain` (never dropped), what belongs to one window through `MainActivity.onUi`
-   (dropped for a destroyed instance). Three deliberate exceptions, not breaches to "fix": the
+   (dropped for a destroyed instance). Four deliberate exceptions, not breaches to "fix": the
    `~restore-saf` read on its own thread (`Commands.readPick`: a provider can block forever),
-   Guru's report written on the dying thread, and Guru's alert handed back with
-   `runOnUiThread` (`VersoApp.onCreate`, `MainActivity.onCreate`).
+   Guru's report written on the dying thread, Guru's alert handed back with
+   `runOnUiThread` (`VersoApp.onCreate`, `MainActivity.onCreate`), and a save not yet on disk
+   written on main at `onStop` (`LauncherState.flushSave`, hard rule 4).
 4. **`verso.json` on SharedPreferences' terms** (`ConfigStore`): the last complete file waits as
    `verso.json.bak` while a write runs and is taken back by the next load; a file that cannot be
    read or parsed loads as the empty config, and a toast says so (`ConfigStore.load`'s null,
-   `LauncherState`'s `onConfigUnusable`) — only words, the files behave as before. Fresh = neither
-   file. The net is the backups.
+   `LauncherState`'s `onConfigUnusable`) — only words, the files behave as before. A save is on
+   disk once `onStop` is through, as `apply()` is by `QueuedWork.waitToFinish`
+   (`LauncherState.flushSave`: written on main if the IO thread has not begun it, waited for if
+   it has). Fresh = neither file. The net is the backups.
 5. **Nothing is written before the config is loaded** — memory holds only the empty default
    until then. No `EditPermit` (`LauncherState.editPermit`, `SourceGuardTest`), no save, no `~`
    command but `~restart`; backups and undo points come from `loadedSnapshot`; home and its

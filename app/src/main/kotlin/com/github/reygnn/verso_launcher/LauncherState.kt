@@ -1,14 +1,17 @@
 package com.github.reygnn.verso_launcher
 
+import java.util.concurrent.atomic.AtomicReference
+
 /**
  * The launcher's data — config, enumerated apps, recents — and the rules that keep it consistent
  * while a background load and the user's taps overlap. Plays the ViewModel role, in plain Kotlin.
  *
  * Threading: every public member but [writeRestored] (an IO step of a restore) is main-thread
  * only; disk and LauncherApps work runs on [io], results come back through [main]. The IO side
- * reads only the @Volatile counters, and writes only the atomic process.seedPending:
+ * reads only the @Volatile counter, and writes only the atomics:
  *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
- *   saveSeq        — bumped by [save]: a newer queued save carries this state, an older one skips.
+ *   unsaved        — set by [save], taken by whoever writes first: a save's IO task or [flushSave].
+ *   process.seedPending.
  * Nothing changes the config before it is loaded (no [EditPermit] is issued, [adopt] and [cleanup]
  * refuse), so a first load lands as read.
  * An enumeration carries no config (system labels only); custom names are applied on main from
@@ -95,7 +98,12 @@ internal class LauncherState(
     fun editPermit(idle: CommandGate.Idle): EditPermit? = if (configLoaded) EditPermit(idle) else null
 
     @Volatile private var loadGeneration = 0
-    @Volatile private var saveSeq = 0
+
+    /** The newest config not yet written; a newer save replaces it (SharedPreferences skips stale states too). */
+    private val unsaved = AtomicReference<String?>(null)
+
+    /** One verso.json write at a time, from the IO thread or [flushSave]. */
+    private val writeLock = Any()
 
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, cfg.favorites)
 
@@ -184,17 +192,29 @@ internal class LauncherState(
         // Last line of hard rule 5: the empty default must never overwrite verso.json.
         if (!configLoaded) return
         val payload = configFile.serialize(cfg)
-        val seq = ++saveSeq
+        val earlier = unsaved.getAndSet(payload)
         val accepted = io(Runnable {
-            // A newer save queued behind this one carries this state too.
-            if (seq != saveSeq) return@Runnable
-            if (!configFile.write(payload)) main(Runnable { onSaveFailed() })
+            if (writeUnsaved() == false) main(Runnable { onSaveFailed() })
         })
         if (!accepted) {
-            // Take the number back, or a save queued ahead would skip itself for one that never runs.
-            saveSeq--
+            // Give the save queued ahead its own state back: this one never runs.
+            unsaved.compareAndSet(payload, earlier)
             onSaveFailed()
         }
+    }
+
+    /**
+     * Main thread, from onStop: what SharedPreferences' apply guarantees through
+     * QueuedWork.waitToFinish — a save not yet on disk is written now, on this thread, and one
+     * being written is waited for. So no change is lost to a process ended after the stop.
+     */
+    fun flushSave() {
+        if (writeUnsaved() == false) onSaveFailed()
+    }
+
+    /** Null if there was nothing to write: the newest state is on disk, or being written. */
+    private fun writeUnsaved(): Boolean? = synchronized(writeLock) {
+        unsaved.getAndSet(null)?.let { configFile.write(it) }
     }
 
     fun toggleHidden(permit: EditPermit, key: String) {
@@ -329,7 +349,7 @@ internal class LauncherState(
      * user's (hard rule 10), even when the hand-back to [adopt] is lost to a recreation.
      */
     fun writeRestored(payload: String): Boolean =
-        configFile.write(payload).also { written -> if (written) process.seedPending.set(false) }
+        synchronized(writeLock) { configFile.write(payload) }.also { written -> if (written) process.seedPending.set(false) }
 
     /** False, nothing adopted, before the first load: it would land over the restore. No save —
      *  the restore has written verso.json already — and no re-enumeration: the apps are the same. */
