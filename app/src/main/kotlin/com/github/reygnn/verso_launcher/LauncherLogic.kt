@@ -5,10 +5,7 @@ import java.text.Collator
 import java.text.Normalizer
 import java.util.Locale
 
-/**
- * The launcher's pure decision logic: no framework, disk or shared state, so it is
- * JVM-testable. The Activity owns the UI wiring and the mutable config.
- */
+/** The launcher's pure decisions: no framework, disk or shared state. */
 
 /** The command-line mode, chosen by the prompt's leading sigil. */
 internal enum class Mode {
@@ -20,7 +17,6 @@ internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAV
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
 internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP, UNDO }
 
-/** The config entries of uninstalled apps ([LauncherLogic.orphans]) and their count per section. */
 internal data class Orphans(val keys: Set<String>, val favorites: Int, val hidden: Int, val names: Int, val tags: Int) {
     val isEmpty: Boolean get() = keys.isEmpty()
 }
@@ -40,10 +36,7 @@ internal data class CommandRow(val name: String, val command: Command) : Row<Not
 /** The one "%" row: what Enter or a tap turns the plain drawer's order into. */
 internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
 
-/**
- * What an Enter on the command line ([LauncherLogic.enterAction]) or a tap on a row
- * ([LauncherLogic.tapAction]) does; the Activity performs it.
- */
+/** What an Enter or a tap does; the Activity performs it. */
 internal sealed interface DrawerAction<out T : Ordered> {
     data class Launch<out T : Ordered>(val entry: T) : DrawerAction<T>
     data class ToggleHidden<out T : Ordered>(val entry: T) : DrawerAction<T>
@@ -72,7 +65,6 @@ internal enum class EnterEdge {
     PASS,
 }
 
-/** What a tap on a row does in "!!" ([LauncherLogic.reorderStep]); the Activity performs it. */
 internal sealed interface ReorderStep {
     /** Nothing held: this favorite is picked up. */
     data class PickUp(val key: String) : ReorderStep
@@ -98,11 +90,9 @@ internal object LauncherLogic {
     }
 
     /**
-     * Every "~" command — the one list the overview, the abbreviations and the parser share.
-     * Harmless ones first: the overview is bottom-anchored, so the config-changing ones sit
-     * nearest the prompt, each guarded by an undo point (and a picker or a confirmation), and
-     * "~undo" nearest of all: it takes back whichever of them ran last. "~crash" only in a
-     * daily-driver build ([DailyDriver]), farthest from the prompt.
+     * Every "~" command, the one list the overview, the abbreviations and the parser share. The
+     * overview is bottom-anchored: harmless ones first, the config-changing ones (each with an
+     * undo point) nearest the prompt, "~undo" nearest of all.
      */
     val COMMANDS: List<Pair<String, Command>> = listOfNotNull(
         ("~crash" to Command.CRASH).takeIf { DailyDriver.ENABLED },
@@ -210,7 +200,6 @@ internal object LauncherLogic {
         )
     }
 
-    /** Substring search by folded label; an empty needle returns [all]. */
     fun <T : Ordered> search(all: List<T>, needle: String): List<T> {
         val n = foldLabel(needle)
         return if (n.isEmpty()) all else all.filter { it.labelLower.contains(n) }
@@ -221,10 +210,7 @@ internal object LauncherLogic {
         return all.filter { it.key in rank }.sortedBy { rank[it.key] }
     }
 
-    /**
-     * Per slot (phone, messenger, …: candidate keys in preference order) the first candidate in
-     * [all]; empty slots are skipped, an app is not picked twice, slot order is kept.
-     */
+    /** [slots]: per slot (phone, messenger, …) the candidate keys, preferred first. An app is picked once. */
     fun <T : Ordered> pickDefaultFavorites(all: List<T>, slots: List<List<String>>): List<String> {
         val launchable = all.mapTo(HashSet()) { it.key }
         val picked = LinkedHashSet<String>()
@@ -271,7 +257,6 @@ internal object LauncherLogic {
         return rest + favs.sortedBy { rank[it.key] }
     }
 
-    /** "!!": a tap picks a row up, the held row again lets it go, any other row drops it there. */
     fun reorderStep(picked: String?, tapped: String): ReorderStep = when (picked) {
         null -> ReorderStep.PickUp(tapped)
         tapped -> ReorderStep.PutDown
