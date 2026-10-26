@@ -148,7 +148,7 @@ unanswered drops the pick (a toast says so). Confirmed while a command is still 
 file is restored right after it; meanwhile `~restore`, `~restore-saf` and `~undo` say a file is still
 being restored. The pick lives in memory only: if the system ends Verso's process before
 it is restored — say while a provider is slow to hand the file over or never does — it is gone
-without a word. Pick it again.
+without a word; a `~restart` meanwhile drops it too, with a toast. Pick it again.
 
 ## Leaving the launcher resets to the front page
 
@@ -163,6 +163,16 @@ Typing on a hardware keyboard on the front page opens the drawer with that chara
 command line. A dead key that starts the typing (an accent waiting for its letter) loses its
 accent there: the drawer gets the plain letter. In the recent apps (`?`) the command line has
 no focus, so keys go nowhere until you tap it.
+
+## What `~cleanup` counts as uninstalled
+
+Only apps gone from the device. A disabled app, one with its icon switched off, one on an
+unmounted card, a system app removed only for you, and one in a profile Verso cannot list (or
+that shows no apps right now) keep their entries. An entry whose launcher activity an update
+renamed (below), or a malformed one from a restored file, counts as gone. Nothing runs unless
+every profile could be read, and on OK it checks again. Don't run it while a new phone is still
+reinstalling your apps — those not back yet count as gone. `~undo` brings back the whole config
+as it was before, so changes made since go too.
 
 ## An app that renames its launcher activity loses its place
 

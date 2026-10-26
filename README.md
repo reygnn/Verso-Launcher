@@ -65,131 +65,59 @@ keyboard, no prompt:
 
 ## The command line
 
-- Lists launchable apps over your wallpaper in the favorites' colour — white on a dark one,
-  black on a light one, with the same outline. The command line carries that outline too,
-  right on the wallpaper.
-- Lists the launchable apps of every profile through `LauncherApps` — your own plus
-  a work profile or cloned apps, which carry the system's badge ("Calculator
-  (Work)") and start in their own profile. Installs, uninstalls and updates show up
-  at once, even while the launcher stays open.
-- Apps that cannot start right away stay in the list, **dimmed**: those of a paused
-  work profile, and archived apps (Android 15+, code removed, data kept). The first
-  tap on a paused one turns its work apps back on — the row brightens and a toast
-  says it is ready, so you choose whether to open it; an archived one offers the
-  system's restore.
+- Lists the launchable apps of every profile through `LauncherApps` — your own plus a work
+  profile or cloned apps, which carry the system's badge ("Calculator (Work)") and start in
+  their own profile — in the favorites' colour, right on the wallpaper. Installs, uninstalls and
+  updates show up at once.
+- Apps that cannot start right away stay listed, **dimmed**: those of a paused work profile and
+  archived apps. The first tap on a paused one turns its work apps back on (a toast says when it
+  is ready); an archived one offers the system's restore.
 - The bottom command line drives everything; the leading character picks a mode:
-  - *(empty)* — the full drawer, A to Z: everything except hidden apps, **but a
-    favorite is always kept even when also hidden** (favoriting overrides hiding)
-  - `text` — substring search across **all** apps (hidden included)
-  - `*` — the same drawer, but with your favorites grouped nearest the command line
-  - `*text` / `text*` — the drawer narrowed to apps whose name **starts with**
-    `text` (unlike the star-less search, which matches anywhere in the name). The
-    star counts on **either** side, so it does not matter whether you type it before
-    or after the prefix — whichever side the cursor happens to leave it on
-  - `#` — lists the tags in use; tap one (or **Enter** on the nearest) to drill into
-    that tag's apps
-  - `#text` — tag filter: the apps under every tag starting with `text` (so `#gam`
-    finds your `games` apps). Tap or **Enter** to launch. Tags are assigned in the
-    long-press dialog or in bulk with `##`; a tagged app shows here even when hidden.
-    When no tag starts with `text`, the package names are searched instead, so `#google`,
-    `#samsung` or `#reygnn` lists an app maker's apps without any tag set (any part of the
-    package name after the first, `com.google.android.gm` for `#google` or `#android`)
-  - `##` — edit tags in bulk: lists every tag you defined (also one whose apps are all
-    uninstalled, so it can be reused), tap one and you get **every** app
-    with an `[x]`/`[ ]` for that tag; tap a row to toggle it, saved immediately. This
-    is the way to put one tag on many apps — the long-press dialog stays the way to
-    invent a tag and to set several tags on one app
-  - Tag names are canonicalised wherever they are entered: lowercased, trimmed, and
-    `#` and `,` are dropped. `#` because the tag list builds its prompt by prepending
-    a sigil (a tag starting with `#` would turn `#tag` into `##tag`, a different mode);
-    `,` because it separates tags in the long-press dialog. Typing `#work` gives you
-    `work` rather than an error, and an older config is cleaned up as it loads
-  - `-[text]` — edit hidden: tap a row to toggle `[x]`, saved immediately
-  - `![text]` — edit favorites: tap a row to toggle `[x]`, saved immediately. The
-    favorites are what the front page shows
-  - `!!` — reorder favorites: tap a row to pick it up (marked `»`), tap another
-    row to drop it there; tap the picked row again to cancel. Saved immediately, and
-    the front page lists them in exactly this order, top to bottom
-  - `?` — the last 8 launched apps still installed, newest nearest the command line. Kept in
-    `recents.txt` beside the config — not in `verso.json` and not in a backup; lose it
-    and the list starts over. **Enter** relaunches the most recent. `?text` narrows
-    them like a search
-  - `%` — **Enter** (or a tap on its row) switches the plain drawer between A to Z and
-    **most used first**, and keeps it that way. Most used is Kolibri's decayed count:
-    each launch from Verso counts, fading with time (a week old counts about half, a month
-    old a tenth), so what you use now rises above what you used a lot once. Only the plain
-    drawer is reordered; searches, tags and the edit modes stay as they are. The counts live
-    in `usage.txt` beside the config — not in `verso.json` and not in a backup; lose it and
-    counting starts over
-  - `~[text]` — commands. Typing `~` lists the commands; typing more narrows the
-    list (`~r` leaves `~restart`, `~restore` and `~restore-saf`). Tap a row to run it, or press
-    **Enter** once what you typed can only mean one command — `~b` is enough for
-    `~backup`. An ambiguous prefix does nothing on **Enter**, it just keeps the list
-    up. Every change is saved the moment you make it, so there is no save or load
-    command. Each command acts once and clears the prompt. One runs at a time: a second
-    one sent meanwhile is refused with a toast and stays on the line, to send again, and
-    so is any edit until it is done:
-    - `~crash` — only in a daily-driver build (`./gradlew bundleRelease -PdailyDriver`, and
-      every debug build): crash on purpose, to see Guru's report. Spelled out only — `~c` stays
-      `~cleanup`
-    - `~restart` — read the config again and rebuild the list (after editing
-      `verso.json` by hand, or when something looks stale). It also retries
-      `recents.txt` and `usage.txt` if they could not be read
-    - `~backup` — export the config to `Download/Verso/`, named after the moment it
-      was taken (`verso-2026-10-13_120745.json`). Every backup is a new file, and Verso
-      never deletes one: a failed or interrupted backup leaves the older ones as they
-      were. Clear out old ones with a file manager. An ordinary file: it survives an
-      uninstall and can be copied off the device (that's how you move a config to
-      another phone) — the only copy besides `verso.json` itself
-    - `~restore` — adopt the newest of those backups again. No file picker. The
-      config being replaced is first written next to it as
-      `verso-pre-restore-<date>_<time>.json`; if that fails, the restore is
-      aborted, so a restore never destroys what it overwrote without a trace. A
-      backup that doesn't parse changes nothing. To undo a restore, run
-      `~undo`. If `verso.json` itself
-      can't be read when Verso starts, Verso starts empty, as an app does whose settings
-      are lost; try `~restart` first (a passing read error leaves the file as it was),
-      else `~restore` brings your config back from the last `~backup`.
-    - `~restore-saf` — the same, but you pick the file in the system document
-      picker. Plain `~restore` only sees files this app itself wrote, so a config
-      carried over from another phone (or surviving a reinstall) is invisible to
-      it; this is the way in for those. No permission. Before anything changes, a dialog shows
-      what the file sets — favorites, hidden apps, custom names, tag lists — and only its OK
-      restores it (any file can be picked, also one another app put there). If a command is
-      still running, the confirmed file waits and is restored right after; meanwhile `~restore`,
-      `~restore-saf` and `~undo` say a file is still being restored, and everything else goes on. A
-      `~restart` before then drops the pick (a toast says so)
-    - `~cleanup` — remove what the config still keeps for apps that are no longer
-      installed (their favorite slot, hidden mark, custom name and tags; kept on
-      purpose until then, so a reinstalled app gets them back). A dialog shows how
-      many entries of each kind it would remove and asks first; on OK it checks
-      again, and the current config is saved as `verso-pre-cleanup-<date>_<time>.json`
-      before anything goes. `~undo` takes it back — it brings back the whole config as it
-      was then, so later changes go too; each `~cleanup` adds its own undo point, and none
-      is deleted. Only apps gone from the device count: a
-      disabled app, one with its icon switched off, one on an unmounted card, a system
-      app removed only for you, or one in a profile Verso cannot list (or that shows no
-      apps right now) keeps its entries; an entry whose launcher activity an update
-      renamed, or a malformed one from a restored file, counts as gone. Nothing runs
-      unless every profile could be read. Don't run it while a new phone is still reinstalling
-      your apps — those not back yet count as gone. Old files in `Download/Verso/`
-      are left to a file manager (Android lets Verso touch only its own)
-    - `~undo` — take back the last `~restore`, `~restore-saf`, `~cleanup` or `~undo`: it
-      adopts the newest undo point, whichever kind it is, and saves the config it replaces as
-      `verso-pre-undo-<date>_<time>.json` first, so a second `~undo` redoes what the first
-      took back. Only the last step: an older undo point is reached with `~restore-saf`. Like
-      `~restore`, it sees only files this install wrote, and it waits while a picked file is
-      still being restored
-- Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
-  command line (the bottom-most, since results fill upward). On an empty line
-  **Enter** only drops the keyboard (see above) — it never launches.
-- A `×` clear button at the right end of the command line wipes the prompt back to
-  the plain drawer in one tap, keeping the keyboard up so you can retype at once; it
-  shows only while there is text to erase.
+  - *(empty)* — the full drawer, A to Z, without hidden apps (**a favorite always shows, even
+    when hidden**)
+  - `text` — substring search across **all** apps, hidden included
+  - `*` — the drawer with your favorites nearest the command line; `*text` or `text*` — only
+    names that **start with** `text`
+  - `#` — the tags in use; tap one (or **Enter** on the nearest) for its apps. `#text` — the
+    apps under every tag starting with `text`, hidden ones included. With no such tag the
+    package names are searched instead: `#google` or `#samsung` lists a maker's apps
+  - `##` — tags in bulk: pick a tag, then tap any app to toggle it. The long-press dialog
+    sets several tags on one app. Tags are lowercased and trimmed; `#` and `,` are dropped
+  - `-[text]` — toggle hidden; `![text]` — toggle favorite; `!!` — reorder favorites (tap
+    one to pick it up, `»`, tap another to drop it there). All saved at once; the front page
+    shows the favorites in this order
+  - `?` — the last 8 launched apps, newest nearest the command line; **Enter** relaunches the
+    most recent, `?text` narrows them
+  - `%` — **Enter** switches the plain drawer between A to Z and **most used first** (each
+    launch counts, fading with time: a week old about half), and keeps it
+  - `~[text]` — commands. `~` lists them, typing narrows the list; tap one, or **Enter** once
+    what you typed can only mean one (`~b` is `~backup`). Every change is saved at once, so
+    there is no save command. One command at a time: a second one, or an edit, is refused
+    meanwhile and stays on the line:
+    - `~restart` — read the config again and rebuild the list (after editing `verso.json` by
+      hand, or when something looks stale)
+    - `~backup` — the config to `Download/Verso/` as a new file named after the moment
+      (`verso-2026-10-13_120745.json`). Verso never deletes one. It survives an uninstall
+      and is how a config moves to another phone
+    - `~restore` — adopt the newest backup. The config it replaces is saved first as an
+      undo point (`verso-pre-restore-…`); no undo point, no restore
+    - `~restore-saf` — the same with a file you pick, e.g. from another phone or an earlier
+      install (`~restore` sees only what this install wrote). A dialog shows what the file sets
+      before anything changes
+    - `~cleanup` — remove what the config still keeps for uninstalled apps (favorite slot,
+      hidden mark, custom name, tags). It asks first and leaves an undo point
+      (`verso-pre-cleanup-…`); what counts as uninstalled is in `CAVEATS.md`
+    - `~undo` — take back the last `~restore`, `~restore-saf`, `~cleanup` or `~undo` (a
+      second `~undo` redoes it). Older undo points: `~restore-saf`
+    - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
+      on purpose, to see Guru's report. Never abbreviated
+- Tap a row or press **Enter** to launch the row nearest the command line. On an empty line
+  **Enter** only drops the keyboard. The `×` at the end of the line clears it.
 - Long-press any row to set a custom name and its tags (comma-separated).
-- Registers as `HOME` + `LAUNCHER`, `singleTask` (package
-  `com.github.reygnn.verso_launcher`, config in `verso.json`, backups in
-  `Download/Verso/`).
+- Registers as `HOME` + `LAUNCHER`, `singleTask` (package `com.github.reygnn.verso_launcher`).
+
+What can go wrong around the backups, an unreadable config, a result that comes later and
+moving to a new phone: `CAVEATS.md`.
 
 ## Lineage
 
