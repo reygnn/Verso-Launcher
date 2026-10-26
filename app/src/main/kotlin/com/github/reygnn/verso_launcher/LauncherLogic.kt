@@ -150,7 +150,8 @@ internal object LauncherLogic {
      * The only fold (hard rule 9) for labels, needles and tags. Locale.ROOT, never the device
      * locale: a Turkish phone would fold "Instagram" to a dotless ı and no "i" would find it.
      *  - NFC first, so a decomposed "café" matches a typed one.
-     *  - ROOT lowercases İ to "i" + U+0307; the dot is dropped (in NFC a lone U+0307 only comes from İ).
+     *  - ROOT lowercases İ to "i" + U+0307, and the dot is dropped — also after a letter with no
+     *    precomposed dot form (q + U+0307 folds to "q"), which only makes the match looser.
      *  - Final ς becomes σ, so "ΟΔΟΣ" still finds "οδοστρωμα".
      *  - NFC again at the end: the fold must be its own fixed point, or stored tags change on every load.
      */

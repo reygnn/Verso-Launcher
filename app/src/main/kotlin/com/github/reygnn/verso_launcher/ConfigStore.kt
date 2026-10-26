@@ -23,7 +23,12 @@ internal class ConfigStore(
     private val primary get() = File(dir, CONFIG_FILE)
     private val backup get() = File(dir, "$CONFIG_FILE.bak")
 
-    /** Null when a file is there but cannot be read or parsed; no file is the empty config. */
+    /**
+     * Null when a file is there but cannot be read or parsed; no file is the empty config.
+     * Synchronized with [write]: one lock for the file, whichever LauncherState reads or writes it
+     * (a state "~restart" replaced may still flush on main while the new one loads on IO).
+     */
+    @Synchronized
     fun load(): VersoConfig? {
         var source = primary
         if (backup.exists()) {
@@ -50,6 +55,7 @@ internal class ConfigStore(
     fun isFresh(): Boolean = !primary.exists() && !backup.exists()
 
     /** False if nothing was written; then the last complete file waits in verso.json.bak. */
+    @Synchronized
     fun write(payload: String): Boolean {
         if (primary.exists()) {
             if (!backup.exists()) {

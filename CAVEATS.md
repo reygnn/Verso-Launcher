@@ -157,8 +157,10 @@ again: carrying them over would need a migration of the stored keys.
 The `~` commands run one at a time, their disk and system work on one thread. If a system service
 never answers (MediaStore or the package manager; not seen so far), that command never ends:
 every further command — `~restart` too — and every edit says it is busy, while launching,
-searching and turning pages go on. Only Settings → Apps → Verso → Force stop ends it; the next
-start is clean.
+searching and turning pages go on. Not on a cold start, though: the first app list waits on the
+same thread, so until the call returns the drawer is empty and home shows only its cached
+favorites — after a crash, Guru's save of the report runs there first. Only Settings → Apps →
+Verso → Force stop ends it; the next start is clean.
 
 ## Portrait lock does not hold on tablets and foldables
 

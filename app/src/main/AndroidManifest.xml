@@ -42,8 +42,8 @@
 
         <!-- No "density" in configChanges: a display-size change recreates the activity, so
              every pixel value it computed from the density (paddings, the swipe distance) is
-             computed afresh. Nothing is lost by that — the disk thread and the recents live
-             in VersoApp, and the config is re-read from disk.
+             computed afresh. Nothing is lost by that: the loaded state is the process's, not
+             the activity's (hard rule 16).
              The portrait lock is deliberate, hence its tools:ignore; CAVEATS.md ("Portrait
              lock does not hold on tablets and foldables") says where Android overrides it. -->
         <activity

@@ -101,7 +101,7 @@ internal class LauncherState(
     /** The newest config not yet written; a newer save replaces it (SharedPreferences skips stale states too). */
     private val unsaved = AtomicReference<String?>(null)
 
-    /** One verso.json write at a time, from the IO thread or [flushSave]. */
+    /** Taking [unsaved] and writing it are one step, so [flushSave] waits for a write the IO thread has begun. */
     private val writeLock = Any()
 
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, cfg.favorites)
@@ -133,13 +133,22 @@ internal class LauncherState(
                 LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
             } else emptyList()
             main(Runnable {
-                if (generation != loadGeneration) return@Runnable  // superseded meanwhile
-                var replaced = false
-                if (diskConfig != null) {
+                // The first config read lands even from a superseded refresh: nothing is written
+                // before it, so every refresh reads the same file — else a burst of package
+                // events keeps the launcher "not loaded" until it ends.
+                val replaced = diskConfig != null && !configLoaded
+                if (replaced) {
                     cfg = diskConfig
                     configLoaded = true
-                    replaced = true
                     if (fresh) process.seedPending.set(true)
+                }
+                if (generation != loadGeneration) {  // superseded meanwhile: the newer one brings the list
+                    if (replaced) {
+                        relabel()
+                        onRefreshed(true, true)
+                        if (unusable) onConfigUnusable()
+                    }
+                    return@Runnable
                 }
                 // Still pending here means nothing touched the favorites since the request. While a
                 // "~" command runs there is no permit: the wait stays, a later refresh seeds.
@@ -181,7 +190,7 @@ internal class LauncherState(
                 }
                 if (changed) relabel()
                 onRefreshed(replaced, changed)
-                if (unusable) onConfigUnusable()
+                if (replaced && unusable) onConfigUnusable()
             })
         })
     }

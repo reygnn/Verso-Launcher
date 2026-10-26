@@ -79,8 +79,8 @@ android {
 
     // Drop Kotlin's reflection metadata from the APK. These kotlin/**.kotlin_builtins
     // files are packaged as RESOURCES, not code, so R8 never touches them however
-    // aggressively it shrinks — and at ~12 KB compressed they were the second-largest
-    // item in a 49 KB APK, behind classes.dex itself.
+    // aggressively it shrinks — and at ~12 KB compressed they are among the largest items
+    // in the APK.
     //
     // Safe only because nothing here uses Kotlin reflection: no DI framework, no
     // kotlinx.serialization, no ::class.members. The failure mode if that ever changes

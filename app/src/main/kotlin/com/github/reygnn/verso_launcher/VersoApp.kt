@@ -17,7 +17,7 @@ import java.util.concurrent.RejectedExecutionException
 class VersoApp : Application() {
 
     /** All disk and PackageManager work, in submission order. Never shut down (hard rule 3). */
-    val io: ExecutorService = Executors.newSingleThreadExecutor()
+    val io: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "verso-io") }
 
     /** Badged labels ("Gmail (Work)"), a binder call each. [io] only. */
     internal val badgedLabels = HashMap<BadgeKey, String>()

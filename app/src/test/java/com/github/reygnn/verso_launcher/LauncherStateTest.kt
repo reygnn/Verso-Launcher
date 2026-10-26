@@ -331,6 +331,41 @@ class LauncherStateTest {
         assertEquals(listOf("Alpha", "Bravo", "Charlie", "Delta"), labels())
     }
 
+    /** Else a burst of package events, each superseding the last, keeps every edit "not loaded". */
+    @Test fun `the first config read lands even from a superseded refresh`() {
+        disk = VersoConfig(favorites = listOf(key("Bravo")))
+        state.refresh()
+        runIo()                       // the config is read
+        state.refresh()               // a package event supersedes it before the hand-off
+        runMain()
+        assertTrue(state.configLoaded)
+        assertEquals(listOf(key("Bravo")), state.config.favorites)
+        assertEquals("said once, as a replaced config", listOf(true), refreshed)
+    }
+
+    /** The newer refresh read the file before the edit's save: its copy must not land over the edit. */
+    @Test fun `a newer refresh does not load the config again over an edit`() {
+        disk = VersoConfig(favorites = listOf(key("Bravo")))
+        state.refresh()
+        runIo()
+        state.refresh()
+        runMain()                     // the first read lands, superseded
+        state.toggleFavorite(permit, key("Alpha"))
+        runAll()
+        assertEquals(listOf(key("Bravo"), key("Alpha")), state.config.favorites)
+        assertEquals("the newer one read too, and dropped its copy", 2, loadConfigCalls)
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
+    }
+
+    @Test fun `an unreadable config is said once, by the superseded refresh that lands it`() {
+        disk = null
+        state.refresh()
+        runIo()
+        state.refresh()
+        runAll()
+        assertEquals(1, unusableReports)
+    }
+
     // ---- toggles vs. an in-flight load -----------------------------------------------
 
     @Test fun `a toggle during a load does not throw the new app list away`() {

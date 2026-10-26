@@ -70,7 +70,14 @@ internal class BackupStore(
             row
         } catch (e: Exception) {
             log("backup of $base to Downloads failed", e)
-            pending?.let { runCatching { resolver.delete(it, null, null) } }
+            // The failure is already said; a pending row that stays is hidden and expires.
+            pending?.let { row ->
+                try {
+                    resolver.delete(row, null, null)
+                } catch (e: Exception) {
+                    log("backup: cannot remove the pending row of $base", e)
+                }
+            }
             null
         }
         return published?.let { nameOf(it) ?: wanted }
