@@ -4,9 +4,9 @@ Not a plan — things seen and deliberately not built (yet). One line each, with
 from. The feature freeze is lifted (2026-10-25, see `CLAUDE.md`); new features are bounded by
 the project scope, not by a freeze.
 
-Release triage, 2026-10-25: every open point of the reviews and of `docs/audits/` was
-implemented, written into `CAVEATS.md`, or discarded below with its reason — the performance
-points after measuring; Guru's own points belong in Guru's repo.
+Release triage, 2026-10-25: every open point of the reviews and audits (`docs/audits/`, removed
+2026-10-26, in the git history) was implemented, written into `CAVEATS.md`, or discarded below
+with its reason — the performance points after measuring; Guru's own points belong in Guru's repo.
 
 ## Discarded, with the reason (2026-10-25)
 
@@ -48,6 +48,9 @@ points after measuring; Guru's own points belong in Guru's repo.
   workaround was tried and removed again. Discarded until a real reproduction.
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in: by design — it
   builds the window anew, and a new window shows home; the rebuilt page is the answer.
+- One `uiAction` net for the main-thread catches (crash-only plan, 2026-10-18): each of them
+  (`startGuarded`, the launch, `openAppInfo`, the `~restore-saf` picker) says its own message by
+  exception type; one `onError` would lose those or rebuild the catch inside it. No gain.
 
 ## Kept as an idea
 
