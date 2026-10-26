@@ -8,6 +8,13 @@ config:
   # A warning is a finding, like the compiler's (CLAUDE.md, "Warnings are errors").
   warningsAsErrors: true
 
+comments:
+  OutdatedDocumentation:
+    # A @param or @property that no longer matches the code is a comment a session would trust.
+    # Not exhaustive: a KDoc documents the parameters that need a why, not all of them.
+    active: true
+    exhaustive: false
+
 complexity:
   TooManyFunctions:
     # Commands holds one entry per "~" command plus the steps they share: each is a feature,

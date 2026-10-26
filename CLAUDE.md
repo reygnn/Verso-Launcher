@@ -46,6 +46,10 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   where the function does more (`val x = @Suppress(…) try`) — with its reason as a comment on the
   line above (one behind the annotation enters detekt's baseline IDs). A deliberate setting is
   configured, not baselined. `lint-baseline.xml` and `detekt-baseline.xml` only ever shrink.
+- **Comments and KDoc:** only a non-obvious why — a thread contract, a platform fact, why the
+  obvious fix is wrong, a hard-rule anchor. Never the callers, history, versions, dates or what
+  the code already says: they drift, and the next session trusts them. detekt's
+  `OutdatedDocumentation` holds `@param` and `@property` to the code.
 - **Debug build:** `applicationIdSuffix = ".debug"`, so `connectedAndroidTest` installs beside the
   release.
 - **Guru (`guru/`)**, the crash reporter, is a `git subtree` of reygnn/guru, compiled into `:app`
