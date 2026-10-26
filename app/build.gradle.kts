@@ -34,8 +34,8 @@ android {
         // A GitHub release has an even versionCode; the daily-driver build of the same release the
         // odd one above it and "-daily" in its name, so each build's mapping has a versionCode of its
         // own. A release bump is +2 (CLAUDE.md, Stack particulars).
-        versionCode = 42 + if (dailyDriver) 1 else 0
-        versionName = "0.5.7" + if (dailyDriver) "-daily" else ""
+        versionCode = 44 + if (dailyDriver) 1 else 0
+        versionName = "0.5.8" + if (dailyDriver) "-daily" else ""
 
         // On-device tests only for what a JVM can't reproduce: the real MediaStore behind the
         // Downloads backup (its renaming of taken names, pending rows, ownership) and Android's
