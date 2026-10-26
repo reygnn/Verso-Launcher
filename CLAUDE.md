@@ -76,7 +76,8 @@ Text right on the wallpaper; colour comes from contrast, not from a scheme.
   that colour tied to the theme, and a check on a Pixel and a Samsung).
 - Theme parent `Theme.Material.NoActionBar` on purpose (it only sets the cursor and handle
   accent); no `values-night/`, no splash attributes, no dynamic colour. One adaptive launcher
-  icon, `drawable/ic_launcher.xml`. No `MATERIAL3RULES.md`: the family's is Compose-only.
+  icon, `drawable/ic_launcher.xml` — no `mipmap-anydpi-v26`, no round icon. No
+  `MATERIAL3RULES.md`: the family's is Compose-only.
 
 ---
 
