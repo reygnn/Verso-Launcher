@@ -4,14 +4,11 @@ import android.net.Uri
 import android.util.Log
 
 /**
- * The "~" commands' work, owned by the process (VersoApp.commands): "~backup", "~restore" and
- * "~undo", a "~restore-saf" pick's read and adoption, the "~cleanup" check and its run. One at a
- * time through the process's gate (hard rule 15); every step hands back to the process and reads the state
- * from Core, so a run ends and lands whatever happens to the window that started it. Results go
- * through [Results]; a window is reached only as a [LauncherWindow], the live one or none.
- *
- * What a window decides stays there (MainActivity): refusing a command up front (busy, not
- * loaded, a pick pending), clearing the prompt, the picker, "~restart", the cleanup dialog.
+ * The "~" commands' work, owned by the process. One at a time through the gate (hard rule 15);
+ * every step hands back to the process and reads the state from Core, so a run ends and lands
+ * whatever happens to the window that started it. A window is reached only as a
+ * [LauncherWindow]. What a window decides stays in MainActivity: refusing a command up front,
+ * the prompt, the picker, "~restart", the cleanup dialog.
  *
  * Main thread only, but for the work handed to [step] and the pick's read thread.
  */
@@ -55,13 +52,10 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /** "~restore": the newest own backup. */
     fun restore() = restoreNewest(BackupFiles.Source.BACKUP)
 
-    /** "~undo": the newest own undo point, of a restore, a cleanup or an undo. */
     fun undo() = restoreNewest(BackupFiles.Source.UNDO)
 
-    /** Read and parse the newest own file of [source] on the IO thread, then adopt it. */
     private fun restoreNewest(source: BackupFiles.Source) {
         val store = core.backupStore
         gate.start { t ->
@@ -87,11 +81,10 @@ internal class Commands(private val app: VersoApp) {
     private class Read(val restored: VersoConfig?)
 
     /**
-     * "~restore-saf" after the picker answered: the pick is the process's from here (VersoApp.pick).
-     * Its own thread, not the IO thread (hard rule 3): a provider can block the read indefinitely.
-     * The thread holds the process only — the application's resolver, a hand-back to the process.
-     * Back on main, a dropped or superseded pick is ignored; an unreadable file is a result of the
-     * user's pick; a config waits in VersoApp.pick to be asked about ([offerPendingPick]).
+     * "~restore-saf" after the picker answered; the pick is the process's from here. Its own
+     * thread, not the IO thread (hard rule 3): a provider can block the read forever. The thread
+     * holds the process only (the application's resolver), never an activity. Back on main a
+     * dropped or superseded pick is ignored.
      */
     fun readPick(uri: Uri) {
         val number = app.pick.begin()
@@ -107,10 +100,8 @@ internal class Commands(private val app: VersoApp) {
     }
 
     /**
-     * Asks the user about a read pick: the window in front shows what the file would set. Only with
-     * the config loaded — a first load would replace the config under the open dialog and void it
-     * (hard rule 5). Called when the read lands, when a window comes in front (onStart) and when a
-     * load lands (Core).
+     * Asks the window in front about a read pick. Only with the config loaded: a first load would
+     * replace the config under the open dialog and void it (hard rule 5).
      */
     fun offerPendingPick() {
         if (!core.state.configLoaded) return
@@ -132,11 +123,10 @@ internal class Commands(private val app: VersoApp) {
     }
 
     /**
-     * Adopts a "~restore-saf" pick the user confirmed, once nothing stands in its way: no run and a
-     * loaded config (hard rule 5). Called on the OK, when a run ends (the gate's onIdle) and when a
-     * load lands (Core) — whichever comes last adopts. It waits instead of being refused: while it
-     * is pending no restore can start (MainActivity.runCommand: "~restore", "~restore-saf", "~undo"),
-     * so the run it waits for is a backup or a cleanup, never a restore it would replace right after.
+     * Adopts a confirmed pick once no run is going and the config is loaded (hard rule 5); of the
+     * OK, a run's end and a load, the last one adopts. It waits instead of being refused: while it
+     * is pending no restore can start, so the run it waits for is never a restore it would
+     * replace right after.
      */
     fun adoptPendingPick() {
         if (gate.busy || !core.state.configLoaded) return
@@ -227,7 +217,6 @@ internal class Commands(private val app: VersoApp) {
         results.report(cleanupMessage(app, outcome))
     }
 
-    /** The words for an outcome: lookups only, apart from the runs. */
     private companion object {
         fun readFailure(app: VersoApp, source: BackupFiles.Source, latest: BackupStore.Latest): String = app.getString(
             when (latest) {
