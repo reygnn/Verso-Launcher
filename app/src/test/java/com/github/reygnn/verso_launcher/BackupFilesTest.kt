@@ -56,7 +56,9 @@ class BackupFilesTest {
     }
 
     @Test fun `every base is distinct and claims no other base's files`() {
-        val bases = listOf(BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE)
+        val bases = listOf(
+            BackupFiles.BACKUP_BASE, BackupFiles.PRE_RESTORE_BASE, BackupFiles.PRE_CLEANUP_BASE, BackupFiles.PRE_UNDO_BASE,
+        )
         assertEquals(bases.size, bases.toSet().size)
         for (a in bases) for (b in bases) if (a != b) {
             assertFalse("$a claims $b", BackupFiles.isPublished(a, "$b-2026-10-13_120745.json"))
@@ -96,6 +98,49 @@ class BackupFilesTest {
     @Test fun `a temp an earlier version left behind is never restored`() {
         assertEquals(Entry(3, "verso.json"), BackupFiles.latestToRestore(base, listOf(Entry(3, "verso.json"), Entry(8, "verso.tmp.json"))))
         assertNull(BackupFiles.latestToRestore(base, listOf(Entry(2, "verso.json.tmp.json"), Entry(4, "verso.tmp.json"))))
+    }
+
+    // ---- ~restore and ~undo (Source) ----------------------------------------
+
+    private val restore = BackupFiles.Source.BACKUP.bases
+    private val undo = BackupFiles.Source.UNDO.bases
+
+    private val mixed = listOf(
+        Entry(4, "verso-pre-undo-2026-10-13_100000.json"),
+        Entry(6, "verso-pre-restore-2026-10-13_110000.json"),
+        Entry(8, "verso-pre-cleanup-2026-10-13_120000.json"),
+        Entry(9, "verso-2026-10-13_130000.json"),
+        Entry(10, "verso-pre-undo.tmp.json"),
+    )
+
+    @Test fun `~undo takes the newest undo point of any kind, never a backup`() {
+        assertEquals(Entry(8, "verso-pre-cleanup-2026-10-13_120000.json"), BackupFiles.latestToRestore(undo, mixed))
+        assertEquals(Entry(6, "verso-pre-restore-2026-10-13_110000.json"), BackupFiles.latestToRestore(undo, mixed.filter { it.id != 8L }))
+        assertEquals(Entry(4, "verso-pre-undo-2026-10-13_100000.json"), BackupFiles.latestToRestore(undo, mixed.filter { it.id < 6 }))
+        assertNull(BackupFiles.latestToRestore(undo, listOf(Entry(9, "verso-2026-10-13_130000.json"))))
+    }
+
+    /** Else a second "~undo" would go back further, or find nothing, instead of redoing the first. */
+    @Test fun `~undo takes its own undo point too`() {
+        val afterUndo = mixed + Entry(11, "verso-pre-undo-2026-10-13_140000.json")
+        assertEquals(Entry(11, "verso-pre-undo-2026-10-13_140000.json"), BackupFiles.latestToRestore(undo, afterUndo))
+    }
+
+    @Test fun `~restore takes the newest backup, even with newer undo points around`() {
+        val older = listOf(Entry(2, "verso-2026-10-12_090000.json")) + mixed.filter { it.id != 9L }
+        assertEquals(Entry(2, "verso-2026-10-12_090000.json"), BackupFiles.latestToRestore(restore, older))
+    }
+
+    /** A restore's undo point named among ~restore's files would be the newest, and the next ~restore would take it. */
+    @Test fun `every undo point is one ~undo takes and ~restore never does`() {
+        for (source in BackupFiles.Source.entries) {
+            assertTrue("$source", source.undoBase in undo)
+            assertFalse("$source", source.undoBase in restore)
+        }
+        assertEquals(listOf(BackupFiles.BACKUP_BASE), restore)
+        assertEquals(BackupFiles.PRE_RESTORE_BASE, BackupFiles.Source.BACKUP.undoBase)
+        assertEquals(BackupFiles.PRE_UNDO_BASE, BackupFiles.Source.UNDO.undoBase)
+        assertTrue(BackupFiles.PRE_CLEANUP_BASE in undo)
     }
 
     @Test fun `a restore never reads the undo point, and none at all gives null`() {

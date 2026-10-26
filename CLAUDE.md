@@ -14,8 +14,8 @@ Home page ("recto"): clock, date and battery (double-tap targets), the favorites
 swipe up for the drawer, pull down for the recent apps. Drawer ("verso"): Sigil's list and
 command line — search, the sigils (`-` hide, `!` favorite, `!!` reorder, `#`/`##` tags, `?`
 recents, `%` A–Z ↔ most used) and the `~` commands (`~restart`, `~backup`, `~restore`,
-`~restore-saf`, `~cleanup`; `~crash` only in a daily-driver build, never abbreviated). Every
-change is saved at once. Default favorites are seeded once, on a fresh install.
+`~restore-saf`, `~cleanup`, `~undo`; `~crash` only in a daily-driver build, never abbreviated).
+Every change is saved at once. Default favorites are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look is constants
 in `HomeStyle.kt`), left/right swipes, any runtime permission, private space (no
@@ -128,7 +128,8 @@ only) → main thread, the newest load generation wins; custom names come from t
    `loadedSnapshot`; home and its cache are drawn only from a loaded config.
 6. **Backups on MediaStore's terms** (`BackupStore`): every `~backup` and undo point is a new
    file, Verso deletes none; a backup is recognised by pattern (`BackupFiles`); a restore takes
-   the newest own row by `_ID`.
+   the newest own row by `_ID` — `~restore` of the backups, `~undo` of the undo points (its own
+   too: a second `~undo` takes the first back; `BackupFiles.Source`).
 7. **Restore order** (`Commands.adopt`, `RestoreSteps`): read and `parseForeign` off main (never
    the lenient `parse` for outside files) → for `~restore-saf`, the user's OK → equal to the
    current config: stop → undo point → `verso.json`, in one IO task → `adopt` in memory. No undo

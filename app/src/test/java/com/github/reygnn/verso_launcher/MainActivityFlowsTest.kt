@@ -206,6 +206,18 @@ class MainActivityFlowsTest {
         assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
     }
 
+    /** The minimal provider lists nothing: the wiring from "~undo" to its own word, and nothing changed. */
+    @Test fun `~undo with no undo point says so and changes nothing`() {
+        Robolectric.setupContentProvider(GuruWiringTest.Downloads::class.java, MediaStore.AUTHORITY)
+        started()
+        tap(DrawerAction.ToggleFavorite(someApp))
+        settle()
+        enter("~undo")
+        settle()
+        assertEquals(activity.getString(R.string.toast_undo_none), ShadowToast.getTextOfLatestToast())
+        assertEquals(listOf(someApp.key), savedFavorites())
+    }
+
     /** Hard rule 4 loads it as empty all the same; the toast is what Core wires to the state. */
     @Test fun `an unreadable verso json is said at the start, and the next change writes over it`() {
         File(app.filesDir, "verso.json").writeText("{ torn")
@@ -258,6 +270,9 @@ class MainActivityFlowsTest {
         enter("~restore")
         assertEquals(pending, ShadowToast.getTextOfLatestToast())
         assertEquals("~restore", prompt.text.toString())
+        enter("~undo")
+        assertEquals(pending, ShadowToast.getTextOfLatestToast())
+        assertEquals("~undo", prompt.text.toString())
         enter("~backup")
         assertEquals("other commands go on", "", prompt.text.toString())
     }
@@ -352,9 +367,13 @@ class MainActivityFlowsTest {
     }
 
     private fun assertRestoredToast() {
-        val prefix = activity.getString(R.string.toast_restore_ok, "")
+        // The time sits inside the text: what is around it must match.
+        val (before, after) = activity.getString(R.string.toast_restore_ok, "\u0000").split("\u0000")
         val shown = ShadowToast.getTextOfLatestToast()
-        assertTrue("expected \"$prefix…\", got \"$shown\"", shown?.startsWith(prefix) == true)
+        assertTrue(
+            "expected \"$before…$after\", got \"$shown\"",
+            shown != null && shown.startsWith(before) && shown.endsWith(after) && shown.length > before.length + after.length,
+        )
     }
 
     /** The "~restore-saf" confirmation in front, or null. */

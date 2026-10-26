@@ -4,9 +4,9 @@ import android.net.Uri
 import android.util.Log
 
 /**
- * The "~" commands' work, owned by the process (VersoApp.commands): "~backup", "~restore", a
- * "~restore-saf" pick's read and adoption, the "~cleanup" check and its run. One at a time through
- * the process's gate (hard rule 15); every step hands back to the process and reads the state
+ * The "~" commands' work, owned by the process (VersoApp.commands): "~backup", "~restore" and
+ * "~undo", a "~restore-saf" pick's read and adoption, the "~cleanup" check and its run. One at a
+ * time through the process's gate (hard rule 15); every step hands back to the process and reads the state
  * from Core, so a run ends and lands whatever happens to the window that started it. Results go
  * through [Results]; a window is reached only as a [LauncherWindow], the live one or none.
  *
@@ -55,15 +55,21 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /** "~restore": read and parse the newest own backup on the IO thread, then adopt it. */
-    fun restore() {
+    /** "~restore": the newest own backup. */
+    fun restore() = restoreNewest(BackupFiles.Source.BACKUP)
+
+    /** "~undo": the newest own undo point, of a restore, a cleanup or an undo. */
+    fun undo() = restoreNewest(BackupFiles.Source.UNDO)
+
+    /** Read and parse the newest own file of [source] on the IO thread, then adopt it. */
+    private fun restoreNewest(source: BackupFiles.Source) {
         val store = core.backupStore
         gate.start { t ->
             step(t, work = {
-                val latest = store.lookupLatest(BackupFiles.BACKUP_BASE)
+                val latest = store.lookupLatest(source.bases)
                 val text = (latest as? BackupStore.Latest.Found)?.let { store.readText(it.uri) }
                 val restored = text?.let { ConfigJson.parseForeign(it) }
-                if (restored == null) results.keep(readFailure(app, latest))
+                if (restored == null) results.keep(readFailure(app, source, latest))
                 Read(restored)
             }) { read ->
                 val restored = read?.restored
@@ -71,13 +77,13 @@ internal class Commands(private val app: VersoApp) {
                     // Nothing kept: the step threw.
                     read == null -> results.report(app.getString(R.string.toast_restore_failed))
                     restored == null -> results.flush()
-                    else -> adopt(t, restored)
+                    else -> adopt(t, restored, source)
                 }
             }
         }
     }
 
-    /** A "~restore" read: null if there was nothing to restore (its message is kept). */
+    /** A "~restore" or "~undo" read: null if there was nothing to restore (its message is kept). */
     private class Read(val restored: VersoConfig?)
 
     /**
@@ -129,25 +135,27 @@ internal class Commands(private val app: VersoApp) {
      * Adopts a "~restore-saf" pick the user confirmed, once nothing stands in its way: no run and a
      * loaded config (hard rule 5). Called on the OK, when a run ends (the gate's onIdle) and when a
      * load lands (Core) — whichever comes last adopts. It waits instead of being refused: while it
-     * is pending no restore can start (MainActivity.runCommand), so the run it waits for is a backup
-     * or a cleanup, never a restore it would replace right after.
+     * is pending no restore can start (MainActivity.runCommand: "~restore", "~restore-saf", "~undo"),
+     * so the run it waits for is a backup or a cleanup, never a restore it would replace right after.
      */
     fun adoptPendingPick() {
         if (gate.busy || !core.state.configLoaded) return
         val restored = app.pick.take() ?: return
-        gate.start { t -> adopt(t, restored) }
+        // A picked file is a restore: its undo point is a pre-restore one.
+        gate.start { t -> adopt(t, restored, BackupFiles.Source.BACKUP) }
     }
 
     /**
      * Adopt a config parsed with parseForeign (never the lenient parse, which turns any JSON
-     * object into an empty config). No undo point, no restore (hard rule 7). Both callers start it
-     * only with the config loaded; the check below stays as the last line of hard rule 5.
+     * object into an empty config). No undo point, no restore (hard rule 7): [source] names the one
+     * it leaves. Both callers start it only with the config loaded; the check below stays as the
+     * last line of hard rule 5.
      */
-    private fun adopt(t: CommandGate.Ticket, restored: VersoConfig) {
+    private fun adopt(t: CommandGate.Ticket, restored: VersoConfig, source: BackupFiles.Source) {
         // So a "my favorites are gone" report can be settled from the log.
         Log.i(
             "Verso",
-            "restore: ${restored.favorites.size} favorites, ${restored.hidden.size} hidden, " +
+            "restore (${source.name.lowercase()}): ${restored.favorites.size} favorites, ${restored.hidden.size} hidden, " +
                 "${restored.names.size} names, ${restored.tags.size} tagged",
         )
         val state = core.state
@@ -160,9 +168,9 @@ internal class Commands(private val app: VersoApp) {
             RestoreSteps.run(
                 current = outgoing,
                 restored = restored,
-                writeUndo = { payload -> store.write(BackupFiles.PRE_RESTORE_BASE, payload) },
+                writeUndo = { payload -> store.write(source.undoBase, payload) },
                 writeConfig = state::writeRestored,
-            ).also { outcome -> results.keep(restoreMessage(app, outcome)) }
+            ).also { outcome -> results.keep(restoreMessage(app, source, outcome)) }
         }) { outcome ->
             // Nothing kept: the step threw.
             if (outcome == null) {
@@ -221,19 +229,33 @@ internal class Commands(private val app: VersoApp) {
 
     /** The words for an outcome: lookups only, apart from the runs. */
     private companion object {
-        fun readFailure(app: VersoApp, latest: BackupStore.Latest): String = app.getString(
+        fun readFailure(app: VersoApp, source: BackupFiles.Source, latest: BackupStore.Latest): String = app.getString(
             when (latest) {
                 is BackupStore.Latest.Failed -> R.string.toast_restore_list_failed
-                is BackupStore.Latest.None -> R.string.toast_restore_none
+                is BackupStore.Latest.None -> when (source) {
+                    BackupFiles.Source.BACKUP -> R.string.toast_restore_none
+                    BackupFiles.Source.UNDO -> R.string.toast_undo_none
+                }
                 is BackupStore.Latest.Found -> R.string.toast_restore_failed
             }
         )
 
-        fun restoreMessage(app: VersoApp, outcome: RestoreSteps.Outcome): String = when (outcome) {
-            RestoreSteps.Outcome.Unchanged -> app.getString(R.string.toast_restore_same)
+        fun restoreMessage(app: VersoApp, source: BackupFiles.Source, outcome: RestoreSteps.Outcome): String = when (outcome) {
+            RestoreSteps.Outcome.Unchanged -> app.getString(
+                when (source) {
+                    BackupFiles.Source.BACKUP -> R.string.toast_restore_same
+                    BackupFiles.Source.UNDO -> R.string.toast_undo_same
+                }
+            )
             RestoreSteps.Outcome.WriteFailed -> app.getString(R.string.toast_restore_write_failed)
             RestoreSteps.Outcome.UndoFailed -> app.getString(R.string.toast_restore_undo_failed)
-            is RestoreSteps.Outcome.Done -> app.getString(R.string.toast_restore_ok, BackupFiles.timeOf(outcome.undoName))
+            is RestoreSteps.Outcome.Done -> app.getString(
+                when (source) {
+                    BackupFiles.Source.BACKUP -> R.string.toast_restore_ok
+                    BackupFiles.Source.UNDO -> R.string.toast_undo_ok
+                },
+                BackupFiles.timeOf(outcome.undoName),
+            )
         }
 
         fun cleanupMessage(app: VersoApp, outcome: CleanupOutcome): String = when (outcome) {

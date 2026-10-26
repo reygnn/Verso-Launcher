@@ -18,7 +18,7 @@ internal enum class Mode {
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP }
+internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP, UNDO }
 
 /** The config entries of uninstalled apps ([LauncherLogic.orphans]) and their count per section. */
 internal data class Orphans(val keys: Set<String>, val favorites: Int, val hidden: Int, val names: Int, val tags: Int) {
@@ -100,8 +100,9 @@ internal object LauncherLogic {
     /**
      * Every "~" command — the one list the overview, the abbreviations and the parser share.
      * Harmless ones first: the overview is bottom-anchored, so the config-changing ones sit
-     * nearest the prompt, each guarded by an undo point (and a picker or a confirmation).
-     * "~crash" only in a daily-driver build ([DailyDriver]), farthest from the prompt.
+     * nearest the prompt, each guarded by an undo point (and a picker or a confirmation), and
+     * "~undo" nearest of all: it takes back whichever of them ran last. "~crash" only in a
+     * daily-driver build ([DailyDriver]), farthest from the prompt.
      */
     val COMMANDS: List<Pair<String, Command>> = listOfNotNull(
         ("~crash" to Command.CRASH).takeIf { DailyDriver.ENABLED },
@@ -110,6 +111,7 @@ internal object LauncherLogic {
         "~restore" to Command.RESTORE,
         "~restore-saf" to Command.RESTORE_SAF,
         "~cleanup" to Command.CLEANUP,
+        "~undo" to Command.UNDO,
     )
 
     /**

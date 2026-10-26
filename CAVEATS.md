@@ -76,11 +76,11 @@ uninstalled: nothing is pruned on its own, so a reinstalled app gets its place, 
 tags back — but a backup still names a hidden app removed years ago until you run
 `~cleanup`, which removes those entries (after an undo point).
 
-Verso never deletes a backup: every `~backup`, `~restore` (its undo point) and `~cleanup`
-(its undo point) leaves a file of a few KB in `Download/Verso/`, and the folder grows until
+Verso never deletes a backup: every `~backup`, `~restore`, `~cleanup` and `~undo` (the
+last three: their undo point) leaves a file of a few KB in `Download/Verso/`, and the folder grows until
 you clear it with a file manager. Android lets an app see only the files it created itself:
-after a reinstall the old files are no longer Verso's — invisible to `~restore` (reachable
-with `~restore-saf`), and new ones are written beside them. A debug build is another app to
+after a reinstall the old files are no longer Verso's — invisible to `~restore` and `~undo`
+(reachable with `~restore-saf`), and new ones are written beside them. A debug build is another app to
 Android, so its backups sit there too.
 
 The app's own `verso.json` is excluded from Android's cloud backup
@@ -145,7 +145,7 @@ Verso before it ends, the toast waits and appears when you come back — sometim
 A file picked with `~restore-saf` is shown in a dialog before it is restored; read while you
 were away or while Verso was still starting, the dialog comes when you are back, and leaving it
 unanswered drops the pick (a toast says so). Confirmed while a command is still running, the
-file is restored right after it; meanwhile `~restore` and `~restore-saf` say a file is still
+file is restored right after it; meanwhile `~restore`, `~restore-saf` and `~undo` say a file is still
 being restored. The pick lives in memory only: if the system ends Verso's process before
 it is restored — say while a provider is slow to hand the file over or never does — it is gone
 without a word. Pick it again.

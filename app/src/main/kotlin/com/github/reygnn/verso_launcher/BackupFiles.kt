@@ -18,6 +18,19 @@ internal object BackupFiles {
     const val BACKUP_BASE = "verso"
     const val PRE_RESTORE_BASE = "verso-pre-restore"
     const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
+    const val PRE_UNDO_BASE = "verso-pre-undo"
+
+    /**
+     * What a restore takes (the newest own row of [bases], hard rule 6) and the undo point it
+     * leaves first (hard rule 7). "~restore-saf" leaves [BACKUP]'s: a picked file is a restore.
+     */
+    enum class Source(val bases: List<String>, val undoBase: String) {
+        /** "~restore": the newest "~backup", never an undo point. */
+        BACKUP(listOf(BACKUP_BASE), PRE_RESTORE_BASE),
+
+        /** "~undo": the newest undo point of any kind — its own too, so a second "~undo" takes the first back. */
+        UNDO(listOf(PRE_RESTORE_BASE, PRE_CLEANUP_BASE, PRE_UNDO_BASE), PRE_UNDO_BASE),
+    }
 
     data class Entry(val id: Long, val name: String)
 
@@ -35,6 +48,9 @@ internal object BackupFiles {
         Regex("""${Regex.escape(base)}(-\d{4}-\d{2}-\d{2}_\d{6})?( \(\d+\))?\.json""").matches(name)
 
     /** The newest backup of [base]: only published names count. */
-    fun latestToRestore(base: String, own: List<Entry>): Entry? =
-        own.filter { isPublished(base, it.name) }.maxByOrNull { it.id }
+    fun latestToRestore(base: String, own: List<Entry>): Entry? = latestToRestore(listOf(base), own)
+
+    /** The newest file of any of [bases], by id across them all: only published names count. */
+    fun latestToRestore(bases: List<String>, own: List<Entry>): Entry? =
+        own.filter { e -> bases.any { isPublished(it, e.name) } }.maxByOrNull { it.id }
 }

@@ -88,9 +88,12 @@ internal class BackupStore(
     }
 
     /** Rows of an earlier install are orphaned by the uninstall and invisible here; "~restore-saf" reaches them. */
-    fun lookupLatest(base: String): Latest {
+    fun lookupLatest(base: String): Latest = lookupLatest(listOf(base))
+
+    /** The newest own row of any of [bases] (hard rule 6: by _ID). */
+    fun lookupLatest(bases: List<String>): Latest {
         val own = listOwn() ?: return Latest.Failed
-        val entry = BackupFiles.latestToRestore(base, own) ?: return Latest.None
+        val entry = BackupFiles.latestToRestore(bases, own) ?: return Latest.None
         return Latest.Found(uriOf(entry.id))
     }
 

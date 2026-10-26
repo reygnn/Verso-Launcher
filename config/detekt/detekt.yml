@@ -8,6 +8,12 @@ config:
   # A warning is a finding, like the compiler's (CLAUDE.md, "Warnings are errors").
   warningsAsErrors: true
 
+complexity:
+  TooManyFunctions:
+    # Commands holds one entry per "~" command plus the steps they share: each is a feature,
+    # not a split waiting to happen.
+    allowedFunctionsPerClass: 13
+
 style:
   MagicNumber:
     # HomeStyle.kt, the whole file: the look lives there as constants (CLAUDE.md: no settings

@@ -42,7 +42,7 @@
     <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
     <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
     <string name="toast_backup_failed">backup failed — nothing written</string>
-    <string name="toast_restore_ok">restored — undo: ~restore-saf, pre-restore %1$s</string>
+    <string name="toast_restore_ok">restored (undo point %1$s) — ~undo takes it back</string>
     <string name="toast_restore_same">nothing to restore — that config is already in use</string>
     <string name="toast_restore_list_failed">Download/Verso unreadable — try ~restore-saf</string>
     <string name="toast_restore_undo_failed">nothing changed — could not save the current config</string>
@@ -50,10 +50,15 @@
     <string name="toast_restore_saf_dropped">~restore-saf dropped — the picked file was not restored yet</string>
     <string name="toast_restore_pending">a picked file is still being restored — wait, or ~restart drops it</string>
     <string name="toast_restore_none">no backup — run ~backup, or pick one: ~restore-saf</string>
+    <!-- ~undo: the newest undo point of a ~restore, ~cleanup or ~undo. %1$s in toast_undo_ok is the
+         time (HH:mm) in the name of the undo point it left itself. -->
+    <string name="toast_undo_ok">undone (undo point %1$s) — ~undo again redoes it</string>
+    <string name="toast_undo_same">nothing to undo — the last undo point is in use</string>
+    <string name="toast_undo_none">nothing to undo — no undo point in Download/Verso</string>
     <string name="toast_cleanup_none">nothing to clean up</string>
     <string name="toast_cleanup_incomplete">not every profile could be read — try again later</string>
     <!-- %1$s: the time (HH:mm) in the undo point's name. -->
-    <string name="toast_cleanup_ok">cleaned up (undo point %1$s) — undo: ~restore-saf</string>
+    <string name="toast_cleanup_ok">cleaned up (undo point %1$s) — ~undo takes it back</string>
     <string name="cleanup_title">Clean up</string>
     <string name="cleanup_remove">Remove</string>
     <!-- The cleanup dialog's lines; a section with nothing to remove is left out. -->
@@ -62,12 +67,12 @@
     <string name="cleanup_hidden">hidden: %1$d</string>
     <string name="cleanup_names">custom names: %1$d</string>
     <string name="cleanup_tags">tag lists: %1$d</string>
-    <string name="cleanup_undo_note">The current config is saved first (verso-pre-cleanup).</string>
+    <string name="cleanup_undo_note">The current config is saved first (verso-pre-cleanup): ~undo takes it back.</string>
     <!-- The ~restore-saf confirmation: the counts below the intro reuse the cleanup_* labels. -->
     <string name="restore_title">Restore this file?</string>
     <string name="restore_apply">Restore</string>
     <string name="restore_intro">It replaces the whole config with:</string>
-    <string name="restore_undo_note">The current config is saved first (verso-pre-restore).</string>
+    <string name="restore_undo_note">The current config is saved first (verso-pre-restore): ~undo takes it back.</string>
     <string name="toast_cleanup_not_run">nothing changed — try again</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it

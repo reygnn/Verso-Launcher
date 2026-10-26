@@ -336,6 +336,7 @@ class MainActivity : Activity() {
             // Only the picker: it is another activity, so no run spans it (the adoption is one).
             Command.RESTORE_SAF -> pickRestoreFile()
             Command.CLEANUP -> app.commands.checkCleanup()
+            Command.UNDO -> app.commands.undo()
             Command.CRASH -> Unit // returned above
         }
     }
@@ -356,11 +357,12 @@ class MainActivity : Activity() {
     }
 
     /**
-     * A restore while a pick is read or waits to be adopted (PendingPick) is refused, with a toast:
-     * the automatic adoption behind it would replace what it brought. The prompt stays, to send again.
+     * A restore ("~undo" is one) while a pick is read or waits to be adopted (PendingPick) is refused,
+     * with a toast: the automatic adoption behind it would replace what it brought. The prompt stays,
+     * to send again.
      */
     private fun heldBackByPick(command: Command): Boolean {
-        val restore = command == Command.RESTORE || command == Command.RESTORE_SAF
+        val restore = command == Command.RESTORE || command == Command.RESTORE_SAF || command == Command.UNDO
         if (!restore || !app.pick.pending) return false
         toast(getString(R.string.toast_restore_pending), Toast.LENGTH_LONG)
         return true

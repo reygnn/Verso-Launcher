@@ -234,6 +234,7 @@ class LauncherLogicTest {
         assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~backup"))
         assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.parseCommand("~restore-saf"))
+        assertEquals(Command.UNDO, LauncherLogic.parseCommand("~undo"))
     }
 
     /** "~restore" is a strict prefix of "~restore-saf"; only exact matching keeps them apart. */
@@ -286,7 +287,23 @@ class LauncherLogicTest {
             LauncherLogic.commandsMatching("~r").map { it.first },
         )
         assertEquals(listOf("~restore-saf"), LauncherLogic.commandsMatching("~restore-").map { it.first })
+        assertEquals(listOf("~undo"), LauncherLogic.commandsMatching("~u").map { it.first })
         assertEquals(emptyList<String>(), LauncherLogic.commandsMatching("~zzz").map { it.first })
+    }
+
+    /** A new command must not take an abbreviation over: "~u" is new, the old ones still resolve. */
+    @Test fun `~u is ~undo, and every earlier abbreviation still resolves`() {
+        assertEquals(Command.UNDO, LauncherLogic.resolveCommand("~u"))
+        assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
+        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
+        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
+        assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
+        assertNull(LauncherLogic.resolveCommand("~r"))
+    }
+
+    /** The overview is bottom-anchored: the step back sits right above the prompt. */
+    @Test fun `~undo is the command nearest the prompt`() {
+        assertEquals("~undo", LauncherLogic.COMMANDS.last().first)
     }
 
     /** "~crash": only in a daily-driver build (unit tests compile it in) and only spelled out. */

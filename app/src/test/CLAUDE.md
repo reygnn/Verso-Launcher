@@ -13,10 +13,11 @@ STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not"
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 682 tests):
+JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 689 tests):
 
 ```
-LauncherLogicTest          154  modes, commands (~crash daily-driver only, never abbreviated),
+LauncherLogicTest          156  modes, commands (~crash daily-driver only, never abbreviated;
+                                ~u is ~undo, nearest the prompt, no earlier abbreviation lost),
                                 search + foldLabel (Turkish, İ, NFC), a prompt run (line
                                 breaks become a space, typing passes untouched),
                                 star prefix, drawer/favorites order, Collator sort,
@@ -69,8 +70,9 @@ LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, th
                                 (pick up, let go, move)
 HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
                                 AppStatus and its dimming, the wallpaper palette
-BackupFilesTest             12  backup naming: timestamps, patterns, restore pick (an old temp
-                                never)
+BackupFilesTest             16  backup naming: timestamps, patterns, restore pick (an old temp
+                                never); ~undo takes the newest undo point of any kind (its own
+                                too), ~restore never one
 SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
                                 Kolibri's flick thresholds, top band, who claims what
 SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
@@ -96,11 +98,11 @@ AppDrawerTest               22  Robolectric: the back page — what a screen rea
                                 touch after a scroll or a long press is not),
                                 the reorder pick (held, dropped, let go, its row gone), clearing
                                 the prompt
-MainActivityFlowsTest       39  Robolectric, the real Activity: "!!" moving a favorite and letting
+MainActivityFlowsTest       40  Robolectric, the real Activity: "!!" moving a favorite and letting
                                 go of it; no rename dialog before the first load; an unreadable
                                 verso.json said at the start, the next change saved over it; a change
                                 held behind the IO thread on disk once onStop is through; ~backup says
-                                where it wrote; a restore's undo point never named as a backup, one
+                                where it wrote; ~undo with no undo point says so; a restore's undo point never named as a backup, one
                                 whose config cannot be written adopts nothing; a
                                 "~restore-saf" file is asked about before it is adopted — its
                                 counts shown (a planted file),
@@ -120,7 +122,7 @@ MainActivityFlowsTest       39  Robolectric, the real Activity: "!!" moving a fa
                                 a pick waits instead of being refused — for a running command
                                 (adopted after it, also while away), for the first load, across
                                 a recreation (the new instance adopts it); a second restore
-                                refused while a pick is pending, other commands go on;
+                                (~undo too) refused while a pick is pending, other commands go on;
                                 a restore's message never over another app and never lost
                                 (after onStop: at the next start; across a recreation: adopted
                                 into the shared state and said by the new instance),

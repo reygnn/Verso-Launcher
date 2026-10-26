@@ -146,7 +146,7 @@ keyboard, no prompt:
       `verso-pre-restore-<date>_<time>.json`; if that fails, the restore is
       aborted, so a restore never destroys what it overwrote without a trace. A
       backup that doesn't parse changes nothing. To undo a restore, run
-      `~restore-saf` and pick that `verso-pre-restore-…` file. If `verso.json` itself
+      `~undo`. If `verso.json` itself
       can't be read when Verso starts, Verso starts empty, as an app does whose settings
       are lost; try `~restart` first (a passing read error leaves the file as it was),
       else `~restore` brings your config back from the last `~backup`.
@@ -156,17 +156,17 @@ keyboard, no prompt:
       it; this is the way in for those. No permission. Before anything changes, a dialog shows
       what the file sets — favorites, hidden apps, custom names, tag lists — and only its OK
       restores it (any file can be picked, also one another app put there). If a command is
-      still running, the confirmed file waits and is restored right after; meanwhile `~restore`
-      and `~restore-saf` say a file is still being restored, and everything else goes on. A
+      still running, the confirmed file waits and is restored right after; meanwhile `~restore`,
+      `~restore-saf` and `~undo` say a file is still being restored, and everything else goes on. A
       `~restart` before then drops the pick (a toast says so)
     - `~cleanup` — remove what the config still keeps for apps that are no longer
       installed (their favorite slot, hidden mark, custom name and tags; kept on
       purpose until then, so a reinstalled app gets them back). A dialog shows how
       many entries of each kind it would remove and asks first; on OK it checks
       again, and the current config is saved as `verso-pre-cleanup-<date>_<time>.json`
-      before anything goes. `~restore-saf` with that file undoes it — it brings back
-      the whole config as it was then, so later changes go too; each `~cleanup` adds
-      its own undo point, and none is deleted. Only apps gone from the device count: a
+      before anything goes. `~undo` takes it back — it brings back the whole config as it
+      was then, so later changes go too; each `~cleanup` adds its own undo point, and none
+      is deleted. Only apps gone from the device count: a
       disabled app, one with its icon switched off, one on an unmounted card, a system
       app removed only for you, or one in a profile Verso cannot list (or that shows no
       apps right now) keeps its entries; an entry whose launcher activity an update
@@ -174,6 +174,12 @@ keyboard, no prompt:
       unless every profile could be read. Don't run it while a new phone is still reinstalling
       your apps — those not back yet count as gone. Old files in `Download/Verso/`
       are left to a file manager (Android lets Verso touch only its own)
+    - `~undo` — take back the last `~restore`, `~restore-saf`, `~cleanup` or `~undo`: it
+      adopts the newest undo point, whichever kind it is, and saves the config it replaces as
+      `verso-pre-undo-<date>_<time>.json` first, so a second `~undo` redoes what the first
+      took back. Only the last step: an older undo point is reached with `~restore-saf`. Like
+      `~restore`, it sees only files this install wrote, and it waits while a picked file is
+      still being restored
 - Tap a row or press **Enter** to launch. **Enter** launches the row nearest the
   command line (the bottom-most, since results fill upward). On an empty line
   **Enter** only drops the keyboard (see above) — it never launches.
