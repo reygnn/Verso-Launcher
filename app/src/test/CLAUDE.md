@@ -1,287 +1,118 @@
 # CLAUDE.md (test source set)
 
-Orientation for sessions touching the tests. Not a technical manual
-— that's `java/com/github/reygnn/verso_launcher/TESTING_CONVENTIONS.kt`,
-which holds the concrete patterns. This file answers the _meta_ questions:
-what exists, what is deliberately left out, where to start.
+What tests exist, what is left out on purpose, and where a new one goes. The patterns themselves
+are in `java/com/github/reygnn/verso_launcher/TESTING_CONVENTIONS.kt` — read it before touching
+any test. A test's backtick name says what it checks; this file only maps the classes.
 
-The baseline philosophy (JVM-only by default, pure logic outside Android-runtime
-classes) comes from `~/.claude/CLAUDE.md`. This project departs from the baseline
-STACK on purpose: no coroutines, no MockK, no Turbine — see "deliberately not".
+The baseline (JVM first, pure logic outside Android classes) comes from `~/.claude/CLAUDE.md`;
+this project leaves out its stack on purpose: no coroutines, no MockK, no Turbine.
 
 ---
 
 ## What exists
 
-JVM unit tests (`app/src/test`, `./gradlew testDebugUnitTest`, 749 tests):
+JVM tests: `./gradlew testDebugUnitTest`. Robolectric classes are marked (R).
 
 ```
-LauncherLogicTest          156  modes, commands (~crash daily-driver only, never abbreviated;
-                                ~u is ~undo, nearest the prompt, no earlier abbreviation lost),
-                                search + foldLabel (Turkish, İ, NFC), a prompt run (line
-                                breaks become a space, typing passes untouched),
-                                star prefix, drawer/favorites order, Collator sort,
-                                custom names applied (named), tags, reorder, recents,
-                                default favorites
-LauncherStateTest           93  the concurrency rules: refresh/rename/adopt
-                                interleavings driven as manual IO/main queues (adopt
-                                refused before the first load, reports once in place, a
-                                refresh still lands after it), seeding (also from an
-                                incomplete list; a first load without a list waits — past
-                                an edit and a recreation, held back by a running command and
-                                then re-rendered, ended by a favorite, a restore written or
-                                no candidate app),
-                                a rename's untouched OK (a label longer than a name may be,
-                                bidi isolates) is no custom name,
-                                save-before-load, no edit permit before the load nor
-                                past a command, a failed save reported, a save on disk once
-                                the stop is through (written on main, or waited for while
-                                the IO thread writes it), an unreadable config
-                                loaded as empty and said once (only by the load that lands,
-                                never for a readable one or a fresh install), needsRefresh
-                                (also after an incomplete enumeration, which a complete one
-                                then fills in),
-                                recents (recents.txt read once, never written over
-                                unread, the read handed to a recreated instance, two instances
-                                merging the files in once), reports that
-                                come even when a step throws (a "~cleanup" waits for it)
-CommandGateTest             12  one "~" command at a time: a run ends with its last step,
-                                refusal, hand-over, exceptions, the edit permit; an IO step for
-                                a run that is over queues nothing (logged); onIdle once per run
-                                end, not per release
-ResultsTest                  4  the commands' results on the JVM, a fake window: queued while away or
-                                without a window, then shown once and in order; a refusal in
-                                front only, never queued
-PendingPickTest              9  a "~restore-saf" pick's states: a read config asked about once and
-                                taken only once confirmed, a no, an answer only while asked, an
-                                unreadable file, a dropped (in any state) or superseded read
-                                landing late
-LauncherRowsTest            41  rowsFor per mode
-ConfigStoreTest             21  verso.json on real temp files, SharedPreferences' terms: the old
-                                file kept as .bak until the new one is written (also one already
-                                there), a failed write (also halfway, a full disk) leaves the .bak,
-                                a .bak that cannot be deleted logged, a load takes a .bak back over
-                                a half file (or reads it in place), torn or unreadable (also a .bak
-                                read in place) is null, no file the empty config, an own file beyond
-                                parseForeign's limits loads whole, isFresh
-ConfigJsonTest              32  round-trip (the "%" order too), parseForeign's refusal of foreign JSON,
-                                hostile nesting, look-alike characters, lone surrogates, size limits
-LauncherActionsTest         30  Enter / tap decisions, which Enter call acts, the "!!" tap
-                                (pick up, let go, move)
-HomeStyleTest               22  sizes, luminance, outline-colour thresholds, battery,
-                                AppStatus and its dimming, the wallpaper palette
-BackupFilesTest             16  backup naming: timestamps, patterns, restore pick (an old temp
-                                never); ~undo takes the newest undo point of any kind (its own
-                                too), ~restore never one
-SwipeGestureTest            19  the page drag (direction, offset, release, home fade) and
-                                Kolibri's flick thresholds, top band, who claims what
-SwipeFrameTest              14  Robolectric: real MotionEvents through the frame — delta and
-                                velocity signs, limits, second finger, abortDrag, drag vs flick
-PageTurnTest                31  Robolectric: the page turn on real views — each page's pane title
-                                (home, all apps, the recents), open/close (animated or
-                                not), a "%" drawer re-sorted before it shows (open, drag),
-                                the side it comes from and returns to (also caught mid-close),
-                                leaving "?", who may drag or flick (dialog, top band), a flick
-                                opening the drawer up and the recents down,
-                                drag commit/cancel both ways, open ending a held drag, Back
-                                (home, prompt, recents, preview, cancel — also after HOME closed
-                                the drawer)
-AppDrawerTest               22  Robolectric: the back page — what a screen reader hears (a row's
-                                name, state and labelled double-tap per edit mode, reset on a
-                                recycled row; the empty
-                                prompt's spoken hint naming the page, in node and focus event;
-                                the list named after what it shows), rows per prompt, a pasted line break
-                                turned into a space in the real field, a paused app's row dimmed
-                                (and a recycled command row not), edit-mode markers,
-                                the empty-list hint per mode, a palette switch, a tap handed on
-                                (dropped when its list was replaced meanwhile; a click without a
-                                touch after a scroll or a long press is not),
-                                the reorder pick (held, dropped, let go, its row gone), clearing
-                                the prompt
-MainActivityFlowsTest       40  Robolectric, the real Activity: "!!" moving a favorite and letting
-                                go of it; no rename dialog before the first load; an unreadable
-                                verso.json said at the start, the next change saved over it; a change
-                                held behind the IO thread on disk once onStop is through; ~backup says
-                                where it wrote; ~undo with no undo point says so; a restore's undo point never named as a backup, one
-                                whose config cannot be written adopts nothing; a
-                                "~restore-saf" file is asked about before it is adopted — its
-                                counts shown (a planted file),
-                                Cancel adopts nothing and says nothing, a dialog left unanswered
-                                ends the pick with a toast, a file read while away is asked about
-                                at the next start; the state is the process's —
-                                a recreation keeps the loaded config, ~restart reads it again;
-                                with no window at all (destroyed, no successor yet) a run still
-                                ends, its result waits for the next window, and a load lands;
-                                the window ~restart replaces takes no command, a second ~restart
-                                resets nothing more; a ~cleanup check answers only the page that
-                                asked (not after HOME, not a window made since); ~crash throws at once (before the
-                                first load too); a second command and an edit
-                                refused while one runs (prompt kept; the rename OK says why),
-                                also on the instance a recreation made, until the old step ends;
-                                every queued result shown at the next start, oldest first;
-                                a pick waits instead of being refused — for a running command
-                                (adopted after it, also while away), for the first load, across
-                                a recreation (the new instance adopts it); a second restore
-                                (~undo too) refused while a pick is pending, other commands go on;
-                                a restore's message never over another app and never lost
-                                (after onStop: at the next start; across a recreation: adopted
-                                into the shared state and said by the new instance),
-                                ~restart dropping a pick still being read (said; other
-                                commands ran meanwhile) or one whose hand-back is already
-                                queued (not adopted), and dropping nothing after it; ~restart
-                                rebuilding the activity; a
-                                ~restore-saf closing the rename dialog; no edit and no
-                                command but ~restart before the first load; HOME ending a
-                                running swipe
-RenameDialogFilterTest      11  Robolectric: the tag and name fields' InputFilters on a real widget
-                                (a folded run keeps the IME's composing span)
-VersoConfigTest              4  equality as file content: the favorites' and a tag list's order
-                                count, other order does not, every field counts
-WallpaperPaletteTest         6  the palette's question and the colour listener as manual queues:
-                                an answer older than a report (even one that repaints nothing)
-                                or than a newer question is dropped, one repaint per change
-GuardTest                    2  hard rule 2's backstop: a checked exception logged, an Error not caught
-TapGuardTest                 4  stale-click guard
-HomeCacheTest                5  the cold-start favorites cache: format, parse, file
-UsageLogTest                12  the "%" order: decay, a launch, merge, sort, a clock ahead, usage.txt (junk,
-                                unreadable: not loaded, too large)
-RecentsLogTest               5  the "?" list's recents.txt: merge, parse, round-trip, too large,
-                                unreadable: null
-RestoreStepsTest             4  the restore's IO order: undo point, then config; no-op restore;
-                                a failed write
-CrashPointsTest              5  crash-only: a restore and a "~cleanup" killed before every step
-                                (real verso.json files, Download/Verso rows that are never
-                                deleted), then a cold start: either config whole, nothing the user
-                                had lost, every undo point kept
-RestoreMatrixTest            4  docs/spec/restore-matrix.md on the JVM (the table: RestoreMatrix.kt):
-                                all 2 700 cells of command × verso.json × loaded × Download/Verso ×
-                                content × fault, held to the hard rules; each again killed before
-                                every step; every sequence of up to four commands against the
-                                spec's own model (~undo ~undo is the identity)
-RestoreMatrixFlowsTest      56  Robolectric, one per cell a user can reach: the same table through
-                                the real Activity and Commands — the toast, memory, verso.json and
-                                the rows of a listing Download/Verso (ListingDownloads)
-BackupStoreTest              5  readCapped (the bounded restore read)
-HomePageAccessibilityTest   14  Robolectric: TalkBack click on clock/date/battery, the double
-                                tap, the page itself a stop for TalkBack, the "open all apps"
-                                and "open recent apps" actions, the
-                                battery line reading the charge state (its icons no stops of
-                                their own), the empty-favorites hint; a paused favorite's state
-                                and labelled double-tap (gone once it is ready); a
-                                colour change redraws the favorites, also the cached ones of a
-                                cold start before the config has loaded
-HomePageStartGuardTest       4  Robolectric: clock, date and battery each guarded; a refused intent
-                                (no app, denied, any other) is a toast, never a crash
-HomePageLocaleTest           2  Robolectric (ar-EG): clock, date and battery in the language's
-                                own digits
-EnumerationTest             13  the enumeration with faked profiles: null when the profiles or
-                                the personal one cannot be read, is missing or empty,
-                                incomplete for every skipped profile or app (hard rule 14),
-                                empty work profiles, status
-CleanupTest                 11  what ~cleanup may offer: complete enumeration, kept apps, parseKey,
-                                a key with the launcher's own serial, another profile's key (gone
-                                with its profile, kept unlisted without asking, else asked)
-SourceGuardTest             13  source scans (snippets matched token by token, comments left out): no lenient ConfigJson.parse in MainActivity or Commands,
-                                no brace-less object templates, no density in configChanges,
-                                no default in LauncherState's constructor, no EditPermit built
-                                outside LauncherState (call or reference), Commands'
-                                writeRestored and Core's gate wiring, a loaded state drawn in
-                                onCreate, the process's code knowing no Activity (hard rule 16); Guru installed once from VersoApp
-                                behind Guard, showPending in onCreate (not through onUi),
-                                guru/ out of backup and transfer, R8 keeping names
-RestoreReadLeakTest          1  Robolectric: a "~restore-saf" read that never returns keeps no
-                                destroyed activity alive (weak reference, GC)
-VersoGuruTextsTest           4  Robolectric: Guru's words from values and values-de, read each
-                                time (a language change), every member Verso's own
-GuruWiringTest               2  Robolectric: Guru runs in Verso — a report left behind saved on
-                                the IO thread (a minimal MediaStore provider) and shown; an
-                                alert a recreation took away shows on the new instance
+Pure logic
+  LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
+                           (Turkish, İ, NFC), Collator sort, tags, reorder, recents,
+                           default favorites
+  LauncherRowsTest         rowsFor per mode
+  LauncherActionsTest      Enter and tap decisions, the "!!" tap
+  SwipeGestureTest         the page drag and Kolibri's flick thresholds
+  HomeStyleTest            sizes, luminance, outline thresholds, battery, AppStatus
+  ConfigJsonTest           round trip, parseForeign's refusals, hostile input, size limits
+  VersoConfigTest          equality as file content
+  BackupFilesTest          backup names; which file ~restore and ~undo take
+  CleanupTest              what ~cleanup may offer (hard rule 14)
+  EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
+  TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
+
+State and threads (manual queues)
+  LauncherStateTest        the concurrency rules: load, edit, adopt and save interleaved;
+                           seeding; saves before the load, failed, at onStop; an unreadable
+                           config; recents.txt and usage.txt
+  CommandGateTest          one "~" command at a time, the edit permit
+  PendingPickTest          a "~restore-saf" pick's states
+  ResultsTest              results queued until a window is in front, refusals never
+  WallpaperPaletteTest     the palette's question against the colour listener
+
+Files (real temp files)
+  ConfigStoreTest          verso.json on SharedPreferences' terms (.bak, torn, unreadable)
+  HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside it
+  BackupStoreTest          readCapped, the bounded restore read
+  RestoreStepsTest         the restore's IO order
+  CrashPointsTest          a restore and a ~cleanup killed before every step, then a cold start
+
+Restore matrix (docs/spec/restore-matrix.md, the table as code in RestoreMatrix.kt)
+  RestoreMatrixTest        all 2 700 cells, each killed before every step; every sequence of
+                           up to four commands against the spec's model
+  RestoreMatrixFlowsTest   (R) the 56 cells a user can reach, through the real Activity
+
+The window (R)
+  MainActivityFlowsTest    the real Activity: commands refused, held or queued, picks,
+                           ~restart, recreation, what happens before the first load
+  PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
+  AppDrawerTest            the back page: rows, TalkBack, the tap guard, the reorder pick
+  HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
+                           the home page: TalkBack, guarded intents, ar-EG digits
+  RenameDialogFilterTest   the dialog's InputFilters on a real widget
+  RestoreReadLeakTest      a hung "~restore-saf" read keeps no activity alive
+  VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso
+
+Source scans
+  SourceGuardTest          only what neither a type nor a test reaches (hard rules 5, 16,
+                           the lenient parse, configChanges, Guru's wiring, R8 keeping names)
 ```
 
-Instrumented tests (`app/src/androidTest`, `./gradlew connectedDebugAndroidTest`
-with a device attached, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
+Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
+`DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest` and `RecentsLogTest` use
+`chmod`, so they fail when run as root.
 
-```
-BackupStoreInstrumentedTest  BackupStore against the REAL MediaStore: publish, every backup
-                             kept and the newest restored, the name MediaStore really gave,
-                             names taken by rows we don't own, failed/crashed publish (a
-                             pending row stays hidden), a vanished pending row
-ConfigJsonInstrumentedTest   ConfigJson on Android's own org.json (no depth limit)
-```
+Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
+`BackupStoreInstrumentedTest` (the real MediaStore: publish, names it gives, rows we don't own,
+crashed and vanished pending rows) and `ConfigJsonInstrumentedTest` (Android's own `org.json`).
 
 ---
 
-## What this set deliberately does NOT have
+## Deliberately not
 
-- **No MockK, no mocks at all.** Everything Android-bound is injected as a
-  function (`LauncherState`'s `io`/`main`/`configFile`…, `ConfigStore`'s
-  `rename`/`delete`, `BackupStore`'s `beforePublish`/`now`), so tests pass plain
-  lambdas and fakes. Add MockK only if a real need appears — and then MockK, never
-  Mockito.
-- **No coroutines, so no `MainDispatcherRule` / `runTest` / Turbine.** Threading is
-  modelled as two manual FIFO queues (`LauncherStateTest`), which makes every
-  interleaving deterministic.
-- **Few Activity tests, on purpose.** `MainActivity` is glue; its decisions live in
-  `LauncherLogic` / `LauncherState`. `MainActivityFlowsTest` covers only flows that need
-  no LauncherApps or MediaStore fake (Robolectric models both too thinly to test anything
-  but the fake). The rest is checked on a device; rules an edit could silently break are
-  types where possible (the gate's `Ticket`, the `EditPermit`), `SourceGuardTest` scans
-  only what neither a type nor a test reaches.
-- **No Robolectric MediaStore fakes.** Robolectric cannot reproduce MediaStore's
-  renaming and ownership rules — that is exactly what broke the backups — so the
-  backup layer is tested on a device instead. `GuruWiringTest`'s provider models no MediaStore
-  rule: it only takes a save and keeps the names asked for, so a test can see that
-  Guru runs at all, and which name a restore's undo point asks for (`MainActivityFlowsTest`).
-  `RestoreMatrixFlowsTest`'s `ListingDownloads` lists rows by `_ID` and name and fails on
-  demand — no renaming, no owner, no rule of MediaStore's; those stay on the device.
+- **No mocks.** Android-bound collaborators are functions (`LauncherState`'s `io`/`main`/…,
+  `ConfigStore`'s seams, `BackupStore`'s `beforePublish`/`now`); tests pass lambdas and fakes.
+  If a real need appears: MockK, never Mockito.
+- **No coroutines**, so no `MainDispatcherRule`, `runTest` or Turbine: two manual FIFO queues
+  make every interleaving deterministic.
+- **Few Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic` and
+  `LauncherState`. Rules an edit could break silently are types where possible (`Ticket`,
+  `EditPermit`).
+- **No MediaStore model.** Robolectric cannot reproduce MediaStore's renaming and ownership —
+  what broke the backups once — so those are tested on a device. The two providers here model no
+  MediaStore rule: `GuruWiringTest.Downloads` only takes a save and keeps its name,
+  `RestoreMatrixFlowsTest`'s `ListingDownloads` lists rows by `_ID` and name and fails on demand.
 
 ---
 
-## When you come into this project
+## Where a new test goes
 
-### Reading order
-
-1. **First** `java/com/github/reygnn/verso_launcher/TESTING_CONVENTIONS.kt`
-   — the technical reference. Mandatory before touching any test.
-2. **Then** an existing test as a template. Pick by category:
-   - Pure decision logic: `LauncherLogicTest` (the shared `OrderedFake`).
-   - Anything that sets the default locale: hold a `DefaultLocaleRule`.
-   - Reaching a widget built in code: `collect<T>()` from `ViewTrees.kt`.
-   - Threading / state rules: `LauncherStateTest` (the queue harness at the top);
-     build a `LauncherState` with `testLauncherState` (`TestLauncherState.kt`), which
-     supplies the inert collaborators the production constructor deliberately does not.
-   - File I/O: `ConfigStoreTest` (`TemporaryFolder`, injected `rename` seam).
-   - A real widget: `RenameDialogFilterTest` / `HomePageAccessibilityTest`.
-   - MediaStore / Android-only library behaviour: `androidTest/…InstrumentedTest`.
-
-### Common tasks and where they go
-
-- New `~` command or sigil mode → `LauncherLogicTest` (parse) + `LauncherActionsTest`
-  (Enter/tap) + `LauncherRowsTest` (rows).
-- Anything touching search, fold or sort → `LauncherLogicTest`, with a Turkish and
-  a German/Swedish locale case.
-- Config shape → `ConfigJsonTest` (and keep older `verso.json` files parsing).
-- Save/load durability → `ConfigStoreTest`; backup naming → `BackupFilesTest`,
-  backup I/O → `BackupStoreInstrumentedTest`.
-- A change to `~backup`, `~restore`, `~restore-saf`, `~undo` or `~cleanup` → first the table in
-  `docs/spec/restore-matrix.md`, then `RestoreMatrix.kt` to match; both matrix tests follow it.
+- Start from a template: pure logic `LauncherLogicTest`; threads and state `LauncherStateTest`
+  (its queue harness, `testLauncherState`); files `ConfigStoreTest`; a widget
+  `RenameDialogFilterTest`; MediaStore or Android-only behaviour `androidTest`.
+- A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
+- Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
+- Config shape: `ConfigJsonTest`, and older `verso.json` files must still parse.
+- `~backup`, `~restore`, `~restore-saf`, `~undo`, `~cleanup`: first the table in
+  `docs/spec/restore-matrix.md`, then `RestoreMatrix.kt`; both matrix tests follow.
 
 ---
 
-## Anti-patterns we've already paid for
+## Paid for already
 
-The full list lives in `TESTING_CONVENTIONS.kt`. The headline ones here:
-
-- **A test that pins the bug.** `RenameDialogFilterTest` asserted that "İ" folds to
-  "i" + combining dot — the very bug that made "iş" miss "İşCep". When a fix breaks a
-  test, check whether the test encoded the defect before "fixing" the test.
-- **A test that passes for any threshold.** The outline-colour test used greys at
-  luminance 0.09 and 0.60 and so held for any threshold in between. Pin a boundary
-  with the neighbouring values on BOTH sides.
-- **A fixture that mirrors production.** `LauncherStateTest` once re-implemented the
-  sort with the same `sortedBy` as production; a bug in it could never show.
-- **Trusting the JVM `org.json`.** It refuses deep nesting with an exception;
-  Android's overflows the stack. Library behaviour that differs on Android gets an
-  instrumented test.
-- **Do a mutation check** for every fix: revert the fix, see the new test fail,
-  restore. A test that stays green against the bug proves nothing.
+- **A test that pins the bug:** "İ" asserted to fold to "i" + a combining dot — the bug that made
+  "iş" miss "İşCep". When a fix breaks a test, ask first whether the test encoded the defect.
+- **A test that passes for any threshold:** greys at 0.09 and 0.60 held for every threshold in
+  between. Pin a boundary from both sides.
+- **A fixture that mirrors production:** a re-implemented sort cannot show the sort's bug.
+- **The JVM's `org.json` is not Android's:** deep nesting throws on one and overflows the stack on
+  the other. Behaviour that differs gets an instrumented test.
+- **Mutation-check every fix:** revert it, watch the new test fail, restore.
