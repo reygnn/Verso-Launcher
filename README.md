@@ -226,44 +226,9 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code
 
-The launcher is a handful of small files. `MainActivity.kt` is the framework wiring
-(commands, backup and restore, edits, dialogs, launching); everything beside it is either pure
-and unit-tested on the JVM or a thin view class:
-
-- `LauncherState.kt` — the data: config, app list and recents, plus the rules that keep
-  them consistent when a background load overlaps a toggle, rename, reorder or restore
-  (see the class comment). Plain Kotlin taking its threads as functions —
-  the role a ViewModel would play, without the AndroidX dependency.
-  `LauncherStateTest` replays every overlap deterministically with two manual queues.
-  `LauncherStateParts.kt` holds what it is built from: the process-wide `ProcessState`
-  (recents, launches, two flags) and the three files it reads and writes.
-- `PageTurn.kt` — the page turn between home and drawer: the drag that follows the finger,
-  the settle, the Back preview and the status bar per page.
-- `AppDrawer.kt` — the back page: list, command line and what the list shows for a prompt.
-- `Apps.kt` — the apps on the device: enumeration of every profile, `~cleanup`'s "still
-  there?", the default favorites; `Cleanup.kt` the pure decision what `~cleanup` may offer.
-- `AppEntry.kt` — one app row (package/class as plain strings, so the state is testable).
-- `LauncherLogic.kt` — mode parsing, filtering, favorite ordering and reordering, what
-  Enter and a tap do.
-- `TapGuard.kt` — the staleness check that keeps a click acting on the row it aimed at.
-- `Guard.kt` — the backstop around every IO-thread task: an escaped exception is logged, not
-  a crash on every start.
-- `SwipeGesture.kt` + `SwipeFrame.kt` — the page-turn swipe: pure decisions and their
-  thin touch wrapper.
-- `HomePage.kt` — the front page (Kolibri's home layout); `HomeStyle.kt` holds its pure
-  numbers, `OutlinedViews.kt` the outlined text/icon views, `WallpaperPalette.kt` the text
-  colours for the wallpaper behind them (asked once, then kept current by the system's listener).
-- `VersoConfig.kt`, `ConfigJson.kt`, `ConfigStore.kt`, `BackupStore.kt` — the config
-  model, the `verso.json` round-trip, the durable file layer and the Downloads backup;
-  `BackupFiles.kt` the backup naming rules,
-  `RestoreSteps.kt` a restore's IO in its load-bearing order.
-- `HomeCache.kt` — the favorites cached for an instant home page on a cold start;
-  `UsageLog.kt` and `RecentsLog.kt` the `%` counts and the `?` list, disposable files too.
-- `VersoApp.kt` — the process: the one IO thread and what outlives an activity
-  (recents, palette, badge labels).
-- `RenameDialog.kt` — the long-press dialog.
-- `CommandGate.kt` — the `~` commands one at a time (pure, JVM-tested).
-- `VersoGuruTexts.kt` — Guru's words (see "Crash reports").
+The launcher is one package of small files: `MainActivity.kt` is the window's framework wiring,
+the rest is pure and unit-tested on the JVM, a thin view class, or the process's own parts that
+outlive an activity. Each file's KDoc says what it is for.
 
 ## Crash reports
 
