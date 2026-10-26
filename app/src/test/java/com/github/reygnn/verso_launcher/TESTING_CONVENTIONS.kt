@@ -1,53 +1,28 @@
 package com.github.reygnn.verso_launcher
 
 /**
- * ============================================================================
- * TESTING CONVENTIONS — VERSO LAUNCHER
- * ============================================================================
+ * TESTING CONVENTIONS — how tests here are built. What exists, what is left out on purpose and
+ * the lessons already paid for: app/src/test/CLAUDE.md.
  *
- * The family template assumes Compose + coroutines + MockK. Verso has none of
- * those (no dependencies in the APK, see the project CLAUDE.md), so this file
- * keeps the template's discipline and replaces its coroutine/MockK sections
- * with what this project actually does.
- * ============================================================================
- */
-
-/**
- * ============================================================================
- * SEAMS INSTEAD OF MOCKS
- * ============================================================================
+ * SEAMS, NOT MOCKS
  *
- * Production classes take their Android-bound collaborators as FUNCTIONS, so
- * a test passes a lambda — no mocking framework (no MockK, no Mockito), only
- * fakes and manual queues:
+ * Android-bound collaborators come in as functions, so a test passes a lambda or a fake:
  *
  *   LauncherState(io, main, configFile, enumerateApps, defaultFavoriteCandidates,
  *                 recentsFile, usageFile, process, idle, now, onSaveFailed, onConfigUnusable,
  *                 onRefreshed)
- *     — built in tests through testLauncherState (TestLauncherState.kt): flat
- *       parameters (loadConfig, writeConfig, loadRecents, …) with inert defaults,
- *       bundled there; the production constructor has no defaults. One shared
- *       ProcessState between two instances models a recreation.
- *   ConfigStore(dir, log, rename, delete, readText, writeSynced)  // the four seams: force a failure
+ *     — built through testLauncherState (TestLauncherState.kt): flat parameters with inert
+ *       defaults; the production constructor has none. One shared ProcessState between two
+ *       instances models a recreation.
+ *   ConfigStore(dir, log, rename, delete, readText, writeSynced)   — the four seams force a failure
  *   BackupStore(resolver, subDir, log, beforePublish, now, owner)
  *
- * The `log` parameter is the error channel of classes that never throw: a
- * test collects the messages and asserts on them.
+ * `log` is the error channel of a class that never throws: collect it and assert on it. Pure
+ * decisions live in objects (LauncherLogic, SwipeGesture, BackupFiles, Cleanup, RestoreSteps,
+ * TapGuard, HomeStyle, BatteryInfo), tested with plain values; rows are `OrderedFake(key,
+ * labelLower)`.
  *
- * Pure decisions live in `object`s (LauncherLogic, SwipeGesture, BackupFiles,
- * Cleanup, RestoreSteps, TapGuard, HomeStyle, BatteryInfo) and are tested with
- * plain values. Rows are faked with the shared `OrderedFake(key, labelLower)`
- * (OrderedFake.kt).
- * ============================================================================
- */
-
-/**
- * ============================================================================
- * THREADING — MANUAL QUEUES, NOT DISPATCHERS
- * ============================================================================
- *
- * No coroutines here, so no MainDispatcherRule / runTest. LauncherState gets
- * `io` and `main` as functions; LauncherStateTest feeds it two FIFO queues:
+ * THREADS — MANUAL QUEUES
  *
  *   private val ioQueue = ArrayDeque<Runnable>()
  *   private val mainQueue = ArrayDeque<Runnable>()
@@ -59,120 +34,50 @@ package com.github.reygnn.verso_launcher
  *   state.refresh()     // … a resume supersedes it before the hand-off
  *   runAll()
  *
- * A test decides exactly when the background half runs and when its result
- * is handed back, and can put a tap in between. Every race worth fixing gets
- * its interleaving written out like this. CommandGateTest does the same with
- * one queue.
+ * The test decides when the background half runs and when it is handed back, and can put a tap
+ * in between: every race worth fixing gets its interleaving written out like this.
  *
- * Where the real Activity runs (MainActivityFlowsTest), the process's IO
- * executor is real: drain it with `app.io.submit {}.get(…)` plus
- * `shadowOf(Looper.getMainLooper()).idle()`, or hold it with a latch to keep a
- * command running. recreate() is posted, as on a device: controller.get() switches
- * only once the main looper idles. The ~restore-saf reads run on threads of their
- * own, joined by name (joinReads).
- * ============================================================================
- */
-
-/**
- * ============================================================================
- * FILES, LOCALES, ORG.JSON
- * ============================================================================
+ * Where the real Activity runs, the process's IO executor is real: drain it with
+ * `app.io.submit {}.get(…)` plus `shadowOf(Looper.getMainLooper()).idle()`, or hold it with a
+ * latch to keep a command running. recreate() is posted, as on a device: controller.get()
+ * switches only once the main looper idles. "~restore-saf" reads run on threads of their own,
+ * joined by name ("verso-restore-read").
  *
- * FILES — real files in a JUnit `TemporaryFolder`, never a mocked filesystem:
- * the interaction between write, rename and parse is the thing under test. Only the
- * directory fsync is stubbed.
+ * FILES AND LOCALES
  *
- * LOCALE — a class whose tests set the default locale holds a DefaultLocaleRule, and the
- * test just sets it:
+ * Real files in a JUnit TemporaryFolder: write, rename and parse together are what is tested.
  *
- *   @get:Rule val locale = DefaultLocaleRule()
- *   …  Locale.setDefault(Locale.of("tr", "TR"))
+ * A class whose tests set the default locale holds `@get:Rule val locale = DefaultLocaleRule()`;
+ * it restores all three defaults (main, FORMAT, DISPLAY), a hand-written try/finally only one.
+ * Better still, pass a Locale where the API takes one (sortedForDrawer, sortedTags, allTags,
+ * tagsInUse). Search and fold get a Turkish case; sorting a German AND a Swedish one (Ä under A,
+ * or after Z).
  *
- * The rule restores all three defaults (main, FORMAT, DISPLAY); a hand-written
- * try/finally restoring only the main one leaks the other two into later tests.
- *
- * Prefer passing a Locale explicitly where the API allows it
- * (sortedForDrawer, sortedTags, allTags, tagsInUse) — no global state at all.
- * Search/fold changes get a Turkish case; sorting gets German AND Swedish
- * (Ä under A vs. after Z — "alphabetical" is per language).
- *
- * ORG.JSON — the JVM classpath carries the real desktop org.json because
- * android.jar's is a throwing stub. It is NOT Android's implementation (e.g.
- * the desktop one rejects deep nesting with an exception, Android's overflows
- * the stack). A JVM test pins the contract; behaviour that differs on Android
- * gets an instrumented test (ConfigJsonInstrumentedTest).
- * ============================================================================
- */
-
-/**
- * ============================================================================
  * ROBOLECTRIC — SDK 36, JDK 21
- * ============================================================================
  *
- * Only when a test genuinely needs the Android runtime — a real widget's
- * InputFilter, View accessibility plumbing, MotionEvents, the real Activity.
- * Annotate the class with `@RunWith(RobolectricTestRunner::class)`; the SDK is
- * pinned to 36 once for all classes in `src/test/resources/robolectric.properties`
- * (no per-class `@Config(sdk = …)`; `@Config(qualifiers = …)` for a locale is
- * fine). The manifest's VersoApp is fine as the Application: it holds the IO
- * executor and the process's parts (Core, Commands, Results, the gate), all built
- * lazily from the first activity; Robolectric makes a fresh one for each test.
- * Pure process parts (Results, PendingPick, CommandGate) are tested on the JVM.
+ * Only for what needs the Android runtime: a real widget, accessibility, MotionEvents, the real
+ * Activity. `@RunWith(RobolectricTestRunner::class)`; the SDK is pinned once in
+ * src/test/resources/robolectric.properties — no `@Config(sdk = …)` (`qualifiers` for a locale
+ * is fine). Robolectric makes a fresh VersoApp per test. Drive an Activity with
+ * `Robolectric.buildActivity(…).setup()` (no androidx.test on this classpath), reach a widget
+ * built in code with `view.collect<T>()` (ViewTrees.kt), read a started intent with
+ * `shadowOf(activity).nextStartedActivity`.
  *
- * Drive a plain `Activity` with `Robolectric.buildActivity(Activity::class.java)
- * .setup()` — no androidx.test / ActivityScenario on the unit-test classpath.
- * Widgets built in code are reached with `view.collect<T>()` (ViewTrees.kt).
- * Started intents are read back with `shadowOf(activity).nextStartedActivity`.
- * ============================================================================
- */
-
-/**
- * ============================================================================
- * INSTRUMENTED TESTS (androidTest)
- * ============================================================================
+ * INSTRUMENTED (androidTest)
  *
- * Reserved for behaviour only a device has: MediaStore (renaming of taken
- * names, pending rows, ownership) and Android's own libraries. Run with a
- * device attached:
+ * Only for what a device alone has: MediaStore's rules and Android's own libraries.
+ * `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew connectedDebugAndroidTest`; the ".debug" suffix installs
+ * beside the release. Each test works in its own Download/VersoTest-<uuid>/, removed in @After
+ * with the shell's `rm -rf` (which also takes pending rows and rows the app does not own); a row
+ * the app does not own is made by the shell (`touch`), like one an older install left; inject
+ * `now` for predictable names and fail mid-write through `beforePublish` (an Exception fails, an
+ * Error "crashes" — BackupStore does not catch one).
  *
- *   ANDROID_SERIAL=R5GL51D5VHZ ./gradlew connectedDebugAndroidTest
+ * WRITING ONE
  *
- * The debug build's ".debug" applicationId suffix lets it install beside the
- * family-signed release. Rules for BackupStoreInstrumentedTest-style tests:
- *  - each test works in its own Download/VersoTest-<uuid>/ folder, removed
- *    in @After through the shell (`rm -rf`), which also takes pending rows
- *    and rows the app doesn't own;
- *  - a row the app does NOT own is created by the shell
- *    (`uiAutomation.executeShellCommand("touch …")`), exactly like a file an
- *    older install or adb left behind;
- *  - inject the clock (`now`) for predictable names, and use the
- *    `beforePublish` seam to fail (throw an Exception) or "crash" (throw an
- *    Error, which BackupStore deliberately does not catch) mid-write.
- * ============================================================================
- */
-
-/**
- * ============================================================================
- * BEHAVIOURAL DISCIPLINE
- * ============================================================================
- *
- * 1. No mocking framework; fakes, lambdas and manual queues.
- * 2. Read the implementation alongside the test. The two are designed to be
- *    read together; subtle asymmetries are invisible to a test author who
- *    only reads one side.
- * 3. Honest KDoc beats fake tests. If something is genuinely not testable on
- *    the JVM, say why and test it on a device — a pseudo-test that asserts on
- *    faked-out machinery proves nothing. Rules in Activity glue become a type
- *    where possible (CommandGate's Ticket, LauncherState's EditPermit); only what no
- *    type or test reaches gets a source scan in SourceGuardTest.
- * 4. Mutation check every fix: revert it, watch the new test fail, restore.
- * 5. Pin boundaries from both sides (the neighbouring values just below and
- *    just above), and never let a fixture re-implement the production logic
- *    it is supposed to check.
- * 6. When a fix breaks an existing test, first ask whether the test encoded
- *    the bug.
- * 7. Comments are sparse: the backtick name says what is tested. Comment only
- *    why a fixture or boundary was chosen, a bug the name does not make
- *    clear, or a harness trap.
- * ============================================================================
+ * Read the implementation beside the test: the asymmetries are invisible from one side. What the
+ * JVM cannot test is said in KDoc and tested on a device, never faked. A rule in Activity glue
+ * becomes a type where it can (Ticket, EditPermit); only what no type or test reaches gets a scan
+ * in SourceGuardTest. Comments are sparse — the backtick name says what is tested; comment only
+ * why a fixture or boundary was chosen, a bug the name does not make clear, or a harness trap.
  */
