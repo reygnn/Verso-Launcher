@@ -92,13 +92,14 @@ One module, one package. The process owns the data, an activity is a window (har
 - **Process:** `VersoApp` (the IO executor, `Core`, `Commands`, `Results`, the gate, the pick, the
   live window, `ProcessState`), `Core` (the one `LauncherState` and its stores), `Commands` and
   `Results` (the `~` commands' work and their queued results).
-- **Window:** `MainActivity` (refusals up front, picker, dialogs, edits, launching; the process
-  sees it only as a `LauncherWindow`), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`,
-  `RenameDialog`, `OutlinedViews`.
+- **Window:** `MainActivity` (refusals up front, picker, dialogs, edits; the process sees it only
+  as a `LauncherWindow`), `AppLauncher` (a start or "App info" in the entry's profile, a paused
+  profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `RenameDialog`,
+  `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
   default favorites), `LauncherState`, `CommandGate`, `PendingPick`, `SwipeGesture`, `Cleanup`,
-  `RestoreSteps`, `BackupFiles`, `ConfigJson`, `WallpaperPalette`, `HomeStyle`; the data
-  `AppEntry` and `VersoConfig` (immutable: an edit is a new one).
+  `RestoreSteps`, `BackupFiles`, `ConfigJson`, `WallpaperPalette`, `HomeStyle`,
+  `CommandDialogText`; the data `AppEntry` and `VersoConfig` (immutable: an edit is a new one).
 - **IO:** `ConfigStore`, `BackupStore`, `Apps` (enumeration, `~cleanup`'s check), `HomeCache`,
   `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it `logWarning`).
 

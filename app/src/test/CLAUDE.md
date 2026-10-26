@@ -18,6 +18,7 @@ Pure logic
   LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
                            (Turkish, İ, NFC), Collator sort, tags, reorder, recents,
                            default favorites
+  CommandDialogTextTest    what the ~cleanup and ~restore-saf dialogs say
   LauncherRowsTest         rowsFor per mode
   LauncherActionsTest      Enter and tap decisions, the "!!" tap
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
@@ -54,6 +55,7 @@ The window (R)
   MainActivityFlowsTest    the real Activity: commands refused, held or queued, picks,
                            ~restart, recreation, what happens before the first load
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
+  AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, TalkBack, the tap guard, the reorder pick
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits

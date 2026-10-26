@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -13,7 +12,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.os.UserHandle
 import android.os.UserManager
 import android.provider.DocumentsContract
@@ -129,7 +127,7 @@ class MainActivity : Activity() {
 
         homePage = HomePage(
             activity = this,
-            onLaunch = ::launch,
+            onLaunch = { launcher.launch(it) },
             onEdit = { if (editPermit() != null) promptRename(it) },
             onOpenDrawer = { pageTurn.open() },
             onOpenRecents = { pageTurn.openRecents() },
@@ -371,20 +369,9 @@ class MainActivity : Activity() {
     /** A "~cleanup" check found [orphans] (Commands): the dialog; its OK starts the removal run. */
     private fun offerCleanup(orphans: Orphans) {
         commandDialog?.dismiss()
-        // One line per section that has entries — no "0" lines, and no plural to get wrong.
-        val lines = buildList {
-            add(getString(R.string.cleanup_apps, orphans.keys.size))
-            add("")
-            if (orphans.favorites > 0) add(getString(R.string.cleanup_favorites, orphans.favorites))
-            if (orphans.hidden > 0) add(getString(R.string.cleanup_hidden, orphans.hidden))
-            if (orphans.names > 0) add(getString(R.string.cleanup_names, orphans.names))
-            if (orphans.tags > 0) add(getString(R.string.cleanup_tags, orphans.tags))
-            add("")
-            add(getString(R.string.cleanup_undo_note))
-        }
         commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle(R.string.cleanup_title)
-            .setMessage(lines.joinToString("\n"))
+            .setMessage(CommandDialogText.cleanup(orphans, ::words))
             .setPositiveButton(R.string.cleanup_remove) { _, _ ->
                 if (!app.commands.runCleanup(orphans.keys)) toast(getString(R.string.toast_busy))
             }
@@ -395,27 +382,15 @@ class MainActivity : Activity() {
     }
 
     /**
-     * A "~restore-saf" file was read (Commands): what it would set, all four counts — zeros too, a
-     * planted file that empties the favorites or hides apps must show — and the undo point. Only OK
-     * adopts; Cancel ends the pick quietly, and a dialog the page turned away from or the window
-     * left ends it with a word (Commands.answerPick).
+     * A "~restore-saf" file was read (Commands): what it would set. Only OK adopts; Cancel ends the
+     * pick quietly, and a dialog the page turned away from or the window left ends it with a word
+     * (Commands.answerPick).
      */
     private fun offerRestore(restored: VersoConfig) {
         commandDialog?.dismiss()
-        // The same labels as the cleanup dialog's.
-        val lines = listOf(
-            getString(R.string.restore_intro),
-            "",
-            getString(R.string.cleanup_favorites, restored.favorites.size),
-            getString(R.string.cleanup_hidden, restored.hidden.size),
-            getString(R.string.cleanup_names, restored.names.size),
-            getString(R.string.cleanup_tags, restored.tags.size),
-            "",
-            getString(R.string.restore_undo_note),
-        )
         commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle(R.string.restore_title)
-            .setMessage(lines.joinToString("\n"))
+            .setMessage(CommandDialogText.restore(restored, ::words))
             .setPositiveButton(R.string.restore_apply) { _, _ -> app.commands.answerPick(confirmed = true, byCancel = false) }
             .setNegativeButton(android.R.string.cancel) { _, _ -> app.commands.answerPick(confirmed = false, byCancel = true) }
             .create()
@@ -493,6 +468,8 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun words(id: Int, count: Int?): String = if (count == null) getString(id) else getString(id, count)
+
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
         Toast.makeText(this, text, duration).show()
 
@@ -507,7 +484,7 @@ class MainActivity : Activity() {
     /** A tap on a row or an Enter on the prompt. Internal for MainActivityFlowsTest. */
     internal fun onDrawerAction(action: DrawerAction<AppEntry>) {
         when (action) {
-            is DrawerAction.Launch -> launch(action.entry)
+            is DrawerAction.Launch -> launcher.launch(action.entry)
             is DrawerAction.ToggleHidden -> editPermit()?.let {
                 state.toggleHidden(it, action.entry.key)
                 afterToggle()
@@ -568,7 +545,7 @@ class MainActivity : Activity() {
             allTags = LauncherLogic.allTags(state.config.tags),
             // The dialog is dark on every wallpaper, so its text stays light whatever the palette.
             fgColor = DIALOG_TEXT,
-            onAppInfo = { openAppInfo(entry) },
+            onAppInfo = { launcher.openAppInfo(entry) },
         ) { name, tags ->
             // A run may have started while the dialog was up (a ~restore-saf read ending).
             val permit = editPermit() ?: return@show
@@ -584,7 +561,19 @@ class MainActivity : Activity() {
     // ---- apps ---------------------------------------------------------------
 
     private val launcherApps: LauncherApps by lazy { getSystemService(LauncherApps::class.java) }
-    private val userManager: UserManager by lazy { getSystemService(UserManager::class.java) }
+
+    private val launcher by lazy {
+        AppLauncher(
+            context = this,
+            system = AppLauncher.System(launcherApps, getSystemService(UserManager::class.java)),
+            userOf = { apps.userOf(it) },
+            say = { text, long -> toast(text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT) },
+            launched = { entry ->
+                state.recordLaunch(entry.key)
+                launchedApp = true
+            },
+        )
+    }
 
     // The process's app list (Core): enumeration, the cleanup check, a profile's user.
     private val apps get() = app.core.apps
@@ -601,22 +590,11 @@ class MainActivity : Activity() {
         override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) = appsMaybeChanged()
     }
 
-    /** The profile a tap on a paused app turned back on, and that app's label, for the "ready" toast. */
-    private var waitingForProfile: Pair<UserHandle, String>? = null
-    // Only an answer within PROFILE_WAIT_MS gets the toast: work apps turned on hours later must
-    // not announce an app nobody just asked for. Not cleared in onStop — the work challenge covers us.
-    private var waitingSince = 0L
-
     private val profilesChanged = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             appsMaybeChanged()
-            val waiting = waitingForProfile ?: return
             if (intent.action != Intent.ACTION_PROFILE_AVAILABLE) return
-            val user = intent.getParcelableExtra(Intent.EXTRA_USER, UserHandle::class.java)
-            if (user != waiting.first) return
-            waitingForProfile = null
-            if (SystemClock.uptimeMillis() - waitingSince > PROFILE_WAIT_MS) return
-            toast(getString(R.string.toast_app_ready, waiting.second), Toast.LENGTH_LONG)
+            launcher.profileAvailable(intent.getParcelableExtra(Intent.EXTRA_USER, UserHandle::class.java))
         }
     }
 
@@ -662,51 +640,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun launch(entry: AppEntry) {
-        val user = apps.userOf(entry)
-        val component = ComponentName(entry.packageName, entry.className)
-        // any app may refuse the launch: say so, never crash
-        @Suppress("TooGenericExceptionCaught") try {
-            when {
-                // The entry's profile is gone (a work profile removed since the list loaded).
-                user == null -> notFound(entry)
-                // A paused profile: the first tap only turns it back on; a toast says when the
-                // app is ready (profilesChanged), and the user decides whether to start it.
-                userManager.isQuietModeEnabled(user) -> {
-                    waitingForProfile = user to entry.label
-                    waitingSince = SystemClock.uptimeMillis()
-                    // Only the default home app may turn a profile on; anyone else gets a SecurityException.
-                    try {
-                        userManager.requestQuietModeEnabled(false, user)
-                    } catch (e: SecurityException) {
-                        waitingForProfile = null
-                        Log.w("Verso", "quiet mode denied: ${entry.key}", e)
-                        toast(getString(R.string.toast_not_default_home), Toast.LENGTH_LONG)
-                    }
-                }
-                // Component gone since the list loaded: startMainActivity would throw a
-                // SecurityException and misreport it as "denied".
-                !launcherApps.isActivityEnabled(component, user) -> {
-                    Log.w("Verso", "launch unavailable: ${entry.key}")
-                    notFound(entry)
-                }
-                else -> {
-                    launcherApps.startMainActivity(component, user, null, null)
-                    // Only a launch that actually started counts as recent.
-                    state.recordLaunch(entry.key)
-                    launchedApp = true
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.w("Verso", "launch denied: ${entry.key}", e)
-            toast(getString(R.string.toast_denied, entry.label))
-        } catch (e: RuntimeException) {
-            // Dead system_server or similar — don't crash HOME.
-            Log.w("Verso", "launch failed: ${entry.key}", e)
-            notFound(entry)
-        }
-    }
-
     private fun applyPalette(p: Palette) {
         app.palette = p
         homePage.applyPalette(p)
@@ -716,31 +649,11 @@ class MainActivity : Activity() {
         window.insetsController?.setSystemBarsAppearance(if (p.darkBarIcons) lightBars else 0, lightBars)
     }
 
-    private fun notFound(entry: AppEntry) =
-        toast(getString(R.string.toast_not_found, entry.label))
-
-    /** The system "App info" screen, in the entry's profile; guarded like [launch]. */
-    private fun openAppInfo(entry: AppEntry) {
-        val user = apps.userOf(entry) ?: return notFound(entry)
-        // the settings app may refuse: say so, never crash
-        @Suppress("TooGenericExceptionCaught") try {
-            launcherApps.startAppDetailsActivity(ComponentName(entry.packageName, entry.className), user, null, null)
-        } catch (e: SecurityException) {
-            Log.w("Verso", "app info denied: ${entry.key}", e)
-            toast(getString(R.string.toast_denied, entry.label))
-        } catch (e: RuntimeException) {
-            Log.w("Verso", "app info failed: ${entry.key}", e)
-            notFound(entry)
-        }
-    }
-
     private companion object {
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
 
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
-        /** How long a paused profile's "ready" toast stays expected after the tap. */
-        const val PROFILE_WAIT_MS = 2 * 60 * 1000L
     }
 }
 
