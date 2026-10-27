@@ -30,30 +30,24 @@
     <string name="action_app_info">App-Info</string>
     <string name="toast_not_found">Nicht gefunden: %1$s</string>
     <string name="toast_denied">Verweigert: %1$s</string>
-    <!-- Einmal-Befehle mit "~". %1$s in toast_backup_ok ist der Dateiname, in
-         toast_restore_ok die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
-    <string name="toast_busy">Beschäftigt — laufenden Befehl abwarten</string>
+    <!-- Einmal-Befehle mit "~". -->
     <string name="toast_save_failed">Nicht gespeichert</string>
     <string name="toast_config_unreadable">Konfiguration unlesbar, leer gestartet — erst ~restart, sonst ~restore</string>
-    <string name="toast_restore_write_failed">Nicht gespeichert — nichts wiederhergestellt</string>
     <string name="toast_not_loaded">Konfiguration noch nicht geladen — gleich nochmal versuchen</string>
     <string name="toast_not_default_home">Für Arbeits-Apps Verso als Standard-Startseite festlegen</string>
-    <string name="toast_backup_ok">Backup: Download/Verso/%1$s</string>
-    <string name="toast_backup_failed">Backup fehlgeschlagen — nichts geschrieben</string>
-    <string name="toast_restore_ok">Wiederhergestellt (Sicherung %1$s) — ~undo nimmt es zurück</string>
+    <string name="toast_backup_ok">Gesichert — ~restore wählt die Datei auf jedem Handy</string>
+    <string name="toast_backup_failed">Backup fehlgeschlagen — anderen Ort versuchen</string>
+    <string name="toast_restore_ok">Wiederhergestellt — ~undo nimmt es zurück</string>
     <string name="toast_restore_same">Nichts zu tun — diese Konfiguration ist schon aktiv</string>
-    <string name="toast_restore_list_failed">Download/Verso nicht lesbar — ~restore-saf versuchen</string>
-    <string name="toast_restore_undo_failed">Nichts geändert — aktuelle Konfiguration nicht sicherbar</string>
+    <string name="toast_restore_undo_failed">Nichts geändert — aktuelle Konfiguration für ~undo nicht sicherbar</string>
     <string name="toast_restore_failed">Nichts geändert — keine lesbare Konfiguration</string>
-    <string name="toast_restore_saf_dropped">~restore-saf abgebrochen — die gewählte Datei war noch nicht übernommen</string>
+    <string name="toast_restore_dropped">~restore abgebrochen — die gewählte Datei war noch nicht übernommen</string>
     <string name="toast_restore_pending">Eine gewählte Datei wird noch übernommen — abwarten, oder ~restart bricht ab</string>
-    <string name="toast_restore_none">Kein Backup — erst ~backup, oder Datei wählen: ~restore-saf</string>
-    <!-- ~undo: der neueste Rücksprungpunkt eines ~restore oder ~undo. %1$s in toast_undo_ok
-         ist die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts, den es selbst anlegt. -->
-    <string name="toast_undo_ok">Rückgängig gemacht (Sicherung %1$s) — ~undo stellt es wieder her</string>
-    <string name="toast_undo_same">Nichts rückgängig zu machen — die letzte Sicherung ist schon aktiv</string>
-    <string name="toast_undo_none">Nichts rückgängig zu machen — keine Sicherung in Download/Verso</string>
-    <!-- Die Bestätigung von ~restore-saf: die Einleitung, dann je Abschnitt eine count_*-Zeile. -->
+    <!-- ~undo tauscht die Konfiguration mit der, die das letzte ~restore oder ~undo ersetzt hat. -->
+    <string name="toast_undo_ok">Rückgängig gemacht — ~undo stellt es wieder her</string>
+    <string name="toast_undo_same">Nichts rückgängig zu machen — diese Konfiguration ist schon aktiv</string>
+    <string name="toast_undo_none">Noch nichts rückgängig zu machen</string>
+    <!-- Die Bestätigung von ~restore: die Einleitung, dann je Abschnitt eine count_*-Zeile. -->
     <string name="count_favorites">Favoriten: %1$d</string>
     <string name="count_hidden">Ausgeblendet: %1$d</string>
     <string name="count_names">Eigene Namen: %1$d</string>
@@ -61,8 +55,8 @@
     <string name="restore_title">Diese Datei übernehmen?</string>
     <string name="restore_apply">Übernehmen</string>
     <string name="restore_intro">Sie ersetzt die ganze Konfiguration durch:</string>
-    <string name="restore_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-restore): ~undo nimmt es zurück.</string>
-    <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
+    <string name="restore_undo_note">Die aktuelle Konfiguration bleibt erhalten: ~undo nimmt es zurück.</string>
+    <string name="toast_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Eine Zeile oder ein Favorit, wie ein Screenreader sie nimmt: der App-Name, daneben der
          Zustand (stateDescription), und was Doppeltippen tut (die Beschriftung des Klicks;
          TalkBack setzt "Doppeltippen zum" davor). %1$s in den Tag-Texten ist der Tag. -->

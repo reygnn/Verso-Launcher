@@ -31,31 +31,25 @@
     <string name="action_app_info">App info</string>
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
-    <!-- One-shot "~" commands. %1$s in toast_backup_ok is the written file name; in
-         toast_restore_ok the time (HH:mm) in the undo point's name. -->
-    <string name="toast_busy">busy — wait for the running command</string>
+    <!-- One-shot "~" commands. -->
     <string name="toast_save_failed">not saved</string>
     <!-- verso.json was there but could not be read: Verso started empty, and the next change writes over it. -->
     <string name="toast_config_unreadable">config unreadable, started empty — ~restart first, else ~restore</string>
-    <string name="toast_restore_write_failed">restore not saved — nothing restored</string>
     <string name="toast_not_loaded">config not loaded yet — try again in a moment</string>
     <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
-    <string name="toast_backup_ok">backup: Download/Verso/%1$s</string>
-    <string name="toast_backup_failed">backup failed — nothing written</string>
-    <string name="toast_restore_ok">restored (undo point %1$s) — ~undo takes it back</string>
+    <string name="toast_backup_ok">backed up — ~restore picks the file on any phone</string>
+    <string name="toast_backup_failed">backup failed — try another place</string>
+    <string name="toast_restore_ok">restored — ~undo takes it back</string>
     <string name="toast_restore_same">nothing to restore — that config is already in use</string>
-    <string name="toast_restore_list_failed">Download/Verso unreadable — try ~restore-saf</string>
-    <string name="toast_restore_undo_failed">nothing changed — could not save the current config</string>
+    <string name="toast_restore_undo_failed">nothing changed — could not keep the current config for ~undo</string>
     <string name="toast_restore_failed">nothing changed — not a readable config file</string>
-    <string name="toast_restore_saf_dropped">~restore-saf dropped — the picked file was not restored yet</string>
+    <string name="toast_restore_dropped">~restore dropped — the picked file was not restored yet</string>
     <string name="toast_restore_pending">a picked file is still being restored — wait, or ~restart drops it</string>
-    <string name="toast_restore_none">no backup — run ~backup, or pick one: ~restore-saf</string>
-    <!-- ~undo: the newest undo point of a ~restore or ~undo. %1$s in toast_undo_ok is the
-         time (HH:mm) in the name of the undo point it left itself. -->
-    <string name="toast_undo_ok">undone (undo point %1$s) — ~undo again redoes it</string>
-    <string name="toast_undo_same">nothing to undo — the last undo point is in use</string>
-    <string name="toast_undo_none">nothing to undo — no undo point in Download/Verso</string>
-    <!-- The ~restore-saf confirmation: the intro, then one count_* line per section. -->
+    <!-- ~undo swaps the config with the one the last ~restore or ~undo replaced. -->
+    <string name="toast_undo_ok">undone — ~undo again redoes it</string>
+    <string name="toast_undo_same">nothing to undo — that config is in use</string>
+    <string name="toast_undo_none">nothing to undo yet</string>
+    <!-- The ~restore confirmation: the intro, then one count_* line per section. -->
     <string name="count_favorites">favorites: %1$d</string>
     <string name="count_hidden">hidden: %1$d</string>
     <string name="count_names">custom names: %1$d</string>
@@ -63,8 +57,8 @@
     <string name="restore_title">Restore this file?</string>
     <string name="restore_apply">Restore</string>
     <string name="restore_intro">It replaces the whole config with:</string>
-    <string name="restore_undo_note">The current config is saved first (verso-pre-restore): ~undo takes it back.</string>
-    <string name="toast_restore_no_picker">no file picker on this device</string>
+    <string name="restore_undo_note">The current config is kept: ~undo takes it back.</string>
+    <string name="toast_no_picker">no file picker on this device</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
          (stateDescription), and what a double-tap does (the click's label; TalkBack adds
          "double-tap to"). %1$s in the tag ones is the tag. -->

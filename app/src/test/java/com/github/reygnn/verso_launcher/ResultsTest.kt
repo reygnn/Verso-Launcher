@@ -26,7 +26,7 @@ class ResultsTest {
         val window = FakeWindow(front = false)
         live = window
         results.report("first")
-        results.keep("second")                  // as an IO step queues one
+        results.report("second")
         assertTrue("nothing over another app", window.shown.isEmpty())
         window.front = true
         results.flush()

@@ -223,6 +223,16 @@ class LauncherLogicTest {
         assertEquals("Gmail", LauncherLogic.resolveNameOverride("Gmail", " Gmail "))
     }
 
+    // ---- ~backup's file name ---------------------------------------------------
+
+    /** The pattern of the backups up to 0.5.9, so old and new sort side by side in Download/Verso. */
+    @Test fun `a backup is offered under a name stamped to the second`() {
+        assertEquals(
+            "verso-2026-10-13_120745.json",
+            LauncherLogic.backupFileName(java.time.LocalDateTime.of(2026, 10, 13, 12, 7, 45)),
+        )
+    }
+
     // ---- parseCommand -------------------------------------------------------
 
     @Test fun `every command parses, a bare tilde and the dropped ones do not`() {
@@ -233,23 +243,20 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.parseCommand("~reset"))
         assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~backup"))
         assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
-        assertEquals(Command.RESTORE_SAF, LauncherLogic.parseCommand("~restore-saf"))
         assertEquals(Command.UNDO, LauncherLogic.parseCommand("~undo"))
     }
 
-    /** "~restore" is a strict prefix of "~restore-saf"; only exact matching keeps them apart. */
-    @Test fun `restore and restore-saf do not shadow each other`() {
-        assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
-        assertEquals(Command.RESTORE_SAF, LauncherLogic.parseCommand("~restore-saf"))
-        assertNull(LauncherLogic.parseCommand("~restore-"))
-        assertNull(LauncherLogic.parseCommand("~restore-safe"))
-        assertNull(LauncherLogic.parseCommand("~restoresaf"))
+    /** "~restore" now picks a file itself: the old spelling of that is no command any more. */
+    @Test fun `~restore-saf and ~cleanup are gone`() {
+        assertNull(LauncherLogic.parseCommand("~restore-saf"))
+        assertNull(LauncherLogic.resolveCommand("~restore-saf"))
+        assertNull(LauncherLogic.parseCommand("~cleanup"))
+        assertNull(LauncherLogic.resolveCommand("~cleanup"))
     }
 
     @Test fun `commands are case-insensitive`() {
         assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~BACKUP"))
         assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~ReStOrE"))
-        assertEquals(Command.RESTORE_SAF, LauncherLogic.parseCommand("~Restore-SAF"))
     }
 
     /** Under tr the "I" of "~RESTORE" would fold to a dotless i. */
@@ -282,11 +289,8 @@ class LauncherLogicTest {
 
     @Test fun `typing narrows the overview`() {
         assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~b").map { it.first })
-        assertEquals(
-            listOf("~restart", "~restore", "~restore-saf"),
-            LauncherLogic.commandsMatching("~r").map { it.first },
-        )
-        assertEquals(listOf("~restore-saf"), LauncherLogic.commandsMatching("~restore-").map { it.first })
+        assertEquals(listOf("~restart", "~restore"), LauncherLogic.commandsMatching("~r").map { it.first })
+        assertEquals(listOf("~restore"), LauncherLogic.commandsMatching("~resto").map { it.first })
         assertEquals(listOf("~undo"), LauncherLogic.commandsMatching("~u").map { it.first })
         assertEquals(emptyList<String>(), LauncherLogic.commandsMatching("~zzz").map { it.first })
     }
@@ -296,7 +300,7 @@ class LauncherLogicTest {
         assertEquals(Command.UNDO, LauncherLogic.resolveCommand("~u"))
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
-        assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
+        assertEquals(Command.RESTORE, LauncherLogic.resolveCommand("~resto"))
         assertNull(LauncherLogic.resolveCommand("~r"))
     }
 
@@ -318,13 +322,13 @@ class LauncherLogicTest {
     @Test fun `an unambiguous abbreviation resolves`() {
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
-        assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
+        assertEquals(Command.RESTORE, LauncherLogic.resolveCommand("~resto"))
     }
 
-    /** "~restore" both names a command and prefixes "~restore-saf". */
-    @Test fun `an exact match beats a prefix`() {
-        assertEquals(Command.RESTORE, LauncherLogic.resolveCommand("~restore"))
-        assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-saf"))
+    @Test fun `an exact spelling resolves`() {
+        for ((spelling, command) in LauncherLogic.COMMANDS.filter { it.second != Command.CRASH }) {
+            assertEquals(spelling, command, LauncherLogic.resolveCommand(spelling))
+        }
     }
 
     @Test fun `a bare tilde resolves to nothing`() {
@@ -334,7 +338,6 @@ class LauncherLogicTest {
     @Test fun `an ambiguous abbreviation resolves to nothing`() {
         assertNull(LauncherLogic.resolveCommand("~r"))
         assertNull(LauncherLogic.resolveCommand("~re"))
-        assertNull(LauncherLogic.resolveCommand("~restor"))
         assertNull(LauncherLogic.resolveCommand("~rest"))  // ~restart or ~restore
     }
 
@@ -349,7 +352,7 @@ class LauncherLogicTest {
     @Test fun `commandsMatching and resolveCommand are case-insensitive too`() {
         assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~B").map { it.first })
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~B"))
-        assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~RESTORE-"))
+        assertEquals(Command.RESTORE, LauncherLogic.resolveCommand("~RESTO"))
         assertEquals(Command.UNDO, LauncherLogic.resolveCommand("~UNDO"))
     }
 

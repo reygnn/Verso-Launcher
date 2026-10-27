@@ -11,8 +11,8 @@ import java.util.concurrent.RejectedExecutionException
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
- * write verso.json concurrently), the launcher's data ([core]), the command gate, the pending
- * pick, the [ProcessState] and the label/palette caches.
+ * write verso.json concurrently), the launcher's data ([core]), the pending pick, the
+ * [ProcessState] and the label/palette caches.
  */
 class VersoApp : Application() {
 
@@ -30,14 +30,7 @@ class VersoApp : Application() {
     /** What a recreated LauncherState takes over: the recents, the launches, the two flags, the messages. */
     internal val process = ProcessState()
 
-    /**
-     * The "~" commands, one at a time across activity instances (hard rule 15): a recreation
-     * finds a run its predecessor left going still going, and is refused until it ends. Main
-     * thread only. A run's end posts a look at a pick waiting for it ([pick]).
-     */
-    internal val gate = CommandGate(onIdle = { onMain { commands.adoptPendingPick() } })
-
-    /** The "~restore-saf" pick from the picker's answer until its adoption starts. Main thread only. */
+    /** The "~restore" pick from the picker's answer until its adoption. Main thread only. */
     internal val pick = PendingPick()
 
     /**
@@ -54,7 +47,7 @@ class VersoApp : Application() {
      */
     internal val core by lazy { Core(this) }
 
-    /** The "~" commands' work, one at a time through [gate]; their results go through [results]. */
+    /** The "~" commands' work; their results go through [results]. */
     internal val commands by lazy { Commands(this) }
 
     /** The commands' results, queued until a window is in front (ProcessState.messages). */
@@ -84,7 +77,7 @@ class VersoApp : Application() {
     /**
      * A crash, on the watchdog's thread, so the system starts HOME again with a free IO thread and
      * Guru reports the stuck call. What it cuts off is covered: a torn verso.json by its .bak
-     * (hard rule 4), a restore before its write by the old config (hard rule 7).
+     * (hard rule 4); a save still queued is lost unless onStop wrote it (flushSave).
      */
     private fun stalled(ioThread: Thread) {
         if (StallTrips(File(filesDir, StallTrips.FILE)).allow()) throw IoStallException(ioThread.stackTrace)

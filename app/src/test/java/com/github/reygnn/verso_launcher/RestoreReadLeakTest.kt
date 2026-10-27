@@ -21,7 +21,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * A "~restore-saf" read that never returns (a provider that never hands the file over) runs on a thread of its own
+ * A "~restore" read that never returns (a provider that never hands the file over) runs on a thread of its own
  * (hard rule 3). It must not keep the activity that started it alive once that one is destroyed.
  * A class of its own: MainActivityFlowsTest's controller holds its activity for the whole test.
  */
@@ -57,7 +57,7 @@ class RestoreReadLeakTest {
         val picked = Uri.parse("content://cloud/stuck.json")
         shadowOf(activity.contentResolver).registerInputStream(picked, hanging())
         val prompt = activity.window.decorView.collect<EditText>().single()
-        prompt.setText("~restore-saf")
+        prompt.setText("~restore")
         prompt.onEditorAction(EditorInfo.IME_ACTION_GO)
         val request = shadowOf(activity).nextStartedActivityForResult
         shadowOf(activity).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(picked))
@@ -66,7 +66,7 @@ class RestoreReadLeakTest {
         return WeakReference(activity)
     }
 
-    @Test fun `a hanging ~restore-saf read keeps no destroyed activity alive`() {
+    @Test fun `a hanging ~restore read keeps no destroyed activity alive`() {
         val gone = destroyedWhileReading()
         assertTrue("the read is still hanging", Thread.getAllStackTraces().keys.any { it.name == "verso-restore-read" })
         repeat(20) {

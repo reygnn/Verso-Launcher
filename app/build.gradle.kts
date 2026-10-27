@@ -37,9 +37,8 @@ android {
         versionCode = 46 + if (dailyDriver) 1 else 0
         versionName = "0.5.9" + if (dailyDriver) "-daily" else ""
 
-        // On-device tests only for what a JVM can't reproduce: the real MediaStore behind the
-        // Downloads backup (its renaming of taken names, pending rows, ownership) and Android's
-        // own org.json. Everything else stays a JVM test.
+        // On-device tests only for what a JVM can't reproduce: Android's own org.json. Everything
+        // else stays a JVM test.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

@@ -15,20 +15,15 @@ import android.provider.Telephony
  * current one; what touches a window goes to the live instance, if any (VersoApp.instance), which
  * renders the state anew whenever it is created. [reset] ("~restart") replaces the state: a fresh
  * one reads verso.json again (and recents.txt / usage.txt if they were never read); the old one's
- * late hand-backs are dropped. Only "~restart" resets, and it runs alone (the gate), so no run's
- * hand-back can be among the dropped ones.
+ * late hand-backs are dropped. Only "~restart" resets; no command has a hand-back through the
+ * state (a "~backup" write and a "~restore" read hand back to the process), so none is dropped.
  */
 internal class Core(private val app: VersoApp) {
 
     val store = ConfigStore(dir = app.filesDir, log = ::logWarning)
 
-    /** The application's resolver: a MediaStore call that hangs holds no activity. */
-    val backupStore = BackupStore(
-        resolver = app.contentResolver,
-        subDir = BackupFiles.DIR,
-        log = ::logWarning,
-        owner = app.packageName,
-    )
+    /** The config the last "~restore" or "~undo" replaced, beside verso.json. */
+    val undoSlot = UndoSlot(dir = app.filesDir, log = ::logWarning)
 
     val apps = Apps(
         launcherApps = app.getSystemService(LauncherApps::class.java),
@@ -73,7 +68,6 @@ internal class Core(private val app: VersoApp) {
                 write = { log, at -> UsageLog.write(app.filesDir, log, at) },
             ),
             process = app.process,
-            idle = { app.gate.idle() },
             now = System::currentTimeMillis,
             // A result: said now if a window is in front, else queued for the next start.
             onSaveFailed = { app.results.report(app.getString(R.string.toast_save_failed)) },

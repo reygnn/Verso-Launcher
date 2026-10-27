@@ -37,9 +37,9 @@ with its reason — the performance points after measuring; Guru's own points be
   `!!` pick dropped after a move (a laid-out list longer than the screen, or apps in
   `MainActivityFlowsTest`). The rules beneath are pinned (`LauncherStateTest`, `SwipeGestureTest`,
   `LauncherActionsTest`); the wiring is used on the devices every day.
-- The `~restore-saf` toast's wording (audit 2026-10-21 (2) #24, "nothing changed — …" like the
-  other failures): it now says "dropped — the picked file was not restored yet", which says as
-  much.
+- The dropped-pick toast's wording (then `~restore-saf`, now `~restore`; audit 2026-10-21 (2)
+  #24, "nothing changed — …" like the other failures): it now says "dropped — the picked file was
+  not restored yet", which says as much.
 - C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
   page" jump. Guarded to fire only on the action change, not per keystroke
   (`AppDrawer.applyFilter`). Discarded until a reproduction shows the single restart hurts.
@@ -49,12 +49,12 @@ with its reason — the performance points after measuring; Guru's own points be
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in: by design — it
   builds the window anew, and a new window shows home; the rebuilt page is the answer.
 - One `uiAction` net for the main-thread catches (crash-only plan, 2026-10-18): each of them
-  (`startGuarded`, the launch, `openAppInfo`, the `~restore-saf` picker) says its own message by
+  (`startGuarded`, the launch, `openAppInfo`, the document pickers) says its own message by
   exception type; one `onError` would lose those or rebuild the catch inside it. No gain.
 
 ## Kept as an idea
 
-- A `~restore-saf` pick lives in memory (`VersoApp.pick`) until its adoption starts: a process
+- A `~restore` pick lives in memory (`VersoApp.pick`) until its adoption starts: a process
   that dies before then loses it (documented in `CAVEATS.md`). Only a pick on disk (a small
   journal) would survive that.
 

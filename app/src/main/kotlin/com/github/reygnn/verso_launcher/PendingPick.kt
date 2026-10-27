@@ -1,18 +1,17 @@
 package com.github.reygnn.verso_launcher
 
 /**
- * A "~restore-saf" pick, from the moment the picker answers until its adoption starts. Held by
- * the process (VersoApp.pick), not by an activity: a recreation or a stop in between loses
- * nothing, and whichever instance is alive asks the user and adopts it.
+ * A "~restore" pick, from the moment the picker answers until its adoption. Held by the process
+ * (VersoApp.pick), not by an activity: a recreation or a stop in between loses nothing, and
+ * whichever instance is alive asks the user and adopts it.
  *
- * A picked file is any file, also one another app planted in Download/Verso to hide or rename
- * apps: so it is read, then shown with its counts and adopted only on the user's OK, then waits
- * for an idle gate and a loaded config.
+ * A picked file is any file, also one another app planted in Download to hide or rename apps: so
+ * it is read, then shown with its counts and adopted only on the user's OK, once the config is
+ * loaded.
  *
- * While a pick is pending, `~restore` and `~restore-saf` are refused (MainActivity.runCommand),
- * nothing else: edits and the other commands go on, so a read that hangs on a slow provider
- * blocks only a second restore. So the run waited for is never a restore: the pick's adoption
- * right behind it would replace what that restore brought.
+ * While a pick is pending, `~restore` and `~undo` are refused (MainActivity.runCommand), nothing
+ * else: edits and the other commands go on, so a read that hangs on a slow provider blocks only a
+ * second swap — which the pick's adoption right behind it would undo.
  *
  * Main thread only. Pure, so the states are JVM-testable.
  */
@@ -26,7 +25,7 @@ internal class PendingPick {
         data class Read(val restored: VersoConfig) : State
         /** The user is being asked (a dialog with the counts). */
         data class Asked(val restored: VersoConfig) : State
-        /** Confirmed; waits for an idle gate and a loaded config. */
+        /** Confirmed; waits for a loaded config. */
         data class Confirmed(val restored: VersoConfig) : State
     }
 
@@ -34,7 +33,7 @@ internal class PendingPick {
     // Counts picks, so a read that was dropped or superseded meanwhile is recognised when it lands.
     private var picks = 0
 
-    /** A pick is being read, asked about or waits to be adopted: `~restore` and `~restore-saf` wait for it. */
+    /** A pick is being read, asked about or waits to be adopted: `~restore` and `~undo` wait for it. */
     val pending: Boolean get() = state != State.None
 
     /** The picker answered: a read of the returned number starts. */

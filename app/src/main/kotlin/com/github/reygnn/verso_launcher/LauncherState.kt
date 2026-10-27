@@ -6,12 +6,11 @@ import java.util.concurrent.atomic.AtomicReference
  * The launcher's data — config, enumerated apps, recents — and the rules that keep it consistent
  * while a background load and the user's taps overlap. Plays the ViewModel role, in plain Kotlin.
  *
- * Threading: every public member but [writeRestored] (an IO step of a restore) is main-thread
- * only; disk and LauncherApps work runs on [io], results come back through [main]. The IO side
- * reads only the @Volatile counter, and writes only the atomics:
+ * Threading: every public member is main-thread only; disk and LauncherApps work runs on [io],
+ * results come back through [main]. The IO side reads only the @Volatile counter, and writes only
+ * the atomic:
  *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
  *   unsaved        — set by [save], taken by whoever writes first: a save's IO task or [flushSave].
- *   process.seedPending.
  * Nothing changes the config before it is loaded (no [EditPermit] is issued, [adopt] refuses),
  * so a first load lands as read.
  * An enumeration carries no config (system labels only); custom names are applied on main from
@@ -23,11 +22,8 @@ import java.util.concurrent.atomic.AtomicReference
  * @param enumerateApps null if the enumeration failed — the last good list is kept; an
  *   incomplete one is shown but retried on the next resume ([needsRefresh]).
  * @param process what outlives this instance. Its seedPending ends with the seeding itself,
- *   [toggleFavorite], [adopt] and [writeRestored]; while it is set the favorites are empty (a
- *   fresh config has none, the first toggle ends it), so no other edit can touch them.
- * @param idle the command gate's permit, null while a "~" command runs: seeding the default
- *   favorites is an edit like any other (hard rule 15) — a restore's write must not be
- *   overwritten by it.
+ *   [toggleFavorite] and [adopt]; while it is set the favorites are empty (a fresh config has
+ *   none, the first toggle ends it), so no other edit can touch them.
  * @param onConfigUnusable verso.json was there but could not be read or parsed: it loaded as the
  *   empty config (hard rule 4), and the next change writes over it. Called once per load that
  *   lands, so the user hears of it before an edit does.
@@ -43,7 +39,6 @@ internal class LauncherState(
     private val recentsFile: RecentsFile,
     private val usageFile: UsageFile,
     private val process: ProcessState,
-    private val idle: () -> CommandGate.Idle?,
     private val now: () -> Long,
     private val onSaveFailed: () -> Unit,
     private val onConfigUnusable: () -> Unit,
@@ -63,10 +58,7 @@ internal class LauncherState(
     var appsLoaded = false
         private set
 
-    /**
-     * Refresh on resume even without a package change: no package event retries a failed or
-     * incomplete load, nor a seeding a running "~" command held back.
-     */
+    /** Refresh on resume even without a package change: no package event retries a failed or incomplete load. */
     val needsRefresh: Boolean
         get() = !configLoaded || !lastLoadCommitted || process.seedPending.get()
 
@@ -84,17 +76,13 @@ internal class LauncherState(
 
     /**
      * Proof an edit may run: the config was loaded when it was issued (hard rule 5; it never
-     * unloads) and no "~" command runs (hard rule 15) — [current] is false once one has started
-     * since. Every edit takes one, so an edit path that skips either check does not compile. Why
-     * no edit during a command: its save, queued behind a restore's IO step, would write the old
-     * config back over the restored one.
+     * unloads). Every edit takes one, so an edit path that skips the check does not compile, and
+     * honours only its own: a permit of another state (one "~restart" replaced) edits nothing here.
      */
-    class EditPermit internal constructor(private val idle: CommandGate.Idle) {
-        val current: Boolean get() = idle.current
-    }
+    class EditPermit internal constructor(internal val from: LauncherState)
 
     /** Null before the config is loaded: an edit then would land on the empty default. */
-    fun editPermit(idle: CommandGate.Idle): EditPermit? = if (configLoaded) EditPermit(idle) else null
+    fun editPermit(): EditPermit? = if (configLoaded) EditPermit(this) else null
 
     @Volatile private var loadGeneration = 0
 
@@ -150,13 +138,9 @@ internal class LauncherState(
                     }
                     return@Runnable
                 }
-                // Still pending here means nothing touched the favorites since the request. While a
-                // "~" command runs there is no permit: the wait stays, a later refresh seeds.
-                val seedPermit = if (configLoaded && loaded != null && process.seedPending.get()) {
-                    idle()?.let(::editPermit)
-                } else null
+                // Still pending here means nothing touched the favorites since the request.
                 var seeded = false
-                if (seedPermit != null) {
+                if (configLoaded && loaded != null && process.seedPending.get()) {
                     process.seedPending.set(false)
                     if (seeds.isNotEmpty() && cfg.favorites.isEmpty()) {
                         cfg = cfg.copy(favorites = cfg.favorites + seeds)
@@ -226,14 +210,14 @@ internal class LauncherState(
     }
 
     fun toggleHidden(permit: EditPermit, key: String) {
-        if (!permit.current) return
+        if (permit.from !== this) return
         cfg = cfg.copy(hidden = cfg.hidden.toggled(key))
         mutated()
     }
 
     /** The user's own favorites, even none after a toggle back: no default is seeded over them. */
     fun toggleFavorite(permit: EditPermit, key: String) {
-        if (!permit.current) return
+        if (permit.from !== this) return
         cfg = cfg.copy(favorites = cfg.favorites.toggled(key))
         process.seedPending.set(false)
         mutated()
@@ -241,14 +225,14 @@ internal class LauncherState(
 
     /** An app left with no tags loses its key: the file drops empty lists, memory must match. */
     fun toggleTag(permit: EditPermit, key: String, tag: String) {
-        if (!permit.current) return
+        if (permit.from !== this) return
         cfg = cfg.copy(tags = cfg.tags.withList(key, LauncherLogic.toggleTag(cfg.tags[key], tag)))
         mutated()
     }
 
     /** False, nothing saved, when the move is impossible or a no-op. */
     fun moveFavorite(permit: EditPermit, pickedKey: String, targetKey: String): Boolean {
-        if (!permit.current) return false
+        if (permit.from !== this) return false
         val newOrder = LauncherLogic.reorder(cfg.favorites, pickedKey, targetKey)
             ?: return false
         cfg = cfg.copy(favorites = newOrder)
@@ -258,7 +242,7 @@ internal class LauncherState(
 
     /** A blank name, or one equal to [systemLabel], clears the override; [tags] arrive canonical. */
     fun rename(permit: EditPermit, key: String, systemLabel: String, name: String, tags: List<String>) {
-        if (!permit.current) return
+        if (permit.from !== this) return
         // Both sides cleaned: the dialog starts from the label cut to 100 chars, and another
         // profile's badged label is built from the cleaned one, so it can be longer (and may carry
         // bidi isolates) — an untouched OK must not turn it into a custom name.
@@ -291,27 +275,37 @@ internal class LauncherState(
 
     /** "%": the plain drawer by usage, or back to A to Z. Null, nothing saved, when refused. */
     fun toggleOrder(permit: EditPermit): Boolean? {
-        if (!permit.current) return null
+        if (permit.from !== this) return null
         cfg = cfg.copy(byUsage = !cfg.byUsage)
         mutated()
         return cfg.byUsage
     }
 
     /**
-     * IO thread: writes a restored config to verso.json (hard rule 7) and, once it is written,
-     * ends any wait to seed the default favorites — the restored favorites, or none, are the
-     * user's (hard rule 10), even when the hand-back to [adopt] is lost to a recreation.
+     * A "~restore" or "~undo" (hard rule 7): [next] replaces the config, once [keepUndo] has kept the
+     * one it replaces (no undo point, no restore). Main thread, one step: no edit can come between
+     * the undo point and the swap.
      */
-    fun writeRestored(payload: String): Boolean =
-        synchronized(writeLock) { configFile.write(payload) }.also { written -> if (written) process.seedPending.set(false) }
+    fun replace(next: VersoConfig, keepUndo: (String) -> Boolean): Replaced = when {
+        !configLoaded -> Replaced.NOT_LOADED
+        next == cfg -> Replaced.SAME
+        !keepUndo(configFile.serialize(cfg)) -> Replaced.UNDO_FAILED
+        else -> {
+            adopt(next)
+            Replaced.DONE
+        }
+    }
 
-    /** False, nothing adopted, before the first load: it would land over the restore. No save —
-     *  the restore has written verso.json already — and no re-enumeration: the apps are the same. */
+    /**
+     * False, nothing adopted, before the first load: it would land over the restore. Saved like any
+     * edit; no re-enumeration: the apps are the same.
+     */
     fun adopt(restored: VersoConfig): Boolean {
         if (!configLoaded) return false
         cfg = restored
         // The restored favorites, or none, are the user's.
         process.seedPending.set(false)
+        mutated()
         relabel()
         onRefreshed(true, true)
         return true

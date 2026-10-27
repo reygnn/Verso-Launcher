@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** A "~restore-saf" pick's states: reading, read, asked, confirmed, gone — and a read that lands too late. */
+/** A "~restore" pick's states: reading, read, asked, confirmed, gone — and a read that lands too late. */
 class PendingPickTest {
 
     private val pick = PendingPick()

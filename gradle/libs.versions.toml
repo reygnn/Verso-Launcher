@@ -16,8 +16,8 @@ json   = "20260814"
 # EditText widgets) on the JVM. 4.16.1 is the version that ships an SDK 36 android-all
 # jar and supports JDK 21 — earlier lines top out below API 36. OK to upgrade.
 robolectric = "4.16.1"
-# Test-only — the on-device (androidTest) runner, for the MediaStore behaviour of the
-# Downloads backup that no JVM test can reproduce. Same versions as darkroom.
+# Test-only — the on-device (androidTest) runner, for behaviour no JVM test can reproduce
+# (Android's own org.json, ConfigJsonInstrumentedTest). Same versions as darkroom.
 androidxTestExt    = "1.3.0"
 androidxTestRunner = "1.6.2"
 # Build-only — static analysis (./gradlew detekt, part of check); a Gradle plugin, never in

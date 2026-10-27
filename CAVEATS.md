@@ -22,12 +22,8 @@ undone from `verso.json.bak` at the next start. But a file that cannot be read �
 read error the system reports, which looks the same — loads as an empty config (no favorites,
 nothing hidden, no default favorites either), and the next change writes over it. A toast says
 so, once per load. If the read error was passing, the file is still there until you change
-something: run `~restart` first. Otherwise `~restore` brings back your last backup
-(`~restore-saf` for one from another phone). A crash or power cut right after a change can also
-cost that change; the file before it stays whole.
-
-If you ran `~backup` after such an empty start, that empty backup is the newest and `~restore`
-takes it. The older ones are still in `Download/Verso/`: pick one with `~restore-saf`.
+something: run `~restart` first. Otherwise `~restore` and pick your last backup. A crash or
+power cut right after a change can also cost that change; the file before it stays whole.
 
 ## Default favorites can still be missed
 
@@ -58,20 +54,21 @@ name.
 ## What the backups reveal, and moving to a new phone
 
 `~backup` writes the whole config in plain JSON — favorites, custom names, tags and the apps you
-HIDE. No other app reads `Download/Verso/` without an "all files" permission or your pick in the
-file picker, but a file manager, a cloud-sync app that scans Download or a PC over USB can, and
-the files outlive an uninstall. Keep that in mind before sharing or syncing the folder.
+HIDE — to the place you pick. In `Download` no other app reads it without an "all files"
+permission or your pick in the file picker, but a file manager, a cloud-sync app that scans
+Download or a PC over USB can, and the files outlive an uninstall. A cloud folder you pick holds
+it too. Keep that in mind before sharing or syncing it.
 
 Nothing is pruned: a reinstalled app gets its place, name and tags back, and a backup still names
 a hidden app removed years ago. An entry of an app that is gone costs a few bytes and shows
 nowhere — but its tags stay in the tag lists (`##` and the rename dialog's suggestions), so a tag
 whose apps are all gone can be given to others; untick it there to be rid of it.
 
-Verso never deletes a backup: every `~backup`, and the undo point of every `~restore` and
-`~undo`, is a new file of a few KB, and the folder grows until you clear it with a
-file manager. Android lets an app see only its own files: after a reinstall the old ones are
-invisible to `~restore` and `~undo` (reachable with `~restore-saf`). A debug build is another app
-to Android, with backups of its own there.
+Verso never deletes a backup: each `~backup` is a file of a few KB where you put it, until you
+delete it. `~restore` reads any of them through the picker, also the `verso-pre-restore-…`,
+`verso-pre-undo-…` and `verso-pre-cleanup-…` files that versions up to 0.5.9 left in
+`Download/Verso/`. The one undo point lives with the app (`verso.prev.json`), so an uninstall
+takes it along; your backups are what outlives the app.
 
 `verso.json` is kept out of Android's cloud backup (`data_extraction_rules.xml`) but copied by a
 device-to-device transfer, on purpose. Entries of a work profile or clone carry its serial
@@ -116,14 +113,13 @@ battery line.
 
 ## A `~` command's result can come later
 
-A `~backup` or `~restore` result is never shown over another app: leave Verso before
-it ends and the toast waits until you come back — sometimes much later. A file picked with
-`~restore-saf` is shown in a dialog first; read while you were away or while Verso was starting,
+A `~backup` result is never shown over another app: a provider slow to take the file (a cloud
+folder) may finish after you left Verso, and the toast waits until you come back. A file picked
+with `~restore` is shown in a dialog first; read while you were away or while Verso was starting,
 the dialog comes when you are back, and leaving it unanswered drops the pick (with a toast).
-Confirmed while a command runs, the file is restored right after it; meanwhile `~restore`,
-`~restore-saf` and `~undo` say a file is still being restored. The pick lives in memory only: if
-the process ends first — say while a provider is slow to hand the file over, or never does — it
-is gone without a word; a `~restart` drops it too, with a toast. Pick it again.
+Meanwhile a second `~restore` and `~undo` say a file is still being restored. The pick lives in
+memory only: if the process ends first — say while a provider is slow to hand the file over, or
+never does — it is gone without a word; a `~restart` drops it too, with a toast. Pick it again.
 
 ## Leaving the launcher resets to the front page
 
@@ -146,13 +142,11 @@ need a migration of the stored keys.
 
 ## A stuck system call restarts Verso
 
-The `~` commands, and on a cold start the first app list, do their disk and system work on one
-thread. If a system service does not answer (MediaStore or the package manager; not seen so far),
+The first app list on a cold start, the saves and Guru's report do their disk and system work on
+one thread. If a system service does not answer (MediaStore or the package manager; not seen so far),
 Verso waits 30 seconds and then stops itself: Android starts the launcher again at once, and Guru
-reports where it hung at the next start. A command cut off this way did nothing or finished — a
-restore that had not written `verso.json` yet leaves the old config, a write cut off halfway is
-taken back from `verso.json.bak`. Until then every further command — `~restart` too — and every
-edit says it is busy, while launching, searching and turning pages go on; on a cold start the
+reports where it hung at the next start. A write cut off halfway is taken back from
+`verso.json.bak`. Until then launching, searching and turning pages go on; on a cold start the
 drawer stays empty and home shows only its cached favorites.
 
 So that a service stuck for good cannot restart the launcher over and over, Verso stops itself

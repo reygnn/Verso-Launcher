@@ -105,7 +105,7 @@ class SourceGuardTest {
     }
 
     @Test fun `no string template reaches through an object without braces`() {
-        // "$BackupFiles.DIR" compiles to "BackupFiles@1a2b.DIR"; "$FILE.tmp" (a value, then a suffix) is fine.
+        // "$ConfigJson.MAX_ENTRIES" compiles to "ConfigJson@1a2b.MAX_ENTRIES"; "$FILE.tmp" (a value, then a suffix) is fine.
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
         val offenders = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().mapIndexedNotNull { i, line ->
@@ -137,14 +137,17 @@ class SourceGuardTest {
         assertEquals(listOf("LauncherState.kt"), sites)
     }
 
-    /** What no JVM test reaches: the wiring of two rules into LauncherState (Commands' and Core's). */
-    @Test fun `the restore write and the command gate are wired into LauncherState`() {
+    /**
+     * What no JVM test reaches: "~restore" and "~undo" keep the replaced config in the undo slot
+     * (hard rule 7), and the picked document is read and written off main, never on the IO thread
+     * a provider could block.
+     */
+    @Test fun `the undo slot and the document threads are wired into Commands`() {
         val commands = code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt")
-        val core = code("src/main/kotlin/com/github/reygnn/verso_launcher/Core.kt")
-        // Hard rule 10: a restore's write ends the wait to seed, even with its hand-back lost.
-        assertTrue(has(commands, "writeConfig = state::writeRestored"))
-        // Hard rules 10 and 15: the seeding takes a permit from the real, process-wide gate.
-        assertTrue(has(core, "idle = { app.gate.idle() }"))
+        assertTrue(has(commands, "core.state.replace(next) { payload -> core.undoSlot.write(payload) }"))
+        assertTrue(has(commands, "\"verso-backup-write\").start()"))
+        assertTrue(has(commands, "\"verso-restore-read\").start()"))
+        assertFalse(has(commands, "submitIo"))
     }
 
     // Rule 13.
@@ -182,7 +185,7 @@ class SourceGuardTest {
     @Test fun `the process's code knows no Activity`() {
         val process = listOf(
             "Core.kt", "Commands.kt", "Results.kt", "PendingPick.kt", "LauncherWindow.kt",
-            "CommandGate.kt", "LauncherState.kt", "LauncherStateParts.kt",
+            "UndoSlot.kt", "LauncherState.kt", "LauncherStateParts.kt",
         )
         for (file in process) {
             val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$file")

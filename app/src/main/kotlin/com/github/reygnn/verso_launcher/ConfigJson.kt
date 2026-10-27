@@ -2,6 +2,7 @@ package com.github.reygnn.verso_launcher
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.InputStream
 
 /** verso.json String <-> [VersoConfig], pure; the parsers return null instead of throwing. */
 internal object ConfigJson {
@@ -51,6 +52,15 @@ internal object ConfigJson {
         null
     } catch (e: StackOverflowError) {
         null
+    }
+
+    /** A real verso.json is a few KB; a file this big is not a config, and is not read into memory. */
+    private const val MAX_FILE_BYTES = 1024 * 1024
+
+    /** [input] as text, or null when it holds more than [maxBytes] (one byte past the cap is read to tell). */
+    fun readCapped(input: InputStream, maxBytes: Int = MAX_FILE_BYTES): String? {
+        val bytes = input.readNBytes(maxBytes + 1)
+        return if (bytes.size > maxBytes) null else bytes.toString(Charsets.UTF_8)
     }
 
     const val ORDER_NAME = "name"

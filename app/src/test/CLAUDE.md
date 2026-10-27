@@ -19,14 +19,14 @@ Pure logic
                            (Turkish, İ, NFC, accents, other scripts' marks), the ranking,
                            Collator sort, tags, reorder, recents,
                            default favorites
-  CommandDialogTextTest    what the ~restore-saf dialog says
+  CommandDialogTextTest    what the ~restore dialog says
   LauncherRowsTest         rowsFor per mode
   LauncherActionsTest      Enter and tap decisions, the "!!" tap
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
   HomeStyleTest            sizes, luminance, outline thresholds, battery, AppStatus
-  ConfigJsonTest           round trip, parseForeign's refusals, hostile input, size limits
+  ConfigJsonTest           round trip, parseForeign's refusals, hostile input, size limits,
+                           readCapped (a picked file's bounded read)
   VersoConfigTest          equality as file content
-  BackupFilesTest          backup names; which file ~restore and ~undo take
   AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
@@ -35,34 +35,27 @@ Pure logic
 State and threads (manual queues)
   LauncherStateTest        the concurrency rules: load, edit, adopt and save interleaved;
                            seeding; saves before the load, failed, at onStop; an unreadable
-                           config; recents.txt and usage.txt
-  CommandGateTest          one "~" command at a time, the edit permit
-  PendingPickTest          a "~restore-saf" pick's states
+                           config; replace (~restore, ~undo); recents.txt and usage.txt
+  PendingPickTest          a "~restore" pick's states
   ResultsTest              results queued until a window is in front, refusals never
   WallpaperPaletteTest     the palette's question against the colour listener
 
 Files (real temp files)
   ConfigStoreTest          verso.json on SharedPreferences' terms (.bak, torn, unreadable)
+  UndoSlotTest             the one undo point: whole or not at all, read back as written
   HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside it
-  BackupStoreTest          readCapped, the bounded restore read
-  RestoreStepsTest         the restore's IO order
-  CrashPointsTest          a restore killed before every step, then a cold start
-
-Restore matrix (docs/spec/restore-matrix.md, the table as code in RestoreMatrix.kt)
-  RestoreMatrixTest        all 2 160 cells, each killed before every step; every sequence of
-                           up to four commands against the spec's model
-  RestoreMatrixFlowsTest   (R) the 55 cells a user can reach, through the real Activity
 
 The window (R)
-  MainActivityFlowsTest    the real Activity: commands refused, held or queued, picks,
-                           ~restart, recreation, what happens before the first load
+  MainActivityFlowsTest    the real Activity: ~backup and ~restore through their pickers,
+                           ~undo, picks across ~restart and recreation, results that wait,
+                           what happens before the first load
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, TalkBack, the tap guard, the reorder pick
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
   RenameDialogFilterTest   the dialog's InputFilters on a real widget
-  RestoreReadLeakTest      a hung "~restore-saf" read keeps no activity alive
+  RestoreReadLeakTest      a hung "~restore" read keeps no activity alive
   VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso
 
 Source scans
@@ -75,25 +68,22 @@ Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.
 `IoWatchdogTest` use `chmod`, so they fail when run as root.
 
 Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
-`BackupStoreInstrumentedTest` (the real MediaStore: publish, names it gives, rows we don't own,
-crashed and vanished pending rows) and `ConfigJsonInstrumentedTest` (Android's own `org.json`).
+`ConfigJsonInstrumentedTest` (Android's own `org.json`).
 
 ---
 
 ## Deliberately not
 
 - **No mocks.** Android-bound collaborators are functions (`LauncherState`'s `io`/`main`/…,
-  `ConfigStore`'s seams, `BackupStore`'s `beforePublish`/`now`); tests pass lambdas and fakes.
+  `ConfigStore`'s seams); tests pass lambdas and fakes.
   If a real need appears: MockK, never Mockito.
 - **No coroutines**, so no `MainDispatcherRule`, `runTest` or Turbine: two manual FIFO queues
   make every interleaving deterministic.
 - **Few Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic` and
-  `LauncherState`. Rules an edit could break silently are types where possible (`Ticket`,
-  `EditPermit`).
-- **No MediaStore model.** Robolectric cannot reproduce MediaStore's renaming and ownership —
-  what broke the backups once — so those are tested on a device. The two providers here model no
-  MediaStore rule: `GuruWiringTest.Downloads` only takes a save and keeps its name,
-  `RestoreMatrixFlowsTest`'s `ListingDownloads` lists rows by `_ID` and name and fails on demand.
+  `LauncherState`. Rules an edit could break silently are types where possible (`EditPermit`).
+- **No MediaStore model.** Verso's own backups go through the user's picker, a plain document
+  stream. Guru's reports still use MediaStore, tested in Guru's repo; `GuruWiringTest.Downloads`
+  only takes a save and keeps its name.
 
 ---
 
@@ -101,12 +91,12 @@ crashed and vanished pending rows) and `ConfigJsonInstrumentedTest` (Android's o
 
 - Start from a template: pure logic `LauncherLogicTest`; threads and state `LauncherStateTest`
   (its queue harness, `testLauncherState`); files `ConfigStoreTest`; a widget
-  `RenameDialogFilterTest`; MediaStore or Android-only behaviour `androidTest`.
+  `RenameDialogFilterTest`; Android-only behaviour `androidTest`.
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
 - Config shape: `ConfigJsonTest`, and older `verso.json` files must still parse.
-- `~backup`, `~restore`, `~restore-saf`, `~undo`: first the table in
-  `docs/spec/restore-matrix.md`, then `RestoreMatrix.kt`; both matrix tests follow.
+- `~backup`, `~restore`, `~undo`: the swap and its undo point in `LauncherStateTest`, the slot in
+  `UndoSlotTest`, the pickers and their threads in `MainActivityFlowsTest`.
 
 ---
 

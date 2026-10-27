@@ -40,9 +40,8 @@ class LauncherStateTest {
     private var writeSucceeds = true
 
     private val refreshed = mutableListOf<Boolean>()
-    /** An edit permit, as MainActivity takes one from its gate before every edit. */
-    private val gate = CommandGate()
-    private val permit get() = state.editPermit(gate.idle()!!)!!
+    /** An edit permit, as MainActivity takes one before every edit. */
+    private val permit get() = state.editPermit()!!
     private var saveFailures = 0
     private var unusableReports = 0
     /** Runs in onConfigUnusable: what the window sees when it says so. */
@@ -75,7 +74,6 @@ class LauncherStateTest {
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
         process = process,
-        idle = { gate.idle() },
     )
 
     private var fresh = false
@@ -532,7 +530,7 @@ class LauncherStateTest {
         disk = VersoConfig(names = mapOf(key("Bravo") to "Mine"))
         state.refresh()
         runIo()
-        assertNull(state.editPermit(gate.idle()!!))
+        assertNull(state.editPermit())
         runAll()
         assertTrue(state.configLoaded)
         assertTrue(state.appsLoaded)
@@ -541,11 +539,10 @@ class LauncherStateTest {
         assertEquals(emptyList<String>(), written)
     }
 
-    @Test fun `a permit from before a command is void even once it ended, a fresh one edits`() {
+    /** A window "~restart" left behind holds the old state: its permit must not edit the new one. */
+    @Test fun `a permit of another state edits nothing here, its own does`() {
         started()
-        val before = permit
-        gate.start { }
-        state.toggleFavorite(before, key("Alpha"))
+        state.toggleFavorite(otherPermit(), key("Alpha"))
         assertTrue(state.config.favorites.isEmpty())
         state.toggleFavorite(permit, key("Alpha"))
         assertEquals(listOf(key("Alpha")), state.config.favorites)
@@ -671,7 +668,7 @@ class LauncherStateTest {
         )
         blocking.refresh()
         ioThreadQueue.take().run()
-        blocking.toggleFavorite(blocking.editPermit(gate.idle()!!)!!, key("Alpha"))
+        blocking.toggleFavorite(blocking.editPermit()!!, key("Alpha"))
         val ioThread = Thread { ioThreadQueue.take().run() }.apply { start() }
         assertTrue(inWrite.await(5, TimeUnit.SECONDS))
         val stop = Thread { blocking.flushSave() }.apply { start() }
@@ -686,20 +683,26 @@ class LauncherStateTest {
 
     // ---- toggles ----------------------------------------------------------------
 
+    /** A loaded state of its own, so its permit is a real one — for another state. */
+    private fun otherPermit(): LauncherState.EditPermit {
+        val q = Queues()
+        val other = standalone(q).apply { refresh() }
+        q.drain()
+        return other.editPermit() ?: error("harness: the other state did not load")
+    }
+
     /** Every edit, not only some: each one checks the permit itself (audit 2026-10-22, #10). */
-    @Test fun `an edit with a permit from before a command started is ignored`() {
+    @Test fun `an edit with another state's permit is ignored`() {
         // Two favorites, so a move would succeed if it ignored the permit.
         disk = VersoConfig(favorites = listOf(key("Alpha"), key("Bravo")))
         started()
-        val stale = permit
-        gate.start {
-            state.toggleFavorite(stale, key("Charlie"))
-            state.toggleHidden(stale, key("Alpha"))
-            state.toggleTag(stale, key("Alpha"), "work")
-            state.rename(stale, key("Alpha"), "Alpha", "Mine", emptyList())
-            assertFalse(state.moveFavorite(stale, key("Bravo"), key("Alpha")))
-            assertNull(state.toggleOrder(stale))
-        }
+        val stale = otherPermit()
+        state.toggleFavorite(stale, key("Charlie"))
+        state.toggleHidden(stale, key("Alpha"))
+        state.toggleTag(stale, key("Alpha"), "work")
+        state.rename(stale, key("Alpha"), "Alpha", "Mine", emptyList())
+        assertFalse(state.moveFavorite(stale, key("Bravo"), key("Alpha")))
+        assertNull(state.toggleOrder(stale))
         runAll()
         assertEquals(disk, state.config)
         assertTrue(written.isEmpty())
@@ -908,8 +911,8 @@ class LauncherStateTest {
 
     // ---- restore ------------------------------------------------------------------
 
-    /** The restore wrote verso.json itself (RestoreSteps); adopt must not write it again. */
-    @Test fun `adopt replaces the config and re-renders at once, without writing, reading or enumerating`() {
+    /** Saved like an edit: memory is the truth, the IO thread follows (hard rule 3). */
+    @Test fun `adopt replaces the config, re-renders at once and saves it, without reading or enumerating`() {
         started()
         listChanges.clear()
         val before = enumerations
@@ -919,9 +922,65 @@ class LauncherStateTest {
         assertEquals("config replaced", listOf(true), refreshed)
         assertEquals("re-render", listOf(true), listChanges)
         runAll()
-        assertEquals(emptyList<String>(), written)
+        assertEquals(listOf("fav=${key("Bravo")};hid=;names=;tags="), written)
         assertEquals(1, loadConfigCalls)
         assertEquals(before, enumerations)
+    }
+
+    // ---- replace: "~restore" and "~undo" (hard rule 7) --------------------------
+
+    private val kept = mutableListOf<String>()
+    private var keepSucceeds = true
+    private fun replace(next: VersoConfig) = state.replace(next) { payload -> kept += payload; keepSucceeds }
+
+    @Test fun `replace keeps the replaced config first, then adopts and saves the new one`() {
+        disk = VersoConfig(favorites = listOf(key("Alpha")))
+        started()
+        assertEquals(Replaced.DONE, replace(VersoConfig(favorites = listOf(key("Bravo")))))
+        assertEquals("the undo point holds the old config", listOf("fav=${key("Alpha")};hid=;names=;tags="), kept)
+        assertEquals("written before anything was saved", emptyList<String>(), written)
+        assertEquals(listOf(key("Bravo")), state.config.favorites)
+        runAll()
+        assertEquals(listOf("fav=${key("Bravo")};hid=;names=;tags="), written)
+    }
+
+    @Test fun `no undo point, no replace`() {
+        disk = VersoConfig(favorites = listOf(key("Alpha")))
+        started()
+        keepSucceeds = false
+        assertEquals(Replaced.UNDO_FAILED, replace(VersoConfig(favorites = listOf(key("Bravo")))))
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
+        runAll()
+        assertEquals(emptyList<String>(), written)
+    }
+
+    /** "~undo ~undo" ends where it began, and an equal file leaves the undo point as it was. */
+    @Test fun `replacing with the config in use keeps nothing and changes nothing`() {
+        disk = VersoConfig(favorites = listOf(key("Alpha")))
+        started()
+        assertEquals(Replaced.SAME, replace(VersoConfig(favorites = listOf(key("Alpha")))))
+        assertEquals(emptyList<String>(), kept)
+        runAll()
+        assertEquals(emptyList<String>(), written)
+    }
+
+    @Test fun `replace before the first load is refused and keeps nothing`() {
+        disk = VersoConfig(favorites = listOf(key("Alpha")))
+        state.refresh()
+        assertEquals(Replaced.NOT_LOADED, replace(VersoConfig(favorites = listOf(key("Bravo")))))
+        assertEquals(emptyList<String>(), kept)
+        runAll()
+        assertEquals(listOf(key("Alpha")), state.config.favorites)
+        assertEquals(emptyList<String>(), written)
+    }
+
+    @Test fun `a replace that cannot be saved is said, and memory keeps it`() {
+        started()
+        writeSucceeds = false
+        assertEquals(Replaced.DONE, replace(VersoConfig(favorites = listOf(key("Bravo")))))
+        runAll()
+        assertEquals(1, saveFailures)
+        assertEquals(listOf(key("Bravo")), state.config.favorites)
     }
 
     @Test fun `adopt reports only once the restored config and its names are in place`() {
@@ -1014,25 +1073,6 @@ class LauncherStateTest {
         assertFalse(state.needsRefresh)
     }
 
-    /** A restore's write could be overwritten by the seeding's save (audit 2026-10-22, #1). */
-    @Test fun `while a command runs nothing is seeded, and a later refresh seeds`() {
-        freshStartWithoutAList()
-        var running: CommandGate.Ticket? = null
-        gate.start { t -> gate.hold(t); running = t }
-        state.refresh()
-        runAll()
-        assertTrue(state.config.favorites.isEmpty())
-        assertEquals(emptyList<String>(), written)
-        assertTrue("the wait stays", process.seedPending.get())
-        assertTrue("a resume tries again", state.needsRefresh)
-        gate.finish(checkNotNull(running)) {}
-        state.refresh()
-        runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
-        // The same list as last time, but home must show the seeds (audit 2026-10-22 (2), #1).
-        assertEquals("re-rendered", true, listChanges.last())
-    }
-
     /** No candidate app installed: nothing to seed, and the wait ends (audit 2026-10-22 (2), #9). */
     @Test fun `a fresh install with no candidate app ends the wait without seeding`() {
         fresh = true
@@ -1043,35 +1083,6 @@ class LauncherStateTest {
         assertEquals(emptyList<String>(), written)
         assertFalse(process.seedPending.get())
         assertFalse("no recount on every resume", state.needsRefresh)
-    }
-
-    /** Audit 2026-10-22, #2: a recreation drops the hand-back, so adopt never ends the wait. */
-    @Test fun `a restore written ends the wait, even when its hand-back is lost`() {
-        freshStartWithoutAList()
-        assertTrue(state.writeRestored("restored"))
-        assertFalse(process.seedPending.get())
-        disk = VersoConfig(hidden = linkedSetOf(key("Bravo")))  // the restored file: no favorites
-        val next = testLauncherState(
-            io = { task -> ioQueue.addLast(task); true },
-            main = { task -> mainQueue.addLast(task) },
-            loadConfig = { disk },
-            enumerateApps = { Enumeration(installed, true) },
-            serialize = { "" },
-            writeConfig = { true },
-            onRefreshed = { _, _ -> },
-            defaultFavoriteCandidates = { candidates },
-            process = process,
-        )
-        next.refresh()
-        runAll()
-        assertTrue(next.config.favorites.isEmpty())
-    }
-
-    @Test fun `a restore that failed to write keeps the wait`() {
-        freshStartWithoutAList()
-        writeSucceeds = false
-        assertFalse(state.writeRestored("restored"))
-        assertTrue(process.seedPending.get())
     }
 
     @Test fun `an edit meanwhile does not end the wait`() {

@@ -21,6 +21,7 @@ import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import com.github.reygnn.guru.Guru
+import java.time.LocalDateTime
 
 /**
  * The launcher's single window: the home page (recto) in front, the drawer with Sigil's command
@@ -39,10 +40,6 @@ class MainActivity : Activity() {
 
     private val app get() = VersoApp.from(this)
 
-    // The process's gate, not this instance's: a recreation must not find a fresh, idle gate
-    // while its predecessor's run still has IO steps queued (hard rule 15).
-    private val gate get() = app.gate
-
     // ---- the data ---------------------------------------------------------------
     // The process's state (VersoApp.core), shared with every other instance. Taken once: after a
     // "~restart" reset this instance stays with the old state (whose hand-backs are dropped) until
@@ -58,7 +55,7 @@ class MainActivity : Activity() {
         // An open rename dialog holds the OLD config and would write stale fields over the one
         // that just arrived.
         if (configReplaced) dismissDialogs()
-        // A recreated instance's first refresh: the results its predecessor's runs left.
+        // A recreated instance's first refresh: the results left while no window was in front.
         app.results.flush()
         if (listChanged) appDrawer.refilter()
     }
@@ -94,7 +91,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The process hands a "~restore-saf" pick to whichever instance is alive (VersoApp.pick).
+        // The process hands a "~restore" pick to whichever instance is alive (VersoApp.pick).
         app.instance = launcherWindow
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
@@ -262,8 +259,8 @@ class MainActivity : Activity() {
         dismissDialogs()
         renameDialog = null
         commandDialog = null
-        // No executor shutdown: work this instance queued (a save above all) must still run. Its
-        // command steps hand back to the process (Commands), so a run it started still ends.
+        // No executor shutdown: work this instance queued (a save above all) must still run. A
+        // backup write or restore read it started hands back to the process (Commands).
         if (app.instance === launcherWindow) app.instance = null
         unwatchApps()
         unwatchWallpaper()
@@ -301,17 +298,12 @@ class MainActivity : Activity() {
 
     // ---- config -------------------------------------------------------------
 
-    /** Run a "~" command, one at a time (hard rule 15); each reports its real result with a toast. */
+    /** Run a "~" command; each reports its real result with a toast. */
     private fun runCommand(command: Command) {
-        // Not a run: a deliberate crash, for Guru and the crash-only paths, at any time. The
-        // constant compiles it out of a public release, where nothing parses to CRASH anyway.
+        // A deliberate crash, for Guru and the crash-only paths, at any time. The constant compiles
+        // it out of a public release, where nothing parses to CRASH anyway.
         if (command == Command.CRASH) {
             if (DailyDriver.ENABLED) error("~crash: deliberate crash (daily-driver build)")
-            return
-        }
-        // Refused while one runs — and the typed command stays in the prompt, to send again.
-        if (gate.busy) {
-            toast(getString(R.string.toast_busy))
             return
         }
         if (heldBackByPick(command)) return
@@ -320,12 +312,10 @@ class MainActivity : Activity() {
         // back to NORMAL before the command runs.
         appDrawer.clearPrompt()
         when (command) {
-            // A run of its own, so no command step is in flight when the state is replaced.
-            Command.RESTART -> gate.start { restart() }
-            Command.BACKUP -> app.commands.backup()
-            Command.RESTORE -> app.commands.restore()
-            // Only the picker: it is another activity, so no run spans it (the adoption is one).
-            Command.RESTORE_SAF -> pickRestoreFile()
+            Command.RESTART -> restart()
+            // Only the pickers here: the answer is the process's (onActivityResult, Commands).
+            Command.BACKUP -> pickBackupFile()
+            Command.RESTORE -> pickRestoreFile()
             Command.UNDO -> app.commands.undo()
             Command.CRASH -> Unit // returned above
         }
@@ -337,7 +327,7 @@ class MainActivity : Activity() {
         if (restarting) return
         // A hung provider must not block ~restart: the pick is dropped, read or still being read,
         // and a read that lands later finds it gone.
-        if (app.pick.drop()) toast(getString(R.string.toast_restore_saf_dropped), Toast.LENGTH_LONG)
+        if (app.pick.drop()) toast(getString(R.string.toast_restore_dropped), Toast.LENGTH_LONG)
         // A fresh state reads verso.json (and an unread recents.txt or usage.txt) again, and the
         // recreation builds every view anew around it. Until that recreation lands this window still
         // holds the old state, so it takes nothing more (editable, editPermit).
@@ -347,19 +337,19 @@ class MainActivity : Activity() {
     }
 
     /**
-     * A restore ("~undo" is one) while a pick is read or waits to be adopted (PendingPick) is refused,
-     * with a toast: the automatic adoption behind it would replace what it brought. The prompt stays,
-     * to send again.
+     * A "~restore" or "~undo" while a pick is read or waits to be adopted (PendingPick) is refused,
+     * with a toast: the adoption behind it would replace what it brought. The prompt stays, to send
+     * again.
      */
     private fun heldBackByPick(command: Command): Boolean {
-        val restore = command == Command.RESTORE || command == Command.RESTORE_SAF || command == Command.UNDO
-        if (!restore || !app.pick.pending) return false
+        val swap = command == Command.RESTORE || command == Command.UNDO
+        if (!swap || !app.pick.pending) return false
         toast(getString(R.string.toast_restore_pending), Toast.LENGTH_LONG)
         return true
     }
 
     /**
-     * A "~restore-saf" file was read (Commands): what it would set. Only OK adopts; Cancel ends the
+     * A "~restore" file was read (Commands): what it would set. Only OK adopts; Cancel ends the
      * pick quietly, and a dialog the page turned away from or the window left ends it with a word
      * (Commands.answerPick).
      */
@@ -382,44 +372,56 @@ class MainActivity : Activity() {
     }
 
     /**
-     * "~restore-saf": the way a config moves between devices. Plain "~restore" only sees the app's
-     * OWN MediaStore rows, which are invisible after a reinstall; the user's pick is the permission.
+     * "~backup": the user picks where the file goes and what it is called (Download/Verso is the
+     * suggestion); a cloud folder or another device works as well. The user's pick is the permission.
      */
-    private fun pickRestoreFile() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+    private fun pickBackupFile() = startPicker(
+        Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json")
+            .putExtra(Intent.EXTRA_TITLE, LauncherLogic.backupFileName(LocalDateTime.now())),
+        REQ_BACKUP,
+    )
+
+    /** "~restore": any file the user picks — this phone's backups, another phone's, an older install's. */
+    private fun pickRestoreFile() = startPicker(
+        Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             // Not a strict "application/json": a .json arrives as text/plain or octet-stream
             // depending on who wrote it, and a strict filter would grey it out.
             .setType("*/*")
-            .putExtra(
-                Intent.EXTRA_MIME_TYPES,
-                arrayOf("application/json", "text/plain", "application/octet-stream"),
-            )
-            // Only a hint; DocumentsUI ignores it when the folder does not exist yet.
-            .putExtra(
-                DocumentsContract.EXTRA_INITIAL_URI,
-                DocumentsContract.buildDocumentUri(
-                    "com.android.externalstorage.documents",
-                    "primary:${Environment.DIRECTORY_DOWNLOADS}/${BackupFiles.DIR}",
-                ),
-            )
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "application/octet-stream")),
+        REQ_RESTORE,
+    )
+
+    private fun startPicker(intent: Intent, request: Int) {
+        // Only a hint; DocumentsUI ignores it when the folder does not exist yet.
+        intent.putExtra(
+            DocumentsContract.EXTRA_INITIAL_URI,
+            DocumentsContract.buildDocumentUri(
+                "com.android.externalstorage.documents",
+                "primary:${Environment.DIRECTORY_DOWNLOADS}/$BACKUP_DIR",
+            ),
+        )
         try {
-            startActivityForResult(intent, REQ_RESTORE)
+            startActivityForResult(intent, request)
         } catch (e: ActivityNotFoundException) {
             Log.w("Verso", "no document picker on this device", e)
-            toast(getString(R.string.toast_restore_no_picker))
+            toast(getString(R.string.toast_no_picker))
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_RESTORE) return
         val uri = data?.data
         // Backing out of the picker is not an error — say nothing.
         if (resultCode != RESULT_OK || uri == null) return
-        // From here the pick is the process's (VersoApp.pick): a recreation or a stop loses it no
-        // more, and the read thread holds nothing of this activity.
-        app.commands.readPick(uri)
+        // From here the answer is the process's: a recreation or a stop loses it no more, and the
+        // thread that reads or writes the document holds nothing of this activity.
+        when (requestCode) {
+            REQ_BACKUP -> app.commands.writeBackup(uri)
+            REQ_RESTORE -> app.commands.readPick(uri)
+        }
     }
 
     /** No "~" command but ~restart before the config is loaded (hard rule 5); the toast says why. */
@@ -431,15 +433,10 @@ class MainActivity : Activity() {
         return false
     }
 
-    /** Not while a "~" command runs (hard rule 15), nor before the config is loaded (hard rule 5); a toast says which. */
+    /** Not before the config is loaded (hard rule 5); the toast says why. */
     private fun editPermit(): LauncherState.EditPermit? {
         if (restarting) return null
-        val idle = gate.idle()
-        if (idle == null) {
-            toast(getString(R.string.toast_busy))
-            return null
-        }
-        return state.editPermit(idle) ?: run {
+        return state.editPermit() ?: run {
             toast(getString(R.string.toast_not_loaded))
             null
         }
@@ -524,7 +521,7 @@ class MainActivity : Activity() {
             fgColor = DIALOG_TEXT,
             onAppInfo = { launcher.openAppInfo(entry) },
         ) { name, tags ->
-            // A run may have started while the dialog was up (a ~restore-saf read ending).
+            // A ~restart may have come while the dialog was up.
             val permit = editPermit() ?: return@show
             state.rename(permit, key, entry.systemLabel, name, tags)
             appDrawer.refilter()
@@ -629,10 +626,14 @@ class MainActivity : Activity() {
     private companion object {
         const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
 
+        /** The folder the pickers suggest: Download/Verso, where the backups of earlier versions are. */
+        const val BACKUP_DIR = "Verso"
+
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
     }
 }
 
-/** The "~restore-saf" picker's request code. Internal for MainActivityFlowsTest, which answers one. */
+/** The pickers' request codes. Internal for MainActivityFlowsTest, which answers them. */
 internal const val REQ_RESTORE = 1
+internal const val REQ_BACKUP = 2

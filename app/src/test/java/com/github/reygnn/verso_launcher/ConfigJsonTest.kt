@@ -6,6 +6,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 
 /** Plain JVM: the REAL org.json is on the test classpath — android.jar's is a throwing stub. */
 class ConfigJsonTest {
@@ -261,4 +263,39 @@ class ConfigJsonTest {
         assertEquals(listOf("work"), cfg.tags["pkg/B"])
     }
 
+    // ---- readCapped: the OOM guard of a picked file's read ----------------------
+
+    private fun capped(text: String, max: Int) = ConfigJson.readCapped(ByteArrayInputStream(text.toByteArray()), maxBytes = max)
+
+    @Test fun `reads content under the cap`() {
+        assertEquals("hello", capped("hello", 16))
+    }
+
+    @Test fun `content exactly at the cap is accepted (inclusive)`() {
+        assertEquals("x".repeat(8), capped("x".repeat(8), 8))
+    }
+
+    @Test fun `content one byte over the cap is refused, not truncated`() {
+        assertNull(capped("x".repeat(9), 8))
+    }
+
+    @Test fun `an empty stream reads as empty, never null`() {
+        assertEquals("", capped("", 8))
+    }
+
+    @Test fun `a chunked over-cap stream is still refused`() {
+        // A real ContentProvider can hand out bytes a few at a time.
+        val chunky = object : InputStream() {
+            private var remaining = 9
+            override fun read(): Int = if (remaining-- > 0) 'x'.code else -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (remaining <= 0) return -1
+                val n = minOf(3, len, remaining)
+                for (i in 0 until n) b[off + i] = 'x'.code.toByte()
+                remaining -= n
+                return n
+            }
+        }
+        assertNull(ConfigJson.readCapped(chunky, maxBytes = 8))
+    }
 }

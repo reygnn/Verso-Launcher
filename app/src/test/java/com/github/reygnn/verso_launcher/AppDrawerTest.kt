@@ -292,7 +292,7 @@ class AppDrawerTest {
         assertEquals(emptyList<DrawerAction<AppEntry>>(), taps)
     }
 
-    private val permit: LauncherState.EditPermit get() = checkNotNull(state.editPermit(checkNotNull(CommandGate().idle())))
+    private val permit: LauncherState.EditPermit get() = checkNotNull(state.editPermit())
 
     @Test fun `a picked favorite is marked until it is dropped`() {
         state.toggleFavorite(permit, installed[0].key)  // two favorites: the other row must not change

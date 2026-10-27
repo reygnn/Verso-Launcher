@@ -94,20 +94,18 @@ keyboard, no prompt:
     launch counts, fading with time: a week old about half), and keeps it
   - `~[text]` — commands. `~` lists them, typing narrows the list; tap one, or **Enter** once
     what you typed can only mean one (`~b` is `~backup`). Every change is saved at once, so
-    there is no save command. One command at a time: a second one, or an edit, is refused
-    meanwhile and stays on the line:
+    there is no save command:
     - `~restart` — read the config again and rebuild the list (after editing `verso.json` by
       hand, or when something looks stale)
-    - `~backup` — the config to `Download/Verso/` as a new file named after the moment
-      (`verso-2026-10-13_120745.json`). Verso never deletes one. It survives an uninstall
-      and is how a config moves to another phone
-    - `~restore` — adopt the newest backup. The config it replaces is saved first as an
-      undo point (`verso-pre-restore-…`); no undo point, no restore
-    - `~restore-saf` — the same with a file you pick, e.g. from another phone or an earlier
-      install (`~restore` sees only what this install wrote). A dialog shows what the file sets
-      before anything changes
-    - `~undo` — take back the last `~restore`, `~restore-saf` or `~undo` (a
-      second `~undo` redoes it). Older undo points: `~restore-saf`
+    - `~backup` — the config as a file wherever you pick: the system's file picker suggests
+      `Download/Verso/` and a name after the moment (`verso-2026-10-13_120745.json`), and a
+      cloud folder works as well. The file survives an uninstall and is how a config moves to
+      another phone
+    - `~restore` — a config file you pick: this phone's backups, another phone's, an earlier
+      install's. A dialog shows what the file sets before anything changes; the config it
+      replaces is kept for `~undo`
+    - `~undo` — take back the last `~restore` or `~undo` (a second `~undo` redoes it). There is
+      one undo point, not a history: older configs are your backups
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
       on purpose, to see Guru's report. Never abbreviated
 - Tap a row or press **Enter** to launch the row nearest the command line. On an empty line
@@ -149,7 +147,7 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   reports in `guru/` until the next start saves them, see "Crash reports"), kept the way
   Android keeps SharedPreferences (the last complete file waits as `verso.json.bak` until a
   write is done; a file that cannot be read loads as empty, and a toast says so) — your own `~backup`s are the
-  copies to fall back on; and edited only through the in-app modes above
+  copies to fall back on, and `verso.prev.json` the one undo point; and edited only through the in-app modes above
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code

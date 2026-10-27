@@ -16,6 +16,6 @@ internal interface LauncherWindow {
     /** A toast; only called while [inFront]. */
     fun show(text: String, long: Boolean)
 
-    /** A "~restore-saf" file was read: show what it would set (the dialog answers Commands.answerPick). */
+    /** A "~restore" file was read: show what it would set (the dialog answers Commands.answerPick). */
     fun offerRestore(restored: VersoConfig)
 }

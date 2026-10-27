@@ -3,6 +3,9 @@ package com.github.reygnn.verso_launcher
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
+/** How [LauncherState.replace] ended. */
+internal enum class Replaced { NOT_LOADED, SAME, UNDO_FAILED, DONE }
+
 /** A value that outlives a [LauncherState], and whether its file was read into it yet. Main thread only. */
 internal class Kept<T>(var value: T, var loaded: Boolean = false)
 
@@ -10,18 +13,15 @@ internal class Kept<T>(var value: T, var loaded: Boolean = false)
  * What outlives a recreated [LauncherState]: held once per process (VersoApp), so the next
  * instance takes over instead of starting from nothing.
  *
- * @property seedPending a fresh install still waiting for an enumeration with a list (and no running
- *   "~" command) to seed the default favorites (hard rule 10). Ended on the IO thread by a
- *   restore's write, hence atomic.
+ * @property seedPending a fresh install still waiting for an enumeration with a list to seed the
+ *   default favorites (hard rule 10). Main thread only; atomic as a box that outlives a state.
  * @property recents the "?" list, newest first, and whether recents.txt was read into it.
  * @property usage the "%" launches, and whether usage.txt was read into them.
- * @property messages the "~backup"/restore results not yet shown, oldest first. Added on the IO thread
- *   before the hand-back, which may land on an instance that is gone or stopped; shown once each,
- *   in order, by whichever instance is in front first. A queue, not one slot: a result never
- *   replaces another. Only results go here — a refusal ("busy", "not loaded") is shown at once or not at all, since it
- *   means nothing later. At most one result per run, and runs start from the front — the one
- *   exception, a "~restore-saf" adoption, from a pick the user made there — so it stays short
- *   without a cap.
+ * @property messages the commands' results not yet shown, oldest first: a "~backup" written while
+ *   the user is away, a save that failed. Shown once each, in order, by whichever instance is in
+ *   front first. A queue, not one slot: a result never replaces another. Only results go here — a
+ *   refusal ("not loaded") is shown at once or not at all, since it means nothing later. At most
+ *   one result per command, and commands start from the front, so it stays short without a cap.
  */
 internal class ProcessState(
     val seedPending: AtomicBoolean = AtomicBoolean(),

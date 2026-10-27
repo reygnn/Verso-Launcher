@@ -1,7 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 /**
- * What the "~restore-saf" dialog says. [words] resolves a string resource, with its count or
+ * What the "~restore" dialog says. [words] resolves a string resource, with its count or
  * without one.
  */
 internal object CommandDialogText {

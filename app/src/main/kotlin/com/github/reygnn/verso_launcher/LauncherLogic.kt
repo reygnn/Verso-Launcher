@@ -3,6 +3,8 @@ package com.github.reygnn.verso_launcher
 import java.text.BreakIterator
 import java.text.Collator
 import java.text.Normalizer
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The launcher's pure decisions: no framework, disk or shared state. */
@@ -15,7 +17,7 @@ internal enum class Mode {
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, RESTORE_SAF, UNDO }
+internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, UNDO }
 
 /** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
 internal interface Ordered {
@@ -95,9 +97,13 @@ internal object LauncherLogic {
         "~restart" to Command.RESTART,
         "~backup" to Command.BACKUP,
         "~restore" to Command.RESTORE,
-        "~restore-saf" to Command.RESTORE_SAF,
         "~undo" to Command.UNDO,
     )
+
+    private val BACKUP_STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss")
+
+    /** What "~backup" offers the picker as the file's name ("verso-2026-10-13_120745.json"); the user may change it. */
+    fun backupFileName(now: LocalDateTime): String = "verso-${BACKUP_STAMP.format(now)}.json"
 
     /** The command spelled exactly by [trimmed] (folded), or null; a bare "~" is none. */
     fun parseCommand(trimmed: String): Command? {
@@ -113,8 +119,8 @@ internal object LauncherLogic {
     }
 
     /**
-     * An exact match, else an unambiguous abbreviation ("~b"). Exact must win: "~restore" also
-     * prefixes "~restore-saf". An ambiguous abbreviation ("~r") resolves to null, never a guess.
+     * An exact match, else an unambiguous abbreviation ("~b"). Exact must win should one spelling
+     * ever prefix another. An ambiguous abbreviation ("~r") resolves to null, never a guess.
      * "~crash" is never abbreviated: "~c" means nothing in every build.
      */
     fun resolveCommand(trimmed: String): Command? {
