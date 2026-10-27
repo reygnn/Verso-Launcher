@@ -18,7 +18,7 @@ package com.github.reygnn.verso_launcher
  *   BackupStore(resolver, subDir, log, beforePublish, now, owner)
  *
  * `log` is the error channel of a class that never throws: collect it and assert on it. Pure
- * decisions live in objects (LauncherLogic, SwipeGesture, BackupFiles, Cleanup, RestoreSteps,
+ * decisions live in objects (LauncherLogic, SwipeGesture, BackupFiles, RestoreSteps,
  * TapGuard, HomeStyle, BatteryInfo), tested with plain values; rows are `OrderedFake(key,
  * labelLower)`.
  *

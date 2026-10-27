@@ -8,7 +8,7 @@ import android.util.Log
  * every step hands back to the process and reads the state from Core, so a run ends and lands
  * whatever happens to the window that started it. A window is reached only as a
  * [LauncherWindow]. What a window decides stays in MainActivity: refusing a command up front,
- * the prompt, the picker, "~restart", the cleanup dialog.
+ * the prompt, the picker, "~restart".
  *
  * Main thread only, but for the work handed to [step] and the pick's read thread.
  */
@@ -18,14 +18,6 @@ internal class Commands(private val app: VersoApp) {
     private val core get() = app.core
     private val results get() = app.results
     private val window get() = app.instance
-
-    /**
-     * Bumped whenever a window turns away from the page it asked on (the drawer closed, HOME,
-     * onStop — which a recreation passes through too): a "~cleanup" check's answer must still match
-     * it to be shown.
-     * A number, not the window, so a check waiting behind a stuck IO thread holds no activity.
-     */
-    var pageTurns = 0
 
     /**
      * One IO step of the run [t] (see [CommandGate.io]): [then] gets null if it failed. Handed back
@@ -173,50 +165,6 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /**
-     * "~cleanup": check on the IO thread, then offer what is confirmed gone (hard rule 14). The
-     * answer is for the page that asked, while it still asks — no dialog over a page that moved on
-     * or a window made since, no toast over another app; else it is dropped (nothing was changed).
-     */
-    fun checkCleanup() {
-        val ticket = pageTurns
-        val snapshot = core.state.config
-        val apps = core.apps
-        gate.start { t ->
-            step(t, work = { apps.safeCleanupCheck(snapshot) }) { plan ->
-                val asked = window?.takeIf { it.inFront && ticket == pageTurns } ?: return@step
-                when (plan) {
-                    null -> asked.show(app.getString(R.string.toast_cleanup_not_run), long = false)
-                    CleanupPlan.Incomplete -> asked.show(app.getString(R.string.toast_cleanup_incomplete), long = false)
-                    CleanupPlan.NothingToDo -> asked.show(app.getString(R.string.toast_cleanup_none), long = false)
-                    // The dialog ends this run: no run waits on the user. Its OK starts a new one.
-                    is CleanupPlan.Offer -> asked.offerCleanup(plan.orphans)
-                }
-            }
-        }
-    }
-
-    /** The cleanup dialog's OK: false if another run is going (the window says so). */
-    fun runCleanup(confirmed: Set<String>): Boolean {
-        val state = core.state
-        val apps = core.apps
-        val store = core.backupStore
-        return gate.start { t ->
-            gate.hold(t)
-            state.cleanup(
-                confirmed = confirmed,
-                recheck = apps::safeCleanupCheck,
-                writeUndo = { payload -> store.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
-            ) { outcome -> gate.finish(t) { cleanupDone(outcome) } }
-        }
-    }
-
-    /** A confirmed run's outcome is a result: the live window redraws, the message waits if need be. */
-    private fun cleanupDone(outcome: CleanupOutcome) {
-        if (outcome is CleanupOutcome.Done) window?.cleanupApplied()
-        results.report(cleanupMessage(app, outcome))
-    }
-
     private companion object {
         fun readFailure(app: VersoApp, source: BackupFiles.Source, latest: BackupStore.Latest): String = app.getString(
             when (latest) {
@@ -245,14 +193,6 @@ internal class Commands(private val app: VersoApp) {
                 },
                 BackupFiles.timeOf(outcome.undoName),
             )
-        }
-
-        fun cleanupMessage(app: VersoApp, outcome: CleanupOutcome): String = when (outcome) {
-            CleanupOutcome.Refused -> app.getString(R.string.toast_cleanup_not_run)
-            CleanupOutcome.Incomplete -> app.getString(R.string.toast_cleanup_incomplete)
-            CleanupOutcome.NothingToDo -> app.getString(R.string.toast_cleanup_none)
-            CleanupOutcome.UndoFailed -> app.getString(R.string.toast_restore_undo_failed)
-            is CleanupOutcome.Done -> app.getString(R.string.toast_cleanup_ok, BackupFiles.timeOf(outcome.undoName))
         }
     }
 }

@@ -106,10 +106,7 @@ keyboard, no prompt:
     - `~restore-saf` — the same with a file you pick, e.g. from another phone or an earlier
       install (`~restore` sees only what this install wrote). A dialog shows what the file sets
       before anything changes
-    - `~cleanup` — remove what the config still keeps for uninstalled apps (favorite slot,
-      hidden mark, custom name, tags). It asks first and leaves an undo point
-      (`verso-pre-cleanup-…`); what counts as uninstalled is in `CAVEATS.md`
-    - `~undo` — take back the last `~restore`, `~restore-saf`, `~cleanup` or `~undo` (a
+    - `~undo` — take back the last `~restore`, `~restore-saf` or `~undo` (a
       second `~undo` redoes it). Older undo points: `~restore-saf`
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
       on purpose, to see Guru's report. Never abbreviated

@@ -15,11 +15,7 @@ internal enum class Mode {
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, RESTORE_SAF, CLEANUP, UNDO }
-
-internal data class Orphans(val keys: Set<String>, val favorites: Int, val hidden: Int, val names: Int, val tags: Int) {
-    val isEmpty: Boolean get() = keys.isEmpty()
-}
+internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, RESTORE_SAF, UNDO }
 
 /** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
 internal interface Ordered {
@@ -100,26 +96,8 @@ internal object LauncherLogic {
         "~backup" to Command.BACKUP,
         "~restore" to Command.RESTORE,
         "~restore-saf" to Command.RESTORE_SAF,
-        "~cleanup" to Command.CLEANUP,
         "~undo" to Command.UNDO,
     )
-
-    /**
-     * The entries of [config] whose key is neither in [installed] nor [kept]. [installed] must
-     * come from a COMPLETE enumeration, or a profile that failed to load would look uninstalled.
-     */
-    fun orphans(config: VersoConfig, installed: Set<String>, kept: (String) -> Boolean = { false }): Orphans {
-        val verdict = HashMap<String, Boolean>()
-        val gone = { key: String -> verdict.getOrPut(key) { key !in installed && !kept(key) } }
-        val favorites = config.favorites.filter(gone)
-        val hidden = config.hidden.filter(gone)
-        val names = config.names.keys.filter(gone)
-        val tags = config.tags.keys.filter(gone)
-        return Orphans(
-            keys = (favorites + hidden + names + tags).toSet(),
-            favorites = favorites.size, hidden = hidden.size, names = names.size, tags = tags.size,
-        )
-    }
 
     /** The command spelled exactly by [trimmed] (folded), or null; a bare "~" is none. */
     fun parseCommand(trimmed: String): Command? {
@@ -137,7 +115,7 @@ internal object LauncherLogic {
     /**
      * An exact match, else an unambiguous abbreviation ("~b"). Exact must win: "~restore" also
      * prefixes "~restore-saf". An ambiguous abbreviation ("~r") resolves to null, never a guess.
-     * "~crash" is never abbreviated: "~c" stays "~cleanup" in every build.
+     * "~crash" is never abbreviated: "~c" means nothing in every build.
      */
     fun resolveCommand(trimmed: String): Command? {
         // As in parseCommand: commandsMatching folds the U+0307 away.

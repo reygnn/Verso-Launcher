@@ -76,7 +76,7 @@ class CommandGateTest {
     }
 
     @Test fun `a main-thread callback held with hold and closed with finish ends the run`() {
-        // A confirmed ~cleanup: LauncherState reports back later through a callback.
+        // A step that reports back later through a callback, not through io.
         var report: (() -> Unit)? = null
         gate.start { t ->
             gate.hold(t)

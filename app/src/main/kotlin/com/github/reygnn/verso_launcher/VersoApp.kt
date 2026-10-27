@@ -42,9 +42,9 @@ class VersoApp : Application() {
 
     /**
      * The live window (MainActivity), between its onCreate and its onDestroy, for what the process
-     * hands over: the state's refreshes (Core), the commands' results and the cleanup offer
-     * (Commands, Results). Seen only as a [LauncherWindow]. Main thread only; never held past
-     * onDestroy, so it keeps no instance alive.
+     * hands over: the state's refreshes (Core) and the commands' results (Commands, Results). Seen
+     * only as a [LauncherWindow]. Main thread only; never held past onDestroy, so it keeps no
+     * instance alive.
      */
     internal var instance: LauncherWindow? = null
 

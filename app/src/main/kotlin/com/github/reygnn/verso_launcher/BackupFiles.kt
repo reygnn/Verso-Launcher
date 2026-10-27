@@ -17,6 +17,7 @@ internal object BackupFiles {
 
     const val BACKUP_BASE = "verso"
     const val PRE_RESTORE_BASE = "verso-pre-restore"
+    /** Left by "~cleanup" up to 0.5.9; "~undo" still takes them. */
     const val PRE_CLEANUP_BASE = "verso-pre-cleanup"
     const val PRE_UNDO_BASE = "verso-pre-undo"
 

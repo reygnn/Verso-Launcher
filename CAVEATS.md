@@ -62,11 +62,13 @@ HIDE. No other app reads `Download/Verso/` without an "all files" permission or 
 file picker, but a file manager, a cloud-sync app that scans Download or a PC over USB can, and
 the files outlive an uninstall. Keep that in mind before sharing or syncing the folder.
 
-Nothing is pruned on its own: a reinstalled app gets its place, name and tags back, and a backup
-still names a hidden app removed years ago until `~cleanup` removes it.
+Nothing is pruned: a reinstalled app gets its place, name and tags back, and a backup still names
+a hidden app removed years ago. An entry of an app that is gone costs a few bytes and shows
+nowhere — but its tags stay in the tag lists (`##` and the rename dialog's suggestions), so a tag
+whose apps are all gone can be given to others; untick it there to be rid of it.
 
-Verso never deletes a backup: every `~backup`, and the undo point of every `~restore`,
-`~cleanup` and `~undo`, is a new file of a few KB, and the folder grows until you clear it with a
+Verso never deletes a backup: every `~backup`, and the undo point of every `~restore` and
+`~undo`, is a new file of a few KB, and the folder grows until you clear it with a
 file manager. Android lets an app see only its own files: after a reinstall the old ones are
 invisible to `~restore` and `~undo` (reachable with `~restore-saf`). A debug build is another app
 to Android, with backups of its own there.
@@ -114,7 +116,7 @@ battery line.
 
 ## A `~` command's result can come later
 
-A `~backup`, `~restore` or `~cleanup` result is never shown over another app: leave Verso before
+A `~backup` or `~restore` result is never shown over another app: leave Verso before
 it ends and the toast waits until you come back — sometimes much later. A file picked with
 `~restore-saf` is shown in a dialog first; read while you were away or while Verso was starting,
 the dialog comes when you are back, and leaving it unanswered drops the pick (with a toast).
@@ -135,22 +137,12 @@ Typing on the front page opens the drawer with that character in the command lin
 that starts the typing (an accent waiting for its letter) loses its accent there. In the recent
 apps (`?`) the command line has no focus, so keys go nowhere until you tap it.
 
-## What `~cleanup` counts as uninstalled
-
-Only apps gone from the device. A disabled app, one with its icon switched off, one on an
-unmounted card, a system app removed only for you, and one in a profile Verso cannot list (or
-that shows no apps right now) keep their entries. An entry whose launcher activity an update
-renamed (below), or a malformed one from a restored file, counts as gone. Nothing runs unless
-every profile could be read, and on OK it checks again. Don't run it while a new phone is still
-reinstalling your apps — those not back yet count as gone. `~undo` brings back the whole config
-as it was before, so changes made since go too.
-
 ## An app that renames its launcher activity loses its place
 
 Favorites, names, tags and hidden marks belong to an app's launcher activity (`package/class`).
 An app that renames it in an update — rare — comes back as a new entry; the old key keeps its
-place, name, tags and mark, and `~cleanup` later offers to remove them. Favorite, rename or tag it
-again: carrying them over would need a migration of the stored keys.
+place, name, tags and mark (its tags still listed under `##`). Favorite, rename or tag it again: carrying them over would
+need a migration of the stored keys.
 
 ## A stuck system call restarts Verso
 

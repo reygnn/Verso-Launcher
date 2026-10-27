@@ -48,30 +48,20 @@
     <string name="toast_restore_saf_dropped">~restore-saf abgebrochen — die gewählte Datei war noch nicht übernommen</string>
     <string name="toast_restore_pending">Eine gewählte Datei wird noch übernommen — abwarten, oder ~restart bricht ab</string>
     <string name="toast_restore_none">Kein Backup — erst ~backup, oder Datei wählen: ~restore-saf</string>
-    <!-- ~undo: der neueste Rücksprungpunkt eines ~restore, ~cleanup oder ~undo. %1$s in toast_undo_ok
+    <!-- ~undo: der neueste Rücksprungpunkt eines ~restore oder ~undo. %1$s in toast_undo_ok
          ist die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts, den es selbst anlegt. -->
     <string name="toast_undo_ok">Rückgängig gemacht (Sicherung %1$s) — ~undo stellt es wieder her</string>
     <string name="toast_undo_same">Nichts rückgängig zu machen — die letzte Sicherung ist schon aktiv</string>
     <string name="toast_undo_none">Nichts rückgängig zu machen — keine Sicherung in Download/Verso</string>
-    <string name="toast_cleanup_none">Nichts aufzuräumen</string>
-    <string name="toast_cleanup_incomplete">Nicht alle Profile lesbar — später nochmal versuchen</string>
-    <!-- %1$s: die Uhrzeit (HH:mm) im Namen des Rücksprungpunkts. -->
-    <string name="toast_cleanup_ok">Aufgeräumt (Sicherung %1$s) — ~undo nimmt es zurück</string>
-    <string name="cleanup_title">Aufräumen</string>
-    <string name="cleanup_remove">Entfernen</string>
-    <!-- Die Zeilen des Aufräum-Dialogs; ein Abschnitt ohne Einträge fällt weg. -->
-    <string name="cleanup_apps">Nicht mehr installierte Apps: %1$d</string>
-    <string name="cleanup_favorites">Favoriten: %1$d</string>
-    <string name="cleanup_hidden">Ausgeblendet: %1$d</string>
-    <string name="cleanup_names">Eigene Namen: %1$d</string>
-    <string name="cleanup_tags">Tag-Listen: %1$d</string>
-    <string name="cleanup_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-cleanup): ~undo nimmt es zurück.</string>
-    <!-- Die Bestätigung von ~restore-saf: die Zähler unter der Einleitung nutzen die cleanup_*-Texte. -->
+    <!-- Die Bestätigung von ~restore-saf: die Einleitung, dann je Abschnitt eine count_*-Zeile. -->
+    <string name="count_favorites">Favoriten: %1$d</string>
+    <string name="count_hidden">Ausgeblendet: %1$d</string>
+    <string name="count_names">Eigene Namen: %1$d</string>
+    <string name="count_tags">Tag-Listen: %1$d</string>
     <string name="restore_title">Diese Datei übernehmen?</string>
     <string name="restore_apply">Übernehmen</string>
     <string name="restore_intro">Sie ersetzt die ganze Konfiguration durch:</string>
     <string name="restore_undo_note">Vorher wird die aktuelle Konfiguration gesichert (verso-pre-restore): ~undo nimmt es zurück.</string>
-    <string name="toast_cleanup_not_run">Nichts geändert — bitte nochmal versuchen</string>
     <string name="toast_restore_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Eine Zeile oder ein Favorit, wie ein Screenreader sie nimmt: der App-Name, daneben der
          Zustand (stateDescription), und was Doppeltippen tut (die Beschriftung des Klicks;

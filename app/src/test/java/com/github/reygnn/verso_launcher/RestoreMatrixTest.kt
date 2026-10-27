@@ -18,8 +18,8 @@ import java.time.LocalDateTime
  * the process killed before each step, then every sequence of up to four commands — each checked
  * against the hard rules after every step.
  *
- * The real LauncherState, ConfigStore (on real files), RestoreSteps, BackupFiles, Cleanup and
- * ConfigJson; Download/Verso a list of rows. What joins them is Commands' glue, retold in [run]:
+ * The real LauncherState, ConfigStore (on real files), RestoreSteps, BackupFiles and ConfigJson;
+ * Download/Verso a list of rows. What joins them is Commands' glue, retold in [run]:
  * RestoreMatrixFlowsTest holds the real Commands to the same answers.
  */
 class RestoreMatrixTest {
@@ -152,7 +152,6 @@ class RestoreMatrixTest {
         // The picked file, read on a thread of its own: a READ fault is a provider that fails it.
         Cmd.RESTORE_SAF -> (if (fault == Fault.READ) null else RestoreMatrix.payloadOf(cell, RestoreMatrix.picked))
             ?.let(ConfigJson::parseForeign)?.let { adopt(it, BackupFiles.Source.BACKUP) } ?: Outcome.UNREADABLE
-        Cmd.CLEANUP -> cleanup()
     }
 
     private fun World.newest(source: BackupFiles.Source): Outcome {
@@ -178,26 +177,6 @@ class RestoreMatrixTest {
             RestoreSteps.Outcome.UndoFailed -> Outcome.UNDO_POINT_FAILED
             RestoreSteps.Outcome.WriteFailed -> Outcome.WRITE_FAILED
             is RestoreSteps.Outcome.Done -> if (undo) Outcome.UNDONE else Outcome.RESTORED
-        }
-    }
-
-    private fun World.cleanup(): Outcome {
-        var outcome: CleanupOutcome? = null
-        state.cleanup(
-            confirmed = setOf(RestoreMatrix.GONE),
-            recheck = { config ->
-                reaper.step("recheck")
-                Cleanup.plan(config, Enumeration(listOf(RestoreMatrix.alpha), true)) { false }
-            },
-            writeUndo = { payload -> downloads.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
-        ) { outcome = it }
-        drain()
-        return when (val o = outcome) {
-            CleanupOutcome.Refused -> Outcome.NOT_LOADED
-            CleanupOutcome.UndoFailed -> Outcome.UNDO_POINT_FAILED
-            is CleanupOutcome.Done -> Outcome.CLEANED
-            CleanupOutcome.NothingToDo -> Outcome.NOTHING_TO_CLEAN
-            else -> error("harness: cleanup ended as $o")
         }
     }
 
@@ -244,10 +223,10 @@ class RestoreMatrixTest {
         // 4, 5, 7: memory and disk as the spec says; a difference only as a save the user is told of.
         assertEquals("verso.json", expected.disk, w.coldStart())
         assertEquals("memory", expected.memory, w.state.config)
-        assertEquals("save failed said", expected.outcome == Outcome.CLEANED && cell.fault == Fault.CONFIG_WRITE, w.saveFailed)
+        assertEquals("save failed said", false, w.saveFailed)
         assertEquals("unreadable verso.json said", cell.start == Start.UNREADABLE && cell.loaded, w.unusableSaid)
 
-        // 7, 14: verso.json never changes without the config it replaced in a row.
+        // 7: verso.json never changes without the config it replaced in a row.
         if (w.coldStart() != RestoreMatrix.diskBefore(cell)) assertTrue("replaced config kept", cell.current in w.rowConfigs())
     }
 
@@ -289,7 +268,7 @@ class RestoreMatrixTest {
             }
         }
         // Else the reaper never reached the steps that matter.
-        val needed = listOf("publish verso-pre-undo", "move verso.json to verso.json.bak", "write verso.json", "recheck")
+        val needed = listOf("publish verso-pre-undo", "move verso.json to verso.json.bak", "write verso.json")
         assertTrue(stepsSeen.toString(), stepsSeen.containsAll(needed))
     }
 
@@ -308,14 +287,6 @@ class RestoreMatrixTest {
                 Cmd.BACKUP -> rows += BackupFiles.BACKUP_BASE to config
                 Cmd.RESTORE -> adopt(newest(listOf(BackupFiles.BACKUP_BASE)), BackupFiles.PRE_RESTORE_BASE)
                 Cmd.UNDO -> adopt(newest(UNDO_BASES), BackupFiles.PRE_UNDO_BASE)
-                Cmd.CLEANUP -> if (RestoreMatrix.GONE in config.favorites) {
-                    rows += BackupFiles.PRE_CLEANUP_BASE to config
-                    config = config.copy(
-                        favorites = config.favorites - RestoreMatrix.GONE,
-                        hidden = config.hidden - RestoreMatrix.GONE,
-                        names = config.names - RestoreMatrix.GONE,
-                    )
-                }
                 Cmd.RESTORE_SAF -> error("not in a sequence")
             }
         }
@@ -338,7 +309,7 @@ class RestoreMatrixTest {
     }
 
     /** null: an edit (the favorite toggled) between commands. */
-    private val ops: List<Cmd?> = listOf(Cmd.BACKUP, Cmd.RESTORE, Cmd.UNDO, Cmd.CLEANUP, null)
+    private val ops: List<Cmd?> = listOf(Cmd.BACKUP, Cmd.RESTORE, Cmd.UNDO, null)
 
     private fun sequences(length: Int): List<List<Cmd?>> =
         if (length == 0) listOf(emptyList()) else sequences(length - 1).flatMap { s -> ops.map { s + it } }
@@ -379,9 +350,9 @@ class RestoreMatrixTest {
                 model.rows.toList(),
                 w.downloads.rows.map { row -> baseOf(row.name) to ConfigJson.parse(row.payload) },
             )
-            // The law ~undo is for: right after a restore, an undo or a cleanup, it brings back what was.
+            // The law ~undo is for: right after a restore or an undo, it brings back what was.
             if (cmd == Cmd.UNDO && lastChanged) assertEquals("$at: ~undo did not take the last step back", beforeLast, w.state.config)
-            lastChanged = cmd in listOf(Cmd.RESTORE, Cmd.UNDO, Cmd.CLEANUP) && model.config != before
+            lastChanged = cmd in listOf(Cmd.RESTORE, Cmd.UNDO) && model.config != before
             beforeLast = before
         }
     }

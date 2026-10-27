@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicReference
  *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
  *   unsaved        — set by [save], taken by whoever writes first: a save's IO task or [flushSave].
  *   process.seedPending.
- * Nothing changes the config before it is loaded (no [EditPermit] is issued, [adopt] and [cleanup]
- * refuse), so a first load lands as read.
+ * Nothing changes the config before it is loaded (no [EditPermit] is issued, [adopt] refuses),
+ * so a first load lands as read.
  * An enumeration carries no config (system labels only); custom names are applied on main from
  * the live config ([relabel]), so no edit can make an enumeration stale.
  *
@@ -269,60 +269,6 @@ internal class LauncherState(
         )
         mutated()
         relabel()
-    }
-
-    /** Drop every entry (favorite, hidden, name, tags) for [keys] in one save. Only behind an
-     *  accepted [cleanup], which refuses before the load. */
-    private fun forget(keys: Set<String>) {
-        if (keys.isEmpty()) return
-        cfg = cfg.copy(
-            favorites = cfg.favorites - keys,
-            hidden = cfg.hidden - keys,
-            names = cfg.names - keys,
-            tags = cfg.tags - keys,
-        )
-        mutated()
-        relabel()
-    }
-
-    /**
-     * A confirmed "~cleanup" (hard rule 14): recheck and undo point on IO, then [forget] on main. No
-     * restore lands in between: the run holds the gate throughout (hard rule 15).
-     */
-    fun cleanup(
-        confirmed: Set<String>,
-        recheck: (VersoConfig) -> CleanupPlan,
-        writeUndo: (String) -> String?,
-        onDone: (CleanupOutcome) -> Unit,
-    ) {
-        if (!configLoaded) {
-            onDone(CleanupOutcome.Refused)
-            return
-        }
-        val snapshot = cfg
-        val payload = configFile.serialize(cfg)
-        val accepted = io(Runnable {
-            // Reported from finally: the "~" command run ends only with it (hard rule 15).
-            var outcome: CleanupOutcome = CleanupOutcome.Refused
-            try {
-                outcome = when (val plan = recheck(snapshot)) {
-                    CleanupPlan.Incomplete -> CleanupOutcome.Incomplete
-                    CleanupPlan.NothingToDo -> CleanupOutcome.NothingToDo
-                    is CleanupPlan.Offer -> {
-                        val keys = plan.orphans.keys intersect confirmed
-                        if (keys.isEmpty()) CleanupOutcome.NothingToDo
-                        else writeUndo(payload)?.let { CleanupOutcome.Done(it, keys) } ?: CleanupOutcome.UndoFailed
-                    }
-                }
-            } finally {
-                val result = outcome
-                main(Runnable {
-                    if (result is CleanupOutcome.Done) forget(result.keys)
-                    onDone(result)
-                })
-            }
-        })
-        if (!accepted) onDone(CleanupOutcome.Refused)
     }
 
     fun recordLaunch(key: String) {

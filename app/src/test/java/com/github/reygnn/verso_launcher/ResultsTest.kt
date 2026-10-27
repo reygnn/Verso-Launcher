@@ -19,8 +19,6 @@ class ResultsTest {
         override fun show(text: String, long: Boolean) {
             shown += text to long
         }
-        override fun offerCleanup(orphans: Orphans) = Unit
-        override fun cleanupApplied() = Unit
         override fun offerRestore(restored: VersoConfig) = Unit
     }
 

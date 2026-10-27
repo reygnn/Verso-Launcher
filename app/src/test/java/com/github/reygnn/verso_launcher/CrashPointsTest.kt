@@ -9,7 +9,7 @@ import java.io.File
 import java.time.LocalDateTime
 
 /**
- * Crash-only: the process may die between any two steps of a restore or a "~cleanup", and the next
+ * Crash-only: the process may die between any two steps of a restore, and the next
  * start must find a disk it can use, with nothing the user had lost. Each test runs the operation
  * once per crash point until a run gets through: verso.json is real files (ConfigStore on a
  * TemporaryFolder), Download/Verso a list of rows that outlives the process (Verso never deletes
@@ -151,103 +151,6 @@ class CrashPointsTest {
             assertEquals(backup, onDisk)
             assertEquals(listOf(previousUndo, outgoing), undoPoints)
             assertEquals("the backup itself is never touched", backup, backups.single())
-        }
-    }
-
-    // ---- ~cleanup (hard rule 14) ---------------------------------------------
-
-    private val alpha = AppEntry("Alpha", "com.alpha", "com.alpha.Main", "Alpha")
-    private val beforeCleanup = VersoConfig(
-        favorites = listOf(alpha.key, "gone/A"),
-        hidden = linkedSetOf("gone/A"),
-        names = linkedMapOf("gone/A" to "Old name", alpha.key to "Mine"),
-    )
-
-    /**
-     * Runs a confirmed "~cleanup" once per crash point, through the real LauncherState with two
-     * manual queues: a death drops whatever is still queued, as the process takes it with it.
-     */
-    private fun cleanupAtEveryCrashPoint(
-        check: (point: String, onDisk: VersoConfig, undoPoints: List<VersoConfig>) -> Unit,
-    ): List<String> {
-        val points = mutableListOf<String>()
-        var deathAt = 0
-        while (true) {
-            val dir = tmp.newFolder()
-            val downloads = Downloads().apply { reaper = Reaper(Int.MAX_VALUE) }
-            storeIn(dir).write(ConfigJson.serialize(beforeCleanup))
-            downloads.write(BackupFiles.PRE_CLEANUP_BASE, ConfigJson.serialize(previousUndo))
-
-            val reaper = Reaper(deathAt)
-            downloads.reaper = reaper
-            val store = storeIn(dir, reaper)
-            val ioQueue = ArrayDeque<Runnable>()
-            val mainQueue = ArrayDeque<Runnable>()
-            val state = testLauncherState(
-                io = { ioQueue.addLast(it); true },
-                main = { mainQueue.addLast(it) },
-                loadConfig = { store.load() },
-                enumerateApps = { Enumeration(listOf(alpha), true) },
-                serialize = ConfigJson::serialize,
-                writeConfig = store::write,
-                onRefreshed = { _, _ -> },
-            )
-            fun runAll() {
-                while (ioQueue.isNotEmpty() || mainQueue.isNotEmpty()) {
-                    while (ioQueue.isNotEmpty()) ioQueue.removeFirst().run()
-                    while (mainQueue.isNotEmpty()) mainQueue.removeFirst().run()
-                }
-            }
-            state.refresh()
-            runAll()
-            assertTrue("harness: the config did not load", state.configLoaded)
-
-            var outcome: CleanupOutcome? = null
-            val point = try {
-                state.cleanup(
-                    confirmed = setOf("gone/A"),
-                    recheck = { reaper.step("recheck"); CleanupPlan.Offer(Orphans(setOf("gone/A"), 1, 1, 1, 0)) },
-                    writeUndo = { payload -> downloads.write(BackupFiles.PRE_CLEANUP_BASE, payload) },
-                ) { outcome = it }
-                runAll()
-                reaper.step("cleanup reported")
-                "no death"
-            } catch (death: ProcessDeath) {
-                death.at
-            }
-            points += point
-            if (point == "no death") assertTrue("harness: $outcome", outcome is CleanupOutcome.Done)
-            check(point, coldStart(dir), downloads.configs(BackupFiles.PRE_CLEANUP_BASE))
-            if (point == "no death") return points
-            deathAt++
-        }
-    }
-
-    @Test fun `a cleanup killed at any step leaves either config whole, and the removed entries undoable`() {
-        val cleaned = beforeCleanup.copy(
-            favorites = beforeCleanup.favorites - "gone/A",
-            hidden = beforeCleanup.hidden - "gone/A",
-            names = beforeCleanup.names - "gone/A",
-        )
-        val points = cleanupAtEveryCrashPoint { point, onDisk, undoPoints ->
-            assertTrue("$point: verso.json is neither config", onDisk == beforeCleanup || onDisk == cleaned)
-            assertTrue("$point: the removed entries are gone", onDisk == beforeCleanup || undoPoints.holds(beforeCleanup))
-        }
-        assertEquals(
-            listOf(
-                "recheck", "publish verso-pre-cleanup", "move verso.json to .bak", "write verso.json",
-                "delete verso.json.bak", "cleanup reported", "no death",
-            ),
-            points,
-        )
-    }
-
-    @Test fun `a cleanup that gets through adds its undo point and removes none`() {
-        cleanupAtEveryCrashPoint { point, onDisk, undoPoints ->
-            if (point != "no death") return@cleanupAtEveryCrashPoint
-            assertEquals(listOf(alpha.key), onDisk.favorites)
-            assertEquals(mapOf(alpha.key to "Mine"), onDisk.names)
-            assertEquals(listOf(previousUndo, beforeCleanup), undoPoints)
         }
     }
 }

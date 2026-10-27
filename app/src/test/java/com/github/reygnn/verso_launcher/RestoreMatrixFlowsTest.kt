@@ -46,8 +46,7 @@ import java.util.concurrent.TimeUnit
  * reach, each held to [RestoreMatrix]'s answer — the toast, memory, verso.json and Download/Verso.
  * RestoreMatrixTest runs every cell on the JVM; this one pins the glue it retells there.
  *
- * Not here: a failing verso.json write (the JVM covers it), "~cleanup" (Robolectric lists no apps),
- * a fresh install (its default favorites seed through the same gate).
+ * Not here: a failing verso.json write (the JVM covers it), a fresh install (its default favorites seed through the same gate).
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 class RestoreMatrixFlowsTest internal constructor(private val cell: Cell) {
@@ -225,13 +224,12 @@ class RestoreMatrixFlowsTest internal constructor(private val cell: Cell) {
         /** The cells a user can reach on the real Activity, without the ones only the JVM can make. */
         private fun reachable(c: Cell): Boolean = when {
             !c.loaded -> c.start == Start.GOOD && c.typical
-            c.start == Start.UNREADABLE -> c.cmd != Cmd.CLEANUP && c.typical
+            c.start == Start.UNREADABLE -> c.typical
             c.start == Start.FRESH -> false
             else -> when (c.cmd) {
                 Cmd.BACKUP -> backupReachable(c)
                 Cmd.RESTORE_SAF -> c.downloads == Downloads.BOTH_UNDO_NEWEST && c.eachFaultOnce
                 Cmd.RESTORE, Cmd.UNDO -> restoreReachable(c)
-                Cmd.CLEANUP -> false
             }
         }
 

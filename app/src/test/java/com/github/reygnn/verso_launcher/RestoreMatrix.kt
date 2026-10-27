@@ -11,7 +11,7 @@ package com.github.reygnn.verso_launcher
 internal object RestoreMatrix {
 
     enum class Cmd(val typed: String) {
-        BACKUP("~backup"), RESTORE("~restore"), UNDO("~undo"), RESTORE_SAF("~restore-saf"), CLEANUP("~cleanup")
+        BACKUP("~backup"), RESTORE("~restore"), UNDO("~undo"), RESTORE_SAF("~restore-saf")
     }
 
     enum class Role { DECOY, RESTORE_TARGET, UNDO_TARGET, LOOKALIKE }
@@ -90,8 +90,6 @@ internal object RestoreMatrix {
         WRITE_FAILED(R.string.toast_restore_write_failed),
         RESTORED(R.string.toast_restore_ok),
         UNDONE(R.string.toast_undo_ok),
-        CLEANED(R.string.toast_cleanup_ok),
-        NOTHING_TO_CLEAN(R.string.toast_cleanup_none),
     }
 
     data class Cell(
@@ -120,13 +118,12 @@ internal object RestoreMatrix {
     val alpha = AppEntry("Alpha", "com.alpha", "com.alpha.Main", "Alpha")
     const val GONE = "com.gone/com.gone.Main"
 
-    /** A good verso.json: one installed app, one uninstalled ("~cleanup"'s orphan). */
+    /** A good verso.json: one installed app, one uninstalled. */
     val GOOD_CONFIG = VersoConfig(
         favorites = listOf(alpha.key, GONE),
         hidden = setOf(GONE),
         names = mapOf(alpha.key to "Mine", GONE to "Old"),
     )
-    val cleaned = VersoConfig(favorites = listOf(alpha.key), names = mapOf(alpha.key to "Mine"))
     val restoreTarget = favorite("restore/Target")
     val undoTarget = favorite("undo/Target")
     val picked = favorite("picked/Target")
@@ -171,7 +168,7 @@ internal object RestoreMatrix {
     /** What the next start loads when nothing was written. */
     fun diskBefore(cell: Cell): VersoConfig? = if (cell.start == Start.UNREADABLE) null else cell.current
 
-    /** The spec's table. Hard rules 4, 5, 6, 7 and 14 decide every line; the comments name which. */
+    /** The spec's table. Hard rules 4, 5, 6 and 7 decide every line; the comments name which. */
     fun expected(cell: Cell): Expected {
         val unchanged = { outcome: Outcome -> Expected(outcome, null, cell.current, diskBefore(cell)) }
         // 5: nothing written before the load; memory holds the empty default.
@@ -180,15 +177,6 @@ internal object RestoreMatrix {
             Cmd.BACKUP ->
                 if (cell.fault == Fault.DOWNLOAD_WRITE) unchanged(Outcome.BACKUP_FAILED)
                 else Expected(Outcome.BACKED_UP, BackupFiles.BACKUP_BASE, cell.current, diskBefore(cell))
-
-            Cmd.CLEANUP -> when {
-                cell.current != GOOD_CONFIG -> unchanged(Outcome.NOTHING_TO_CLEAN)
-                // 14: no undo point, no cleanup.
-                cell.fault == Fault.DOWNLOAD_WRITE -> unchanged(Outcome.UNDO_POINT_FAILED)
-                // The removal is an edit: a failed save is said (hard rule 4) and retried by the next.
-                cell.fault == Fault.CONFIG_WRITE -> Expected(Outcome.CLEANED, BackupFiles.PRE_CLEANUP_BASE, cleaned, GOOD_CONFIG)
-                else -> Expected(Outcome.CLEANED, BackupFiles.PRE_CLEANUP_BASE, cleaned, cleaned)
-            }
 
             Cmd.RESTORE, Cmd.UNDO, Cmd.RESTORE_SAF -> restore(cell, unchanged)
         }

@@ -19,7 +19,7 @@ Pure logic
                            (Turkish, İ, NFC, accents, other scripts' marks), the ranking,
                            Collator sort, tags, reorder, recents,
                            default favorites
-  CommandDialogTextTest    what the ~cleanup and ~restore-saf dialogs say
+  CommandDialogTextTest    what the ~restore-saf dialog says
   LauncherRowsTest         rowsFor per mode
   LauncherActionsTest      Enter and tap decisions, the "!!" tap
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
@@ -27,7 +27,7 @@ Pure logic
   ConfigJsonTest           round trip, parseForeign's refusals, hostile input, size limits
   VersoConfigTest          equality as file content
   BackupFilesTest          backup names; which file ~restore and ~undo take
-  CleanupTest              what ~cleanup may offer (hard rule 14)
+  AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
   IoWatchdogTest           the IO thread's watchdog: ticks, the executor's hooks, the loop guard
@@ -46,12 +46,12 @@ Files (real temp files)
   HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside it
   BackupStoreTest          readCapped, the bounded restore read
   RestoreStepsTest         the restore's IO order
-  CrashPointsTest          a restore and a ~cleanup killed before every step, then a cold start
+  CrashPointsTest          a restore killed before every step, then a cold start
 
 Restore matrix (docs/spec/restore-matrix.md, the table as code in RestoreMatrix.kt)
-  RestoreMatrixTest        all 2 700 cells, each killed before every step; every sequence of
+  RestoreMatrixTest        all 2 160 cells, each killed before every step; every sequence of
                            up to four commands against the spec's model
-  RestoreMatrixFlowsTest   (R) the 56 cells a user can reach, through the real Activity
+  RestoreMatrixFlowsTest   (R) the 55 cells a user can reach, through the real Activity
 
 The window (R)
   MainActivityFlowsTest    the real Activity: commands refused, held or queued, picks,
@@ -105,7 +105,7 @@ crashed and vanished pending rows) and `ConfigJsonInstrumentedTest` (Android's o
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
 - Config shape: `ConfigJsonTest`, and older `verso.json` files must still parse.
-- `~backup`, `~restore`, `~restore-saf`, `~undo`, `~cleanup`: first the table in
+- `~backup`, `~restore`, `~restore-saf`, `~undo`: first the table in
   `docs/spec/restore-matrix.md`, then `RestoreMatrix.kt`; both matrix tests follow.
 
 ---

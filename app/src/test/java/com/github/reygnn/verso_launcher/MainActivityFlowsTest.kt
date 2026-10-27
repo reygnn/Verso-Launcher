@@ -437,9 +437,9 @@ class MainActivityFlowsTest {
         joinReads()
         shadowOf(Looper.getMainLooper()).idle()
         val message = shadowOf(checkNotNull(restoreDialog())).message.toString()
-        assertTrue(message, activity.getString(R.string.cleanup_favorites, 0) in message)
-        assertTrue(message, activity.getString(R.string.cleanup_hidden, 2) in message)
-        assertTrue(message, activity.getString(R.string.cleanup_names, 1) in message)
+        assertTrue(message, activity.getString(R.string.count_favorites, 0) in message)
+        assertTrue(message, activity.getString(R.string.count_hidden, 2) in message)
+        assertTrue(message, activity.getString(R.string.count_names, 1) in message)
         ShadowToast.reset()
         answerRestore(ok = false)
         settle()
@@ -631,7 +631,7 @@ class MainActivityFlowsTest {
 
     /**
      * The state's hand-backs are the process's too: a load landing while no window exists still
-     * loads. A confirmed ~cleanup reports back the same way — dropped, it would hold the gate for good.
+     * loads.
      */
     @Test fun `the state loads while no window exists`() {
         holdIo()                                // the first load queues behind the hold
@@ -661,45 +661,6 @@ class MainActivityFlowsTest {
         assertNotSame(loaded, fresh)
         enter("~restart")
         assertSame("reset once", fresh, app.core.state)
-    }
-
-    private val cleanupAnswers get() = listOf(
-        R.string.toast_cleanup_not_run, R.string.toast_cleanup_incomplete, R.string.toast_cleanup_none,
-    ).map(activity::getString)
-
-    /** The control for the two below: unanswered by a page turn, the check says what it found. */
-    @Test fun `a cleanup check answers the page that asked`() {
-        started()
-        holdIo()
-        enter("~cleanup")
-        ShadowToast.reset()
-        hold.countDown()
-        settle()
-        val shown = ShadowToast.getTextOfLatestToast()
-        assertTrue("expected one of $cleanupAnswers, got \"$shown\"", shown in cleanupAnswers)
-    }
-
-    @Test fun `a cleanup check answers no one once HOME turned the page`() {
-        started()
-        holdIo()
-        enter("~cleanup")
-        controller.newIntent(home)
-        ShadowToast.reset()
-        hold.countDown()
-        settle()
-        assertNull(ShadowToast.getLatestToast())
-    }
-
-    @Test fun `a cleanup check answers no window made since`() {
-        started()
-        holdIo()
-        enter("~cleanup")
-        controller.recreate()
-        shadowOf(Looper.getMainLooper()).idle()
-        ShadowToast.reset()
-        hold.countDown()
-        settle()
-        assertNull(ShadowToast.getLatestToast())
     }
 
     private fun startSwipeUp() {

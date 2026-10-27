@@ -14,7 +14,7 @@ Home page ("recto"): clock, date and battery (double-tap targets), the favorites
 swipe up for the drawer, pull down for the recent apps. Drawer ("verso"): Sigil's list and
 command line — search, the sigils (`-` hide, `!` favorite, `!!` reorder, `#`/`##` tags, `?`
 recents, `%` A–Z ↔ most used) and the `~` commands (`~restart`, `~backup`, `~restore`,
-`~restore-saf`, `~cleanup`, `~undo`; `~crash` only in a daily-driver build, never abbreviated).
+`~restore-saf`, `~undo`; `~crash` only in a daily-driver build, never abbreviated).
 Every change is saved at once. Default favorites are seeded once, on a fresh install.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look is constants
@@ -98,10 +98,10 @@ One module, one package. The process owns the data, an activity is a window (har
   profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `RenameDialog`,
   `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
-  default favorites), `LauncherState`, `CommandGate`, `PendingPick`, `SwipeGesture`, `Cleanup`,
+  default favorites), `LauncherState`, `CommandGate`, `PendingPick`, `SwipeGesture`,
   `RestoreSteps`, `BackupFiles`, `ConfigJson`, `WallpaperPalette`, `HomeStyle`,
   `CommandDialogText`; the data `AppEntry` and `VersoConfig` (immutable: an edit is a new one).
-- **IO:** `ConfigStore`, `BackupStore`, `Apps` (enumeration, `~cleanup`'s check), `HomeCache`,
+- **IO:** `ConfigStore`, `BackupStore`, `Apps` (enumeration, default favorites), `HomeCache`,
   `UsageLog`, `RecentsLog`, `IoWatchdog` (the IO thread's watchdog and its loop guard), and
   `Guard` (hard rule 2's backstop, beside it `logWarning`).
 
@@ -161,11 +161,11 @@ only) → main thread, the newest load generation wins; custom names come from t
 12. **Status bar hidden on the home page only**; home pads for it regardless
     (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate the activity.
-14. **`~cleanup` removes only what a complete enumeration shows gone** (`Cleanup.plan`): a profile
-    that answers empty keeps its entries; an app still there in any form (disabled, icon off,
-    unmounted, removed only for the user, in an unlisted profile) is never offered. Only after
-    the user confirms; then a re-check, the undo point, the removal (`LauncherState.cleanup`). No
-    undo point, no cleanup.
+14. **Entries of apps that are gone stay** in the config: they cost bytes and show nowhere but in
+    the tag lists (`##` and the rename dialog's suggestions, `LauncherLogic.allTags`), where a tag
+    whose apps are gone is one to give to others. Telling "gone" from "not readable right now" (a
+    paused or unlisted profile, an unmounted card) is what made `~cleanup` (up to 0.5.9) the
+    riskiest command; a new one needs a reason and the user's OK.
 15. **One `~` command at a time, process-wide** (`VersoApp.gate`, `CommandGate`): a second command
     and any edit are refused while one runs (an `EditPermit` comes only from an idle gate);
     launching, typing and page turns go on. A run ends with its last step, never by a "done" call,

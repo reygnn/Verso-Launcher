@@ -39,15 +39,6 @@ class LauncherStateTest {
     private val written = mutableListOf<String>()
     private var writeSucceeds = true
 
-    private fun runIoThrowing() {
-        try {
-            ioQueue.removeFirst().run()
-            throw AssertionError("expected the IO task to throw")
-        } catch (expected: IllegalStateException) {
-            // expected
-        }
-    }
-
     private val refreshed = mutableListOf<Boolean>()
     /** An edit permit, as MainActivity takes one from its gate before every edit. */
     private val gate = CommandGate()
@@ -416,127 +407,6 @@ class LauncherStateTest {
         assertEquals(listOf("Bravo", "Charlie", "Ärzte"), labels())
     }
 
-    @Test fun `a cleanup removes every entry of the keys in one save`() {
-        disk = VersoConfig(
-            hidden = linkedSetOf("gone/A"),
-            favorites = listOf(key("Alpha"), "gone/A"),
-            names = linkedMapOf("gone/A" to "Old"),
-            tags = linkedMapOf("gone/A" to mutableListOf("x"), key("Alpha") to mutableListOf("y")),
-        )
-        started()
-        cleanup()
-        runAll()
-        assertEquals(listOf(key("Alpha")), state.config.favorites)
-        assertTrue(state.config.hidden.isEmpty())
-        assertTrue(state.config.names.isEmpty())
-        assertEquals(setOf(key("Alpha")), state.config.tags.keys)
-        assertEquals(1, written.size)
-    }
-
-    @Test fun `a cleanup asked before the first load is refused and the load still lands`() {
-        disk = VersoConfig(favorites = listOf(key("Alpha"), "gone/A"))
-        state.refresh()
-        cleanup()
-        runAll()
-        assertEquals(listOf("done:${CleanupOutcome.Refused}"), cleanupLog)
-        assertTrue(state.configLoaded)
-        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
-        assertTrue(written.isEmpty())
-    }
-
-    // ---- cleanup: re-check, undo point first, then forget (hard rule 14) --------------
-
-    private val cleanupLog = mutableListOf<String>()
-    private var undoName: String? = "verso-pre-cleanup-2026-10-13_120000.json"
-    private var recheckPlan: CleanupPlan = CleanupPlan.Offer(Orphans(setOf("gone/A"), 1, 0, 0, 0))
-    private var recheckThrows = false
-
-    private fun cleanup(confirmed: Set<String> = setOf("gone/A")) = state.cleanup(
-        confirmed = confirmed,
-        recheck = { cfg ->
-            cleanupLog += "recheck:${cfg.favorites}"
-            if (recheckThrows) throw IllegalStateException("recheck bug")
-            recheckPlan
-        },
-        writeUndo = { payload -> cleanupLog += "undo:$payload|written=${written.size}"; undoName },
-    ) { cleanupLog += "done:$it" }
-
-    private fun startedWithOrphan() {
-        disk = VersoConfig(favorites = listOf(key("Alpha"), "gone/A"))
-        started()
-    }
-
-    @Test fun `cleanup writes the untouched config as undo point, then forgets in one save`() {
-        startedWithOrphan()
-        cleanup()
-        runIo()
-        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
-        runAll()
-        assertTrue(cleanupLog[1].startsWith("undo:fav=${key("Alpha")},gone/A;"))
-        assertTrue(cleanupLog[1].endsWith("|written=0"))
-        assertEquals(listOf(key("Alpha")), state.config.favorites)
-        assertEquals(1, written.size)
-        assertTrue(cleanupLog.last().startsWith("done:Done"))
-    }
-
-    @Test fun `no undo point, no cleanup`() {
-        startedWithOrphan()
-        undoName = null
-        cleanup()
-        runAll()
-        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
-        assertTrue(written.isEmpty())
-        assertEquals("done:${CleanupOutcome.UndoFailed}", cleanupLog.last())
-    }
-
-    @Test fun `an incomplete re-check removes nothing and writes no undo point`() {
-        startedWithOrphan()
-        recheckPlan = CleanupPlan.Incomplete
-        cleanup()
-        runAll()
-        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
-        assertTrue(cleanupLog.none { it.startsWith("undo:") })
-        assertEquals("done:${CleanupOutcome.Incomplete}", cleanupLog.last())
-    }
-
-    @Test fun `only what was confirmed AND is still an orphan is removed`() {
-        disk = VersoConfig(favorites = listOf(key("Alpha"), "gone/A", "gone/B"))
-        started()
-        // gone/B was not in the dialog; gone/A came back since (no longer an orphan).
-        recheckPlan = CleanupPlan.Offer(Orphans(setOf("gone/B"), 1, 0, 0, 0))
-        cleanup(confirmed = setOf("gone/A"))
-        runAll()
-        assertEquals(listOf(key("Alpha"), "gone/A", "gone/B"), state.config.favorites)
-        assertEquals("done:${CleanupOutcome.NothingToDo}", cleanupLog.last())
-    }
-
-    @Test fun `an edit between the check and the removal is kept, and the cleanup still runs`() {
-        startedWithOrphan()
-        cleanup()
-        runIo()
-        mainQueue.addFirst(Runnable { state.toggleFavorite(permit, key("Bravo")) })
-        runAll()
-        assertEquals(listOf(key("Alpha"), key("Bravo")), state.config.favorites)
-        assertTrue(cleanupLog.last().startsWith("done:Done"))
-    }
-
-    @Test fun `a refused IO task cleans nothing and says so`() {
-        startedWithOrphan()
-        ioOpen = false
-        cleanup()
-        assertEquals(listOf("done:${CleanupOutcome.Refused}"), cleanupLog)
-    }
-
-    @Test fun `a cleanup whose re-check throws still reports, and removes nothing`() {
-        startedWithOrphan()
-        recheckThrows = true
-        cleanup()
-        runIoThrowing()
-        runMain()
-        assertEquals("done:${CleanupOutcome.Refused}", cleanupLog.last())
-        assertEquals(listOf(key("Alpha"), "gone/A"), state.config.favorites)
-    }
-
     @Test fun `a rename stores the name cleaned, whoever commits it`() {
         started()
         state.rename(permit, key("Alpha"), "Alpha", " Zu\u202Elu\u200B ", emptyList())
@@ -646,15 +516,6 @@ class LauncherStateTest {
         state.refresh()
         runIo()
         state.rename(permit, key("Alpha"), "Alpha", "", emptyList())   // blank: back to the app's own
-        runAll()
-        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
-    }
-
-    @Test fun `a cleanup of a listed app's name shows its own label again`() {
-        disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
-        recheckPlan = CleanupPlan.Offer(Orphans(setOf(key("Alpha")), 0, 0, 1, 0))
-        started()
-        cleanup(setOf(key("Alpha")))
         runAll()
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
     }
@@ -1148,7 +1009,7 @@ class LauncherStateTest {
         runAll()
         assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
         assertEquals(1, written.size)
-        // Ended by the seeding: a "~cleanup" that later removes every default must not bring them back.
+        // Ended by the seeding: removing every default later must not bring them back.
         assertFalse(process.seedPending.get())
         assertFalse(state.needsRefresh)
     }

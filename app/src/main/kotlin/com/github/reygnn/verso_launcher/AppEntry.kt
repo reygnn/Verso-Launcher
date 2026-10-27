@@ -34,7 +34,7 @@ internal data class AppEntry(
 
         /**
          * [key] taken apart, or null when [keyOf] could not have built it (e.g. "#+10", "#010",
-         * "#-1"); such a key can never match an app, and "~cleanup" treats it as gone.
+         * "#-1"); such a key can never match an app.
          */
         fun parseKey(key: String): KeyParts? {
             val hash = key.lastIndexOf('#')
@@ -71,3 +71,9 @@ internal enum class AppStatus {
 }
 
 internal data class KeyParts(val packageName: String, val className: String, val profile: Long?)
+
+/** Every profile's launcher activities ([apps], system labels); [complete] false when a profile or an app could not be read. */
+internal class Enumeration(
+    val apps: List<AppEntry>,
+    val complete: Boolean,
+)

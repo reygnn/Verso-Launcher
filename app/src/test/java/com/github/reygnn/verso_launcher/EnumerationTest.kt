@@ -91,12 +91,12 @@ class EnumerationTest {
         assertEquals(listOf("Alpha", "Mail (Work)"), e.apps.map { it.label })
     }
 
-    /** Not incomplete: Cleanup.plan keeps such a profile's entries by its serial. */
-    @Test fun `an empty work profile is reported by serial, still complete`() {
+    /** A work profile being set up or torn down answers empty: no apps from it, nothing skipped. */
+    @Test fun `an empty work profile is still complete`() {
         lists["work"] = { emptyList() }
         val e = run()!!
         assertTrue(e.complete)
-        assertEquals(setOf(10L), e.emptyProfiles)
+        assertEquals(listOf("Alpha", "Bravo"), e.apps.map { it.label })
     }
 
     @Test fun `a paused profile's apps and an archived app carry their status`() {

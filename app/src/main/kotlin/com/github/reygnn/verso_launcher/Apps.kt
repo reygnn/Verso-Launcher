@@ -1,6 +1,5 @@
 package com.github.reygnn.verso_launcher
 
-import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
@@ -12,8 +11,8 @@ import android.provider.MediaStore
 import android.util.Log
 
 /**
- * The apps on the device (IO side): enumeration of every profile, "~cleanup"'s "still there?",
- * and the default favorites. Runs on the IO thread, except [userOf].
+ * The apps on the device (IO side): enumeration of every profile and the default favorites. Runs
+ * on the IO thread, except [userOf].
  */
 internal class Apps(
     private val launcherApps: LauncherApps,
@@ -24,64 +23,6 @@ internal class Apps(
     private val locale: () -> String,
     private val defaultSmsPackage: () -> String?,
 ) {
-
-    /** Never throws: the hand-back must always come, or "~cleanup" would stay "checking". */
-    // hard rule 14: a throw is an incomplete check
-    @Suppress("TooGenericExceptionCaught")
-    fun safeCleanupCheck(cfg: VersoConfig): CleanupPlan = try {
-        cleanupCheck(cfg)
-    } catch (e: RuntimeException) {
-        Log.w("Verso", "cleanup check failed", e)
-        CleanupPlan.Incomplete
-    }
-
-    fun cleanupCheck(cfg: VersoConfig): CleanupPlan {
-        val found = enumerate()
-        val listed: Set<Long>
-        val ownSerial: Long?
-        // hard rule 14: unreadable profiles, incomplete check
-        @Suppress("TooGenericExceptionCaught") try {
-            listed = launcherApps.profiles.mapTo(HashSet()) { userManager.getSerialNumberForUser(it) }
-            ownSerial = userManager.getSerialNumberForUser(Process.myUserHandle()).takeIf { it >= 0 }
-        } catch (e: RuntimeException) {
-            Log.w("Verso", "cleanup: profiles unreadable", e)
-            return CleanupPlan.Incomplete
-        }
-        return Cleanup.plan(cfg, found, ownSerial) { parts -> stillThere(parts, listed) }
-    }
-
-    /** Another profile only allows a package lookup. Unsure counts as there. */
-    // not found = gone; anything else = kept (rule 14)
-    @Suppress("TooGenericExceptionCaught", "SwallowedException")
-    fun stillThere(key: KeyParts, listed: Set<Long>): Boolean = try {
-        val serial = key.profile
-        if (serial == null) {
-            try {
-                pm.getActivityInfo(
-                    ComponentName(key.packageName, key.className),
-                    PackageManager.ComponentInfoFlags.of(STILL_THERE_FLAGS.toLong()),
-                )
-                true
-            } catch (e: PackageManager.NameNotFoundException) {
-                // The package may be there with its code not loaded (unmounted, data kept).
-                val info = pm.getPackageInfo(
-                    key.packageName,
-                    PackageManager.PackageInfoFlags.of((PackageManager.GET_ACTIVITIES or STILL_THERE_FLAGS).toLong()),
-                )
-                Cleanup.activityStillThere(key.className, info.activities?.map { it.name })
-            }
-        } else {
-            Cleanup.otherProfileStillThere(userManager.getUserForSerialNumber(serial), serial in listed) { user ->
-                launcherApps.getApplicationInfo(key.packageName, STILL_THERE_FLAGS, user)
-                true
-            }
-        }
-    } catch (e: PackageManager.NameNotFoundException) {
-        false
-    } catch (e: RuntimeException) {
-        Log.w("Verso", "cleanup: cannot check ${key.packageName}", e)
-        true
-    }
 
     /** Null when the entry's profile no longer exists. */
     fun userOf(entry: AppEntry): UserHandle? {
@@ -149,11 +90,6 @@ internal class Apps(
             handlers(Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)),
         )
     }
-
-    private companion object {
-        const val STILL_THERE_FLAGS = PackageManager.MATCH_DISABLED_COMPONENTS or
-            PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS or PackageManager.MATCH_UNINSTALLED_PACKAGES
-    }
 }
 
 /** One launcher activity as the system reports it; reading it may throw (a binder call). */
@@ -163,7 +99,7 @@ internal class RawApp(val packageName: String, val className: String?, val label
  * Every profile's launcher activities, system labels only. [P] is the profile handle (a
  * UserHandle in the app). Null when the profiles or the personal profile cannot be read, or the
  * personal one is missing or empty (never real), so the last list and the home cache stay (hard
- * rule 2); a skipped profile or app makes it incomplete (hard rule 14).
+ * rule 2); a skipped profile or app makes it incomplete, and the next resume tries again.
  */
 internal fun <P> enumerate(
     profiles: () -> List<P>,
@@ -176,7 +112,6 @@ internal fun <P> enumerate(
     log: (String, Exception) -> Unit,
 ): Enumeration? {
     var complete = true
-    val emptyProfiles = HashSet<Long>()
     // hard rule 2: unreadable profiles = no list, the last one stays
     val all = @Suppress("TooGenericExceptionCaught") try {
         profiles()
@@ -193,7 +128,7 @@ internal fun <P> enumerate(
         val isPersonal = user == personal
         var serial: Long? = null
         var isPaused = false
-        // hard rule 14: an unreadable profile makes the list incomplete
+        // an unreadable profile makes the list incomplete
         val found = @Suppress("TooGenericExceptionCaught") try {
             if (!isPersonal) {
                 serial = serialOf(user).takeIf { it >= 0 } ?: run { complete = false; continue }
@@ -209,15 +144,12 @@ internal fun <P> enumerate(
             complete = false
             continue
         }
-        if (found.isEmpty()) {
-            if (isPersonal) {
-                log("app enumeration failed", IllegalStateException("empty personal list"))
-                return null
-            }
-            serial?.let { emptyProfiles += it }
+        if (found.isEmpty() && isPersonal) {
+            log("app enumeration failed", IllegalStateException("empty personal list"))
+            return null
         }
         for (read in found) {
-            // hard rule 14: an unreadable app makes the list incomplete
+            // an unreadable app makes the list incomplete
             @Suppress("TooGenericExceptionCaught") try {
                 val app = read()
                 if (app.className.isNullOrEmpty()) continue
@@ -239,5 +171,5 @@ internal fun <P> enumerate(
             }
         }
     }
-    return Enumeration(LauncherLogic.sortedForDrawer(entries), complete, emptyProfiles)
+    return Enumeration(LauncherLogic.sortedForDrawer(entries), complete)
 }

@@ -295,7 +295,6 @@ class LauncherLogicTest {
     @Test fun `~u is ~undo, and every earlier abbreviation still resolves`() {
         assertEquals(Command.UNDO, LauncherLogic.resolveCommand("~u"))
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
-        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
         assertNull(LauncherLogic.resolveCommand("~r"))
@@ -312,12 +311,11 @@ class LauncherLogicTest {
         assertEquals(crash, LauncherLogic.parseCommand("~crash"))
         assertEquals(crash, LauncherLogic.resolveCommand("~crash"))
         assertEquals(null, LauncherLogic.resolveCommand("~cr"))
-        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
+        assertEquals(null, LauncherLogic.resolveCommand("~c"))
         assertEquals(DailyDriver.ENABLED, "~crash" in LauncherLogic.commandsMatching("~").map { it.first })
     }
 
     @Test fun `an unambiguous abbreviation resolves`() {
-        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~restore-"))
@@ -352,7 +350,7 @@ class LauncherLogicTest {
         assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~B").map { it.first })
         assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~B"))
         assertEquals(Command.RESTORE_SAF, LauncherLogic.resolveCommand("~RESTORE-"))
-        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~CLEANUP"))
+        assertEquals(Command.UNDO, LauncherLogic.resolveCommand("~UNDO"))
     }
 
     /** Forward guard: a spelling with an "i" (say "~import") would stop resolving on a Turkish phone. */
@@ -1117,38 +1115,5 @@ class LauncherLogicTest {
         assertEquals(full.dropLast(1), LauncherLogic.toggleTag(full, "t${ConfigJson.MAX_TAGS_PER_APP}"))  // removing still works
         val typed = (1..ConfigJson.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
         assertEquals(ConfigJson.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
-    }
-
-    // ---- ~cleanup -----------------------------------------------------------------
-
-    @Test fun `orphans are the entries of apps not installed, counted per section`() {
-        val config = VersoConfig(
-            hidden = linkedSetOf("gone/A", "here/B"),
-            favorites = listOf("here/B", "gone/A", "gone/C#10"),
-            names = linkedMapOf("gone/D" to "Dee", "here/B" to "Bee"),
-            tags = linkedMapOf("gone/A" to mutableListOf("x"), "here/B" to mutableListOf("y")),
-        )
-        val o = LauncherLogic.orphans(config, installed = setOf("here/B"))
-        assertEquals(setOf("gone/A", "gone/C#10", "gone/D"), o.keys)
-        assertEquals(listOf(2, 1, 1, 1), listOf(o.favorites, o.hidden, o.names, o.tags))
-        assertEquals(true, LauncherLogic.orphans(config, setOf("here/B", "gone/A", "gone/C#10", "gone/D")).isEmpty)
-    }
-
-    @Test fun `cleanup is a command of its own, also abbreviated`() {
-        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~cleanup"))
-        assertEquals(Command.CLEANUP, LauncherLogic.resolveCommand("~c"))
-    }
-
-    @Test fun `a key orphaned in one section only is still offered`() {
-        for (config in listOf(
-            VersoConfig(favorites = listOf("gone/A")),
-            VersoConfig(hidden = linkedSetOf("gone/A")),
-            VersoConfig(names = linkedMapOf("gone/A" to "Old")),
-            VersoConfig(tags = linkedMapOf("gone/A" to mutableListOf("x"))),
-        )) {
-            val o = LauncherLogic.orphans(config, installed = setOf("here/B"))
-            assertEquals(setOf("gone/A"), o.keys)
-            assertEquals(1, o.favorites + o.hidden + o.names + o.tags)
-        }
     }
 }

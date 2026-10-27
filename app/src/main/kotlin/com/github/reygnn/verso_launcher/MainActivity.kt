@@ -34,7 +34,7 @@ class MainActivity : Activity() {
     private var resumed = false
     // Set by a launch that started: the pause it brings turns the page home (see onPause).
     private var launchedApp = false
-    // Between onStart and onStop: the launcher can be seen (see cleanup).
+    // Between onStart and onStop: the launcher can be seen (results wait for it, Results).
     private var started = false
 
     private val app get() = VersoApp.from(this)
@@ -74,10 +74,6 @@ class MainActivity : Activity() {
             this@MainActivity.refreshed(from, configReplaced, listChanged)
 
         override fun show(text: String, long: Boolean) = toast(text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT)
-
-        override fun offerCleanup(orphans: Orphans) = this@MainActivity.offerCleanup(orphans)
-
-        override fun cleanupApplied() = appDrawer.refilter()
 
         override fun offerRestore(restored: VersoConfig) = this@MainActivity.offerRestore(restored)
     }
@@ -254,11 +250,8 @@ class MainActivity : Activity() {
         state.flushSave()
     }
 
-    /** The user left the page they acted on: a dialog opened there and a pending "~cleanup" offer are void. */
-    private fun turnAway() {
-        app.commands.pageTurns++
-        dismissDialogs()
-    }
+    /** The user left the page they acted on: a dialog opened there is void. */
+    private fun turnAway() = dismissDialogs()
 
     private fun dismissDialogs() {
         renameDialog?.dismiss()
@@ -333,7 +326,6 @@ class MainActivity : Activity() {
             Command.RESTORE -> app.commands.restore()
             // Only the picker: it is another activity, so no run spans it (the adoption is one).
             Command.RESTORE_SAF -> pickRestoreFile()
-            Command.CLEANUP -> app.commands.checkCleanup()
             Command.UNDO -> app.commands.undo()
             Command.CRASH -> Unit // returned above
         }
@@ -364,21 +356,6 @@ class MainActivity : Activity() {
         if (!restore || !app.pick.pending) return false
         toast(getString(R.string.toast_restore_pending), Toast.LENGTH_LONG)
         return true
-    }
-
-    /** A "~cleanup" check found [orphans] (Commands): the dialog; its OK starts the removal run. */
-    private fun offerCleanup(orphans: Orphans) {
-        commandDialog?.dismiss()
-        commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(R.string.cleanup_title)
-            .setMessage(CommandDialogText.cleanup(orphans, ::words))
-            .setPositiveButton(R.string.cleanup_remove) { _, _ ->
-                if (!app.commands.runCleanup(orphans.keys)) toast(getString(R.string.toast_busy))
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-            .apply { setOnDismissListener { d -> if (commandDialog === d) commandDialog = null } }
-        commandDialog?.show()
     }
 
     /**
@@ -575,7 +552,7 @@ class MainActivity : Activity() {
         )
     }
 
-    // The process's app list (Core): enumeration, the cleanup check, a profile's user.
+    // The process's app list (Core): enumeration, a profile's user.
     private val apps get() = app.core.apps
 
     private val appsChanged = object : LauncherApps.Callback() {

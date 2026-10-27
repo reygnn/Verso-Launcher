@@ -50,30 +50,20 @@
     <string name="toast_restore_saf_dropped">~restore-saf dropped — the picked file was not restored yet</string>
     <string name="toast_restore_pending">a picked file is still being restored — wait, or ~restart drops it</string>
     <string name="toast_restore_none">no backup — run ~backup, or pick one: ~restore-saf</string>
-    <!-- ~undo: the newest undo point of a ~restore, ~cleanup or ~undo. %1$s in toast_undo_ok is the
+    <!-- ~undo: the newest undo point of a ~restore or ~undo. %1$s in toast_undo_ok is the
          time (HH:mm) in the name of the undo point it left itself. -->
     <string name="toast_undo_ok">undone (undo point %1$s) — ~undo again redoes it</string>
     <string name="toast_undo_same">nothing to undo — the last undo point is in use</string>
     <string name="toast_undo_none">nothing to undo — no undo point in Download/Verso</string>
-    <string name="toast_cleanup_none">nothing to clean up</string>
-    <string name="toast_cleanup_incomplete">not every profile could be read — try again later</string>
-    <!-- %1$s: the time (HH:mm) in the undo point's name. -->
-    <string name="toast_cleanup_ok">cleaned up (undo point %1$s) — ~undo takes it back</string>
-    <string name="cleanup_title">Clean up</string>
-    <string name="cleanup_remove">Remove</string>
-    <!-- The cleanup dialog's lines; a section with nothing to remove is left out. -->
-    <string name="cleanup_apps">Apps no longer installed: %1$d</string>
-    <string name="cleanup_favorites">favorites: %1$d</string>
-    <string name="cleanup_hidden">hidden: %1$d</string>
-    <string name="cleanup_names">custom names: %1$d</string>
-    <string name="cleanup_tags">tag lists: %1$d</string>
-    <string name="cleanup_undo_note">The current config is saved first (verso-pre-cleanup): ~undo takes it back.</string>
-    <!-- The ~restore-saf confirmation: the counts below the intro reuse the cleanup_* labels. -->
+    <!-- The ~restore-saf confirmation: the intro, then one count_* line per section. -->
+    <string name="count_favorites">favorites: %1$d</string>
+    <string name="count_hidden">hidden: %1$d</string>
+    <string name="count_names">custom names: %1$d</string>
+    <string name="count_tags">tag lists: %1$d</string>
     <string name="restore_title">Restore this file?</string>
     <string name="restore_apply">Restore</string>
     <string name="restore_intro">It replaces the whole config with:</string>
     <string name="restore_undo_note">The current config is saved first (verso-pre-restore): ~undo takes it back.</string>
-    <string name="toast_cleanup_not_run">nothing changed — try again</string>
     <string name="toast_restore_no_picker">no file picker on this device</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
          (stateDescription), and what a double-tap does (the click's label; TalkBack adds
