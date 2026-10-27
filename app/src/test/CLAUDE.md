@@ -41,7 +41,8 @@ State and threads (manual queues)
   WallpaperPaletteTest     the palette's question against the colour listener
 
 Files (real temp files)
-  ConfigStoreTest          verso.json on SharedPreferences' terms (.bak, torn, unreadable)
+  ConfigStoreTest          verso.json whole or not at all: torn and unreadable files set
+                           aside, a write killed mid-way, the legacy .bak
   UndoSlotTest             the one undo point: whole or not at all, read back as written
   HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside it
 

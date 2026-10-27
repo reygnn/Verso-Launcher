@@ -35,7 +35,7 @@ internal class ProcessState(
  *
  * @property load the config on disk; empty when there is none, null when it is there but cannot be
  *   read or parsed — loaded as empty all the same (hard rule 4), and reported.
- * @property isFresh neither verso.json nor its .bak: a fresh install (hard rule 10).
+ * @property isFresh nothing that stands for verso.json: a fresh install (hard rule 10).
  * @property write false if the write failed.
  */
 internal class ConfigFile(

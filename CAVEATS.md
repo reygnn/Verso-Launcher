@@ -17,13 +17,14 @@ Launches meanwhile are merged in, unless the process ends first.
 
 ## A config that cannot be read loads as empty
 
-Verso keeps `verso.json` the way Android keeps SharedPreferences: a write cut off halfway is
-undone from `verso.json.bak` at the next start. But a file that cannot be read — broken, or a
-read error the system reports, which looks the same — loads as an empty config (no favorites,
-nothing hidden, no default favorites either), and the next change writes over it. A toast says
-so, once per load. If the read error was passing, the file is still there until you change
-something: run `~restart` first. Otherwise `~restore` and pick your last backup. A crash or
-power cut right after a change can also cost that change; the file before it stays whole.
+Verso writes `verso.json` whole or not at all: a new file beside it, synced, then renamed over
+it, so a crash or power cut leaves the config before the change or after it. A file that cannot
+be read all the same — broken by something else, or a read error the system reports, which looks
+the same — loads as an empty config (no favorites, nothing hidden, no default favorites either),
+and a toast says so, once per load. It is not written over: it is set aside as
+`verso.json.unreadable`. If the read error was passing, `~restart` (before you change anything)
+reads it again and takes it back; otherwise `~restore` and pick your last backup. Only one file
+waits aside: a second unreadable one replaces it.
 
 ## Default favorites can still be missed
 
@@ -145,8 +146,8 @@ need a migration of the stored keys.
 The first app list on a cold start, the saves and Guru's report do their disk and system work on
 one thread. If a system service does not answer (MediaStore or the package manager; not seen so far),
 Verso waits 30 seconds and then stops itself: Android starts the launcher again at once, and Guru
-reports where it hung at the next start. A write cut off halfway is taken back from
-`verso.json.bak`. Until then launching, searching and turning pages go on; on a cold start the
+reports where it hung at the next start. A write cut off halfway never reached `verso.json`.
+Until then launching, searching and turning pages go on; on a cold start the
 drawer stays empty and home shows only its cached favorites.
 
 So that a service stuck for good cannot restart the launcher over and over, Verso stops itself

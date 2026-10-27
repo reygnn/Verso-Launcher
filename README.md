@@ -144,10 +144,11 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
   instant first frame, `usage.txt` and `recents.txt` behind `%` and `?`, and `stalls.txt` for the
   IO watchdog; and Guru's crash
-  reports in `guru/` until the next start saves them, see "Crash reports"), kept the way
-  Android keeps SharedPreferences (the last complete file waits as `verso.json.bak` until a
-  write is done; a file that cannot be read loads as empty, and a toast says so) — your own `~backup`s are the
-  copies to fall back on, and `verso.prev.json` the one undo point; and edited only through the in-app modes above
+  reports in `guru/` until the next start saves them, see "Crash reports"), written whole or
+  not at all (a new file, synced, renamed over the old; one that cannot be read loads as empty,
+  is set aside and never written over, and a toast says so) — your own `~backup`s are the copies
+  to fall back on, and `verso.prev.json` the one undo point; and edited only through the in-app
+  modes above
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code

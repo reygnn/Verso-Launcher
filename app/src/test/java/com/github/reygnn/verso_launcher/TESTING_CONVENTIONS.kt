@@ -14,8 +14,8 @@ package com.github.reygnn.verso_launcher
  *     — built through testLauncherState (TestLauncherState.kt): flat parameters with inert
  *       defaults; the production constructor has none. One shared ProcessState between two
  *       instances models a recreation.
- *   ConfigStore(dir, log, rename, delete, readText, writeSynced)   — the four seams force a failure
- *   UndoSlot(dir, log)                                              — real files; a directory in the way fails it
+ *   ConfigStore(dir, log, syncDir, rename, delete, readText, writeSynced) — the seams force a failure
+ *   UndoSlot(dir, log, syncDir)                                     — real files; a directory in the way fails it
  *
  * `log` is the error channel of a class that never throws: collect it and assert on it. Pure
  * decisions live in objects (LauncherLogic, SwipeGesture,

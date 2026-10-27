@@ -129,10 +129,13 @@ only) → main thread, the newest load generation wins; custom names come from t
    thread and its alert via `runOnUiThread`, a pending save written on main at `onStop`
    (`LauncherState.flushSave`), and the IO thread's watchdog (`IoWatchdog`): a task stuck 30 s
    crashes the process so HOME starts again clean, at most once in 10 minutes (`stalls.txt`).
-4. **`verso.json` on SharedPreferences' terms** (`ConfigStore`): the last complete file waits as
-   `verso.json.bak` while a write runs and is taken back by the next load; a file that cannot be
-   read or parsed loads as empty, and a toast says so (`onConfigUnusable`); a save is on disk once
-   `onStop` is through, like `apply()` (`flushSave`). Fresh = neither file. The net is the backups.
+4. **`verso.json` is written whole or not at all** (`ConfigStore`): `verso.json.new`, fsynced,
+   renamed over it, the directory synced. A file that cannot be read or parsed loads as empty, a
+   toast says so (`onConfigUnusable`), and it is set aside as `verso.json.unreadable`, never
+   written over; a load with no `verso.json` takes it back once it reads. A save is on disk once
+   `onStop` is through, like SharedPreferences' `apply()` (`flushSave`). Fresh = nothing that
+   stands for `verso.json` (`isFresh`). A `.bak` of versions up to 0.5.9 is taken back once. The
+   net is the backups.
 5. **Nothing is written before the config is loaded.** No `EditPermit` (`LauncherState.editPermit`,
    `SourceGuardTest`), no save, no `~` command but `~restart`; a backup comes from
    `loadedSnapshot`, a swap refuses (`replace`); home and its cache are drawn only from a loaded

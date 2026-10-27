@@ -76,8 +76,8 @@ class VersoApp : Application() {
 
     /**
      * A crash, on the watchdog's thread, so the system starts HOME again with a free IO thread and
-     * Guru reports the stuck call. What it cuts off is covered: a torn verso.json by its .bak
-     * (hard rule 4); a save still queued is lost unless onStop wrote it (flushSave).
+     * Guru reports the stuck call. What it cuts off is covered: a write cut off never reached
+     * verso.json (hard rule 4); a save still queued is lost unless onStop wrote it (flushSave).
      */
     private fun stalled(ioThread: Thread) {
         if (StallTrips(File(filesDir, StallTrips.FILE)).allow()) throw IoStallException(ioThread.stackTrace)

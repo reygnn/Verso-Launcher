@@ -3,6 +3,10 @@ package com.github.reygnn.verso_launcher
 import android.content.pm.LauncherApps
 import android.os.UserManager
 import android.provider.Telephony
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
+import java.io.File
 
 /**
  * The launcher's data, owned by the process (VersoApp.core): one [LauncherState] and the stores
@@ -20,10 +24,10 @@ import android.provider.Telephony
  */
 internal class Core(private val app: VersoApp) {
 
-    val store = ConfigStore(dir = app.filesDir, log = ::logWarning)
+    val store = ConfigStore(dir = app.filesDir, log = ::logWarning, syncDir = ::fsyncDir)
 
     /** The config the last "~restore" or "~undo" replaced, beside verso.json. */
-    val undoSlot = UndoSlot(dir = app.filesDir, log = ::logWarning)
+    val undoSlot = UndoSlot(dir = app.filesDir, log = ::logWarning, syncDir = ::fsyncDir)
 
     val apps = Apps(
         launcherApps = app.getSystemService(LauncherApps::class.java),
@@ -82,5 +86,24 @@ internal class Core(private val app: VersoApp) {
             },
         )
         return built
+    }
+}
+
+/**
+ * The directory entry of a rename on disk too (verso.json, the undo slot). Best effort: the file
+ * itself is already synced, and a failure here only means a power cut right after the save may
+ * bring back the file before it. Os, not FileChannel: Android's refuses to open a directory.
+ */
+private fun fsyncDir(dir: File) {
+    // hard rule 2: part of verso.json's write, which must not throw
+    try {
+        val fd = Os.open(dir.path, OsConstants.O_RDONLY, 0)
+        try {
+            Os.fsync(fd)
+        } finally {
+            Os.close(fd)
+        }
+    } catch (e: ErrnoException) {
+        logWarning("fsync of ${dir.name} failed", e)
     }
 }

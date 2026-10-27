@@ -22,7 +22,7 @@ class UndoSlotTest {
     @Before
     fun setUp() {
         dir = tmp.newFolder("files")
-        slot = UndoSlot(dir) { msg, _ -> logs += msg }
+        slot = UndoSlot(dir, { msg, _ -> logs += msg }, syncDir = {})
     }
 
     private val file get() = File(dir, UndoSlot.FILE)

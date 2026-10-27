@@ -16,6 +16,7 @@ import java.io.FileOutputStream
 internal class UndoSlot(
     private val dir: File,
     private val log: (String, Exception?) -> Unit,
+    private val syncDir: (File) -> Unit,
 ) {
     private val file get() = File(dir, FILE)
     private val temp get() = File(dir, "$FILE.new")
@@ -33,7 +34,7 @@ internal class UndoSlot(
         return ConfigJson.parse(text).also { if (it == null) log("$FILE unparseable", null) }
     }
 
-    /** Written whole or not at all: a temp file, fsynced, then renamed over the slot. */
+    /** Written whole or not at all: a temp file, fsynced, renamed over the slot, the directory synced. */
     fun write(payload: String): Boolean {
         // hard rule 2: no undo point is a refused restore, not a crash
         val written = @Suppress("TooGenericExceptionCaught") try {
@@ -48,6 +49,7 @@ internal class UndoSlot(
             false
         }
         if (!written && temp.exists()) temp.delete()
+        if (written) syncDir(dir)
         return written
     }
 
