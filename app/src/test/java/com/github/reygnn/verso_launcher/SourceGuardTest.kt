@@ -93,14 +93,8 @@ class SourceGuardTest {
         assertTrue("a \"/*\" in a string opens no comment", has(stripped, "writeConfig = w"))
     }
 
-    // Rule 7: a file from outside is read through ConfigText.read, whose JSON is parseForeign's;
-    // only LegacyConfig reads the app's own verso.json leniently.
-    @Test fun `outside files are read with parseForeign, never the lenient parse`() {
-        for (path in listOf("MainActivity.kt", "Commands.kt", "Core.kt", "ConfigText.kt")) {
-            val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$path")
-            assertFalse(path, Regex("""ConfigJson\s*\.\s*parse\s*\(""").containsMatchIn(text))
-            assertFalse(path, Regex("""ConfigJson\s*::\s*parse\b(?!Foreign)""").containsMatchIn(text))
-        }
+    // Rule 7: a file from outside is read through ConfigText.read, whose JSON is parseForeign's.
+    @Test fun `outside files are read with parseForeign`() {
         assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/ConfigText.kt"), "ConfigJson.parseForeign(trimmed)"))
         assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt"), "ConfigText.read(text)"))
     }
@@ -125,21 +119,18 @@ class SourceGuardTest {
     }
 
     /**
-     * What no JVM test reaches: the user's file is read and written on threads of its own, never
-     * on the IO thread a provider could block, and never written but by "~new" (hard rule 4).
+     * What no JVM test reaches: the user's file is read on a thread of its own, never on the IO
+     * thread a provider could block, and never written (hard rule 4).
      */
-    @Test fun `the config file's threads are wired into Commands, and only ~new writes`() {
+    @Test fun `the config file is read on a thread of its own, and nothing writes a document`() {
         val commands = code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt")
-        assertTrue(has(commands, "\"verso-config-write\").start()"))
         assertTrue(has(commands, "\"verso-config-read\").start()"))
         assertFalse(has(commands, "submitIo"))
-        // One call of it: "~new"'s, into the document the picker has just made.
-        assertEquals(1, Regex("""\bwriteDocument\s*\(\s*resolver\s*,""").findAll(commands).count())
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
         val writers = dir.walk().filter { it.extension == "kt" }
             .filter { Regex("""\bopenOutputStream\s*\(""").containsMatchIn(withoutComments(it.readText(), "kt")) }
             .map { it.name }.toList()
-        assertEquals(listOf("Commands.kt"), writers)
+        assertEquals(emptyList<String>(), writers)
     }
 
     // Rule 13.
@@ -177,7 +168,7 @@ class SourceGuardTest {
     @Test fun `the process's code knows no Activity`() {
         val process = listOf(
             "Core.kt", "Commands.kt", "Results.kt", "LauncherWindow.kt",
-            "LauncherState.kt", "LauncherStateParts.kt", "ConfigLink.kt", "LegacyConfig.kt",
+            "LauncherState.kt", "LauncherStateParts.kt", "ConfigLink.kt",
         )
         for (file in process) {
             val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$file")

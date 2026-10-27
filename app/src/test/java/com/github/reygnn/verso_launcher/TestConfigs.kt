@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 internal fun cfg(vararg favorites: String) = VersoConfig(favorites = favorites.toList())
 
-/** [config] as the JSON files of earlier versions held it: verso.json and every "~backup". */
+/** [config] as the JSON backups of earlier versions held it ("~backup", up to 0.5.9). */
 internal fun legacyJson(config: VersoConfig): String {
     val names = JSONObject()
     for ((k, v) in config.names) names.put(k, v)

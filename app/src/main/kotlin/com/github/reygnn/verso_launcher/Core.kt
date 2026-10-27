@@ -18,9 +18,8 @@ import android.provider.Telephony
  * one reads the app's own files again; the old one's late hand-backs are dropped.
  *
  * The config is read here, on main, before the state exists (hard rule 5): the copy of the linked
- * file (config-cache.txt), or verso.json of an earlier version while none is linked — a few KB in
- * the app's own files. The linked document itself is read off main, by Commands, and handed in
- * through [adoptLinked]. Main thread only.
+ * file (config-cache.txt), a few KB in the app's own files. The linked document itself is read
+ * off main, by Commands, and handed in through [adoptLinked]. Main thread only.
  */
 internal class Core(private val app: VersoApp) {
 
@@ -36,7 +35,7 @@ internal class Core(private val app: VersoApp) {
         defaultSmsPackage = { Telephony.Sms.getDefaultSmsPackage(app) },
     )
 
-    /** The user's config file ("~open", "~new"), or null: then verso.json, or the defaults. */
+    /** The user's config file ("~open"), or null: then the defaults. */
     var link: Uri? = ConfigLink.readLink(app.filesDir, ::logWarning)?.let(Uri::parse)
         private set
 
@@ -52,7 +51,7 @@ internal class Core(private val app: VersoApp) {
         state = newState()
     }
 
-    /** "~open" or "~new" took [uri]: it is the config from now on (its text follows, [adoptLinked]). */
+    /** "~open" took [uri]: it is the config from now on (its text follows, [adoptLinked]). */
     fun relink(uri: Uri) {
         link = uri
         val dir = app.filesDir
@@ -69,32 +68,13 @@ internal class Core(private val app: VersoApp) {
 
     private fun newState(): LauncherState {
         val dir = app.filesDir
-        var initial = ConfigText()
-        var useDefaults = false
-        var legacyByUsage: Boolean? = null
-        if (link != null) {
-            // Until the document is read: its last text — the one in memory after "~restart" (the
-            // copy on disk may still be on its way), else the copy — or nothing yet (never the
-            // defaults: the file is the user's, even an empty one).
-            if (linkedText == null) linkedText = ConfigLink.readCache(dir, ::logWarning)
-            linkedText?.let { initial = ConfigText.read(it) }
-        } else {
-            linkedText = null
-            when (val legacy = LegacyConfig.read(dir, ::logWarning)) {
-                LegacyConfig.Read.Absent -> useDefaults = true
-                is LegacyConfig.Read.Found -> {
-                    initial = ConfigText.of(legacy.config)
-                    legacyByUsage = legacy.config.byUsage
-                }
-                // Shown as empty, and said; the file stays as it is.
-                LegacyConfig.Read.Unreadable -> app.results.report(app.getString(R.string.toast_config_unreadable))
-            }
-        }
-        // "%" as an earlier version kept it in verso.json, carried into order.txt before a file is
-        // linked and verso.json is no longer read.
-        val byUsage = DrawerOrder.read(dir, ::logWarning) ?: legacyByUsage?.also { kept ->
-            app.submitIo { DrawerOrder.write(dir, kept) }
-        } ?: false
+        val useDefaults = link == null
+        // Until the document is read: its last text — the one in memory after "~restart" (the copy
+        // on disk may still be on its way), else the copy — or nothing yet (never the defaults: the
+        // file is the user's, even an empty one).
+        if (!useDefaults && linkedText == null) linkedText = ConfigLink.readCache(dir, ::logWarning)
+        val initial = linkedText?.let(ConfigText::read) ?: ConfigText()
+        val byUsage = DrawerOrder.read(dir, ::logWarning) ?: false
         lateinit var built: LauncherState
         built = LauncherState(
             io = app::submitIo,

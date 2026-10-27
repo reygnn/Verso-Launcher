@@ -4,23 +4,10 @@ import org.json.JSONObject
 import java.io.InputStream
 
 /**
- * The JSON config of earlier versions (verso.json, their backups) -> [VersoConfig], pure: read,
- * never written any more. The parsers return null instead of throwing.
+ * The JSON config of earlier versions (their backups, linked with "~open") -> [VersoConfig], pure:
+ * read, never written any more. [parseForeign] returns null instead of throwing.
  */
 internal object ConfigJson {
-
-    /** Lenient (a missing section is empty): only for our own file — outside files use [parseForeign]. */
-    // null is the answer: unparseable
-    @Suppress("TooGenericExceptionCaught", "SwallowedException")
-    fun parse(text: String): VersoConfig? = try {
-        parseObject(JSONObject(text))
-    } catch (e: Exception) {
-        null
-    } catch (e: StackOverflowError) {
-        // Android's org.json has no depth limit: "[[[…" ~100 000 deep overflows the stack
-        // (seen on a device), and an Error would pass the catch above.
-        null
-    }
 
     /**
      * For a file from outside the app: leniently, any JSON object ("{}", some package.json)
@@ -39,10 +26,12 @@ internal object ConfigJson {
     } catch (e: Exception) {
         null
     } catch (e: StackOverflowError) {
+        // Android's org.json has no depth limit: "[[[…" ~100 000 deep overflows the stack
+        // (seen on a device), and an Error would pass the catch above.
         null
     }
 
-    /** A real verso.json is a few KB; a file this big is not a config, and is not read into memory. */
+    /** A real config is a few KB; a file this big is not a config, and is not read into memory. */
     private const val MAX_FILE_BYTES = 1024 * 1024
 
     /** [input] as text, or null when it holds more than [maxBytes] (one byte past the cap is read to tell). */

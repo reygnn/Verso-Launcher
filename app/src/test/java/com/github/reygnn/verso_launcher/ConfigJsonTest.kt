@@ -10,7 +10,7 @@ import java.io.ByteArrayInputStream
 import java.io.InputStream
 
 /**
- * The JSON of earlier versions, read only now (legacyJson writes it for the tests). Plain JVM: the
+ * The JSON of earlier versions' backups, read only now (legacyJson writes it for the tests). Plain JVM: the
  * REAL org.json is on the test classpath — android.jar's is a throwing stub.
  */
 class ConfigJsonTest {
@@ -29,7 +29,7 @@ class ConfigJsonTest {
             names = mapOf("com.a/.A" to "Alpha", "com.b/.B" to "Beta"),
             tags = mapOf("com.a/.A" to listOf("work", "fun"), "com.b/.B" to listOf("games")),
         )
-        val parsed = ConfigJson.parse(legacyJson(original))!!
+        val parsed = ConfigJson.parseForeign(legacyJson(original))!!
         assertEquals(original.hidden, parsed.hidden)
         assertEquals(original.favorites, parsed.favorites)
         assertEquals(original.names, parsed.names)
@@ -38,11 +38,11 @@ class ConfigJsonTest {
 
     @Test fun `the order round-trips, and an older or unknown one is A to Z`() {
         val byUsage = VersoConfig(byUsage = true)
-        assertTrue(ConfigJson.parse(legacyJson(byUsage))!!.byUsage)
-        assertFalse(ConfigJson.parse(legacyJson(VersoConfig()))!!.byUsage)
-        assertFalse(ConfigJson.parse("""{"favorites":[]}""")!!.byUsage)
-        assertFalse(ConfigJson.parse("""{"order":"USAGE"}""")!!.byUsage)
-        assertFalse(ConfigJson.parse("""{"order":1}""")!!.byUsage)
+        assertTrue(ConfigJson.parseForeign(legacyJson(byUsage))!!.byUsage)
+        assertFalse(ConfigJson.parseForeign(legacyJson(VersoConfig()))!!.byUsage)
+        assertFalse(ConfigJson.parseForeign("""{"favorites":[]}""")!!.byUsage)
+        assertFalse(ConfigJson.parseForeign("""{"favorites":[],"order":"USAGE"}""")!!.byUsage)
+        assertFalse(ConfigJson.parseForeign("""{"favorites":[],"order":1}""")!!.byUsage)
     }
 
     @Test fun `an order alone does not make a foreign file a config`() {
@@ -51,7 +51,7 @@ class ConfigJsonTest {
     }
 
     @Test fun `round-trips an empty config`() {
-        val parsed = ConfigJson.parse(legacyJson(VersoConfig()))!!
+        val parsed = ConfigJson.parseForeign(legacyJson(VersoConfig()))!!
         assertTrue(parsed.hidden.isEmpty())
         assertTrue(parsed.favorites.isEmpty())
         assertTrue(parsed.names.isEmpty())
@@ -60,49 +60,36 @@ class ConfigJsonTest {
 
     @Test fun `round-trips tags, preserving per-key order`() {
         val original = config(tags = mapOf("com.a/.A" to listOf("z", "a", "m")))
-        val parsed = ConfigJson.parse(legacyJson(original))!!
+        val parsed = ConfigJson.parseForeign(legacyJson(original))!!
         assertEquals(listOf("z", "a", "m"), parsed.tags["com.a/.A"])
     }
 
     @Test fun `an empty tag list is not materialized on parse`() {
         // Earlier versions never wrote [], but a hand-edited file might.
-        val parsed = ConfigJson.parse("""{"tags":{"com.a/.A":[]}}""")!!
+        val parsed = ConfigJson.parseForeign("""{"tags":{"com.a/.A":[]}}""")!!
         assertTrue(parsed.tags.isEmpty())
     }
 
     @Test fun `round-trips tags with unicode and special characters`() {
         // Already lowercase: tags are stored ROOT-folded.
         val original = config(tags = mapOf("com.a/.A" to listOf("café", "c/c++", "a b")))
-        val parsed = ConfigJson.parse(legacyJson(original))!!
+        val parsed = ConfigJson.parseForeign(legacyJson(original))!!
         assertEquals(original.tags, parsed.tags)
     }
 
-    @Test fun `parse folds tag case so a hand-edited tag still matches the filter`() {
-        val parsed = ConfigJson.parse("""{"tags":{"com.a/.A":["Work","GAMES"]}}""")!!
+    @Test fun `tag case is folded, so a hand-edited tag still matches the filter`() {
+        val parsed = ConfigJson.parseForeign("""{"tags":{"com.a/.A":["Work","GAMES"]}}""")!!
         assertEquals(listOf("work", "games"), parsed.tags["com.a/.A"])
     }
 
     @Test fun `preserves favorite order (the rank)`() {
         val original = config(favorites = listOf("z", "a", "m"))
-        val parsed = ConfigJson.parse(legacyJson(original))!!
+        val parsed = ConfigJson.parseForeign(legacyJson(original))!!
         assertEquals(listOf("z", "a", "m"), parsed.favorites)
     }
 
-    @Test fun `malformed input returns null`() {
-        assertNull(ConfigJson.parse("not json"))
-        assertNull(ConfigJson.parse(""))
-        assertNull(ConfigJson.parse("[1,2,3]"))
-    }
-
-    @Test fun `missing keys yield empty sections, not null`() {
-        val parsed = ConfigJson.parse("{}")!!
-        assertTrue(parsed.hidden.isEmpty())
-        assertTrue(parsed.favorites.isEmpty())
-        assertTrue(parsed.names.isEmpty())
-    }
-
     @Test fun `a partial file loads what it can`() {
-        val parsed = ConfigJson.parse("""{"favorites":["x","y"]}""")!!
+        val parsed = ConfigJson.parseForeign("""{"favorites":["x","y"]}""")!!
         assertEquals(listOf("x", "y"), parsed.favorites)
         assertTrue(parsed.hidden.isEmpty())
         assertTrue(parsed.names.isEmpty())
@@ -110,7 +97,7 @@ class ConfigJsonTest {
 
     @Test fun `non-string list elements and map values are dropped, not coerced`() {
         // Android's getString() would coerce 123 to "123" and throw on an object; opt() as? String drops both.
-        val parsed = ConfigJson.parse(
+        val parsed = ConfigJson.parseForeign(
             """{"hidden":[123,"com.a/A"],"favorites":[true,"com.f/F"],"names":{"com.b/B":456,"com.c/C":"Real"}}""",
         )!!
         assertEquals(listOf("com.a/A"), parsed.hidden.toList())
@@ -124,35 +111,33 @@ class ConfigJsonTest {
             "com.b/.B" to "back\\slash",
             "com.c/.C" to "絵文字 😀",
         )
-        val parsed = ConfigJson.parse(legacyJson(config(names = tricky)))!!
+        val parsed = ConfigJson.parseForeign(legacyJson(config(names = tricky)))!!
         assertEquals(tricky, parsed.names)
     }
 
     @Test fun `control characters in a stored name are dropped on load`() {
-        val parsed = ConfigJson.parse(legacyJson(config(names = mapOf("com.b/.B" to "tab\tand\nnewline"))))!!
+        val parsed = ConfigJson.parseForeign(legacyJson(config(names = mapOf("com.b/.B" to "tab\tand\nnewline"))))!!
         assertEquals("tabandnewline", parsed.names["com.b/.B"])
     }
 
-    @Test fun `truncated JSON returns null - the torn-write recovery trigger`() {
-        assertNull(ConfigJson.parse("{\"favorites\":[\"x\""))
-        assertNull(ConfigJson.parse("{"))
-        assertNull(ConfigJson.parse("   "))
+    @Test fun `truncated JSON returns null`() {
+        assertNull(ConfigJson.parseForeign("{\"favorites\":[\"x\""))
+        assertNull(ConfigJson.parseForeign("{"))
+        assertNull(ConfigJson.parseForeign("   "))
     }
 
     @Test fun `duplicate favorites in the file are de-duplicated, first position wins`() {
-        val parsed = ConfigJson.parse("""{"favorites":["x","y","x"]}""")!!
+        val parsed = ConfigJson.parseForeign("""{"favorites":["x","y","x"]}""")!!
         assertEquals(listOf("x", "y"), parsed.favorites)
     }
     // ---- hostile restore files -----------------------------------------------
 
-    /** What parseForeign adopts must be what verso.json and every backup say once written as UTF-8. */
+    /** No font draws a lone surrogate. */
     @Test fun `a lone surrogate in a restored file does not survive into memory`() {
         val raw = """{"favorites":["a/b"],"names":{"a/b":"N\ud800"},"tags":{"a/b":["x\udc00"]}}"""
         val adopted = ConfigJson.parseForeign(raw)!!
         assertEquals("N", adopted.names["a/b"])
         assertEquals(listOf("x"), adopted.tags["a/b"])
-        val onDisk = String(legacyJson(adopted).toByteArray(Charsets.UTF_8), Charsets.UTF_8)
-        assertEquals(adopted, ConfigJson.parse(onDisk))
     }
 
     @Test fun `a restored name loses its look-alike characters`() {
@@ -182,7 +167,6 @@ class ConfigJsonTest {
     /** Android's org.json overflows the stack here (an Error); this JVM one throws. Either way: null. */
     @Test fun `an absurdly nested document is refused, not thrown`() {
         val deep = "{\"favorites\":" + "[".repeat(200_000) + "]".repeat(200_000) + "}"
-        assertNull(ConfigJson.parse(deep))
         assertNull(ConfigJson.parseForeign(deep))
     }
 
@@ -244,7 +228,7 @@ class ConfigJsonTest {
 
     @Test
     fun `loading canonicalises tags out of a foreign or older file`() {
-        val cfg = ConfigJson.parse("""{"tags":{"pkg/A":["#work","Chat","foo,bar","  spaced  "]}}""")
+        val cfg = ConfigJson.parseForeign("""{"tags":{"pkg/A":["#work","Chat","foo,bar","  spaced  "]}}""")
 
         assertEquals(listOf("work", "chat", "foobar", "spaced"), cfg!!.tags["pkg/A"])
     }
@@ -252,7 +236,7 @@ class ConfigJsonTest {
     /** toggleTag removes only the first occurrence, so a doubled tag could never be un-ticked. */
     @Test
     fun `loading collapses tags that canonicalise to the same thing`() {
-        val cfg = ConfigJson.parse("""{"tags":{"pkg/A":["Work","work","#work"]}}""")
+        val cfg = ConfigJson.parseForeign("""{"tags":{"pkg/A":["Work","work","#work"]}}""")
 
         assertEquals(listOf("work"), cfg!!.tags["pkg/A"])
     }
@@ -260,7 +244,7 @@ class ConfigJsonTest {
     /** No empty list: the tag overview lists only tags some app carries. */
     @Test
     fun `an app whose tags all vanish loses its key`() {
-        val cfg = ConfigJson.parse("""{"tags":{"pkg/A":["###",",",""],"pkg/B":["work"]}}""")
+        val cfg = ConfigJson.parseForeign("""{"tags":{"pkg/A":["###",",",""],"pkg/B":["work"]}}""")
 
         assertTrue("pkg/A" !in cfg!!.tags)
         assertEquals(listOf("work"), cfg.tags["pkg/B"])

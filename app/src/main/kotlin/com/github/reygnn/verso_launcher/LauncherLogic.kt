@@ -15,7 +15,7 @@ internal enum class Mode {
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { CRASH, RESTART, NEW, OPEN, EDIT }
+internal enum class Command { CRASH, RESTART, OPEN, EDIT }
 
 /** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
 internal interface Ordered {
@@ -74,13 +74,9 @@ internal object LauncherLogic {
     val COMMANDS: List<Pair<String, Command>> = listOfNotNull(
         ("~crash" to Command.CRASH).takeIf { DailyDriver.ENABLED },
         "~restart" to Command.RESTART,
-        "~new" to Command.NEW,
         "~open" to Command.OPEN,
         "~edit" to Command.EDIT,
     )
-
-    /** What "~new" offers the picker as the file's name; the user may change it. */
-    const val CONFIG_FILE_NAME = "verso.txt"
 
     /** The command spelled exactly by [trimmed] (folded), or null; a bare "~" is none. */
     fun parseCommand(trimmed: String): Command? {
@@ -311,9 +307,8 @@ internal object LauncherLogic {
     private val LINE_BREAKS = Regex("[\r\n\t]+")
 
     /**
-     * [s] without a lone UTF-16 surrogate. Memory would hold it, but UTF-8 has no form for it: a
-     * new file ("~new") would say "?", so it would read back as another config than it was written
-     * from. After the other filters, so a pair they separated is whole again.
+     * [s] without a lone UTF-16 surrogate, which a JSON backup can carry as an escape ("\uD800")
+     * and no font draws. After the other filters, so a pair they separated is whole again.
      */
     private fun pairedOnly(s: String): String = buildString(s.length) {
         s.codePoints().forEach { if (Character.getType(it) != Character.SURROGATE.toInt()) appendCodePoint(it) }

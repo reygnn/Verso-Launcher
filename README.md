@@ -30,8 +30,8 @@ keyboard, no prompt:
   simply scroll. Home text sizes are fixed (dp): they do not follow the system font size.
 - All home text (and the two icons) carries Kolibri's thin tonal outline, so it stays
   readable on any wallpaper without darkening it.
-- With no config yet, Verso shows your default phone, messenger (default SMS app), email,
-  browser and camera as favorites; `~new` writes them into your first config file.
+- With no config file linked, Verso shows your default phone, messenger (default SMS app),
+  email, browser and camera as favorites.
 - No favorites yet? A short hint says where they come from (tap it to open the drawer).
 - Text follows the wallpaper: white with a dark outline on a dark wallpaper, black with
   a light outline on a light one (the drawer and the status-bar icons too), switching
@@ -90,10 +90,8 @@ keyboard, no prompt:
   - `~[text]` — commands. `~` lists them, typing narrows the list; tap one, or **Enter** once
     what you typed can only mean one (`~e` is `~edit`):
     - `~edit` — your config file in your text editor; back in Verso, your changes show at once
-    - `~new` — a new config file wherever you pick (the system's file picker suggests
-      `Download/Verso/verso.txt`; a cloud folder works as well), holding what Verso shows now —
-      the default favorites, or the config of an earlier version — and linked from then on
-    - `~open` — link a config file you already have: one you wrote, another phone's, an old
+    - `~open` — link your config file, wherever it is (the system's file picker starts in
+      `Download/Verso/`; a cloud folder works as well): one you wrote, another phone's, an old
       `~backup` of an earlier version (its JSON is read as it is). A file that is no config is
       not linked
     - `~restart` — read everything again and rebuild the list (when something looks stale)
@@ -107,8 +105,8 @@ keyboard, no prompt:
 ## The config file
 
 Favorites, hidden apps, custom names and tags live in a plain text file of yours. Verso reads it
-— at every return to the launcher — and never writes it: edit it in any editor, keep it where
-you like, copy it to back it up or to take it to another phone.
+— at every return to the launcher — and never writes it: write it in any editor, keep it where
+you like, link it once with `~open`, copy it to back it up or to take it to another phone.
 
 ```
 # a comment
@@ -127,10 +125,10 @@ tag Firefox = web, browser
 An app is its name as the system shows it (`Gmail`, `Gmail (Work)` for a work copy), its package
 (`com.google.android.gm`: every app of it in your own profile) or its key
 (`package/class`, `#serial` for another profile). A name is matched ignoring case, never your own
-names; it changes with the device language, a package does not — so `~new` writes packages and
-keys, each with the app's name as a comment above it. Long-press an app for its *App info* if you need the package. A line Verso does not
-understand is named in a toast and skipped; the rest still counts. An app that is not installed
-is simply left out until it is.
+names; it changes with the device language, a package does not, so a package outlasts a
+language switch. Long-press an app for its *App info* if you need the package. A line Verso does
+not understand is named in a toast and skipped; the rest still counts. An app that is not
+installed is simply left out until it is.
 
 What can go wrong around the config file, a result that comes later and moving to a new phone:
 `CAVEATS.md`.
@@ -163,7 +161,7 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   text (for an instant first frame, and when the file cannot be read), `order.txt` behind `%`,
   `home-cache.txt`, a copy of the favorites as shown, `usage.txt` and `recents.txt` behind `%`
   and `?`, and Guru's crash reports in `guru/` until the next start saves them (see "Crash
-  reports"). `verso.json` of earlier versions is read until you link a file, never written
+  reports")
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code

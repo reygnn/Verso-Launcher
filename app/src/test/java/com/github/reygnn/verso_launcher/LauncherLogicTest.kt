@@ -142,7 +142,7 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.parseCommand("~save"))
         assertEquals(Command.RESTART, LauncherLogic.parseCommand("~restart"))
         assertNull(LauncherLogic.parseCommand("~reset"))
-        assertEquals(Command.NEW, LauncherLogic.parseCommand("~new"))
+        assertNull(LauncherLogic.parseCommand("~new"))
         assertEquals(Command.OPEN, LauncherLogic.parseCommand("~open"))
         assertEquals(Command.EDIT, LauncherLogic.parseCommand("~edit"))
     }
@@ -192,7 +192,6 @@ class LauncherLogicTest {
 
     @Test fun `typing narrows the overview`() {
         assertEquals(listOf("~edit"), LauncherLogic.commandsMatching("~e").map { it.first })
-        assertEquals(listOf("~new"), LauncherLogic.commandsMatching("~n").map { it.first })
         assertEquals(listOf("~open"), LauncherLogic.commandsMatching("~o").map { it.first })
         assertEquals(listOf("~restart"), LauncherLogic.commandsMatching("~r").map { it.first })
         assertEquals(emptyList<String>(), LauncherLogic.commandsMatching("~zzz").map { it.first })
@@ -201,7 +200,6 @@ class LauncherLogicTest {
     /** Each first letter is its own command: one key after the tilde does. */
     @Test fun `every command resolves from its first letter`() {
         assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~e"))
-        assertEquals(Command.NEW, LauncherLogic.resolveCommand("~n"))
         assertEquals(Command.OPEN, LauncherLogic.resolveCommand("~o"))
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~r"))
     }
@@ -242,7 +240,7 @@ class LauncherLogicTest {
     @Test fun `commandsMatching and resolveCommand are case-insensitive too`() {
         assertEquals(listOf("~open"), LauncherLogic.commandsMatching("~O").map { it.first })
         assertEquals(Command.OPEN, LauncherLogic.resolveCommand("~O"))
-        assertEquals(Command.NEW, LauncherLogic.resolveCommand("~NE"))
+        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~RE"))
         assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~EDIT"))
     }
 
@@ -320,7 +318,7 @@ class LauncherLogicTest {
         assertEquals(persian, LauncherLogic.cleanName(persian))
     }
 
-    /** UTF-8 has no form for a lone surrogate: the file would say "?" where memory holds the half. */
+    /** No font draws a lone surrogate; a JSON backup can carry one as an escape. */
     @Test fun `cleanName and canonicalTag drop a lone surrogate, keep a pair`() {
         assertEquals("x", LauncherLogic.cleanName("x\uD800"))
         assertEquals("xy", LauncherLogic.cleanName("x\uDC00y"))

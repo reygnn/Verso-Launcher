@@ -39,14 +39,13 @@ State and threads (manual queues)
   WallpaperPaletteTest     the palette's question against the colour listener
 
 Files (real temp files)
-  ConfigLinkTest           the app's own files around the config: the link, the copy, order.txt,
-                           verso.json of earlier versions (read only, the .bak, a torn one)
+  ConfigLinkTest           the app's own files around the config: the link, the copy, order.txt
   HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside them
 
 The window (R)
-  MainActivityFlowsTest    the real Activity: ~open, ~new and ~edit, the file read again at
-                           every start, an unreadable one, verso.json of earlier versions, "%",
-                           ~restart and recreation, results that wait
+  MainActivityFlowsTest    the real Activity: ~open and ~edit, the file read again at every
+                           start, an unreadable one, "%", ~restart and recreation, results that
+                           wait
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, TalkBack, the tap guard
@@ -92,9 +91,9 @@ Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
 - The config file's format: `ConfigTextTest`, and the files users already have must still read;
-  older `verso.json` files and backups: `ConfigJsonTest`.
-- `~open`, `~new`, `~edit` and the file read again: a new text in `LauncherStateTest`, the
-  pickers, the editor and the threads in `MainActivityFlowsTest`.
+  the JSON backups of earlier versions: `ConfigJsonTest`.
+- `~open`, `~edit` and the file read again: a new text in `LauncherStateTest`, the picker, the
+  editor and the thread in `MainActivityFlowsTest`.
 
 ---
 

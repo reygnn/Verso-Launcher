@@ -22,7 +22,7 @@ class LauncherStateTest {
 
     /** The user's file as Core read it before the state exists; set before the first use of [state]. */
     private var file = ""
-    /** No config at all (no file, no verso.json): the defaults. */
+    /** No config at all (no file linked): the defaults. */
     private var fresh = false
 
     /** Reported without custom names and NOT sorted (reversed below), so the tests see LauncherState apply both. */

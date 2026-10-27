@@ -20,10 +20,6 @@ class ConfigJsonInstrumentedTest {
         assertNull(ConfigJson.parseForeign(deep))
     }
 
-    @Test fun anAbsurdlyNestedOwnFileIsRefusedNotACrash() {
-        assertNull(ConfigJson.parse(deep))
-    }
-
     @Test fun aRealConfigStillParsesOnAndroidsOrgJson() {
         val c = ConfigJson.parseForeign("""{"favorites":["a/A","b/B"],"hidden":["c/C"]}""")
         assertEquals(listOf("a/A", "b/B"), c!!.favorites.toList())

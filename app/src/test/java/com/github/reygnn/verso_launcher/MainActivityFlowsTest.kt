@@ -22,11 +22,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowToast
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
-import java.io.OutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -46,7 +44,7 @@ class MainActivityFlowsTest {
 
     @After fun release() {
         hold.countDown()
-        // Else a read's or a write's hand-back lands on the main looper after the test, in the next one.
+        // Else a read's hand-back lands on the main looper after the test, in the next one.
         joinDocuments()
         settle()
         if (!activity.isDestroyed) controller.pause().stop().destroy()
@@ -58,10 +56,10 @@ class MainActivityFlowsTest {
     }
 
     private fun documentThreads() =
-        Thread.getAllStackTraces().keys.filter { it.name == "verso-config-read" || it.name == "verso-config-write" }
+        Thread.getAllStackTraces().keys.filter { it.name == "verso-config-read" }
 
     /**
-     * The config file is read or written on a thread of its own: joined, then its hand-back run —
+     * The config file is read on a thread of its own: joined, then its hand-back run —
      * again while a hand-back starts another (a read asked for meanwhile).
      */
     private fun joinDocuments() {
@@ -69,7 +67,7 @@ class MainActivityFlowsTest {
             val running = documentThreads()
             running.forEach {
                 it.join(5000)
-                check(!it.isAlive) { "a config file read or write is still running" }
+                check(!it.isAlive) { "a config file read is still running" }
             }
             shadowOf(Looper.getMainLooper()).idle()
             if (running.isEmpty()) return
@@ -95,23 +93,11 @@ class MainActivityFlowsTest {
         if (cached != null) File(app.filesDir, ConfigLink.CACHE).writeText(cached)
     }
 
-    /** verso.json of an earlier version, there before the start. */
-    private fun legacy(vararg favorites: AppEntry) =
-        File(app.filesDir, LegacyConfig.FILE).writeText(legacyJson(VersoConfig(favorites = favorites.map { it.key })))
-
     /** A provider that hangs, slow to hand the file over: the read waits for the hold. */
     private fun hanging(content: InputStream) = object : InputStream() {
         override fun read(): Int {
             check(hold.await(30, TimeUnit.SECONDS))
             return content.read()
-        }
-    }
-
-    /** A provider that hangs while it takes the file: the write waits for the hold. */
-    private fun hangingOut(into: OutputStream) = object : OutputStream() {
-        override fun write(b: Int) {
-            check(hold.await(30, TimeUnit.SECONDS))
-            into.write(b)
         }
     }
 
@@ -254,86 +240,6 @@ class MainActivityFlowsTest {
         assertEquals(listOf(someApp.key), favorites())
     }
 
-    // ---- ~new ---------------------------------------------------------------------------
-
-    @Test fun `~new writes the config in use into a new file, links it and says so`() {
-        legacy(someApp, otherApp)
-        val written = ByteArrayOutputStream()
-        shadowOf(app.contentResolver).registerOutputStream(fileUri, written)
-        started()
-        enter("~new")
-        val request = answer(fileUri)
-        joinDocuments()
-        settle()
-        assertEquals(Intent.ACTION_CREATE_DOCUMENT, request.action)
-        assertEquals(LauncherLogic.CONFIG_FILE_NAME, request.getStringExtra(Intent.EXTRA_TITLE))
-        val text = written.toString(Charsets.UTF_8)
-        assertTrue("the header is comments", text.lines().first().startsWith("# "))
-        assertEquals(listOf(someApp.key, otherApp.key), ConfigText.parse(text).favorites)
-        assertEquals(fileUri, app.core.link)
-        assertEquals(listOf(someApp.key, otherApp.key), favorites())
-        assertEquals(toast(R.string.toast_new_ok), ShadowToast.getTextOfLatestToast())
-    }
-
-    /** Hard rule 4: the picker hands over an existing file when the user agrees to replace it. */
-    @Test fun `~new on the linked file itself writes nothing and says so`() {
-        provided("fav ${someApp.key}")
-        linkedBefore(cached = fileText)
-        started()
-        enter("~new")
-        answer(fileUri)
-        joinDocuments()
-        settle()
-        assertEquals(toast(R.string.toast_new_not_new), ShadowToast.getTextOfLatestToast())
-        assertEquals(fileUri, app.core.link)
-        assertEquals(listOf(someApp.key), favorites())
-    }
-
-    @Test fun `a new file the provider refuses says so and links nothing`() {
-        shadowOf(app.contentResolver).registerOutputStream(
-            fileUri,
-            object : OutputStream() {
-                override fun write(b: Int) = throw IOException("full")
-            },
-        )
-        started()
-        enter("~new")
-        answer(fileUri)
-        joinDocuments()
-        settle()
-        assertEquals(toast(R.string.toast_new_failed), ShadowToast.getTextOfLatestToast())
-        assertNull(app.core.link)
-    }
-
-    /**
-     * Hard rule 16: a command's hand-back is the process's. The system may destroy the window while
-     * the process lives, with no successor yet: the write still ends and its result waits for the
-     * next window. (controller.recreate is synchronous; only a destroy without a successor makes the gap.)
-     */
-    @Test fun `a new file is written and its result waits while no window exists`() {
-        val written = ByteArrayOutputStream()
-        shadowOf(app.contentResolver).registerOutputStream(fileUri, hangingOut(written))
-        // The next window reads the file back at its start: the same text, nothing more to say.
-        shadowOf(app.contentResolver).registerInputStreamSupplier(fileUri) { written.toByteArray().inputStream() }
-        started()
-        enter("~new")
-        answer(fileUri)
-        controller.pause().stop().destroy()
-        hold.countDown()
-        joinDocuments()
-        settle()
-        assertEquals(fileUri, app.core.link)
-        assertEquals("its result waits", 1, app.process.messages.size)
-        ShadowToast.reset()
-        val next = Robolectric.buildActivity(MainActivity::class.java).setup()
-        try {
-            assertTrue("shown by the next window", app.process.messages.isEmpty())
-            assertEquals(1, ShadowToast.shownToastCount())
-        } finally {
-            next.pause().stop().destroy()
-        }
-    }
-
     // ---- ~edit --------------------------------------------------------------------------
 
     @Test fun `~edit with no file linked says how to get one`() {
@@ -355,44 +261,16 @@ class MainActivityFlowsTest {
         assertEquals("", prompt.text.toString())
     }
 
-    // ---- verso.json of an earlier version ---------------------------------------------
-
-    @Test fun `the order an earlier version kept in verso json is carried into order_txt`() {
-        File(app.filesDir, LegacyConfig.FILE).writeText(legacyJson(VersoConfig(byUsage = true)))
-        started()
-        assertTrue(app.core.state.config.byUsage)
-        assertEquals("usage", File(app.filesDir, DrawerOrder.FILE).readText().trim())
-    }
-
-    @Test fun `verso json of an earlier version is the config while no file is linked`() {
-        legacy(someApp)
-        started()
-        assertEquals(listOf(someApp.key), favorites())
-        assertNull(app.core.link)
-    }
-
-    /** Never written over (hard rule 4): the file stays as it is. */
-    @Test fun `an unreadable verso json is said at the start and left as it is`() {
-        File(app.filesDir, LegacyConfig.FILE).writeText("{ torn")
-        started()
-        assertEquals(toast(R.string.toast_config_unreadable), ShadowToast.getTextOfLatestToast())
-        assertTrue(favorites().isEmpty())
-        tap(DrawerAction.ToggleOrder)
-        settle()
-        assertEquals("{ torn", File(app.filesDir, LegacyConfig.FILE).readText())
-    }
-
     // ---- "%" ------------------------------------------------------------------------------
 
     @Test fun `percent keeps the order in order_txt, never in the config`() {
-        legacy(someApp)
-        val before = File(app.filesDir, LegacyConfig.FILE).readText()
+        linkedBefore("fav ${someApp.key}\n")
         started()
         tap(DrawerAction.ToggleOrder)
         settle()
         assertTrue(app.core.state.config.byUsage)
         assertEquals("usage", File(app.filesDir, DrawerOrder.FILE).readText().trim())
-        assertEquals(before, File(app.filesDir, LegacyConfig.FILE).readText())
+        assertEquals("fav ${someApp.key}\n", File(app.filesDir, ConfigLink.CACHE).readText())
         enter("~restart")
         settle()
         assertTrue("read again by the fresh state", app.core.state.config.byUsage)
@@ -419,18 +297,18 @@ class MainActivityFlowsTest {
      * The state is the process's: a recreation keeps what was loaded and does not read the app's
      * files again — only "~restart", the repair by hand, gives a fresh state that does.
      */
-    @Test fun `a recreation keeps the loaded config, ~restart reads it again`() {
+    @Test fun `a recreation keeps the loaded state, ~restart reads the app's files again`() {
         started()
         val loaded = app.core.state
-        legacy(someApp)                            // there now, as an earlier version would have left it
+        DrawerOrder.write(app.filesDir, byUsage = true)   // there now, as a lost write would have left it
         controller.recreate()
         settle()
         assertSame("one state for both instances", loaded, app.core.state)
-        assertFalse("not read again", someApp.key in favorites())
+        assertFalse("not read again", app.core.state.config.byUsage)
         enter("~restart")
         settle()
         assertNotSame("a fresh state", loaded, app.core.state)
-        assertTrue("read again", someApp.key in favorites())
+        assertTrue("read again", app.core.state.config.byUsage)
     }
 
     /** The read is the process's: one that lands after a recreation goes into the state both share. */

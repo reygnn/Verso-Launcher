@@ -7,7 +7,7 @@ package com.github.reygnn.verso_launcher
  * The parameters stay flat — a test names the one function it fakes — and are bundled here into
  * the [RecentsFile] and [UsageFile] the constructor takes. The four without a default are the ones
  * every test of the class has to decide on. Pass the same [process] to two instances to model a
- * recreation. [config] is a config of keys, as verso.json held it; [initial] the user's file.
+ * recreation. [config] is a config of keys, as the JSON backups held it; [initial] the user's file.
  */
 // one parameter per faked function, flat on purpose
 @Suppress("LongParameterList")

@@ -4,7 +4,7 @@
     <string name="hint_search">&gt; search</string>
     <string name="clear_prompt">Clear prompt</string>
     <!-- Home page (the front of the page; the drawer is its back). -->
-    <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nYour favorites come from your config file: ~new in the drawer creates it, ~edit opens it.</string>
+    <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nYour favorites come from a config file of yours: write one in any editor (fav Gmail, one app a line) and link it with ~open in the drawer.</string>
     <string name="a11y_home">Home screen</string>
     <string name="a11y_open_drawer">Open all apps</string>
     <string name="a11y_open_recents">Open recent apps</string>
@@ -28,24 +28,17 @@
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
     <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
-    <!-- The config file (~new, ~open, ~edit) and its reads. -->
-    <!-- verso.json of an earlier version, while no config file is linked, could not be read. -->
-    <string name="toast_config_unreadable">verso.json unreadable — none of it is shown, the file stays as it is; ~open links a config file</string>
+    <!-- The config file (~open, ~edit) and its reads. -->
     <string name="toast_config_file_unreadable">config file unreadable — the last one read stays; ~open links it again</string>
     <string name="toast_open_unreadable">that file cannot be read — nothing changed</string>
     <string name="toast_not_a_config">not a Verso config — nothing changed</string>
     <string name="toast_link_failed">Verso cannot keep access to that file — try another place</string>
     <string name="toast_linked">config file linked — ~edit opens it</string>
-    <string name="toast_new_ok">config file created — ~edit opens it</string>
-    <string name="toast_new_failed">config file not created — try another place</string>
     <!-- %1$s: the numbers of the lines that are no entry ("3, 7"). -->
     <string name="toast_config_lines_skipped">config file: lines not understood, skipped: %1$s</string>
-    <string name="toast_new_not_new">that file is not new — ~new writes only into a new one, ~open links one you have</string>
     <string name="toast_edit_no_access">Verso has no access to the config file any more — ~open links it again</string>
-    <string name="toast_no_config_file">no config file yet — ~new creates one, ~open links one</string>
+    <string name="toast_no_config_file">no config file yet — write one in any editor, ~open links it</string>
     <string name="toast_no_editor">no app here edits or shows text files</string>
-    <!-- The comment lines at the top of a file ~new writes; "fav", "hide", "name", "tag" stay as they are. -->
-    <string name="config_header">"Verso config: one line each; a line starting with # is a comment.\n\nfav  App            a favorite, in this order\nhide App            not in the plain drawer\nname App = My name\ntag  App = tag, tag\n\nApp is its name as the system shows it (Gmail), its package (com.google.android.gm)\nor its key (package/class, #serial for another profile).\nVerso reads this file and never writes it. ~edit opens it."</string>
     <string name="toast_no_picker">no file picker on this device</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
          (stateDescription), and what a double-tap does (the click's label; TalkBack adds

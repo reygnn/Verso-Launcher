@@ -282,9 +282,8 @@ class MainActivity : Activity() {
         appDrawer.clearPrompt()
         when (command) {
             Command.RESTART -> restart()
-            // Only the pickers here: the answer is the process's (onActivityResult, Commands).
+            // Only the picker here: the answer is the process's (onActivityResult, Commands).
             Command.OPEN -> pickConfigFile()
-            Command.NEW -> pickNewConfigFile()
             Command.EDIT -> editConfigFile()
             Command.CRASH -> Unit // returned above
         }
@@ -301,38 +300,24 @@ class MainActivity : Activity() {
     }
 
     /** "~open": the user's config file, wherever it is — this phone's, a cloud folder's, an old backup. */
-    private fun pickConfigFile() = startPicker(
-        Intent(Intent.ACTION_OPEN_DOCUMENT)
+    private fun pickConfigFile() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             // Not a strict "text/plain": a file arrives as octet-stream or JSON depending on who
             // wrote it, and a strict filter would grey it out.
             .setType("*/*")
             .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/json", "application/octet-stream"))
-            .addFlags(PERSISTED_GRANT),
-        REQ_OPEN,
-    )
-
-    /** "~new": a new file for the config in use, where and under what name the user picks. */
-    private fun pickNewConfigFile() = startPicker(
-        Intent(Intent.ACTION_CREATE_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("text/plain")
-            .putExtra(Intent.EXTRA_TITLE, LauncherLogic.CONFIG_FILE_NAME)
-            .addFlags(PERSISTED_GRANT),
-        REQ_NEW,
-    )
-
-    private fun startPicker(intent: Intent, request: Int) {
-        // Only a hint; DocumentsUI ignores it when the folder does not exist yet.
-        intent.putExtra(
-            DocumentsContract.EXTRA_INITIAL_URI,
-            DocumentsContract.buildDocumentUri(
-                "com.android.externalstorage.documents",
-                "primary:${Environment.DIRECTORY_DOWNLOADS}/$CONFIG_DIR",
-            ),
-        )
+            .addFlags(PERSISTED_GRANT)
+            // Only a hint; DocumentsUI ignores it when the folder does not exist yet.
+            .putExtra(
+                DocumentsContract.EXTRA_INITIAL_URI,
+                DocumentsContract.buildDocumentUri(
+                    "com.android.externalstorage.documents",
+                    "primary:${Environment.DIRECTORY_DOWNLOADS}/$CONFIG_DIR",
+                ),
+            )
         try {
-            startActivityForResult(intent, request)
+            startActivityForResult(intent, REQ_OPEN)
         } catch (e: ActivityNotFoundException) {
             Log.w("Verso", "no document picker on this device", e)
             toast(getString(R.string.toast_no_picker))
@@ -345,11 +330,8 @@ class MainActivity : Activity() {
         // Backing out of the picker is not an error — say nothing.
         if (resultCode != RESULT_OK || uri == null) return
         // From here the answer is the process's: a recreation or a stop loses it no more, and the
-        // thread that reads or writes the document holds nothing of this activity.
-        when (requestCode) {
-            REQ_OPEN -> app.commands.link(uri)
-            REQ_NEW -> app.commands.create(uri)
-        }
+        // thread that reads the document holds nothing of this activity.
+        if (requestCode == REQ_OPEN) app.commands.link(uri)
     }
 
     /**
@@ -495,7 +477,7 @@ class MainActivity : Activity() {
     }
 
     private companion object {
-        /** The folder the pickers suggest: Download/Verso, where the backups of earlier versions are. */
+        /** The folder the picker suggests: Download/Verso, where the backups of earlier versions are. */
         const val CONFIG_DIR = "Verso"
 
         /** The picker's grant, to be kept across restarts (Commands.keepAccess). */
@@ -507,6 +489,5 @@ class MainActivity : Activity() {
     }
 }
 
-/** The pickers' request codes. Internal for MainActivityFlowsTest, which answers them. */
+/** The picker's request code. Internal for MainActivityFlowsTest, which answers it. */
 internal const val REQ_OPEN = 1
-internal const val REQ_NEW = 2

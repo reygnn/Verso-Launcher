@@ -1,9 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -61,34 +59,5 @@ class ConfigLinkTest {
         assertEquals(false, DrawerOrder.read(dir, log))
         File(dir, DrawerOrder.FILE).writeText("sideways")
         assertNull(DrawerOrder.read(dir, log))
-    }
-
-    // ---- verso.json of earlier versions ------------------------------------------------
-
-    @Test fun `no verso json is a fresh install`() {
-        assertEquals(LegacyConfig.Read.Absent, LegacyConfig.read(dir, log))
-    }
-
-    @Test fun `verso json is read as it was, and left as it is`() {
-        val config = VersoConfig(favorites = listOf("a/A"), hidden = setOf("b/B"), byUsage = true)
-        File(dir, LegacyConfig.FILE).writeText(legacyJson(config))
-        assertEquals(LegacyConfig.Read.Found(config), LegacyConfig.read(dir, log))
-        assertEquals(setOf(LegacyConfig.FILE), dir.list()!!.toSet())
-    }
-
-    /** Up to 0.5.9 a write cut off left only the .bak: the last complete file. */
-    @Test fun `a bak is read when verso json is missing, never over it`() {
-        File(dir, "${LegacyConfig.FILE}.bak").writeText(legacyJson(cfg("old/Old")))
-        assertEquals(LegacyConfig.Read.Found(cfg("old/Old")), LegacyConfig.read(dir, log))
-        File(dir, LegacyConfig.FILE).writeText(legacyJson(cfg("new/New")))
-        assertEquals(LegacyConfig.Read.Found(cfg("new/New")), LegacyConfig.read(dir, log))
-    }
-
-    @Test fun `a torn verso json is unreadable, logged and left as it is`() {
-        File(dir, LegacyConfig.FILE).writeText("{\"favorites\":[\"to")
-        assertEquals(LegacyConfig.Read.Unreadable, LegacyConfig.read(dir, log))
-        assertTrue(logs.any { "unparseable" in it })
-        assertEquals("{\"favorites\":[\"to", File(dir, LegacyConfig.FILE).readText())
-        assertFalse(File(dir, "${LegacyConfig.FILE}.unreadable").exists())
     }
 }

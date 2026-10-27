@@ -23,16 +23,15 @@ config stays as it was last read (Verso keeps a copy of that text), and a toast 
 not at every return. `~open` links the file again, or another one. A line Verso does not
 understand is named in a toast and skipped; the rest of the file still counts.
 
-`verso.json` of an earlier version is read while no file is linked. If it cannot be read, nothing
-of it is shown and a toast says so; the file is left as it is — Verso never writes it — so a
-`~restart` reads it again, and `~open` can link a backup instead.
+`verso.json` of an earlier version is no longer read: until you link a file, Verso shows the
+default favorites. A JSON backup of an earlier version links with `~open` as it is.
 
 ## Default favorites are shown, not written
 
-With no config at all — no file linked, no `verso.json` — Verso shows your default phone,
-messenger, email, browser and camera apps as favorites, picked anew from every app list, so a
-default app you change shows up by itself. They are written nowhere until `~new` writes them
-into your first file. An empty file is a config of yours: no defaults are shown over it.
+With no file linked Verso shows your default phone, messenger, email, browser and camera apps
+as favorites, picked anew from every app list, so a default app you change shows up by itself.
+They are written nowhere: your own file, made in any editor and linked with `~open`, replaces
+them. An empty file is a config of yours: no defaults are shown over it.
 
 ## Private space is not reachable
 
@@ -69,9 +68,9 @@ file, are the history.
 Android's cloud backup leaves Verso out (`data_extraction_rules.xml`). A device-to-device
 transfer copies the app's own files, on purpose: the link to your file (whose grant does not move
 — the first read on the new phone fails, says so, and `~open` links it again), the copy of its
-last text, which shows meanwhile, and `verso.json` of an earlier version. Entries of a work
-profile or clone carry its serial (`package/class#10`), which on the new phone may belong to no
-profile or another one; they then match nothing. The same on one phone when a work profile is
+last text, which shows meanwhile. Entries of a work profile or clone carry its serial
+(`package/class#10`), which on the new phone may belong to no profile or another one; they then
+match nothing. The same on one phone when a work profile is
 removed and set up again: the new one gets a new serial, and its apps start without favorites,
 names, tags or hidden marks — unless the file names them by label (`Gmail (Work)`), which
 outlives a serial (though not a change of the device language: the badge is translated). The
@@ -113,14 +112,12 @@ battery line.
 
 ## A `~` command's result can come later
 
-A result is never shown over another app: a provider slow to take or hand over the file (a cloud
+A result is never shown over another app: a provider slow to hand over the file (a cloud
 folder) may finish after you left Verso, and the toast waits until you come back. A file picked
 with `~open` is read first and linked only if it is a config; until then the old link stays. A
 pick answered after a newer one (the slow folder again) is dropped without a word: your last
-choice stands. `~new` writes only into a new, empty file: picking an existing one there (and
-agreeing to replace it) changes nothing and says so. If
-the process ends first — say while a provider is slow to hand the file over, or never does — the
-pick is gone without a word: pick it again.
+choice stands. If the process ends first — say while a provider is slow to hand the file over,
+or never does — the pick is gone without a word: pick it again.
 
 ## Leaving the launcher resets to the front page
 

@@ -4,7 +4,7 @@ import java.util.Locale
 
 /**
  * The config as the user writes it: a text file, one entry per line, that Verso reads and never
- * writes over. Pure: [parse], [resolve] against the app list, [format] for a new file.
+ * writes. Pure: [parse], and [resolve] against the app list.
  *
  *     # a comment
  *     fav WhatsApp
@@ -47,7 +47,7 @@ internal data class ConfigText(
 
         /**
          * A file from outside, as Verso reads it: the line format, or a JSON config of an earlier
-         * version (its verso.json, a backup), read with parseForeign (hard rule 7) and named by its keys.
+         * version (a backup), read with parseForeign (hard rule 7) and named by its keys.
          */
         fun read(text: String): ConfigText {
             val trimmed = text.removePrefix(BOM).trimStart()
@@ -64,7 +64,7 @@ internal data class ConfigText(
             return if (ref.isEmpty() || value.isEmpty()) null else ref to value
         }
 
-        /** A config of keys, as verso.json held it: every reference is a key. */
+        /** A config of keys, as the JSON files of earlier versions held it: every reference is a key. */
         fun of(config: VersoConfig): ConfigText = ConfigText(
             favorites = config.favorites,
             hidden = config.hidden.toList(),
@@ -92,32 +92,6 @@ internal data class ConfigText(
                 }
             }
             return VersoConfig(hidden = hidden, favorites = favorites.toList(), names = names, tags = tags)
-        }
-
-        /**
-         * [config] as a file of its own: [header] as comment lines, then one line per entry. Each
-         * app is named by its package where that names it alone, else by its key — never by its
-         * label, which changes with the device language; the label stands in a comment above.
-         * [apps] tells; an app that is gone keeps its key. [parse] and [resolve] give [config] back.
-         */
-        fun format(config: VersoConfig, apps: List<AppEntry>, header: List<String>): String {
-            val index = Index(apps)
-            return buildString {
-                header.forEach { append(if (it.isEmpty()) "#\n" else "# $it\n") }
-                // One line per key, the app named by ref: (ref) -> line.
-                fun section(entries: List<Pair<String, (String) -> String>>) {
-                    if (entries.isEmpty()) return
-                    append('\n')
-                    for ((key, line) in entries) {
-                        index.label(key)?.let { append("# ").append(it).append('\n') }
-                        append(line(index.ref(key))).append('\n')
-                    }
-                }
-                section(config.favorites.map { key -> key to { ref: String -> "$FAV $ref" } })
-                section(config.hidden.map { key -> key to { ref: String -> "$HIDE $ref" } })
-                section(config.names.map { (key, name) -> key to { ref: String -> "$NAME $ref = $name" } })
-                section(config.tags.map { (key, list) -> key to { ref: String -> "$TAG $ref = ${list.joinToString(", ")}" } })
-            }
         }
 
         private const val FAV = "fav"
@@ -166,16 +140,5 @@ internal data class ConfigText(
             val found = byPackage[ref] ?: byLabel[LauncherLogic.foldLabel(ref)]
             return found?.map { it.key } ?: if (AppEntry.parseKey(ref) != null) listOf(ref) else emptyList()
         }
-
-        /** What [keys] maps back to [key] alone: its package if that is all of it, else the key. */
-        fun ref(key: String): String {
-            val entry = byKey[key] ?: return key
-            return if (entry.profile == null && byPackage[entry.packageName]?.size == 1) entry.packageName else key
-        }
-
-        /** The app's label as one comment line, or null for an app that is gone. */
-        fun label(key: String): String? = byKey[key]?.systemLabel
-            ?.map { if (it.isISOControl() || LauncherLogic.isSpoofChar(it)) ' ' else it }
-            ?.joinToString("")?.trim()?.takeIf { it.isNotEmpty() }
     }
 }

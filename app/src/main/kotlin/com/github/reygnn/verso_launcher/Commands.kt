@@ -3,22 +3,16 @@ package com.github.reygnn.verso_launcher
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
-import android.provider.DocumentsContract
-import java.io.FileNotFoundException
-import java.io.FileOutputStream
-import java.io.OutputStream
-import java.io.SyncFailedException
 
 /**
- * The user's config file, owned by the process: linking it ("~open"), writing a new one ("~new")
- * and reading it again whenever the launcher comes to the front. Every hand-back goes to the
- * process and reads the state from Core, so it lands whatever happens to the window that asked. A
- * window is reached only as a [LauncherWindow]; what a window decides stays in MainActivity:
- * refusing a command up front, the pickers, the editor, "~restart".
+ * The user's config file, owned by the process: linking it ("~open") and reading it again whenever
+ * the launcher comes to the front. Every hand-back goes to the process and reads the state from
+ * Core, so it lands whatever happens to the window that asked. A window is reached only as a
+ * [LauncherWindow]; what a window decides stays in MainActivity: refusing a command up front, the
+ * picker, the editor, "~restart".
  *
- * Verso never writes the file over (hard rule 4): "~new" writes a document the picker has just
- * made, and only that once. The document is read and written on a thread of its own, never on the
- * IO thread: a provider (a cloud folder, a USB stick) may block for good, and must hold neither
+ * Verso never writes the file (hard rule 4). The document is read on a thread of its own, never on
+ * the IO thread: a provider (a cloud folder, a USB stick) may block for good, and must hold neither
  * the IO thread nor an activity.
  *
  * Main thread only, but for those threads.
@@ -40,8 +34,8 @@ internal class Commands(private val app: VersoApp) {
     private var failing = false
 
     /**
-     * The newest "~open" or "~new" answer: the user's last choice. One that lands after a newer
-     * one (a slow provider) is dropped without a word, so it cannot undo that choice.
+     * The newest "~open" answer: the user's last choice. One that lands after a newer one (a slow
+     * provider) is dropped without a word, so it cannot undo that choice.
      */
     private var picks = 0
     private var lastPicked: Uri? = null
@@ -113,46 +107,6 @@ internal class Commands(private val app: VersoApp) {
         if (uri != core.link) release(uri)
     }
 
-    /**
-     * "~new" after the picker answered with a new document: the config in use (the defaults, or
-     * an earlier version's verso.json) written into it, which is linked from then on. Hard rule 4:
-     * only into a document that is still empty — the picker hands over an existing file too, when
-     * the user picks it and agrees to replace it, and that may be the linked one.
-     */
-    fun create(uri: Uri) {
-        val pick = picked(uri)
-        if (uri == core.link) return results.report(app.getString(R.string.toast_new_not_new))
-        // At once, while the picker's grant is fresh; the write below needs only that grant.
-        val kept = keepAccess(uri)
-        val state = core.state
-        val payload = ConfigText.format(state.config, state.apps, app.getString(R.string.config_header).lines())
-        val resolver = app.contentResolver
-        Thread(Guard.wrap("config write", ::logWarning) {
-            var outcome = Written.FAILED
-            try {
-                outcome = writeNew(resolver, uri, payload)
-            } finally {
-                app.onMain { created(pick, uri, outcome, kept, payload) }
-            }
-        }, "verso-config-write").start()
-    }
-
-    private fun created(pick: Int, uri: Uri, outcome: Written, kept: Boolean, payload: String) {
-        if (superseded(pick, uri)) return
-        if (outcome != Written.DONE) {
-            if (kept) dropAccess(uri)
-            val word = if (outcome == Written.NOT_NEW) R.string.toast_new_not_new else R.string.toast_new_failed
-            return results.report(app.getString(word))
-        }
-        // Written, but not to be read again: the file is the user's, not linked.
-        if (!kept) return results.report(app.getString(R.string.toast_link_failed))
-        relinked(uri)
-        results.report(app.getString(R.string.toast_new_ok))
-        adopt(payload, ConfigText.read(payload))
-    }
-
-    private enum class Written { DONE, FAILED, NOT_NEW }
-
     private fun relinked(uri: Uri) {
         val old = core.link
         core.relink(uri)
@@ -217,87 +171,6 @@ internal class Commands(private val app: VersoApp) {
     private companion object {
         /** How many skipped line numbers a toast names. */
         const val SKIPPED_SHOWN = 5
-
-        /**
-         * The new file written, if the document is empty: one with content (or of a size the
-         * provider will not tell, so none is truncated or deleted blind) is never written over or
-         * deleted. A write that fails on an empty document deletes it where the provider allows,
-         * so no half file is left to be linked later.
-         */
-        private fun writeNew(resolver: ContentResolver, uri: Uri, payload: String): Written {
-            val size = sizeOf(resolver, uri)
-            if (size != null && size > 0) return Written.NOT_NEW
-            val empty = size == 0L
-            if (writeDocument(resolver, uri, payload, empty)) return Written.DONE
-            if (empty) deleteDocument(resolver, uri)
-            return Written.FAILED
-        }
-
-        /** The document's size in bytes, or null when the provider does not say. */
-        private fun sizeOf(resolver: ContentResolver, uri: Uri): Long? =
-            // hard rule 2: an unknown size is a null, the caller then writes over nothing
-            @Suppress("TooGenericExceptionCaught") try {
-                resolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_SIZE), null, null, null)?.use { c ->
-                    if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
-                }
-            } catch (e: Exception) {
-                logWarning("config: no size for $uri", e)
-                null
-            }
-
-        /** False if the document could not be written whole (logged). */
-        private fun writeDocument(resolver: ContentResolver, uri: Uri, payload: String, empty: Boolean): Boolean {
-            // hard rule 2: a failed write is a message
-            val written = @Suppress("TooGenericExceptionCaught") try {
-                openTruncated(resolver, uri, empty)?.use { out ->
-                    out.write(payload.toByteArray(Charsets.UTF_8))
-                    out.flush()
-                    sync(out)
-                    true
-                } ?: false.also { logWarning("config: no stream for $uri", null) }
-            } catch (e: Exception) {
-                logWarning("config: cannot write $uri", e)
-                false
-            }
-            return written
-        }
-
-        /**
-         * "wt": since Android 10 "w" no longer truncates. A provider that refuses "t" gets "w", but
-         * only for a document known to be empty: on one of unknown size "w" could leave an old
-         * tail behind the new text.
-         */
-        private fun openTruncated(resolver: ContentResolver, uri: Uri, empty: Boolean): OutputStream? = try {
-            resolver.openOutputStream(uri, "wt")
-        } catch (e: IllegalArgumentException) {
-            if (!empty) throw e
-            logWarning("config: $uri takes no \"wt\", writing with \"w\"", e)
-            resolver.openOutputStream(uri, "w")
-        } catch (e: FileNotFoundException) {
-            if (!empty) throw e
-            logWarning("config: $uri takes no \"wt\", writing with \"w\"", e)
-            resolver.openOutputStream(uri, "w")
-        }
-
-        /** On disk before "created" is said, where the provider is a local file; a cloud one syncs itself. */
-        private fun sync(out: OutputStream) {
-            val fd = (out as? FileOutputStream)?.fd ?: return
-            try {
-                fd.sync()
-            } catch (e: SyncFailedException) {
-                // The bytes are written; only the hardening failed.
-                logWarning("config: sync failed", e)
-            }
-        }
-
-        private fun deleteDocument(resolver: ContentResolver, uri: Uri) {
-            // hard rule 2: tidying up after a failure must not fail the message
-            @Suppress("TooGenericExceptionCaught") try {
-                if (!DocumentsContract.deleteDocument(resolver, uri)) logWarning("config: $uri not deleted", null)
-            } catch (e: Exception) {
-                logWarning("config: cannot delete the failed $uri", e)
-            }
-        }
 
         /** Null if it cannot be read or is beyond any config's size; logged. */
         fun readDocument(resolver: ContentResolver, uri: Uri): String? =

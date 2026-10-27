@@ -17,7 +17,7 @@ comments:
 
 complexity:
   TooManyFunctions:
-    # Commands holds one entry per config-file step ("~open", "~new", the read at every start)
+    # Commands holds one entry per config-file step ("~open", the read at every start)
     # plus what they share: each is a feature, not a split waiting to happen.
     allowedFunctionsPerClass: 13
 

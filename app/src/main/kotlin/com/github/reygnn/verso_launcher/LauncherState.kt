@@ -19,7 +19,7 @@ package com.github.reygnn.verso_launcher
  * a silent no-op. Tests build it through testLauncherState, which supplies inert ones.
  *
  * @param initial the config as Core read it before the state exists (hard rule 5): the copy of the
- *   linked file, or verso.json of an earlier version, or nothing.
+ *   linked file, or nothing.
  * @param useDefaults no config at all, not even an empty file: the favorites are the default ones
  *   (hard rule 10), picked from every list anew and never written.
  * @param byUsage "%" as order.txt has it.
@@ -136,7 +136,7 @@ internal class LauncherState(
     }
 
     /**
-     * The linked file's text, newly read ("~open", "~new", or changed since): the config it sets,
+     * The linked file's text, newly read ("~open", or changed since): the config it sets,
      * at once; no re-enumeration, the apps are the same. It ends the default favorites.
      */
     fun adopt(next: ConfigText) {
