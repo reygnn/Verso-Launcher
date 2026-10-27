@@ -5,8 +5,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.github.reygnn.guru.Guru
+import java.io.File
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 
 /**
@@ -16,8 +16,10 @@ import java.util.concurrent.RejectedExecutionException
  */
 class VersoApp : Application() {
 
+    private val watchdog = IoWatchdog(onStall = ::stalled).apply { start() }
+
     /** All disk and PackageManager work, in submission order. Never shut down (hard rule 3). */
-    val io: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "verso-io") }
+    val io: ExecutorService = WatchedIo(watchdog)
 
     /** Badged labels ("Gmail (Work)"), a binder call each. [io] only. */
     internal val badgedLabels = HashMap<BadgeKey, String>()
@@ -78,6 +80,16 @@ class VersoApp : Application() {
             Log.w("Verso", "IO task rejected (executor shut down)", e)
             false
         }
+
+    /**
+     * A crash, on the watchdog's thread, so the system starts HOME again with a free IO thread and
+     * Guru reports the stuck call. What it cuts off is covered: a torn verso.json by its .bak
+     * (hard rule 4), a restore before its write by the old config (hard rule 7).
+     */
+    private fun stalled(ioThread: Thread) {
+        if (StallTrips(File(filesDir, StallTrips.FILE)).allow()) throw IoStallException(ioThread.stackTrace)
+        Log.w("Verso", "IO task stuck; no crash, the watchdog's loop guard holds")
+    }
 
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 

@@ -35,7 +35,7 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
 - **No Compose, Material 3, AndroidX, coroutines or ViewModel.** Platform Views built in code, no
   XML layouts. `LauncherState` is the ViewModel in plain Kotlin, one per process (`Core`).
 - **Persistence:** `filesDir/verso.json` (`ConfigStore`, hard rule 4). Beside it only disposable
-  files, never in a backup: `home-cache.txt`, `usage.txt`, `recents.txt`, and Guru's
+  files, never in a backup: `home-cache.txt`, `usage.txt`, `recents.txt`, `stalls.txt`, and Guru's
   `filesDir/guru/` (also kept out of a device transfer, `data_extraction_rules.xml`). Backups go
   to `Download/Verso/`, Guru's reports to `Download/Guru/`, both through MediaStore.
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath, Robolectric only where a real
@@ -102,7 +102,8 @@ One module, one package. The process owns the data, an activity is a window (har
   `RestoreSteps`, `BackupFiles`, `ConfigJson`, `WallpaperPalette`, `HomeStyle`,
   `CommandDialogText`; the data `AppEntry` and `VersoConfig` (immutable: an edit is a new one).
 - **IO:** `ConfigStore`, `BackupStore`, `Apps` (enumeration, `~cleanup`'s check), `HomeCache`,
-  `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it `logWarning`).
+  `UsageLog`, `RecentsLog`, `IoWatchdog` (the IO thread's watchdog and its loop guard), and
+  `Guard` (hard rule 2's backstop, beside it `logWarning`).
 
 The rest are small helpers named for what they do. Data flow: a `LauncherApps` callback or a
 profile broadcast → `MainActivity.appsMaybeChanged` → now if in front, else at `onResume` →
@@ -125,7 +126,9 @@ only) → main thread, the newest load generation wins; custom names come from t
    dropped), one window's through `MainActivity.onUi` (dropped once it is destroyed). Deliberate
    exceptions, not breaches to fix: the `~restore-saf` read on its own thread
    (`Commands.readPick`), Guru's report on the dying thread and its alert via `runOnUiThread`,
-   and a pending save written on main at `onStop` (`LauncherState.flushSave`).
+   a pending save written on main at `onStop` (`LauncherState.flushSave`), and the IO thread's
+   watchdog (`IoWatchdog`): a task stuck 30 s crashes the process so HOME starts again clean,
+   at most once in 10 minutes (`stalls.txt`).
 4. **`verso.json` on SharedPreferences' terms** (`ConfigStore`): the last complete file waits as
    `verso.json.bak` while a write runs and is taken back by the next load; a file that cannot be
    read or parsed loads as empty, and a toast says so (`onConfigUnusable`); a save is on disk once

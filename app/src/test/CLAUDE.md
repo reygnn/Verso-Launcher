@@ -30,6 +30,7 @@ Pure logic
   CleanupTest              what ~cleanup may offer (hard rule 14)
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
+  IoWatchdogTest           the IO thread's watchdog: ticks, the executor's hooks, the loop guard
 
 State and threads (manual queues)
   LauncherStateTest        the concurrency rules: load, edit, adopt and save interleaved;
@@ -70,8 +71,8 @@ Source scans
 ```
 
 Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
-`DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest` and `RecentsLogTest` use
-`chmod`, so they fail when run as root.
+`DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest`, `RecentsLogTest` and
+`IoWatchdogTest` use `chmod`, so they fail when run as root.
 
 Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
 `BackupStoreInstrumentedTest` (the real MediaStore: publish, names it gives, rows we don't own,

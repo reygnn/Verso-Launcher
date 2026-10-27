@@ -147,7 +147,8 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no DataStore / Room / SharedPreferences — the small amount of state (hidden
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
   `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
-  instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`; and Guru's crash
+  instant first frame, `usage.txt` and `recents.txt` behind `%` and `?`, and `stalls.txt` for the
+  IO watchdog; and Guru's crash
   reports in `guru/` until the next start saves them, see "Crash reports"), kept the way
   Android keeps SharedPreferences (the last complete file waits as `verso.json.bak` until a
   write is done; a file that cannot be read loads as empty, and a toast says so) — your own `~backup`s are the

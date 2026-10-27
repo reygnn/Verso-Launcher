@@ -152,15 +152,21 @@ An app that renames it in an update — rare — comes back as a new entry; the 
 place, name, tags and mark, and `~cleanup` later offers to remove them. Favorite, rename or tag it
 again: carrying them over would need a migration of the stored keys.
 
-## A stuck system call holds the `~` commands
+## A stuck system call restarts Verso
 
-The `~` commands run one at a time, their disk and system work on one thread. If a system service
-never answers (MediaStore or the package manager; not seen so far), that command never ends:
-every further command — `~restart` too — and every edit says it is busy, while launching,
-searching and turning pages go on. Not on a cold start, though: the first app list waits on the
-same thread, so until the call returns the drawer is empty and home shows only its cached
-favorites — after a crash, Guru's save of the report runs there first. Only Settings → Apps →
-Verso → Force stop ends it; the next start is clean.
+The `~` commands, and on a cold start the first app list, do their disk and system work on one
+thread. If a system service does not answer (MediaStore or the package manager; not seen so far),
+Verso waits 30 seconds and then stops itself: Android starts the launcher again at once, and Guru
+reports where it hung at the next start. A command cut off this way did nothing or finished — a
+restore that had not written `verso.json` yet leaves the old config, a write cut off halfway is
+taken back from `verso.json.bak`. Until then every further command — `~restart` too — and every
+edit says it is busy, while launching, searching and turning pages go on; on a cold start the
+drawer stays empty and home shows only its cached favorites.
+
+So that a service stuck for good cannot restart the launcher over and over, Verso stops itself
+at most once in ten minutes (a second crash right after the first would also bring Android's
+"keeps stopping" dialog and ask for the default home app again); a hang within those ten minutes
+waits as before, until the call returns or Settings → Apps → Verso → Force stop.
 
 ## Portrait lock does not hold on tablets and foldables
 

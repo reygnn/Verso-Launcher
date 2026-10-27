@@ -3,7 +3,8 @@
      too, so it holds whichever of the two the platform reads. A device-to-device transfer moves verso.json
      (the config, and a verso.json.bak a cut-off write left, which the next load takes back) but
      not a stray verso.json.new or verso.json.unreadable,
-     nor the home-cache, which is rebuilt on the first load, nor guru/ (Guru's crash reports):
+     nor the home-cache, which is rebuilt on the first load, nor stalls.txt (the IO watchdog's
+     times on the old device), nor guru/ (Guru's crash reports):
      an old device's reports would be saved to the new one's Download/Guru, its installation-id
      would make the two one installation on the crash server, and exits-seen/crashes-saved
      are the old device's times. -->
@@ -24,6 +25,7 @@
         <exclude domain="file" path="verso.json.unreadable" />
         <exclude domain="file" path="home-cache.txt" />
         <exclude domain="file" path="home-cache.txt.tmp" />
+        <exclude domain="file" path="stalls.txt" />
         <exclude domain="file" path="guru/" />
     </device-transfer>
 </data-extraction-rules>

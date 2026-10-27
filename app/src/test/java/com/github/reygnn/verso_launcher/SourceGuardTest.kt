@@ -232,10 +232,14 @@ class SourceGuardTest {
         assertTrue(has(transfer, """<exclude domain="file" path="guru/" />"""))
     }
 
-    /** Renamed classes or lost line numbers would change a crash's Guru number with every release. */
-    @Test fun `R8 keeps names and line numbers for Guru's reports`() {
+    /**
+     * Renamed classes or lost line numbers would change a crash's Guru number with every release;
+     * a merged IoStallException would report a stall under another class.
+     */
+    @Test fun `R8 keeps names, line numbers and the stall's class for Guru's reports`() {
         val rules = code("proguard-rules.pro")
         assertTrue(has(rules, "-dontobfuscate"))
         assertTrue(has(rules, "-keepattributes SourceFile,LineNumberTable"))
+        assertTrue(has(rules, "-keep class com.github.reygnn.verso_launcher.IoStallException"))
     }
 }
