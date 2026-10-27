@@ -4,7 +4,7 @@
     <string name="hint_search">&gt; search</string>
     <string name="clear_prompt">Clear prompt</string>
     <!-- Home page (the front of the page; the drawer is its back). -->
-    <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nTo put apps here, type ! in the drawer\'s search line and tap them. !! reorders them.</string>
+    <string name="home_hint">Swipe up for all apps, down for recent ones.</string>
     <string name="a11y_home">Home screen</string>
     <string name="a11y_open_drawer">Open all apps</string>
     <string name="a11y_open_recents">Open recent apps</string>
@@ -25,10 +25,6 @@
     <string name="a11y_battery_charging">battery %1$s, charging</string>
     <string name="a11y_battery_protected">battery %1$s, battery protection: charge is being held</string>
     <string name="toast_no_app">no app for that on this device</string>
-    <string name="hint_rename_name">Name</string>
-    <string name="hint_rename_tags">Tags (comma-separated)</string>
-    <!-- Neutral button in the long-press dialog: opens the system App info screen. -->
-    <string name="action_app_info">App info</string>
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
     <!-- One-shot "~" commands. -->
@@ -60,34 +56,17 @@
     <string name="toast_no_picker">no file picker on this device</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
          (stateDescription), and what a double-tap does (the click's label; TalkBack adds
-         "double-tap to"). %1$s in the tag ones is the tag. -->
-    <string name="a11y_state_hidden">hidden</string>
-    <string name="a11y_state_visible">visible</string>
-    <string name="a11y_state_favorite">favorite</string>
-    <string name="a11y_state_not_favorite">not a favorite</string>
-    <string name="a11y_state_tagged">tagged %1$s</string>
-    <string name="a11y_state_not_tagged">not tagged %1$s</string>
-    <string name="a11y_state_picked_up">picked up</string>
+         "double-tap to"). -->
     <string name="a11y_state_paused">paused</string>
     <string name="a11y_state_archived">archived</string>
-    <string name="a11y_do_unhide">unhide</string>
-    <string name="a11y_do_hide">hide</string>
-    <string name="a11y_do_favorite">add to favorites</string>
-    <string name="a11y_do_unfavorite">remove from favorites</string>
-    <string name="a11y_do_tag">add the tag</string>
-    <string name="a11y_do_untag">remove the tag</string>
-    <string name="a11y_do_pick_up">pick up to reorder</string>
-    <string name="a11y_do_put_back">put back</string>
-    <string name="a11y_do_move_here">move the picked favorite here</string>
     <string name="a11y_do_turn_on_work">turn work apps back on</string>
     <string name="a11y_do_unarchive">restore the app</string>
 
     <!-- What an empty drawer list says (LauncherLogic.emptyHint). -->
     <string name="empty_no_match">no app matches</string>
     <string name="empty_no_apps">no apps</string>
-    <string name="empty_no_tags">no tags yet — create one with ##name</string>
+    <string name="empty_no_tags">no tags yet</string>
     <string name="empty_no_tag_match">no tag or package starts like that</string>
-    <string name="empty_no_favorites">no favorites yet — add some with !</string>
     <string name="empty_no_recents">no recent apps yet</string>
     <string name="empty_no_command">no such command — ~ lists them all</string>
     <string name="order_to_usage" formatted="false">% sort by usage</string>

@@ -6,7 +6,6 @@ import org.junit.Test
 /** The fake is a bare-key [Ordered]: only [AppRow.entry] identity matters here. */
 class LauncherActionsTest {
 
-
     private fun app(key: String): Row<OrderedFake> = AppRow(OrderedFake(key))
     private val tag: Row<OrderedFake> = TagRow("work")
     private val cmd: Row<OrderedFake> = CommandRow("~backup", Command.BACKUP)
@@ -46,24 +45,6 @@ class LauncherActionsTest {
         )
     }
 
-    @Test fun `TAG_EDIT with a tag row nearest the prompt drills into that tag`() {
-        assertEquals(
-            DrawerAction.SetPrompt("##work"),
-            LauncherLogic.enterAction(Mode.TAG_EDIT, command = null, promptBlank = false, lastRow = tag),
-        )
-    }
-
-    @Test fun `TAG_EDIT with an app row or nothing is a done gesture`() {
-        assertEquals(
-            DrawerAction.SetPrompt(""),
-            LauncherLogic.enterAction(Mode.TAG_EDIT, command = null, promptBlank = false, lastRow = app("com.a/A")),
-        )
-        assertEquals(
-            DrawerAction.SetPrompt(""),
-            LauncherLogic.enterAction<OrderedFake>(Mode.TAG_EDIT, command = null, promptBlank = false, lastRow = null),
-        )
-    }
-
     /** Must beat the launch branch, or an empty Enter would launch the last app in the alphabet. */
     @Test fun `an empty prompt only dismisses the keyboard, it never launches`() {
         assertEquals(
@@ -98,16 +79,6 @@ class LauncherActionsTest {
             DrawerAction.None,
             LauncherLogic.enterAction<OrderedFake>(Mode.RECENTS, command = null, promptBlank = false, lastRow = null),
         )
-    }
-
-    @Test fun `a non-empty edit mode prompt clears back to normal`() {
-        for (mode in listOf(Mode.HIDDEN_EDIT, Mode.FAV_EDIT, Mode.FAV_REORDER)) {
-            assertEquals(
-                "expected a clear for $mode",
-                DrawerAction.SetPrompt(""),
-                LauncherLogic.enterAction(mode, command = null, promptBlank = false, lastRow = app("com.a/A")),
-            )
-        }
     }
 
     // ---- enterEdge -----------------------------------------------------------
@@ -160,8 +131,7 @@ class LauncherActionsTest {
         assertEquals(DrawerAction.None, LauncherLogic.tapAction<OrderedFake>(Mode.NORMAL, null))
     }
 
-    @Test fun `tapping a tag row drills into the right sigil for its mode`() {
-        assertEquals(DrawerAction.SetPrompt("##work"), LauncherLogic.tapAction(Mode.TAG_EDIT, tag))
+    @Test fun `tapping a tag row drills into its filter`() {
         assertEquals(DrawerAction.SetPrompt("#work"), LauncherLogic.tapAction(Mode.TAG_FILTER, tag))
     }
 
@@ -177,14 +147,6 @@ class LauncherActionsTest {
                 LauncherLogic.tapAction(mode, app("com.a/A")),
             )
         }
-    }
-
-    @Test fun `tapping an app row toggles or picks under the edit modes`() {
-        val entry = OrderedFake("com.a/A")
-        assertEquals(DrawerAction.ToggleHidden(entry), LauncherLogic.tapAction(Mode.HIDDEN_EDIT, app("com.a/A")))
-        assertEquals(DrawerAction.ToggleFavorite(entry), LauncherLogic.tapAction(Mode.FAV_EDIT, app("com.a/A")))
-        assertEquals(DrawerAction.ReorderPick(entry), LauncherLogic.tapAction(Mode.FAV_REORDER, app("com.a/A")))
-        assertEquals(DrawerAction.ToggleTag(entry), LauncherLogic.tapAction(Mode.TAG_EDIT, app("com.a/A")))
     }
 
     /** Never rendered (that overview holds only command rows), but the mapping stays total. */
@@ -206,31 +168,11 @@ class LauncherActionsTest {
         }
     }
 
-    @Test fun `bulk-editing a sigil-named tag builds a double-hash prompt that stays TAG_EDIT`() {
-        assertEquals(DrawerAction.SetPrompt("##!work"), LauncherLogic.tapAction(Mode.TAG_EDIT, TagRow("!work")))
-        assertEquals(Mode.TAG_EDIT, LauncherLogic.parseMode("##!work"))
-    }
-
     @Test fun `Enter and a tap on the percent row toggle the order`() {
         val row = OrderRow(toUsage = true)
         assertEquals(DrawerAction.ToggleOrder, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = row))
         assertEquals(DrawerAction.ToggleOrder, LauncherLogic.tapAction<OrderedFake>(Mode.ORDER, row))
         // "%abc" shows no row: Enter does nothing.
         assertEquals(DrawerAction.None, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = null))
-    }
-
-    // ---- reorderStep ("!!") --------------------------------------------------
-
-    @Test fun `with nothing held a tap picks the row up`() {
-        assertEquals(ReorderStep.PickUp("a/A"), LauncherLogic.reorderStep(picked = null, tapped = "a/A"))
-    }
-
-    /** Audit 2026-10-22, #16: the held row again lets go instead of moving it onto itself. */
-    @Test fun `the held row tapped again lets it go`() {
-        assertEquals(ReorderStep.PutDown, LauncherLogic.reorderStep(picked = "a/A", tapped = "a/A"))
-    }
-
-    @Test fun `another row takes the held one to its slot`() {
-        assertEquals(ReorderStep.Move("a/A", "b/B"), LauncherLogic.reorderStep(picked = "a/A", tapped = "b/B"))
     }
 }

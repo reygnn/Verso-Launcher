@@ -1,7 +1,6 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,8 +17,8 @@ class LauncherRowsTest {
     private val tags = mapOf("com.a/A" to listOf("games"), "com.c/C" to listOf("work"))
     private val recents = listOf("com.b/B", "com.a/A") // most-recent-first
 
-    private fun rowsFor(mode: Mode, trimmed: String, tagEditTag: String? = null) =
-        LauncherLogic.rowsFor(mode, trimmed, apps, hidden, favorites, tags, recents, tagEditTag)
+    private fun rowsFor(mode: Mode, trimmed: String) =
+        LauncherLogic.rowsFor(mode, trimmed, apps, hidden, favorites, tags, recents)
 
     private fun appKeys(rows: List<Row<OrderedFake>>) =
         rows.filterIsInstance<AppRow<OrderedFake>>().map { it.entry.key }
@@ -30,21 +29,21 @@ class LauncherRowsTest {
     // ---- ORDER ("%") -------------------------------------------------------------
 
     @Test fun `percent shows the one row that turns the order the other way`() {
-        val toUsage = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, null)
+        val toUsage = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents)
         assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = true)), toUsage)
-        val back = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, null, byUsage = true)
+        val back = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, byUsage = true)
         assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = false)), back)
     }
 
     @Test fun `text after the percent is a typo, not a switch`() {
-        assertTrue(LauncherLogic.rowsFor(Mode.ORDER, "%abc", apps, hidden, favorites, tags, recents, null).isEmpty())
+        assertTrue(LauncherLogic.rowsFor(Mode.ORDER, "%abc", apps, hidden, favorites, tags, recents).isEmpty())
     }
 
     @Test fun `by usage, the plain drawer is most used first and a search is not reordered`() {
         val usage = mapOf("com.c/C" to Usage(2.0, 0L))
-        val plain = LauncherLogic.rowsFor(Mode.NORMAL, "", apps, hidden, favorites, tags, recents, null, byUsage = true, usage = usage)
+        val plain = LauncherLogic.rowsFor(Mode.NORMAL, "", apps, hidden, favorites, tags, recents, byUsage = true, usage = usage)
         assertEquals(listOf("com.c/C", "com.a/A"), appKeys(plain))
-        val search = LauncherLogic.rowsFor(Mode.NORMAL, "a", apps, hidden, favorites, tags, recents, null, byUsage = true, usage = usage)
+        val search = LauncherLogic.rowsFor(Mode.NORMAL, "a", apps, hidden, favorites, tags, recents, byUsage = true, usage = usage)
         assertEquals(appKeys(rowsFor(Mode.NORMAL, "a")), appKeys(search))
     }
 
@@ -59,14 +58,14 @@ class LauncherRowsTest {
 
     @Test fun `empty prompt is the same drawer whether or not favorites are set`() {
         val rows = LauncherLogic.rowsFor(
-            Mode.NORMAL, "", apps, hidden, favorites = emptySet(), tags, recents, null,
+            Mode.NORMAL, "", apps, hidden, favorites = emptySet(), tags, recents,
         )
         assertEquals(listOf("com.a/A", "com.c/C"), appKeys(rows))
     }
 
     @Test fun `empty prompt keeps a hidden favorite - favoriting overrides hiding`() {
         val rows = LauncherLogic.rowsFor(
-            Mode.NORMAL, "", apps, hidden, favorites = listOf("com.b/B"), tags, recents, null,
+            Mode.NORMAL, "", apps, hidden, favorites = listOf("com.b/B"), tags, recents,
         )
         assertEquals(listOf("com.a/A", "com.b/B", "com.c/C"), appKeys(rows))
     }
@@ -109,7 +108,7 @@ class LauncherRowsTest {
     @Test fun `the star prefix keeps a hidden FAVORITE, mirroring the bare drawer`() {
         val favsWithHiddenB = linkedSetOf("com.b/B")
         val rows = LauncherLogic.rowsFor(
-            Mode.NORMAL, "b*", apps, hidden, favsWithHiddenB, tags, recents, null,
+            Mode.NORMAL, "b*", apps, hidden, favsWithHiddenB, tags, recents,
         )
         assertEquals(listOf("com.b/B"), appKeys(rows))
     }
@@ -124,7 +123,7 @@ class LauncherRowsTest {
         )
         val rows = LauncherLogic.rowsFor(
             Mode.NORMAL, "ap*", local, emptySet(), linkedSetOf("com.applet/A"),
-            emptyMap(), emptyList(), null,
+            emptyMap(), emptyList(),
         )
         assertEquals(listOf("com.apple/A", "com.apricot/A", "com.applet/A"), appKeys(rows))
     }
@@ -136,7 +135,7 @@ class LauncherRowsTest {
 
     @Test fun `a star prefix over an empty app list is empty`() {
         val rows = LauncherLogic.rowsFor(
-            Mode.NORMAL, "a*", emptyList<OrderedFake>(), emptySet(), emptySet(), emptyMap(), emptyList(), null,
+            Mode.NORMAL, "a*", emptyList<OrderedFake>(), emptySet(), emptySet(), emptyMap(), emptyList(),
         )
         assertTrue(appKeys(rows).isEmpty())
     }
@@ -174,7 +173,7 @@ class LauncherRowsTest {
 
     @Test fun `bare hash drops ghost tags whose apps are all uninstalled`() {
         val ghost = tags + ("com.z/Z" to listOf("archived"))
-        val rows = LauncherLogic.rowsFor(Mode.TAG_FILTER, "#", apps, hidden, favorites, ghost, recents, null)
+        val rows = LauncherLogic.rowsFor(Mode.TAG_FILTER, "#", apps, hidden, favorites, ghost, recents)
         assertEquals(listOf("games", "work"), tagNames(rows)) // "archived" has no live app
     }
 
@@ -186,7 +185,7 @@ class LauncherRowsTest {
         // The shared fixture's hidden app carries no tag, so tag it here.
         val tagsWithHiddenApp = mapOf("com.b/B" to listOf("work"))
         val rows = LauncherLogic.rowsFor(
-            Mode.TAG_FILTER, "#work", apps, hidden, favorites, tagsWithHiddenApp, recents, null,
+            Mode.TAG_FILTER, "#work", apps, hidden, favorites, tagsWithHiddenApp, recents,
         )
         assertEquals(listOf("com.b/B"), appKeys(rows))
     }
@@ -196,57 +195,18 @@ class LauncherRowsTest {
         for (name in listOf("!work", "-work", "~work", "?work", "!!work")) {
             val sigilTags = mapOf("com.a/A" to listOf(name))
             val overview = LauncherLogic.rowsFor(
-                Mode.TAG_FILTER, "#", apps, hidden, favorites, sigilTags, recents, null,
+                Mode.TAG_FILTER, "#", apps, hidden, favorites, sigilTags, recents,
             )
             assertEquals("\"$name\" missing from the # overview", listOf(name), tagNames(overview))
             val drilled = "#$name"
             assertEquals("\"$drilled\" is no longer a tag filter", Mode.TAG_FILTER, LauncherLogic.parseMode(drilled))
             val filtered = LauncherLogic.rowsFor(
-                Mode.TAG_FILTER, drilled, apps, hidden, favorites, sigilTags, recents, null,
+                Mode.TAG_FILTER, drilled, apps, hidden, favorites, sigilTags, recents,
             )
             assertEquals("\"$drilled\" did not find its app", listOf("com.a/A"), appKeys(filtered))
         }
     }
 
-    // ---- TAG_EDIT ("##") -----------------------------------------------------
-
-    @Test fun `bare double-hash lists ALL tags including ghosts, as TagRows`() {
-        val ghost = tags + ("com.z/Z" to listOf("archived"))
-        val rows = LauncherLogic.rowsFor(Mode.TAG_EDIT, "##", apps, hidden, favorites, ghost, recents, null)
-        assertEquals(listOf("archived", "games", "work"), tagNames(rows))
-    }
-
-    @Test fun `double-hash with a chosen tag lists every app unreordered`() {
-        val rows = rowsFor(Mode.TAG_EDIT, "##work", tagEditTag = "work")
-        assertEquals(apps.map { it.key }, appKeys(rows))
-    }
-
-    // ---- tagEditTagFor -------------------------------------------------------
-
-    @Test fun `tagEditTagFor is null outside TAG_EDIT`() {
-        for (m in Mode.entries.filter { it != Mode.TAG_EDIT }) {
-            assertNull("expected null for $m", LauncherLogic.tagEditTagFor(m, "##work"))
-        }
-    }
-
-    @Test fun `tagEditTagFor returns the canonical tail of a chosen tag`() {
-        assertEquals("work", LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##work"))
-        assertEquals("work", LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##Work"))    // folded
-        assertEquals("work", LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##  work"))  // trimmed
-    }
-
-    @Test fun `tagEditTagFor keeps the overview up for a tail that canonicalises to nothing`() {
-        // A phantom "" tag would turn the overview into an all-apps edit list for tag "".
-        assertNull(LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##"))
-        assertNull(LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "###"))
-        assertNull(LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##,"))
-    }
-
-    @Test fun `tagEditTagFor keeps a sigil-named tag (the bulk-edit mirror of drilling it)`() {
-        assertEquals("!work", LauncherLogic.tagEditTagFor(Mode.TAG_EDIT, "##!work"))
-    }
-
-    /** Enter launches the row nearest the prompt: the best match, not the alphabetically last. */
     @Test fun `a plain search ranks a name's start nearest the prompt`() {
         // "a": Alpha starts with it, Bravo and Charlie hold it inside.
         assertEquals(listOf("com.b/B", "com.c/C", "com.a/A"), appKeys(rowsFor(Mode.NORMAL, "a")))
@@ -257,13 +217,7 @@ class LauncherRowsTest {
         )
     }
 
-    /** "*text" means "starts with" already; "-" and "!" list to toggle, not to launch. */
-    @Test fun `star prefix and the edit modes keep the drawer order`() {
-        assertEquals(listOf("com.a/A", "com.b/B", "com.c/C"), appKeys(rowsFor(Mode.FAV_EDIT, "!a")))
-        assertEquals(listOf("com.a/A", "com.b/B", "com.c/C"), appKeys(rowsFor(Mode.HIDDEN_EDIT, "-a")))
-    }
-
-    // ---- RECENTS / FAV_REORDER / edit modes ----------------------------------
+    // ---- RECENTS -------------------------------------------------------------
 
     @Test fun `recents are reversed so the most recent sits nearest the prompt`() {
         // recents = [B, A] most-recent-first; reversed for isStackFromBottom -> [A, B].
@@ -279,42 +233,6 @@ class LauncherRowsTest {
     @Test fun `text after the question mark narrows the recents, keeping their order`() {
         assertEquals(listOf("com.b/B"), appKeys(rowsFor(Mode.RECENTS, "?bra")))
         assertEquals(listOf("com.a/A", "com.b/B"), appKeys(rowsFor(Mode.RECENTS, "?a")))
-        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.RECENTS, "?zzz", null))
-    }
-
-    @Test fun `reorder lists exactly the favorites in stored order, ignoring trailing text`() {
-        assertEquals(listOf("com.c/C", "com.a/A"), appKeys(rowsFor(Mode.FAV_REORDER, "!!ignored")))
-    }
-
-    @Test fun `edit modes list every app narrowed by the text after the sigil`() {
-        assertEquals(listOf("com.a/A"), appKeys(rowsFor(Mode.FAV_EDIT, "!al")))
-        assertEquals(listOf("com.b/B"), appKeys(rowsFor(Mode.HIDDEN_EDIT, "-brav")))
-    }
-
-    @Test fun `a bare edit-mode sigil lists every app (empty needle)`() {
-        assertEquals(apps.map { it.key }, appKeys(rowsFor(Mode.FAV_EDIT, "!")))
-        assertEquals(apps.map { it.key }, appKeys(rowsFor(Mode.HIDDEN_EDIT, "-")))
-    }
-
-    // ---- rowPrefix -----------------------------------------------------------
-
-    @Test fun `rowPrefix picks the right marker per edit mode`() {
-        assertEquals("[x] ", LauncherLogic.rowPrefix(Mode.HIDDEN_EDIT, isHidden = true, false, false, false))
-        assertEquals("[ ] ", LauncherLogic.rowPrefix(Mode.HIDDEN_EDIT, isHidden = false, false, false, false))
-        assertEquals("[x] ", LauncherLogic.rowPrefix(Mode.FAV_EDIT, false, isFavorite = true, false, false))
-        assertEquals("\u00BB ", LauncherLogic.rowPrefix(Mode.FAV_REORDER, false, false, isPicked = true, false))
-        assertEquals("  ", LauncherLogic.rowPrefix(Mode.FAV_REORDER, false, false, isPicked = false, false))
-        assertEquals("[x] ", LauncherLogic.rowPrefix(Mode.TAG_EDIT, false, false, false, isTagged = true))
-    }
-
-    @Test fun `rowPrefix is empty in the read modes that carry no marker`() {
-        for (m in listOf(Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND)) {
-            assertEquals("", LauncherLogic.rowPrefix(m, true, true, true, true))
-        }
-    }
-
-    @Test fun `edit-mode markers are column-aligned (equal width)`() {
-        assertEquals("[ ] ".length, "[x] ".length)
-        assertEquals("  ".length, "\u00BB ".length)
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.RECENTS, "?zzz"))
     }
 }

@@ -17,11 +17,10 @@ JVM tests: `./gradlew testDebugUnitTest`. Robolectric classes are marked (R).
 Pure logic
   LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
                            (Turkish, İ, NFC, accents, other scripts' marks), the ranking,
-                           Collator sort, tags, reorder, recents,
-                           default favorites
+                           Collator sort, tags, recents, default favorites
   CommandDialogTextTest    what the ~restore dialog says
   LauncherRowsTest         rowsFor per mode
-  LauncherActionsTest      Enter and tap decisions, the "!!" tap
+  LauncherActionsTest      Enter and tap decisions
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
   HomeStyleTest            sizes, luminance, outline thresholds, battery, AppStatus
   ConfigJsonTest           round trip, parseForeign's refusals, hostile input, size limits,
@@ -34,7 +33,7 @@ Pure logic
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
 
 State and threads (manual queues)
-  LauncherStateTest        the concurrency rules: refresh, edit, adopt and save interleaved;
+  LauncherStateTest        the concurrency rules: refresh, adopt and save interleaved;
                            seeding; saves failed and at onStop; an unreadable config;
                            replace (~restore, ~undo); recents.txt and usage.txt
   PendingPickTest          a "~restore" pick's states
@@ -53,10 +52,9 @@ The window (R)
                            what happens before the first load
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
-  AppDrawerTest            the back page: rows, TalkBack, the tap guard, the reorder pick
+  AppDrawerTest            the back page: rows, TalkBack, the tap guard
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
-  RenameDialogFilterTest   the dialog's InputFilters on a real widget
   RestoreReadLeakTest      a hung "~restore" read keeps no activity alive
   VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso
 
@@ -92,8 +90,8 @@ Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51
 ## Where a new test goes
 
 - Start from a template: pure logic `LauncherLogicTest`; threads and state `LauncherStateTest`
-  (its queue harness, `testLauncherState`); files `ConfigStoreTest`; a widget
-  `RenameDialogFilterTest`; Android-only behaviour `androidTest`.
+  (its queue harness, `testLauncherState`); files `ConfigStoreTest`; a widget `AppDrawerTest`;
+  Android-only behaviour `androidTest`.
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
 - Config shape: `ConfigJsonTest`, and older `verso.json` files must still parse.

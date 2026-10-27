@@ -11,10 +11,10 @@ import java.util.Locale
 
 /** The command-line mode, chosen by the prompt's leading sigil. */
 internal enum class Mode {
-    NORMAL, HIDDEN_EDIT, FAV_EDIT, FAV_REORDER, RECENTS, TAG_FILTER, TAG_EDIT, COMMAND, ORDER
+    NORMAL, RECENTS, TAG_FILTER, COMMAND, ORDER
 }
 
-internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_FAVORITES, NO_RECENTS, NO_COMMAND }
+internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
 internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, UNDO }
@@ -37,10 +37,6 @@ internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
 /** What an Enter or a tap does; the Activity performs it. */
 internal sealed interface DrawerAction<out T : Ordered> {
     data class Launch<out T : Ordered>(val entry: T) : DrawerAction<T>
-    data class ToggleHidden<out T : Ordered>(val entry: T) : DrawerAction<T>
-    data class ToggleFavorite<out T : Ordered>(val entry: T) : DrawerAction<T>
-    data class ReorderPick<out T : Ordered>(val entry: T) : DrawerAction<T>
-    data class ToggleTag<out T : Ordered>(val entry: T) : DrawerAction<T>
     data class Run(val command: Command) : DrawerAction<Nothing>
     /** Drives the TextWatcher exactly as typing would. */
     data class SetPrompt(val text: String) : DrawerAction<Nothing>
@@ -63,23 +59,9 @@ internal enum class EnterEdge {
     PASS,
 }
 
-internal sealed interface ReorderStep {
-    /** Nothing held: this favorite is picked up. */
-    data class PickUp(val key: String) : ReorderStep
-    /** The held favorite tapped again: let go, nothing moves. */
-    data object PutDown : ReorderStep
-    /** Another row: the held favorite moves to its slot. */
-    data class Move(val picked: String, val target: String) : ReorderStep
-}
-
 internal object LauncherLogic {
 
-    /** Doubled sigils are tested before their single form ("!!" before "!", "##" before "#"). */
     fun parseMode(trimmed: String): Mode = when {
-        trimmed.startsWith("!!") -> Mode.FAV_REORDER
-        trimmed.startsWith("##") -> Mode.TAG_EDIT
-        trimmed.startsWith("-") -> Mode.HIDDEN_EDIT
-        trimmed.startsWith("!") -> Mode.FAV_EDIT
         trimmed.startsWith("?") -> Mode.RECENTS
         trimmed.startsWith("#") -> Mode.TAG_FILTER
         trimmed.startsWith("~") -> Mode.COMMAND
@@ -272,24 +254,6 @@ internal object LauncherLogic {
         return rest + favs.sortedBy { rank[it.key] }
     }
 
-    fun reorderStep(picked: String?, tapped: String): ReorderStep = when (picked) {
-        null -> ReorderStep.PickUp(tapped)
-        tapped -> ReorderStep.PutDown
-        else -> ReorderStep.Move(picked, tapped)
-    }
-
-    /** [pickedKey] moved onto [targetKey]'s slot, or null when either is absent or both are the same. */
-    fun reorder(order: List<String>, pickedKey: String, targetKey: String): List<String>? {
-        val from = order.indexOf(pickedKey)
-        val to = order.indexOf(targetKey)
-        if (from < 0 || to < 0 || from == to) return null
-        val out = order.toMutableList()
-        out.removeAt(from)
-        val dest = out.indexOf(targetKey)
-        out.add(if (from < to) dest + 1 else dest, pickedKey)
-        return out
-    }
-
     fun pushRecent(current: List<String>, key: String, limit: Int): List<String> =
         (listOf(key) + current.filter { it != key }).take(limit)
 
@@ -309,8 +273,8 @@ internal object LauncherLogic {
     /**
      * The one definition of a tag; "" when nothing survives. Dropped silently rather than
      * rejected:
-     *  - '#': the overview prompts "#" + name, and "##…" would select the bulk editor instead.
-     *  - ',': the dialog joins tags with ", " and splits on ',' again.
+     *  - '#': the overview prompts "#" + name.
+     *  - ',': a tag line lists them with ", " and is split on ',' again.
      *  - control and [isSpoofChar] characters.
      */
     fun canonicalTag(raw: String): String =
@@ -360,46 +324,14 @@ internal object LauncherLogic {
         s.codePoints().forEach { if (Character.getType(it) != Character.SURROGATE.toInt()) appendCodePoint(it) }
     }
 
-    /**
-     * [tag] (canonicalised) added at the end or removed. May return an empty list, which the
-     * caller must store as a removed key: the file never holds an empty tag list.
-     */
-    fun toggleTag(current: List<String>?, tag: String): List<String> {
-        val folded = canonicalTag(tag)
-        val list = current.orEmpty()
-        if (folded.isEmpty()) return list
-        // minus removes only the first occurrence — why every write path de-duplicates.
-        if (folded in list) return list - folded
-        // One past ConfigJson's limit and every backup of this config would be refused.
-        return if (list.size >= ConfigJson.MAX_TAGS_PER_APP) list else list + folded
-    }
-
     /** Which hint an empty list shows in [mode] (mirrors [rowsFor]). */
-    fun emptyHint(mode: Mode, trimmed: String, tagEditTag: String?): EmptyHint = when (mode) {
-        Mode.TAG_EDIT -> if (tagEditTag == null) EmptyHint.NO_TAGS else EmptyHint.NO_APPS
+    fun emptyHint(mode: Mode, trimmed: String): EmptyHint = when (mode) {
         Mode.COMMAND -> EmptyHint.NO_COMMAND
         Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_TAGS else EmptyHint.NO_TAG_MATCH
-        Mode.FAV_REORDER -> EmptyHint.NO_FAVORITES
         Mode.ORDER -> EmptyHint.NO_MATCH  // never empty: the one OrderRow
         Mode.RECENTS -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_RECENTS else EmptyHint.NO_MATCH
-        Mode.HIDDEN_EDIT, Mode.FAV_EDIT -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
         Mode.NORMAL -> if (trimmed.isEmpty()) EmptyHint.NO_APPS else EmptyHint.NO_MATCH
     }
-
-    /** The edit modes: Enter there means "done" (it leaves the mode), not "go". */
-    fun isEditMode(mode: Mode): Boolean =
-        mode == Mode.HIDDEN_EDIT || mode == Mode.FAV_EDIT || mode == Mode.FAV_REORDER || mode == Mode.TAG_EDIT
-
-    /**
-     * The name to store, or null to clear the override. Compared EXACTLY with [systemLabel]:
-     * "gmail" over "Gmail" changes what the row shows, so it is a real override.
-     */
-    fun resolveNameOverride(name: String, systemLabel: String): String? =
-        if (name.isEmpty() || name == systemLabel) null else name
-
-    /** Every tag defined, uninstalled apps' included — the autocomplete pool and the "##" overview. */
-    fun allTags(tags: Map<String, List<String>>, locale: Locale = Locale.getDefault()): List<String> =
-        sortedTags(tags.values.flatten().distinct(), locale)
 
     /** Only tags of installed apps, so every tag in the "#" overview drills into a non-empty list. */
     fun <T : Ordered> tagsInUse(
@@ -433,11 +365,6 @@ internal object LauncherLogic {
     fun packageMatches(packageName: String, needle: String): Boolean =
         packageName.lowercase(Locale.ROOT).split('.').drop(1).any { it.startsWith(needle) }
 
-    /** The canonical tag behind a "##tag" prompt, or null while the bare-"##" overview shows ("##", "###", "##,"). */
-    fun tagEditTagFor(mode: Mode, trimmed: String): String? =
-        if (mode == Mode.TAG_EDIT) canonicalTag(trimmed.substring(2)).takeIf { it.isNotEmpty() }
-        else null
-
     /** The rows the list shows for the prompt. Every substring index is safe: the mode's sigil starts [trimmed]. */
     fun <T : Ordered> rowsFor(
         mode: Mode,
@@ -447,15 +374,10 @@ internal object LauncherLogic {
         favorites: Collection<String>,
         tags: Map<String, List<String>>,
         recentKeys: List<String>,
-        tagEditTag: String?,
         byUsage: Boolean = false,
         usage: Map<String, Usage> = emptyMap(),
         now: Long = 0L,
     ): List<Row<T>> {
-        // allTags, not tagsInUse: a tag whose apps are all gone is the one to re-assign.
-        if (mode == Mode.TAG_EDIT && tagEditTag == null) {
-            return allTags(tags).map { TagRow(it) }
-        }
         if (mode == Mode.COMMAND) {
             return commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
         }
@@ -465,13 +387,8 @@ internal object LauncherLogic {
             return tagsInUse(allApps, tags).map { TagRow(it) }
         }
         val apps: List<T> = when (mode) {
-            // Text after "!!" is ignored: filtering would scramble the positions the reorder acts on.
-            Mode.FAV_REORDER -> favoritesInDisplayOrder(allApps, favorites)
             Mode.RECENTS -> search(recentsInDisplayOrder(allApps, recentKeys), trimmed.substring(1).trim())
             Mode.TAG_FILTER -> tagged(allApps, tags, trimmed.substring(1).trim())
-            Mode.HIDDEN_EDIT, Mode.FAV_EDIT -> search(allApps, trimmed.substring(1).trim())
-            // Not reordered tagged-first: rows would jump under the finger.
-            Mode.TAG_EDIT -> allApps
             Mode.COMMAND, Mode.ORDER -> emptyList()
             Mode.NORMAL -> {
                 val wildcard = starPrefix(trimmed)
@@ -488,25 +405,10 @@ internal object LauncherLogic {
         return apps.map { AppRow(it) }
     }
 
-    /** The edit-mode marker; each pair of markers has the same width, so labels stay aligned. */
-    fun rowPrefix(
-        mode: Mode,
-        isHidden: Boolean,
-        isFavorite: Boolean,
-        isPicked: Boolean,
-        isTagged: Boolean,
-    ): String = when (mode) {
-        Mode.HIDDEN_EDIT -> if (isHidden) "[x] " else "[ ] "
-        Mode.FAV_EDIT -> if (isFavorite) "[x] " else "[ ] "
-        Mode.FAV_REORDER -> if (isPicked) "\u00BB " else "  "
-        Mode.TAG_EDIT -> if (isTagged) "[x] " else "[ ] "
-        Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND, Mode.ORDER -> ""
-    }
-
     /**
      * What Enter does; [lastRow] is the row nearest the prompt. The branch order is load-bearing:
-     * a resolved command beats COMMAND mode's "still ambiguous, do nothing"; TAG_EDIT never
-     * launches; a blank prompt only drops the keyboard and must come before the launch branch.
+     * a resolved command beats COMMAND mode's "still ambiguous, do nothing"; a blank prompt only
+     * drops the keyboard and must come before the launch branch.
      */
     fun <T : Ordered> enterAction(
         mode: Mode,
@@ -517,17 +419,12 @@ internal object LauncherLogic {
         command != null -> DrawerAction.Run(command)
         mode == Mode.COMMAND -> DrawerAction.None
         mode == Mode.ORDER -> if (lastRow is OrderRow) DrawerAction.ToggleOrder else DrawerAction.None
-        mode == Mode.TAG_EDIT -> when (lastRow) {
-            is TagRow -> DrawerAction.SetPrompt("##${lastRow.name}")
-            else -> DrawerAction.SetPrompt("")
-        }
         promptBlank -> DrawerAction.DismissKeyboard
-        mode == Mode.NORMAL || mode == Mode.RECENTS || mode == Mode.TAG_FILTER -> when (lastRow) {
+        else -> when (lastRow) {
             is AppRow -> DrawerAction.Launch(lastRow.entry)
             is TagRow -> DrawerAction.SetPrompt("#${lastRow.name}")
             else -> DrawerAction.None
         }
-        else -> DrawerAction.SetPrompt("")
     }
 
     /**
@@ -559,15 +456,11 @@ internal object LauncherLogic {
     /** What a tap on [row] does; a null [row] is a stale position (the list shrank under the tap). */
     fun <T : Ordered> tapAction(mode: Mode, row: Row<T>?): DrawerAction<T> = when (row) {
         null -> DrawerAction.None
-        is TagRow -> DrawerAction.SetPrompt(if (mode == Mode.TAG_EDIT) "##${row.name}" else "#${row.name}")
+        is TagRow -> DrawerAction.SetPrompt("#${row.name}")
         is CommandRow -> DrawerAction.Run(row.command)
         is OrderRow -> DrawerAction.ToggleOrder
         is AppRow -> when (mode) {
             Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER -> DrawerAction.Launch(row.entry)
-            Mode.HIDDEN_EDIT -> DrawerAction.ToggleHidden(row.entry)
-            Mode.FAV_EDIT -> DrawerAction.ToggleFavorite(row.entry)
-            Mode.FAV_REORDER -> DrawerAction.ReorderPick(row.entry)
-            Mode.TAG_EDIT -> DrawerAction.ToggleTag(row.entry)
             Mode.COMMAND, Mode.ORDER -> DrawerAction.None
         }
     }

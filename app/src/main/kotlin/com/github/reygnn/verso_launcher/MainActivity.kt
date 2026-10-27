@@ -52,8 +52,7 @@ class MainActivity : Activity() {
      */
     private fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) {
         if (from !== state) return
-        // An open rename dialog holds the OLD config and would write stale fields over the one
-        // that just arrived.
+        // An open restore dialog was about the config that was just replaced.
         if (configReplaced) dismissDialogs()
         // A recreated instance's first refresh: the results left while no window was in front.
         app.results.flush()
@@ -82,8 +81,7 @@ class MainActivity : Activity() {
     private lateinit var wallpaper: WallpaperPalette
     private var unwatchWallpaper: () -> Unit = {}
 
-    // Tracked so they can be dismissed on teardown: an undismissed dialog leaks its window.
-    private var renameDialog: AlertDialog? = null
+    // Tracked so it can be dismissed on teardown: an undismissed dialog leaks its window.
     private var commandDialog: AlertDialog? = null
     // Set by "~restart" until the recreation replaces this window: the process's state is already the
     // fresh one, this window's is not, so it takes no more commands or edits.
@@ -112,7 +110,7 @@ class MainActivity : Activity() {
             state = state,
             palette = wallpaper.current,
             onAction = ::onDrawerAction,
-            onLongPress = { entry -> if (editPermit() != null) promptRename(entry) },
+            onLongPress = { entry -> launcher.openAppInfo(entry) },
             onFiltered = ::renderHome,
             // Called only by a filter, never while AppDrawer is built: pageTurn is set by then.
             onModeChanged = { mode -> pageTurn.modeChanged(mode) },
@@ -121,7 +119,7 @@ class MainActivity : Activity() {
         homePage = HomePage(
             activity = this,
             onLaunch = { launcher.launch(it) },
-            onEdit = { if (editPermit() != null) promptRename(it) },
+            onAppInfo = { launcher.openAppInfo(it) },
             onOpenDrawer = { pageTurn.open() },
             onOpenRecents = { pageTurn.openRecents() },
         )
@@ -131,7 +129,7 @@ class MainActivity : Activity() {
             homePage = homePage,
             appDrawer = appDrawer,
             byUsage = { state.config.byUsage },
-            dialogOpen = { renameDialog != null || commandDialog != null },
+            dialogOpen = { commandDialog != null },
             onOpen = ::dismissDialogs,
             onClose = ::turnAway,
         )
@@ -250,13 +248,11 @@ class MainActivity : Activity() {
     private fun turnAway() = dismissDialogs()
 
     private fun dismissDialogs() {
-        renameDialog?.dismiss()
         commandDialog?.dismiss()
     }
 
     override fun onDestroy() {
         dismissDialogs()
-        renameDialog = null
         commandDialog = null
         // No executor shutdown: work this instance queued (a save above all) must still run. A
         // backup write or restore read it started hands back to the process (Commands).
@@ -448,78 +444,12 @@ class MainActivity : Activity() {
     internal fun onDrawerAction(action: DrawerAction<AppEntry>) {
         when (action) {
             is DrawerAction.Launch -> launcher.launch(action.entry)
-            is DrawerAction.ToggleHidden -> editPermit()?.let {
-                state.toggleHidden(it, action.entry.key)
-                afterToggle()
-            }
-            is DrawerAction.ToggleFavorite -> editPermit()?.let {
-                state.toggleFavorite(it, action.entry.key)
-                afterToggle()
-            }
-            is DrawerAction.ReorderPick -> reorderTap(action.entry.key)
-            is DrawerAction.ToggleTag -> toggleTagOn(action.entry.key)
             is DrawerAction.Run -> runCommand(action.command)
             is DrawerAction.SetPrompt -> appDrawer.setPrompt(action.text)
             DrawerAction.ToggleOrder -> toggleOrder()
             DrawerAction.DismissKeyboard -> appDrawer.hideKeyboard()
             DrawerAction.None -> {}
         }
-    }
-
-    private fun toggleTagOn(key: String) {
-        val tag = appDrawer.tagEditTag ?: return
-        val permit = editPermit() ?: return
-        state.toggleTag(permit, key, tag)
-        appDrawer.notifyChanged()
-    }
-
-    private fun afterToggle() {
-        appDrawer.notifyChanged()
-        renderHome()
-    }
-
-    /** "!!": the decision is [LauncherLogic.reorderStep]'s; a move takes an edit permit. */
-    private fun reorderTap(key: String) {
-        when (val step = LauncherLogic.reorderStep(appDrawer.reorderPick, key)) {
-            is ReorderStep.PickUp -> appDrawer.pickUp(step.key)
-            ReorderStep.PutDown -> appDrawer.dropPick()
-            is ReorderStep.Move -> editPermit()?.let { moveFavorite(it, step.picked, step.target) }
-        }
-    }
-
-    private fun moveFavorite(permit: LauncherState.EditPermit, pickedKey: String, targetKey: String) {
-        appDrawer.dropPick()
-        state.moveFavorite(permit, pickedKey, targetKey)
-        appDrawer.refilter()  // re-render in the (new) order
-    }
-
-    /** Internal for MainActivityFlowsTest. */
-    internal fun promptRename(entry: AppEntry) {
-        // Before the first app list home shows the cached favorites, whose label stands in for the
-        // system label: the dialog would offer the custom name as the app's own, and an unchanged
-        // OK would drop it.
-        if (!state.appsLoaded) return
-        val key = entry.key
-        renameDialog?.dismiss()
-        val dialog = RenameDialog.show(
-            context = this,
-            title = entry.label,
-            initialName = state.config.names[key] ?: entry.systemLabel,
-            initialTags = state.config.tags[key]?.joinToString(", ").orEmpty(),
-            allTags = LauncherLogic.allTags(state.config.tags),
-            // The dialog is dark on every wallpaper, so its text stays light whatever the palette.
-            fgColor = DIALOG_TEXT,
-            onAppInfo = { launcher.openAppInfo(entry) },
-        ) { name, tags ->
-            // A ~restart may have come while the dialog was up.
-            val permit = editPermit() ?: return@show
-            state.rename(permit, key, entry.systemLabel, name, tags)
-            appDrawer.refilter()
-        }
-        renameDialog = dialog
-        // Only if it still holds THIS one: the dismiss listener is a posted message, so the old
-        // dialog's listener runs after the new one was assigned.
-        dialog.setOnDismissListener { if (renameDialog === dialog) renameDialog = null }
     }
 
     // ---- apps ---------------------------------------------------------------
@@ -614,8 +544,6 @@ class MainActivity : Activity() {
     }
 
     private companion object {
-        const val DIALOG_TEXT = 0xFFD4D4D4.toInt()
-
         /** The folder the pickers suggest: Download/Verso, where the backups of earlier versions are. */
         const val BACKUP_DIR = "Verso"
 

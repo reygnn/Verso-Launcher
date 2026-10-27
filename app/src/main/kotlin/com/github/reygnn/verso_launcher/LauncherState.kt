@@ -25,9 +25,8 @@ import java.util.concurrent.atomic.AtomicReference
  *   (hard rule 10).
  * @param enumerateApps null if the enumeration failed — the last good list is kept; an
  *   incomplete one is shown but retried on the next resume ([needsRefresh]).
- * @param process what outlives this instance. Its seedPending ends with the seeding itself,
- *   [toggleFavorite] and [adopt]; while it is set the favorites are empty (a fresh config has
- *   none, the first toggle ends it), so no other edit can touch them.
+ * @param process what outlives this instance. Its seedPending ends with the seeding itself and
+ *   [adopt]; while it is set the favorites are empty (a fresh config has none).
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
  *   listChanged false: nothing to re-render (a re-render would void a tap in flight).
  */
@@ -180,52 +179,6 @@ internal class LauncherState(
         unsaved.getAndSet(null)?.let { configFile.write(it) }
     }
 
-    fun toggleHidden(permit: EditPermit, key: String) {
-        if (permit.from !== this) return
-        cfg = cfg.copy(hidden = cfg.hidden.toggled(key))
-        mutated()
-    }
-
-    /** The user's own favorites, even none after a toggle back: no default is seeded over them. */
-    fun toggleFavorite(permit: EditPermit, key: String) {
-        if (permit.from !== this) return
-        cfg = cfg.copy(favorites = cfg.favorites.toggled(key))
-        process.seedPending.set(false)
-        mutated()
-    }
-
-    /** An app left with no tags loses its key: the file drops empty lists, memory must match. */
-    fun toggleTag(permit: EditPermit, key: String, tag: String) {
-        if (permit.from !== this) return
-        cfg = cfg.copy(tags = cfg.tags.withList(key, LauncherLogic.toggleTag(cfg.tags[key], tag)))
-        mutated()
-    }
-
-    /** False, nothing saved, when the move is impossible or a no-op. */
-    fun moveFavorite(permit: EditPermit, pickedKey: String, targetKey: String): Boolean {
-        if (permit.from !== this) return false
-        val newOrder = LauncherLogic.reorder(cfg.favorites, pickedKey, targetKey)
-            ?: return false
-        cfg = cfg.copy(favorites = newOrder)
-        mutated()
-        return true
-    }
-
-    /** A blank name, or one equal to [systemLabel], clears the override; [tags] arrive canonical. */
-    fun rename(permit: EditPermit, key: String, systemLabel: String, name: String, tags: List<String>) {
-        if (permit.from !== this) return
-        // Both sides cleaned: the dialog starts from the label cut to 100 chars, and another
-        // profile's badged label is built from the cleaned one, so it can be longer (and may carry
-        // bidi isolates) — an untouched OK must not turn it into a custom name.
-        val override = LauncherLogic.resolveNameOverride(LauncherLogic.cleanName(name), LauncherLogic.cleanName(systemLabel))
-        cfg = cfg.copy(
-            names = if (override == null) cfg.names - key else cfg.names + (key to override),
-            tags = cfg.tags.withList(key, tags),
-        )
-        mutated()
-        relabel()
-    }
-
     fun recordLaunch(key: String) {
         process.recents.value = LauncherLogic.pushRecent(recentKeys, key, RECENTS_KEPT)
         if (process.recents.loaded) persistRecents()
@@ -275,13 +228,6 @@ internal class LauncherState(
         relabel()
         onRefreshed(true, true)
     }
-
-    private fun Set<String>.toggled(key: String): Set<String> = if (key in this) this - key else this + key
-
-    private fun List<String>.toggled(key: String): List<String> = if (key in this) this - key else this + key
-
-    private fun Map<String, List<String>>.withList(key: String, list: List<String>): Map<String, List<String>> =
-        if (list.isEmpty()) this - key else this + (key to list.toList())
 
     private fun relabel() {
         apps = LauncherLogic.named(enumerated, cfg.names)

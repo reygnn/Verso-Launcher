@@ -69,9 +69,12 @@ class LauncherLogicTest {
         assertEquals(Mode.NORMAL, LauncherLogic.parseMode("a%"))
     }
 
-    @Test fun `dash is hidden-edit`() {
-        assertEquals(Mode.HIDDEN_EDIT, LauncherLogic.parseMode("-"))
-        assertEquals(Mode.HIDDEN_EDIT, LauncherLogic.parseMode("-maps"))
+    /** The edit sigils are gone: "-", "!", "!!" and "##" are plain text now. */
+    @Test fun `the old edit sigils are a plain search, a double hash a tag filter`() {
+        for (prompt in listOf("-", "-maps", "!", "!maps", "!!", "!!maps")) {
+            assertEquals("\"$prompt\"", Mode.NORMAL, LauncherLogic.parseMode(prompt))
+        }
+        assertEquals(Mode.TAG_FILTER, LauncherLogic.parseMode("##work"))
     }
 
     @Test fun `hash is tag-filter`() {
@@ -79,27 +82,9 @@ class LauncherLogicTest {
         assertEquals(Mode.TAG_FILTER, LauncherLogic.parseMode("#work"))
     }
 
-    @Test fun `single bang is fav-edit`() {
-        assertEquals(Mode.FAV_EDIT, LauncherLogic.parseMode("!"))
-        assertEquals(Mode.FAV_EDIT, LauncherLogic.parseMode("!maps"))
-    }
-
-    @Test fun `double bang is reorder and wins over single bang`() {
-        assertEquals(Mode.FAV_REORDER, LauncherLogic.parseMode("!!"))
-        assertEquals(Mode.FAV_REORDER, LauncherLogic.parseMode("!!maps"))
-    }
-
     @Test fun `question mark is recents`() {
         assertEquals(Mode.RECENTS, LauncherLogic.parseMode("?"))
         assertEquals(Mode.RECENTS, LauncherLogic.parseMode("?maps"))
-    }
-
-    /** "##" must be checked before "#" (as "!!" before "!"), or it becomes a filter for the tag "#". */
-    @Test fun `double hash is TAG_EDIT, single hash stays TAG_FILTER`() {
-        assertEquals(Mode.TAG_EDIT, LauncherLogic.parseMode("##"))
-        assertEquals(Mode.TAG_EDIT, LauncherLogic.parseMode("##work"))
-        assertEquals(Mode.TAG_FILTER, LauncherLogic.parseMode("#"))
-        assertEquals(Mode.TAG_FILTER, LauncherLogic.parseMode("#work"))
     }
 
     // ---- canonicalTag -------------------------------------------------------
@@ -147,80 +132,6 @@ class LauncherLogicTest {
         assertEquals(listOf("work", "chat"), LauncherLogic.parseTags("#work, Chat"))
         assertEquals(listOf("work"), LauncherLogic.parseTags("work, #work, WORK"))
         assertEquals(emptyList<String>(), LauncherLogic.parseTags("#, ,,"))
-    }
-
-    /** Otherwise a tag is reachable one way and not the other. */
-    @Test fun `the bulk editor and the dialog canonicalise identically`() {
-        for (raw in listOf("#work", "WORK", "  work  ", "wo#rk", "foo,bar")) {
-            val viaDialog = LauncherLogic.parseTags(raw).firstOrNull().orEmpty()
-            val viaBulk = LauncherLogic.toggleTag(null, raw).firstOrNull().orEmpty()
-            if (raw == "foo,bar") continue  // the dialog splits this one
-            assertEquals("disagreement on \"$raw\"", viaDialog, viaBulk)
-        }
-    }
-
-    @Test fun `toggleTag ignores a tag that canonicalises to nothing`() {
-        assertEquals(listOf("work"), LauncherLogic.toggleTag(listOf("work"), "###"))
-        assertEquals(emptyList<String>(), LauncherLogic.toggleTag(null, "  "))
-    }
-
-    // ---- toggleTag ----------------------------------------------------------
-
-    @Test fun `toggleTag adds a tag an app does not carry`() {
-        assertEquals(listOf("work"), LauncherLogic.toggleTag(null, "work"))
-        assertEquals(listOf("games", "work"), LauncherLogic.toggleTag(listOf("games"), "work"))
-    }
-
-    @Test fun `toggleTag removes a tag an app already carries`() {
-        assertEquals(listOf("games"), LauncherLogic.toggleTag(listOf("games", "work"), "work"))
-    }
-
-    /** The caller stores this as a removed key: ConfigJson drops empty tag lists. */
-    @Test fun `toggleTag can empty an app's tag list`() {
-        assertEquals(emptyList<String>(), LauncherLogic.toggleTag(listOf("work"), "work"))
-    }
-
-    /** Stored tags are canonical, so an unfolded needle must not create a near-duplicate. */
-    @Test fun `toggleTag folds the incoming tag`() {
-        assertEquals(emptyList<String>(), LauncherLogic.toggleTag(listOf("work"), "WORK"))
-        assertEquals(listOf("work"), LauncherLogic.toggleTag(null, "Work"))
-    }
-
-    /** Under tr, a typed "##WORK" must not become a dotless-i tag. */
-    @Test fun `toggleTag folds with ROOT, not the device locale`() {
-        Locale.setDefault(Locale.forLanguageTag("tr"))
-        assertEquals(emptyList<String>(), LauncherLogic.toggleTag(listOf("i"), "I"))
-    }
-
-    @Test fun `toggleTag does not mutate the list it is given`() {
-        val current = listOf("work")
-        LauncherLogic.toggleTag(current, "games")
-        assertEquals(listOf("work"), current)
-    }
-
-    // ---- resolveNameOverride ------------------------------------------------
-
-    @Test fun `resolveNameOverride clears on an empty name`() {
-        assertNull(LauncherLogic.resolveNameOverride("", "Gmail"))
-    }
-
-    @Test fun `resolveNameOverride clears when the typed name equals the system label`() {
-        // Otherwise clearing an override back to the original would be impossible.
-        assertNull(LauncherLogic.resolveNameOverride("Gmail", "Gmail"))
-    }
-
-    @Test fun `resolveNameOverride stores a genuinely different name`() {
-        assertEquals("Mail", LauncherLogic.resolveNameOverride("Mail", "Gmail"))
-    }
-
-    /** "gmail" over "Gmail" changes what the row shows. */
-    @Test fun `resolveNameOverride treats a case-only difference as a real override`() {
-        assertEquals("gmail", LauncherLogic.resolveNameOverride("gmail", "Gmail"))
-    }
-
-    /** The dialog trims, so a trimmed name over a padded label is a real request. */
-    @Test fun `resolveNameOverride stores a trimmed name over a padded system label`() {
-        assertEquals("Gmail", LauncherLogic.resolveNameOverride("Gmail", " Gmail "))
     }
 
     // ---- ~backup's file name ---------------------------------------------------
@@ -373,48 +284,6 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.resolveCommand("~backupp"))
     }
 
-    // ---- reorder ------------------------------------------------------------
-
-    @Test fun `reorder moves a row down onto the target's slot`() {
-        assertEquals(listOf("b", "c", "a", "d"), LauncherLogic.reorder(listOf("a", "b", "c", "d"), "a", "c"))
-    }
-
-    @Test fun `reorder moves a row up onto the target's slot`() {
-        assertEquals(listOf("a", "d", "b", "c"), LauncherLogic.reorder(listOf("a", "b", "c", "d"), "d", "b"))
-    }
-
-    @Test fun `reorder handles adjacent moves both directions`() {
-        assertEquals(listOf("b", "a", "c"), LauncherLogic.reorder(listOf("a", "b", "c"), "a", "b"))
-        assertEquals(listOf("a", "c", "b"), LauncherLogic.reorder(listOf("a", "b", "c"), "c", "b"))
-    }
-
-    @Test fun `reorder moves a row onto the very first slot`() {
-        // Up-move inserting AT dest 0: an off-by-one would land the row at index 1.
-        assertEquals(listOf("c", "a", "b"), LauncherLogic.reorder(listOf("a", "b", "c"), "c", "a"))
-    }
-
-    @Test fun `reorder moves a row onto the very last slot`() {
-        // Down-move inserting after the final element.
-        assertEquals(listOf("b", "c", "d", "a"), LauncherLogic.reorder(listOf("a", "b", "c", "d"), "a", "d"))
-    }
-
-    @Test fun `reorder returns null for a no-op or impossible move`() {
-        assertNull(LauncherLogic.reorder(listOf("a", "b"), "a", "a"))   // same row
-        assertNull(LauncherLogic.reorder(listOf("a", "b"), "x", "a"))   // picked absent
-        assertNull(LauncherLogic.reorder(listOf("a", "b"), "a", "x"))   // target absent
-    }
-
-    @Test fun `reorder does not mutate its input`() {
-        val order = listOf("a", "b", "c")
-        LauncherLogic.reorder(order, "a", "c")
-        assertEquals(listOf("a", "b", "c"), order)
-    }
-
-    @Test fun `reorder on a single-element list is always a no-op`() {
-        assertNull(LauncherLogic.reorder(listOf("only"), "only", "only"))  // same row
-        assertNull(LauncherLogic.reorder(listOf("only"), "only", "x"))     // target absent
-    }
-
     // ---- foldLabel ----------------------------------------------------------
 
     @Test fun `foldLabel folds the capital dotted I to a plain i`() {
@@ -495,23 +364,13 @@ class LauncherLogicTest {
     }
 
     @Test fun `an empty list says why, per mode`() {
-        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.NORMAL, "", null))
-        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.NORMAL, "xyz", null))
-        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.NORMAL, "x*", null))
-        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.HIDDEN_EDIT, "-", null))
-        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.FAV_EDIT, "!xyz", null))
-        assertEquals(EmptyHint.NO_FAVORITES, LauncherLogic.emptyHint(Mode.FAV_REORDER, "!!", null))
-        assertEquals(EmptyHint.NO_RECENTS, LauncherLogic.emptyHint(Mode.RECENTS, "?", null))
-        assertEquals(EmptyHint.NO_TAGS, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#", null))
-        assertEquals(EmptyHint.NO_TAG_MATCH, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#wo", null))
-        assertEquals(EmptyHint.NO_TAGS, LauncherLogic.emptyHint(Mode.TAG_EDIT, "##", null))
-        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.TAG_EDIT, "##work", "work"))
-        assertEquals(EmptyHint.NO_COMMAND, LauncherLogic.emptyHint(Mode.COMMAND, "~xyz", null))
-    }
-
-    @Test fun `the edit modes are exactly the ones whose Enter means done`() {
-        val edit = Mode.entries.filter { LauncherLogic.isEditMode(it) }.toSet()
-        assertEquals(setOf(Mode.HIDDEN_EDIT, Mode.FAV_EDIT, Mode.FAV_REORDER, Mode.TAG_EDIT), edit)
+        assertEquals(EmptyHint.NO_APPS, LauncherLogic.emptyHint(Mode.NORMAL, ""))
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.NORMAL, "xyz"))
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.NORMAL, "x*"))
+        assertEquals(EmptyHint.NO_RECENTS, LauncherLogic.emptyHint(Mode.RECENTS, "?"))
+        assertEquals(EmptyHint.NO_TAGS, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#"))
+        assertEquals(EmptyHint.NO_TAG_MATCH, LauncherLogic.emptyHint(Mode.TAG_FILTER, "#wo"))
+        assertEquals(EmptyHint.NO_COMMAND, LauncherLogic.emptyHint(Mode.COMMAND, "~xyz"))
     }
 
     // ---- tag order ----------------------------------------------------------
@@ -527,9 +386,8 @@ class LauncherLogicTest {
         )
     }
 
-    @Test fun `the suggestion pool and the tag overview use that order`() {
+    @Test fun `the tag overview uses that order`() {
         val tags = mapOf("p/a" to listOf("zuhause", "ärzte"), "p/b" to listOf("arbeit"))
-        assertEquals(listOf("arbeit", "ärzte", "zuhause"), LauncherLogic.allTags(tags, Locale.GERMANY))
         assertEquals(
             listOf("arbeit", "ärzte", "zuhause"),
             LauncherLogic.tagsInUse(listOf(OrderedFake("p/a", "a"), OrderedFake("p/b", "b")), tags, Locale.GERMANY),
@@ -965,21 +823,6 @@ class LauncherLogicTest {
         assertEquals(emptyList<String>(), LauncherLogic.parseTags(",, ,"))
     }
 
-    // ---- allTags ------------------------------------------------------------
-
-    @Test fun `allTags flattens, de-duplicates and sorts across apps`() {
-        val tags = mapOf(
-            "a" to listOf("work", "fun"),
-            "b" to listOf("games", "work"),   // "work" shared with a
-            "c" to emptyList(),
-        )
-        assertEquals(listOf("fun", "games", "work"), LauncherLogic.allTags(tags))
-    }
-
-    @Test fun `allTags on no tags is empty`() {
-        assertEquals(emptyList<String>(), LauncherLogic.allTags(emptyMap()))
-    }
-
     // ---- tagsInUse ----------------------------------------------------------
 
     @Test fun `tagsInUse lists only tags borne by an installed app, sorted`() {
@@ -1113,9 +956,6 @@ class LauncherLogicTest {
     }
 
     @Test fun `no app gets more tags than a restore accepts`() {
-        val full = (1..ConfigJson.MAX_TAGS_PER_APP).map { "t$it" }
-        assertEquals(full, LauncherLogic.toggleTag(full, "one-more"))
-        assertEquals(full.dropLast(1), LauncherLogic.toggleTag(full, "t${ConfigJson.MAX_TAGS_PER_APP}"))  // removing still works
         val typed = (1..ConfigJson.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
         assertEquals(ConfigJson.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
     }

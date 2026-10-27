@@ -26,13 +26,13 @@ keyboard, no prompt:
   tap** the clock for your alarms, the date for your calendar, the battery for battery
   usage — a single stray touch does nothing, as in Kolibri.
 - Your favorites in large bold text, in your own order, top to bottom. Tap to launch,
-  long-press for the rename/tags dialog (with *App info*). More favorites than fit
+  long-press for *App info*. More favorites than fit
   simply scroll. Home text sizes are fixed (dp): they do not follow the system font size.
 - All home text (and the two icons) carries Kolibri's thin tonal outline, so it stays
   readable on any wallpaper without darkening it.
 - First start: Verso picks your default phone, messenger (default SMS app), email,
   browser and camera as starting favorites. Only once — remove them and they stay gone.
-- No favorites yet? A short hint says how to add them (tap it to open the drawer).
+- No favorites yet? A short hint says how to reach the drawer (tap it to open it).
 - Text follows the wallpaper: white with a dark outline on a dark wallpaper, black with
   a light outline on a light one (the drawer and the status-bar icons too), switching
   by itself when you change the wallpaper.
@@ -83,11 +83,6 @@ keyboard, no prompt:
   - `#` — the tags in use; tap one (or **Enter** on the nearest) for its apps. `#text` — the
     apps under every tag starting with `text`, hidden ones included. With no such tag the
     package names are searched instead: `#google` or `#samsung` lists a maker's apps
-  - `##` — tags in bulk: pick a tag, then tap any app to toggle it. The long-press dialog
-    sets several tags on one app. Tags are lowercased and trimmed; `#` and `,` are dropped
-  - `-[text]` — toggle hidden; `![text]` — toggle favorite; `!!` — reorder favorites (tap
-    one to pick it up, `»`, tap another to drop it there). All saved at once; the front page
-    shows the favorites in this order
   - `?` — the last 8 launched apps, newest nearest the command line; **Enter** relaunches the
     most recent, `?text` narrows them
   - `%` — **Enter** switches the plain drawer between A to Z and **most used first** (each
@@ -110,7 +105,9 @@ keyboard, no prompt:
       on purpose, to see Guru's report. Never abbreviated
 - Tap a row or press **Enter** to launch the row nearest the command line. On an empty line
   **Enter** only drops the keyboard. The `×` at the end of the line clears it.
-- Long-press any row to set a custom name and its tags (comma-separated).
+- Long-press any row for its *App info*.
+- Favorites, hidden apps, custom names and tags are no longer edited in the app: they come
+  from the config (tags are lowercased and trimmed; `#` and `,` are dropped).
 - Registers as `HOME` + `LAUNCHER`, `singleTask` (package `com.github.reygnn.verso_launcher`).
 
 What can go wrong around the backups, an unreadable config, a result that comes later and
@@ -138,7 +135,7 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 
 - no Compose, no Material, **no AndroidX at all** — platform widgets only
 - no Hilt / DI — a single `Activity` wires itself
-- no Navigation / Fragments — one `Activity` (rename is a bare platform dialog)
+- no Navigation / Fragments — one `Activity` (the restore question is a bare platform dialog)
 - no DataStore / Room / SharedPreferences — the small amount of state (hidden
   apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
   `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
@@ -146,8 +143,7 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
   reports in `guru/` until the next start saves them, see "Crash reports"), written whole or
   not at all (a new file, synced, renamed over the old; one that cannot be read loads as empty,
   is set aside and never written over, and a toast says so) — your own `~backup`s are the copies
-  to fall back on, and `verso.prev.json` the one undo point; and edited only through the in-app
-  modes above
+  to fall back on, and `verso.prev.json` the one undo point
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code

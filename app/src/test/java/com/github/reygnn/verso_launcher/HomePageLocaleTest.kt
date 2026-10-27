@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 class HomePageLocaleTest {
 
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-    private val page = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = {}, onOpenRecents = {})
+    private val page = HomePage(activity, onLaunch = {}, onAppInfo = {}, onOpenDrawer = {}, onOpenRecents = {})
 
     private fun String.hasArabicDigits() = any { it in '٠'..'٩' }
     private fun String.hasAsciiDigits() = any { it in '0'..'9' }

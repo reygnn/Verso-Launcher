@@ -32,7 +32,7 @@ On a fresh install Verso seeds the default favorites from the first app list it 
 at all it waits for the next one (also across `~restart`). A restore ends the wait: its favorites,
 or none, are yours. The wait lives in memory, so the defaults are not seeded if the process ends
 before any list came *and* an edit (say `%`) had already written `verso.json` — the next start is no
-fresh install; pick your favorites with `!` then. A seeding whose own save is cut off halfway left
+fresh install; set your favorites in the config then. A seeding whose own save is cut off halfway left
 nothing behind: the next start is a fresh install again and seeds them anew.
 
 ## Private space is not reachable
@@ -60,8 +60,7 @@ it too. Keep that in mind before sharing or syncing it.
 
 Nothing is pruned: a reinstalled app gets its place, name and tags back, and a backup still names
 a hidden app removed years ago. An entry of an app that is gone costs a few bytes and shows
-nowhere — but its tags stay in the tag lists (`##` and the rename dialog's suggestions), so a tag
-whose apps are all gone can be given to others; untick it there to be rid of it.
+nowhere: the `#` overview lists only the tags of installed apps.
 
 Verso never deletes a backup: each `~backup` is a file of a few KB where you put it, until you
 delete it. `~restore` reads any of them through the picker, also the `verso-pre-restore-…`,
@@ -136,8 +135,8 @@ apps (`?`) the command line has no focus, so keys go nowhere until you tap it.
 
 Favorites, names, tags and hidden marks belong to an app's launcher activity (`package/class`).
 An app that renames it in an update — rare — comes back as a new entry; the old key keeps its
-place, name, tags and mark (its tags still listed under `##`). Favorite, rename or tag it again: carrying them over would
-need a migration of the stored keys.
+place, name, tags and mark. Name it again in the config: carrying them over would need a
+migration of the stored keys.
 
 ## A stuck system call
 

@@ -12,8 +12,7 @@ is in the KDoc of the classes named.
 
 Home page ("recto"): clock, date and battery (double-tap targets), the favorites as large text;
 swipe up for the drawer, pull down for the recent apps. Drawer ("verso"): Sigil's list and
-command line — search, the sigils (`-` hide, `!` favorite, `!!` reorder, `#`/`##` tags, `?`
-recents, `%` A–Z ↔ most used) and the `~` commands (`~restart`, `~backup`, `~restore`, `~undo`;
+command line — search, the sigils (`#` tags, `?` recents, `%` A–Z ↔ most used) and the `~` commands (`~restart`, `~backup`, `~restore`, `~undo`;
 `~crash` only in a daily-driver build, never abbreviated).
 Every change is saved at once. Default favorites are seeded once, on a fresh install.
 
@@ -76,9 +75,9 @@ Text right on the wallpaper; colour comes from contrast, not from a scheme.
 
 - One text colour for home and drawer, `HomeStyle.palette` (white or black from
   `WallpaperColors`' dark-text hint), with `HomeStyle.tonalOutlineColor`; hints in italics.
-- Colours live in `HomeStyle.kt`, never as hex in views — except `MainActivity.DIALOG_TEXT` for
-  the dark dialogs, which pin `Theme_Material_Dialog_Alert` (moving them to DeviceDefault needs
-  that colour tied to the theme, and a check on a Pixel and a Samsung).
+- Colours live in `HomeStyle.kt`, never as hex in views. The one dialog left pins
+  `Theme_Material_Dialog_Alert` (moving it to DeviceDefault needs a check on a Pixel and a
+  Samsung).
 - Theme parent `Theme.Material.NoActionBar` on purpose (it only sets the cursor and handle
   accent); no `values-night/`, no splash attributes, no dynamic colour. One adaptive launcher
   icon, `drawable/ic_launcher.xml` — no `mipmap-anydpi-v26`, no round icon. No
@@ -93,10 +92,9 @@ One module, one package. The process owns the data, an activity is a window (har
 - **Process:** `VersoApp` (the IO executor, `Core`, `Commands`, `Results`, the pick, the live
   window, `ProcessState`), `Core` (the one `LauncherState`, its stores and the undo slot),
   `Commands` and `Results` (the `~` commands' work and their queued results).
-- **Window:** `MainActivity` (refusals up front, pickers, dialogs, edits; the process sees it only
+- **Window:** `MainActivity` (refusals up front, pickers, the restore dialog, `%`; the process sees it only
   as a `LauncherWindow`), `AppLauncher` (a start or "App info" in the entry's profile, a paused
-  profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `RenameDialog`,
-  `OutlinedViews`.
+  profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
   default favorites), `LauncherState`, `PendingPick`, `SwipeGesture`, `ConfigJson`,
   `WallpaperPalette`, `HomeStyle`, `CommandDialogText`; the data `AppEntry` and `VersoConfig` (immutable: an edit is a new one).
@@ -164,9 +162,8 @@ thread, the newest load generation wins; custom names come from the live config
 12. **Status bar hidden on the home page only**; home pads for it regardless
     (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate the activity.
-14. **Entries of apps that are gone stay** in the config: they cost bytes and show nowhere but in
-    the tag lists (`##` and the rename dialog's suggestions, `LauncherLogic.allTags`), where a tag
-    whose apps are gone is one to give to others. Telling "gone" from "not readable right now" (a
+14. **Entries of apps that are gone stay** in the config: they cost bytes and show nowhere (the
+    `#` overview lists only tags of installed apps, `LauncherLogic.tagsInUse`). Telling "gone" from "not readable right now" (a
     paused or unlisted profile, an unmounted card) is what made `~cleanup` (up to 0.5.9) the
     riskiest command; a new one needs a reason and the user's OK.
 15. **No `~` command runs in the background against the config.** A swap (`~restore`, `~undo`) is

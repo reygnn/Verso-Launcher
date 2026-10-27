@@ -34,7 +34,7 @@ import android.widget.TextView
  * Decisions are LauncherLogic's; side effects go back to the Activity through the lambdas.
  *
  * The widgets stay inside: callers say what they want done (clear the prompt, scroll to the top),
- * so the rows, the reorder pick and the stale-tap generations change only here. Tests reach a
+ * so the rows and the stale-tap generations change only here. Tests reach a
  * widget through the view tree (ViewTrees.collect).
  */
 internal class AppDrawer(
@@ -51,14 +51,6 @@ internal class AppDrawer(
     private val outlinePx get() = HomeStyle.OUTLINE_DP * activity.resources.displayMetrics.density
 
     var mode = Mode.NORMAL
-        private set
-
-    // FAV_REORDER: the favorite picked up, or null.
-    var reorderPick: String? = null
-        private set
-
-    // TAG_EDIT: the folded tag after "##"; null while the bare "##" overview is up.
-    var tagEditTag: String? = null
         private set
 
     // Stale-tap guard (see TapGuard): bumped on every replacement of [shown].
@@ -91,8 +83,9 @@ internal class AppDrawer(
             descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         }
 
-        // Labels the click of a row for screen readers ("double-tap to hide"), keeping the list's own
-        // item click: a delegate on the row would replace the one the list sets there.
+        // Labels the click of a row for screen readers ("double-tap to turn work apps back on"),
+        // keeping the list's own item click: a delegate on the row would replace the one the list
+        // sets there.
         listView = object : ListView(activity) {
             override fun onInitializeAccessibilityNodeInfoForItem(view: View, position: Int, info: AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfoForItem(view, position, info)
@@ -149,8 +142,9 @@ internal class AppDrawer(
                     ?: return@setOnItemLongClickListener false
                 // Row type before the guard: a tag row must not consume the marker.
                 if (!longPressStillValid()) return@setOnItemLongClickListener false
-                // Like a scroll, a long press makes no click: its touch leaves no mark (the
-                // rename's OK replaces the list, and the next click without a touch must pass).
+                // Like a scroll, a long press makes no click: its touch leaves no mark (App info
+                // comes back to a list that may have changed, and the next click without a touch
+                // must pass).
                 touchDownGeneration = TapGuard.NO_TOUCH
                 onLongPress(row.entry)
                 true
@@ -312,9 +306,6 @@ internal class AppDrawer(
         adapter.notifyDataSetChanged()
     }
 
-    /** The rows' markers changed, the row set did not. */
-    fun notifyChanged() = adapter.notifyDataSetChanged()
-
     val promptText: String get() = prompt.text?.toString().orEmpty()
 
     /** Synchronous: the TextWatcher has re-filtered (mode back to NORMAL) before this returns. */
@@ -337,17 +328,6 @@ internal class AppDrawer(
     /** The same prompt, the rows built anew: the "%" order changes with every launch. */
     fun rebuildRows() = applyFilter(promptText)
 
-    /** "!!": the favorite [key] is held until it is dropped onto another row or tapped again. */
-    fun pickUp(key: String) {
-        reorderPick = key
-        adapter.notifyDataSetChanged()
-    }
-
-    fun dropPick() {
-        reorderPick = null
-        adapter.notifyDataSetChanged()
-    }
-
     private fun applyFilter(raw: String) {
         val q = raw.trim()
         val previous = mode
@@ -355,19 +335,10 @@ internal class AppDrawer(
         // The recents open with focus on their first row: the list's name says where that is.
         val listName = activity.getString(if (mode == Mode.RECENTS) R.string.a11y_pane_recents else R.string.a11y_pane_drawer)
         if (listView.contentDescription != listName) listView.contentDescription = listName
-        // Only on change: restarting input on every keystroke makes the IME flicker.
-        val wantedAction = if (LauncherLogic.isEditMode(mode)) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_GO
-        if (prompt.imeOptions != wantedAction) {
-            prompt.imeOptions = wantedAction
-            // Posted: we are inside the IME's own edit; keys sent before the rebind would be lost.
-            prompt.post { activity.getSystemService(InputMethodManager::class.java).restartInput(prompt) }
-        }
         // The bare drawer reads top-down; everything else sits above the prompt, where Enter acts.
         val topAnchored = mode == Mode.NORMAL && q.isEmpty()
         val anchorFlipped = listView.isStackFromBottom == topAnchored
         if (anchorFlipped) listView.isStackFromBottom = !topAnchored
-        if (mode != Mode.FAV_REORDER) reorderPick = null
-        tagEditTag = LauncherLogic.tagEditTagFor(mode, q)
         shown = LauncherLogic.rowsFor(
             mode = mode,
             trimmed = q,
@@ -376,24 +347,20 @@ internal class AppDrawer(
             favorites = state.config.favorites,
             tags = state.config.tags,
             recentKeys = state.recentKeys,
-            tagEditTag = tagEditTag,
             byUsage = state.config.byUsage,
             usage = state.usage,
             now = System.currentTimeMillis(),
         )
-        // A pick whose row is gone would make the next tap move an invisible favorite.
-        if (reorderPick != null && shown.none { (it as? AppRow)?.entry?.key == reorderPick }) reorderPick = null
         // The one place shown is assigned.
         shownGeneration++
         // Not before the apps load ("no apps" would be false). Only on change: a live region
         // would make TalkBack repeat it on every keystroke.
         val hint = if (!state.appsLoaded) "" else activity.getString(
-            when (LauncherLogic.emptyHint(mode, q, tagEditTag)) {
+            when (LauncherLogic.emptyHint(mode, q)) {
                 EmptyHint.NO_MATCH -> R.string.empty_no_match
                 EmptyHint.NO_APPS -> R.string.empty_no_apps
                 EmptyHint.NO_TAGS -> R.string.empty_no_tags
                 EmptyHint.NO_TAG_MATCH -> R.string.empty_no_tag_match
-                EmptyHint.NO_FAVORITES -> R.string.empty_no_favorites
                 EmptyHint.NO_RECENTS -> R.string.empty_no_recents
                 EmptyHint.NO_COMMAND -> R.string.empty_no_command
             }
@@ -477,7 +444,7 @@ internal class AppDrawer(
             return tv
         }
 
-        /** A row without an app; clears what a recycled app row set (edit-mode description, dimming). */
+        /** A row without an app; clears what a recycled app row set (its state, dimming). */
         private fun bindPlainRow(tv: TextView, face: Typeface, text: String) {
             tv.typeface = face
             tv.text = text
@@ -487,52 +454,21 @@ internal class AppDrawer(
         }
 
         private fun bindAppRow(tv: TextView, entry: AppEntry) {
-            val key = entry.key
-            val marker = LauncherLogic.rowPrefix(
-                mode,
-                isHidden = key in state.config.hidden,
-                isFavorite = key in state.config.favorites,
-                isPicked = key == reorderPick,
-                isTagged = tagEditTag in state.config.tags[key].orEmpty(),
-            )
-            // A marker column only lines up in monospace.
-            tv.typeface = if (marker.isEmpty()) listTypeface else Typeface.MONOSPACE
-            tv.text = marker + entry.label
+            tv.typeface = listTypeface
+            tv.text = entry.label
             tv.alpha = HomeStyle.rowAlpha(entry.status)
-            // "[x]" reads as punctuation: the name alone, the state beside it. Set on every bind (recycling).
-            tv.contentDescription = if (marker.isEmpty()) null else entry.label
+            // Set on every bind (recycling): a plain row may have been a command row.
+            tv.contentDescription = null
             tv.stateDescription = rowA11y(entry).first
         }
     }
 
     /**
-     * A row as a screen reader takes it: its state ("hidden") and what a double-tap does ("unhide"),
-     * both null where there is nothing to say. Pure but for the strings.
+     * A row as a screen reader takes it: its state ("paused") and what a double-tap does ("turn work
+     * apps back on"), both null where there is nothing to say.
      */
-    private fun rowA11y(entry: AppEntry): Pair<String?, String?> {
-        val key = entry.key
-        fun s(id: Int, vararg args: Any) = activity.getString(id, *args)
-        return when (mode) {
-            Mode.HIDDEN_EDIT ->
-                if (key in state.config.hidden) s(R.string.a11y_state_hidden) to s(R.string.a11y_do_unhide)
-                else s(R.string.a11y_state_visible) to s(R.string.a11y_do_hide)
-            Mode.FAV_EDIT ->
-                if (key in state.config.favorites) s(R.string.a11y_state_favorite) to s(R.string.a11y_do_unfavorite)
-                else s(R.string.a11y_state_not_favorite) to s(R.string.a11y_do_favorite)
-            Mode.FAV_REORDER -> when {
-                reorderPick == null -> null to s(R.string.a11y_do_pick_up)
-                key == reorderPick -> s(R.string.a11y_state_picked_up) to s(R.string.a11y_do_put_back)
-                else -> null to s(R.string.a11y_do_move_here)
-            }
-            Mode.TAG_EDIT -> {
-                val tag = tagEditTag.orEmpty()
-                if (tag in state.config.tags[key].orEmpty()) s(R.string.a11y_state_tagged, tag) to s(R.string.a11y_do_untag)
-                else s(R.string.a11y_state_not_tagged, tag) to s(R.string.a11y_do_tag)
-            }
-            Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER, Mode.COMMAND, Mode.ORDER ->
-                statusState(activity, entry.status) to statusAction(activity, entry.status)
-        }
-    }
+    private fun rowA11y(entry: AppEntry): Pair<String?, String?> =
+        statusState(activity, entry.status) to statusAction(activity, entry.status)
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT

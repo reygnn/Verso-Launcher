@@ -153,10 +153,11 @@ class AppDrawerTest {
         assertEquals(1, filtered)
     }
 
-    @Test fun `an edit mode marks each row`() {
+    /** The edit sigils are gone: "!" is text like any other, and no label holds it. */
+    @Test fun `an old edit sigil is a plain search`() {
         drawer.setPrompt("!")
-        assertEquals(Mode.FAV_EDIT, drawer.mode)
-        assertEquals(listOf("[ ] Alpha", "[x] Bravo", "[ ] Charlie"), rows())
+        assertEquals(Mode.NORMAL, drawer.mode)
+        assertEquals(emptyList<String>(), rows())
     }
 
     @Test fun `an empty list says why, per mode`() {
@@ -208,47 +209,15 @@ class AppDrawerTest {
         return info.actionList.firstOrNull { it.id == AccessibilityNodeInfo.ACTION_CLICK }?.label
     }
 
-    /** The name is the app's (no "[x]"), the state stands beside it, the double-tap says what it does. */
-    @Test fun `a row in an edit mode tells its state and what a double-tap does`() {
-        drawer.setPrompt("-")                     // Alpha, Bravo, Charlie: none hidden
-        assertEquals("Alpha", rowView(0).contentDescription)
-        assertEquals(activity.getString(R.string.a11y_state_visible), rowView(0).stateDescription)
-        assertEquals(activity.getString(R.string.a11y_do_hide), clickLabel(0))
-
-        drawer.setPrompt("!")                     // Bravo is the favorite
-        assertEquals(activity.getString(R.string.a11y_state_favorite), rowView(1).stateDescription)
-        assertEquals(activity.getString(R.string.a11y_do_unfavorite), clickLabel(1))
-        assertEquals(activity.getString(R.string.a11y_state_not_favorite), rowView(0).stateDescription)
-        assertEquals(activity.getString(R.string.a11y_do_favorite), clickLabel(0))
-
-        drawer.setPrompt("##work")
-        assertEquals(activity.getString(R.string.a11y_state_not_tagged, "work"), rowView(0).stateDescription)
-        assertEquals(activity.getString(R.string.a11y_do_tag), clickLabel(0))
-    }
-
-    @Test fun `in the reorder mode the held favorite says so, the others where it goes`() {
-        drawer.setPrompt("!!")
-        assertEquals(activity.getString(R.string.a11y_do_pick_up), clickLabel(0))
-        drawer.pickUp(installed[1].key)
-        assertEquals(activity.getString(R.string.a11y_state_picked_up), rowView(0).stateDescription)
-        assertEquals(activity.getString(R.string.a11y_do_put_back), clickLabel(0))
-    }
-
-    @Test fun `a plain row says nothing beyond its label, and a recycled row forgets its state`() {
-        drawer.setPrompt("-")
+    @Test fun `a plain row says nothing beyond its label, and a recycled row forgets what it was`() {
+        drawer.setPrompt("~")                     // command rows: monospace, no app behind them
         val recycled = rowView(0)
         drawer.setPrompt("")
         val row = list.adapter.getView(0, recycled, list) as TextView
+        assertEquals("Alpha", row.text.toString())
         assertNull(row.contentDescription)
         assertNull(row.stateDescription)
         assertNull(clickLabel(0))
-
-        drawer.setPrompt("-")
-        val withState = rowView(0)
-        drawer.setPrompt("~")                     // command rows: no app behind them
-        val command = list.adapter.getView(0, withState, list) as TextView
-        assertNull(command.contentDescription)
-        assertNull(command.stateDescription)
     }
 
     /** A finger down and up on the list; [scrolled]: it moved far enough to scroll, as the list reports it. */
@@ -271,7 +240,7 @@ class AppDrawerTest {
         assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
     }
 
-    /** A long press takes the gesture too (the rename dialog, whose OK replaces the list). */
+    /** A long press takes the gesture too (App info, after which the list may have changed). */
     @Test fun `a click without a touch after a long press and a new list goes through`() {
         drawer.setPrompt("")
         list.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 10f, 10f, 0))
@@ -292,40 +261,9 @@ class AppDrawerTest {
         assertEquals(emptyList<DrawerAction<AppEntry>>(), taps)
     }
 
-    private val permit: LauncherState.EditPermit get() = state.editPermit()
-
-    @Test fun `a picked favorite is marked until it is dropped`() {
-        state.toggleFavorite(permit, installed[0].key)  // two favorites: the other row must not change
-        drawer.setPrompt("!!")
-        val before = rows()
-        assertEquals(2, before.size)
-        drawer.pickUp(installed[1].key)
-        assertEquals(installed[1].key, drawer.reorderPick)
-        assertEquals(before.map { if (it.endsWith("Bravo")) "\u00BB Bravo" else it }, rows())
-        drawer.dropPick()
-        assertNull(drawer.reorderPick)
-        assertEquals(before, rows())
-    }
-
-    /** The next tap would otherwise move a favorite no longer on screen. */
-    @Test fun `a pick whose row is gone is let go`() {
-        drawer.setPrompt("!!")
-        drawer.pickUp(installed[1].key)
-        state.toggleFavorite(permit, installed[1].key)  // no longer a favorite, so no longer a row
-        drawer.refilter()
-        assertNull(drawer.reorderPick)
-    }
-
-    @Test fun `leaving the reorder mode lets the pick go`() {
-        drawer.setPrompt("!!")
-        drawer.pickUp(installed[1].key)
-        drawer.setPrompt("")
-        assertNull(drawer.reorderPick)
-    }
-
     /** runCommand and Back rely on it: the mode is NORMAL again before the call returns. */
     @Test fun `clearing the prompt is the plain drawer at once`() {
-        drawer.setPrompt("!")
+        drawer.setPrompt("?")
         drawer.clearPrompt()
         assertEquals("", drawer.promptText)
         assertEquals(Mode.NORMAL, drawer.mode)

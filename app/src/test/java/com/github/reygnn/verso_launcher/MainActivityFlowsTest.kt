@@ -125,75 +125,35 @@ class MainActivityFlowsTest {
 
     private val someApp = AppEntry("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
     private val otherApp = AppEntry("Yankee", "com.yankee", "com.yankee.Main", "Yankee")
-    private fun savedFavorites(): List<String> =
-        File(activity.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText())?.favorites }.orEmpty()
+    private fun saved(): VersoConfig? =
+        File(app.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText()) }
+    private fun savedFavorites(): List<String> = saved()?.favorites.orEmpty()
+    private fun savedByUsage(): Boolean = saved()?.byUsage == true
+
+    /** verso.json before the start, as a "~restore" or an earlier version left it. */
+    private fun configured(vararg favorites: AppEntry) =
+        File(app.filesDir, "verso.json").writeText(ConfigJson.serialize(VersoConfig(favorites = favorites.map { it.key })))
 
     /** SharedPreferences' apply is on disk once onStop is through (QueuedWork); so is a change here. */
     @Test fun `a change the IO thread has not written yet is on disk once the stop is through`() {
         started()
         holdIo()
-        tap(DrawerAction.ToggleFavorite(someApp))
-        assertFalse("the save waits behind the hold", someApp.key in savedFavorites())
+        tap(DrawerAction.ToggleOrder)
+        assertFalse("the save waits behind the hold", savedByUsage())
         controller.pause().stop()
-        assertTrue(someApp.key in savedFavorites())
-    }
-
-    private val thirdApp = AppEntry("Xray", "com.xray", "com.xray.Main", "Xray")
-
-    private fun favorites(vararg entries: AppEntry) {
-        entries.forEach { tap(DrawerAction.ToggleFavorite(it)) }
-        settle()
-    }
-
-    @Test fun `!! moves the picked favorite to the one tapped next, and lets go of it`() {
-        started()
-        favorites(someApp, otherApp, thirdApp)
-        tap(DrawerAction.ReorderPick(thirdApp))
-        tap(DrawerAction.ReorderPick(someApp))
-        settle()
-        assertEquals(listOf(thirdApp.key, someApp.key, otherApp.key), savedFavorites())
-
-        tap(DrawerAction.ReorderPick(otherApp))
-        settle()
-        assertEquals("the next tap picks up, it moves nothing", listOf(thirdApp.key, someApp.key, otherApp.key), savedFavorites())
-    }
-
-    @Test fun `!! tapping the held favorite again lets go of it`() {
-        started()
-        favorites(someApp, otherApp)
-        tap(DrawerAction.ReorderPick(otherApp))
-        tap(DrawerAction.ReorderPick(otherApp))
-        tap(DrawerAction.ReorderPick(someApp))
-        settle()
-        assertEquals(listOf(someApp.key, otherApp.key), savedFavorites())
+        assertTrue(savedByUsage())
     }
 
     /** Hard rule 5: the config is read before the window exists, so an edit never waits for a load. */
     @Test fun `an edit while the first app list is still loading is saved`() {
-        File(app.filesDir, "verso.json").writeText(ConfigJson.serialize(VersoConfig(favorites = listOf(otherApp.key))))
+        configured(otherApp)
         holdIo()                                // the first app list queues behind the hold
         controller.setup()
-        tap(DrawerAction.ToggleFavorite(someApp))
+        tap(DrawerAction.ToggleOrder)
         hold.countDown()
         settle()
-        assertEquals("added to the config read at the start", listOf(otherApp.key, someApp.key), savedFavorites())
-    }
-
-    /**
-     * Before the first app list home shows the cached favorites, whose label is the custom name: a
-     * rename dialog there would offer it as the app's own, and an unchanged OK would drop it.
-     */
-    @Test fun `no rename dialog before the first app list`() {
-        File(app.filesDir, "verso.json").writeText(
-            ConfigJson.serialize(VersoConfig(favorites = listOf(someApp.key), names = mapOf(someApp.key to "Mine"))),
-        )
-        holdIo()                                // the first app list queues behind the hold
-        controller.setup()
-        activity.promptRename(someApp.copy(label = "Mine", systemLabel = "Mine"))
-        assertFalse(ShadowDialog.getLatestDialog()?.isShowing == true)
-        hold.countDown()
-        settle()
-        assertEquals("Mine", app.core.state.config.names[someApp.key])
+        assertTrue(savedByUsage())
+        assertEquals("on the config read at the start", listOf(otherApp.key), savedFavorites())
     }
 
     /** With the IO thread held too: a deliberate crash waits for nothing. */
@@ -205,9 +165,8 @@ class MainActivityFlowsTest {
     }
 
     @Test fun `~undo with no undo point says so and changes nothing`() {
+        configured(someApp)
         started()
-        tap(DrawerAction.ToggleFavorite(someApp))
-        settle()
         enter("~undo")
         settle()
         assertEquals(activity.getString(R.string.toast_undo_none), ShadowToast.getTextOfLatestToast())
@@ -219,9 +178,9 @@ class MainActivityFlowsTest {
         File(app.filesDir, "verso.json").writeText("{ torn")
         started()
         assertEquals(activity.getString(R.string.toast_config_unreadable), ShadowToast.getTextOfLatestToast())
-        tap(DrawerAction.ToggleFavorite(someApp))
+        tap(DrawerAction.ToggleOrder)
         settle()
-        assertEquals(listOf(someApp.key), savedFavorites())
+        assertTrue(savedByUsage())
     }
 
     @Test fun `~restart while a picked file is read drops the pick and says so`() {
@@ -268,9 +227,9 @@ class MainActivityFlowsTest {
         assertEquals("~undo", prompt.text.toString())
         enter("~backup")
         assertEquals("other commands go on", "", prompt.text.toString())
-        tap(DrawerAction.ToggleFavorite(otherApp))
+        tap(DrawerAction.ToggleOrder)
         settle()
-        assertTrue("and edits", otherApp.key in savedFavorites())
+        assertTrue("and edits", savedByUsage())
     }
 
     @Test fun `~restart builds the activity anew`() {
@@ -293,9 +252,8 @@ class MainActivityFlowsTest {
     }
 
     @Test fun `~backup offers a stamped name and writes the config to the picked document`() {
+        configured(someApp)
         started()
-        tap(DrawerAction.ToggleFavorite(someApp))
-        settle()
         val written = ByteArrayOutputStream()
         val request = backUp(written)
         joinReads()
@@ -334,9 +292,8 @@ class MainActivityFlowsTest {
 
     /** The one undo slot: "~undo" takes the restore back, a second "~undo" redoes it. */
     @Test fun `~undo after a restore takes it back, and a second ~undo redoes it`() {
+        configured(otherApp)
         started()
-        tap(DrawerAction.ToggleFavorite(otherApp))
-        settle()
         pick("verso.json", configWith(someApp))
         joinReads()
         shadowOf(Looper.getMainLooper()).idle()
@@ -546,12 +503,12 @@ class MainActivityFlowsTest {
     @Test fun `~restart right after an edit keeps the edit`() {
         started()
         holdIo()                                // the edit's save waits behind the hold
-        tap(DrawerAction.ToggleFavorite(someApp))
+        tap(DrawerAction.ToggleOrder)
         enter("~restart")
-        assertTrue("read by the fresh state", someApp.key in app.core.state.config.favorites)
+        assertTrue("read by the fresh state", app.core.state.config.byUsage)
         hold.countDown()
         settle()
-        assertEquals(listOf(someApp.key), savedFavorites())
+        assertTrue(savedByUsage())
     }
 
     @Test fun `a second ~restart before the recreation lands resets nothing more`() {

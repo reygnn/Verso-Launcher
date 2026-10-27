@@ -25,7 +25,7 @@ class HomePageAccessibilityTest {
     private var drawerOpened = 0
     private var recentsOpened = 0
     private val page = HomePage(
-        activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { drawerOpened++ }, onOpenRecents = { recentsOpened++ },
+        activity, onLaunch = {}, onAppInfo = {}, onOpenDrawer = { drawerOpened++ }, onOpenRecents = { recentsOpened++ },
     )
 
     private val clock: View get() = page.view.collect<TextClock>().first()

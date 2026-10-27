@@ -33,7 +33,8 @@ import android.widget.Toast
 internal class HomePage(
     private val activity: Activity,
     private val onLaunch: (AppEntry) -> Unit,
-    private val onEdit: (AppEntry) -> Unit,
+    /** A long press: the system's App info, where the app's package is. */
+    private val onAppInfo: (AppEntry) -> Unit,
     private val onOpenDrawer: () -> Unit,
     private val onOpenRecents: () -> Unit,
 ) {
@@ -212,7 +213,7 @@ internal class HomePage(
                 stateDescription = statusState(activity, entry.status)
                 statusAction(activity, entry.status)?.let { accessibilityDelegate = labeledClick(it) }
                 setOnClickListener { onLaunch(entry) }
-                setOnLongClickListener { onEdit(entry); true }
+                setOnLongClickListener { onAppInfo(entry); true }
             }, LinearLayout.LayoutParams(WRAP, WRAP))
         }
     }

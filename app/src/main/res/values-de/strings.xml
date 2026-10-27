@@ -4,7 +4,7 @@
     <string name="hint_search">&gt; suche</string>
     <string name="clear_prompt">Eingabe löschen</string>
     <!-- Startseite (Vorderseite; der Drawer ist die Rückseite). -->
-    <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nFür Favoriten hier: in der App-Liste ! ins Suchfeld tippen und Apps antippen. !! sortiert sie.</string>
+    <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.</string>
     <string name="a11y_home">Startbildschirm</string>
     <string name="a11y_open_drawer">Alle Apps öffnen</string>
     <string name="a11y_open_recents">Zuletzt verwendete Apps öffnen</string>
@@ -24,10 +24,6 @@
     <string name="a11y_battery_charging">Akku %1$s, lädt</string>
     <string name="a11y_battery_protected">Akku %1$s, Akkuschutz: Ladung wird gehalten</string>
     <string name="toast_no_app">Keine passende App auf diesem Gerät</string>
-    <string name="hint_rename_name">Name</string>
-    <string name="hint_rename_tags">Tags (kommagetrennt)</string>
-    <!-- Neutraler Button im Long-Press-Dialog: öffnet die System-App-Info. -->
-    <string name="action_app_info">App-Info</string>
     <string name="toast_not_found">Nicht gefunden: %1$s</string>
     <string name="toast_denied">Verweigert: %1$s</string>
     <!-- Einmal-Befehle mit "~". -->
@@ -58,34 +54,17 @@
     <string name="toast_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Eine Zeile oder ein Favorit, wie ein Screenreader sie nimmt: der App-Name, daneben der
          Zustand (stateDescription), und was Doppeltippen tut (die Beschriftung des Klicks;
-         TalkBack setzt "Doppeltippen zum" davor). %1$s in den Tag-Texten ist der Tag. -->
-    <string name="a11y_state_hidden">ausgeblendet</string>
-    <string name="a11y_state_visible">sichtbar</string>
-    <string name="a11y_state_favorite">Favorit</string>
-    <string name="a11y_state_not_favorite">kein Favorit</string>
-    <string name="a11y_state_tagged">mit %1$s getaggt</string>
-    <string name="a11y_state_not_tagged">nicht mit %1$s getaggt</string>
-    <string name="a11y_state_picked_up">aufgenommen</string>
+         TalkBack setzt "Doppeltippen zum" davor). -->
     <string name="a11y_state_paused">pausiert</string>
     <string name="a11y_state_archived">archiviert</string>
-    <string name="a11y_do_unhide">einblenden</string>
-    <string name="a11y_do_hide">ausblenden</string>
-    <string name="a11y_do_favorite">zu den Favoriten</string>
-    <string name="a11y_do_unfavorite">aus den Favoriten entfernen</string>
-    <string name="a11y_do_tag">Tag hinzufügen</string>
-    <string name="a11y_do_untag">Tag entfernen</string>
-    <string name="a11y_do_pick_up">zum Verschieben aufnehmen</string>
-    <string name="a11y_do_put_back">zurücklegen</string>
-    <string name="a11y_do_move_here">aufgenommenen Favoriten hierher verschieben</string>
     <string name="a11y_do_turn_on_work">Arbeits-Apps wieder einschalten</string>
     <string name="a11y_do_unarchive">App wiederherstellen</string>
 
     <!-- Was eine leere App-Liste sagt (LauncherLogic.emptyHint). -->
     <string name="empty_no_match">Keine App passt</string>
     <string name="empty_no_apps">Keine Apps</string>
-    <string name="empty_no_tags">Noch keine Tags — anlegen mit ##name</string>
+    <string name="empty_no_tags">Noch keine Tags</string>
     <string name="empty_no_tag_match">Kein Tag und kein Paket beginnt so</string>
-    <string name="empty_no_favorites">Noch keine Favoriten — mit ! hinzufügen</string>
     <string name="empty_no_recents">Noch keine zuletzt genutzten Apps</string>
     <string name="empty_no_command">Kein solcher Befehl — ~ zeigt alle</string>
     <string name="order_to_usage" formatted="false">% nach Nutzung sortieren</string>

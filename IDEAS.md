@@ -33,16 +33,12 @@ with its reason — the performance points after measuring; Guru's own points be
 - Test gaps that would need what the JVM tests lack (audits 2026-10-21 (2) #14, 2026-10-22 #14
   and #15, 2026-10-22 (3) #4): `onResume` asking for a refresh on `needsRefresh` (Robolectric's
   `LauncherApps` is too thin; reflection only), `modeChanged` while a drag runs (real
-  MotionEvents through the page turn), the list's top and end, scrolling it to the top and the
-  `!!` pick dropped after a move (a laid-out list longer than the screen, or apps in
-  `MainActivityFlowsTest`). The rules beneath are pinned (`LauncherStateTest`, `SwipeGestureTest`,
+  MotionEvents through the page turn), the list's top and end and scrolling it to the top (a
+  laid-out list longer than the screen, or apps in `MainActivityFlowsTest`). The rules beneath are pinned (`LauncherStateTest`, `SwipeGestureTest`,
   `LauncherActionsTest`); the wiring is used on the devices every day.
 - The dropped-pick toast's wording (then `~restore-saf`, now `~restore`; audit 2026-10-21 (2)
   #24, "nothing changed — …" like the other failures): it now says "dropped — the picked file was
   not restored yet", which says as much.
-- C2: entering an edit mode (`!`/`-`) restarts the keyboard once (GO↔DONE), the likely "symbol
-  page" jump. Guarded to fire only on the action change, not per keystroke
-  (`AppDrawer.applyFilter`). Discarded until a reproduction shows the single restart hurts.
 - "First swipe after returning from an app does nothing" (A17): seen once, never reproduced. A
   late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
   workaround was tried and removed again. Discarded until a real reproduction.

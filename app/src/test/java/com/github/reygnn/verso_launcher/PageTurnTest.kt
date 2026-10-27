@@ -63,7 +63,9 @@ class PageTurnTest {
         onModeChanged = { pageTurn.modeChanged(it) },
     )
 
-    private val home = HomePage(activity, onLaunch = {}, onEdit = {}, onOpenDrawer = { pageTurn.open() }, onOpenRecents = { pageTurn.openRecents() })
+    private val home = HomePage(
+        activity, onLaunch = {}, onAppInfo = {}, onOpenDrawer = { pageTurn.open() }, onOpenRecents = { pageTurn.openRecents() },
+    )
 
     init {
         pageTurn = PageTurn(
