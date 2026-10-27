@@ -34,7 +34,7 @@ style:
     # would gain from it.
     maxLineLength: 150
   ReturnCount:
-    # The hard rules are guard clauses ("not loaded: return", "no permit: return"); a function
+    # The hard rules are guard clauses ("no app list yet: return", "no permit: return"); a function
     # that checks them first is the point, not a smell.
     excludeGuardClauses: true
 

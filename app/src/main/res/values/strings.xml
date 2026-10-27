@@ -35,7 +35,6 @@
     <string name="toast_save_failed">not saved</string>
     <!-- verso.json was there but could not be read: Verso started empty, and the next change writes over it. -->
     <string name="toast_config_unreadable">config unreadable, started empty — ~restart first, else ~restore</string>
-    <string name="toast_not_loaded">config not loaded yet — try again in a moment</string>
     <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
     <string name="toast_backup_ok">backed up — ~restore picks the file on any phone</string>
     <string name="toast_backup_failed">backup failed — try another place</string>

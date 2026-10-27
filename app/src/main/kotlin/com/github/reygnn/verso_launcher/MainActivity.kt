@@ -146,7 +146,7 @@ class MainActivity : Activity() {
 
         watchApps()
 
-        // Queued on the IO thread ahead of the first load, so the cached favorites land long
+        // Queued on the IO thread ahead of the first app list, so the cached favorites land long
         // before the full enumeration does — behind Guru's save after a crash (VersoApp), at
         // worst ~0.7 s later (8 ANR reports, release build on the A17).
         submitIo {
@@ -424,23 +424,13 @@ class MainActivity : Activity() {
         }
     }
 
-    /** No "~" command but ~restart before the config is loaded (hard rule 5); the toast says why. */
-    private fun editable(): Boolean {
-        // ~restart: the window is about to be replaced; nothing to say, the new one comes at once.
-        if (restarting) return false
-        if (state.configLoaded) return true
-        toast(getString(R.string.toast_not_loaded))
-        return false
-    }
+    /**
+     * After "~restart" this window holds the old state until the recreation lands: it takes no
+     * command and no edit. Nothing to say — the new window comes at once.
+     */
+    private fun editable(): Boolean = !restarting
 
-    /** Not before the config is loaded (hard rule 5); the toast says why. */
-    private fun editPermit(): LauncherState.EditPermit? {
-        if (restarting) return null
-        return state.editPermit() ?: run {
-            toast(getString(R.string.toast_not_loaded))
-            null
-        }
-    }
+    private fun editPermit(): LauncherState.EditPermit? = if (restarting) null else state.editPermit()
 
     private fun words(id: Int, count: Int?): String = if (count == null) getString(id) else getString(id, count)
 
@@ -506,9 +496,10 @@ class MainActivity : Activity() {
 
     /** Internal for MainActivityFlowsTest. */
     internal fun promptRename(entry: AppEntry) {
-        // Home can show cached favorites before the config is loaded; the dialog would open
-        // on the empty default and its edit could not be saved.
-        if (!state.configLoaded) return
+        // Before the first app list home shows the cached favorites, whose label stands in for the
+        // system label: the dialog would offer the custom name as the app's own, and an unchanged
+        // OK would drop it.
+        if (!state.appsLoaded) return
         val key = entry.key
         renameDialog?.dismiss()
         val dialog = RenameDialog.show(
@@ -601,9 +592,9 @@ class MainActivity : Activity() {
 
     private fun renderHome() {
         val favs = state.favorites()
-        // Before the config is loaded memory has no favorites: home keeps the cached ones, and
+        // Before the first list memory has no apps to show: home keeps the cached favorites, and
         // the cache is not emptied.
-        val ready = state.appsLoaded && state.configLoaded
+        val ready = state.appsLoaded
         homePage.render(favs, ready)
         if (ready) {
             val pairs = favs.map { it.key to it.label }

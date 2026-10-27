@@ -6,8 +6,7 @@ package com.github.reygnn.verso_launcher
  * whichever instance is alive asks the user and adopts it.
  *
  * A picked file is any file, also one another app planted in Download to hide or rename apps: so
- * it is read, then shown with its counts and adopted only on the user's OK, once the config is
- * loaded.
+ * it is read, then shown with its counts and adopted only on the user's OK.
  *
  * While a pick is pending, `~restore` and `~undo` are refused (MainActivity.runCommand), nothing
  * else: edits and the other commands go on, so a read that hangs on a slow provider blocks only a
@@ -21,11 +20,11 @@ internal class PendingPick {
         data object None : State
         /** The picked file is being read on its own thread (hard rule 3). */
         data class Reading(val pick: Int) : State
-        /** Read and parsed; waits for a window in front and a loaded config to ask the user. */
+        /** Read and parsed; waits for a window in front to ask the user. */
         data class Read(val restored: VersoConfig) : State
         /** The user is being asked (a dialog with the counts). */
         data class Asked(val restored: VersoConfig) : State
-        /** Confirmed; waits for a loaded config. */
+        /** Confirmed; taken at once by the adoption. */
         data class Confirmed(val restored: VersoConfig) : State
     }
 

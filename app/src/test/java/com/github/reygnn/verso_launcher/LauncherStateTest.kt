@@ -41,7 +41,7 @@ class LauncherStateTest {
 
     private val refreshed = mutableListOf<Boolean>()
     /** An edit permit, as MainActivity takes one before every edit. */
-    private val permit get() = state.editPermit()!!
+    private val permit get() = state.editPermit()
     private var saveFailures = 0
     private var unusableReports = 0
     /** Runs in onConfigUnusable: what the window sees when it says so. */
@@ -52,7 +52,8 @@ class LauncherStateTest {
     /** Runs in onRefreshed: what the Activity sees when it re-renders. */
     private var onReport: () -> Unit = {}
 
-    private val state = testLauncherState(
+    /** Built on first use, so a test sets [disk] and [fresh] first: the file is read before the state exists. */
+    private val state by lazy { testLauncherState(
         io = { task -> if (ioOpen) { ioQueue.addLast(task); true } else false },
         main = { task -> mainQueue.addLast(task) },
         loadConfig = { loadConfigCalls++; disk },
@@ -74,7 +75,7 @@ class LauncherStateTest {
         isFreshInstall = { fresh },
         defaultFavoriteCandidates = { candidatesCalls++; candidates },
         process = process,
-    )
+    ) }
 
     private var fresh = false
     private var candidates = listOf(listOf(key("Charlie")), listOf("gone/Gone", key("Alpha")))
@@ -134,8 +135,10 @@ class LauncherStateTest {
 
     // ---- cold start / warm refresh -----------------------------------------------
 
-    @Test fun `cold start reads the config from disk and commits the apps`() {
+    /** Hard rule 5: the file is read before the state exists — there is no "not loaded yet". */
+    @Test fun `the config is in place from the start, the first refresh commits the apps`() {
         disk = VersoConfig(favorites = listOf(key("Charlie")))
+        assertEquals(listOf(key("Charlie")), state.config.favorites)
         assertFalse(state.appsLoaded)
 
         state.refresh()
@@ -143,8 +146,7 @@ class LauncherStateTest {
 
         assertTrue(state.appsLoaded)
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
-        assertEquals(listOf(key("Charlie")), state.config.favorites)
-        assertEquals(listOf(true), refreshed)  // config replaced by the disk copy
+        assertEquals(listOf(false), refreshed)  // the config was not replaced: it was there
         assertEquals(1, loadConfigCalls)
     }
 
@@ -156,11 +158,9 @@ class LauncherStateTest {
         assertEquals(listOf(false), refreshed)
     }
 
-    @Test fun `a config that cannot be read loads as empty, said once, and the next change writes over it`() {
+    /** ConfigStore set the unreadable file aside (hard rule 4): the next change writes a new one. */
+    @Test fun `a config that cannot be read loads as empty, said once, and the next change is saved`() {
         disk = null
-        var loadedWhenSaid = false
-        onUnusable = { loadedWhenSaid = state.configLoaded && state.appsLoaded }
-
         state.refresh()
         runAll()
         state.refresh()
@@ -168,8 +168,6 @@ class LauncherStateTest {
 
         assertEquals(VersoConfig(), state.config)
         assertEquals(1, unusableReports)
-        assertTrue("said once the empty config is in place", loadedWhenSaid)
-        assertEquals(listOf(true, false), refreshed)
         state.toggleOrder(permit)
         runAll()
         assertEquals(1, written.size)
@@ -197,16 +195,6 @@ class LauncherStateTest {
         assertEquals(0, unusableReports)
     }
 
-    @Test fun `an unusable config is said only by the load that lands`() {
-        disk = null
-        state.refresh()
-        runIo()
-        state.refresh()  // a resume supersedes the first load before its hand-off
-        runAll()
-        assertEquals(2, loadConfigCalls)
-        assertEquals(1, unusableReports)
-    }
-
     /** A needless re-render would void a tap in flight. */
     @Test fun `a hand-off says whether the list changed`() {
         started()
@@ -226,65 +214,12 @@ class LauncherStateTest {
         assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
     }
 
-    @Test fun `the first load shows the custom names it read`() {
+    @Test fun `the first list shows the custom names read at the start`() {
         disk = VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))
         state.refresh()
         runAll()
         assertEquals(listOf("Bravo", "Charlie", "Zulu"), labels())
         assertEquals("the system label stays on the entry", "Alpha", state.apps.last().systemLabel)
-    }
-
-    @Test fun `loadedSnapshot is a copy of the loaded config`() {
-        disk = VersoConfig(favorites = listOf(key("Alpha")))
-        assertNull("not before the first load", state.loadedSnapshot())
-        started()
-        val snap = state.loadedSnapshot()!!
-        state.toggleFavorite(permit, key("Bravo"))
-        assertEquals(listOf(key("Alpha")), snap.favorites)
-    }
-
-    @Test fun `configLoaded is false until the disk copy is loaded`() {
-        assertFalse(state.configLoaded)
-        state.refresh()
-        runIo()
-        assertFalse(state.configLoaded)
-        runMain()
-        assertTrue(state.configLoaded)
-    }
-
-    @Test fun `adopt before the first load is refused, and the first load still lands`() {
-        disk = VersoConfig(favorites = listOf(key("Alpha")))
-        state.refresh()
-        runIo()
-        assertFalse(state.adopt(VersoConfig(favorites = listOf(key("Bravo")))))
-        assertFalse(state.configLoaded)
-        assertTrue("nothing adopted", state.config.favorites.isEmpty())
-        runAll()
-        assertEquals(listOf(key("Alpha")), state.config.favorites)
-        assertEquals(listOf(true), refreshed)
-    }
-
-    @Test fun `adopt before a fresh first load is refused, and the defaults are still seeded`() {
-        fresh = true
-        state.refresh()
-        runIo()
-        assertFalse(state.adopt(VersoConfig(favorites = listOf(key("Bravo")))))
-        runAll()
-        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
-    }
-
-    @Test fun `the first load of the newest generation adopts the file unchanged`() {
-        disk = VersoConfig(
-            favorites = listOf(key("Charlie"), key("Alpha")),
-            hidden = linkedSetOf(key("Bravo")),
-            names = linkedMapOf(key("Alpha") to "Mine"),
-        )
-        state.refresh()
-        state.refresh()
-        runAll()
-        assertEquals(disk, state.loadedSnapshot())
-        assertEquals(listOf(true), refreshed)
-        assertEquals(emptyList<String>(), written)
     }
 
     @Test fun `apps stay unloaded until the first enumeration commits`() {
@@ -318,41 +253,6 @@ class LauncherStateTest {
         assertTrue(refreshed.isEmpty())
         runAll()
         assertEquals(listOf("Alpha", "Bravo", "Charlie", "Delta"), labels())
-    }
-
-    /** Else a burst of package events, each superseding the last, keeps every edit "not loaded". */
-    @Test fun `the first config read lands even from a superseded refresh`() {
-        disk = VersoConfig(favorites = listOf(key("Bravo")))
-        state.refresh()
-        runIo()                       // the config is read
-        state.refresh()               // a package event supersedes it before the hand-off
-        runMain()
-        assertTrue(state.configLoaded)
-        assertEquals(listOf(key("Bravo")), state.config.favorites)
-        assertEquals("said once, as a replaced config", listOf(true), refreshed)
-    }
-
-    /** The newer refresh read the file before the edit's save: its copy must not land over the edit. */
-    @Test fun `a newer refresh does not load the config again over an edit`() {
-        disk = VersoConfig(favorites = listOf(key("Bravo")))
-        state.refresh()
-        runIo()
-        state.refresh()
-        runMain()                     // the first read lands, superseded
-        state.toggleFavorite(permit, key("Alpha"))
-        runAll()
-        assertEquals(listOf(key("Bravo"), key("Alpha")), state.config.favorites)
-        assertEquals("the newer one read too, and dropped its copy", 2, loadConfigCalls)
-        assertEquals(listOf("Alpha", "Bravo", "Charlie"), labels())
-    }
-
-    @Test fun `an unreadable config is said once, by the superseded refresh that lands it`() {
-        disk = null
-        state.refresh()
-        runIo()
-        state.refresh()
-        runAll()
-        assertEquals(1, unusableReports)
     }
 
     // ---- toggles vs. an in-flight load -----------------------------------------------
@@ -521,22 +421,8 @@ class LauncherStateTest {
     @Test fun `a restore shows its names at once, and drops the names it does not have`() {
         disk = VersoConfig(names = linkedMapOf(key("Bravo") to "Mine"))
         started()
-        assertTrue(state.adopt(VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu"))))
+        state.adopt(VersoConfig(names = linkedMapOf(key("Alpha") to "Zulu")))
         assertEquals("before any refresh lands", listOf("Bravo", "Charlie", "Zulu"), labels())
-    }
-
-    /** Home can show cached favorites before the load lands; a long-press there gets no permit. */
-    @Test fun `no edit permit until the first load has landed, and it lands as read`() {
-        disk = VersoConfig(names = mapOf(key("Bravo") to "Mine"))
-        state.refresh()
-        runIo()
-        assertNull(state.editPermit())
-        runAll()
-        assertTrue(state.configLoaded)
-        assertTrue(state.appsLoaded)
-        assertEquals("Mine", state.config.names[key("Bravo")])
-        assertNull(state.config.names[key("Alpha")])
-        assertEquals(emptyList<String>(), written)
     }
 
     /** A window "~restart" left behind holds the old state: its permit must not edit the new one. */
@@ -573,16 +459,6 @@ class LauncherStateTest {
         runAll()
         // Only the last payload hits the disk — and it carries all three changes.
         assertEquals(listOf("fav=${key("Alpha")},${key("Bravo")},${key("Charlie")};hid=;names=;tags="), written)
-    }
-
-    @Test fun `save before the first load writes nothing`() {
-        // The empty default in memory must never be written over the real file.
-        disk = VersoConfig(favorites = listOf(key("Alpha")))
-        state.refresh()  // the load is queued, not yet run
-        state.save()
-        runAll()
-        assertEquals(emptyList<String>(), written)
-        assertEquals(listOf(key("Alpha")), state.config.favorites)
     }
 
     @Test fun `every failed save is reported, a working one is not`() {
@@ -668,7 +544,7 @@ class LauncherStateTest {
         )
         blocking.refresh()
         ioThreadQueue.take().run()
-        blocking.toggleFavorite(blocking.editPermit()!!, key("Alpha"))
+        blocking.toggleFavorite(blocking.editPermit(), key("Alpha"))
         val ioThread = Thread { ioThreadQueue.take().run() }.apply { start() }
         assertTrue(inWrite.await(5, TimeUnit.SECONDS))
         val stop = Thread { blocking.flushSave() }.apply { start() }
@@ -688,7 +564,7 @@ class LauncherStateTest {
         val q = Queues()
         val other = standalone(q).apply { refresh() }
         q.drain()
-        return other.editPermit() ?: error("harness: the other state did not load")
+        return other.editPermit()
     }
 
     /** Every edit, not only some: each one checks the permit itself (audit 2026-10-22, #10). */
@@ -917,7 +793,7 @@ class LauncherStateTest {
         listChanges.clear()
         val before = enumerations
         val restored = VersoConfig(favorites = listOf(key("Bravo")))
-        assertTrue(state.adopt(restored))
+        state.adopt(restored)
         assertEquals(listOf(key("Bravo")), state.config.favorites)
         assertEquals("config replaced", listOf(true), refreshed)
         assertEquals("re-render", listOf(true), listChanges)
@@ -964,16 +840,6 @@ class LauncherStateTest {
         assertEquals(emptyList<String>(), written)
     }
 
-    @Test fun `replace before the first load is refused and keeps nothing`() {
-        disk = VersoConfig(favorites = listOf(key("Alpha")))
-        state.refresh()
-        assertEquals(Replaced.NOT_LOADED, replace(VersoConfig(favorites = listOf(key("Bravo")))))
-        assertEquals(emptyList<String>(), kept)
-        runAll()
-        assertEquals(listOf(key("Alpha")), state.config.favorites)
-        assertEquals(emptyList<String>(), written)
-    }
-
     @Test fun `a replace that cannot be saved is said, and memory keeps it`() {
         started()
         writeSucceeds = false
@@ -988,7 +854,7 @@ class LauncherStateTest {
         val seen = mutableListOf<Pair<Set<String>, List<String>>>()
         onReport = { seen += state.config.favorites.toSet() to labels() }
         val restored = VersoConfig(favorites = listOf(key("Bravo")), names = linkedMapOf(key("Alpha") to "Zulu"))
-        assertTrue(state.adopt(restored))
+        state.adopt(restored)
         assertEquals(listOf(setOf(key("Bravo")) to listOf("Bravo", "Charlie", "Zulu")), seen)
     }
 
@@ -997,7 +863,7 @@ class LauncherStateTest {
         installed = installed + app("Delta")  // installed while the restore runs
         state.refresh()
         runIo()                               // its hand-off is queued
-        assertTrue(state.adopt(VersoConfig(favorites = listOf(key("Bravo")))))
+        state.adopt(VersoConfig(favorites = listOf(key("Bravo"))))
         runAll()
         assertTrue("Delta" in labels())
         assertEquals(listOf(key("Bravo")), state.config.favorites)
@@ -1105,7 +971,7 @@ class LauncherStateTest {
 
     @Test fun `a restore meanwhile ends the wait`() {
         freshStartWithoutAList()
-        assertTrue(state.adopt(VersoConfig(hidden = linkedSetOf(key("Bravo")))))
+        state.adopt(VersoConfig(hidden = linkedSetOf(key("Bravo"))))
         state.refresh()
         runAll()
         assertTrue(state.config.favorites.isEmpty())

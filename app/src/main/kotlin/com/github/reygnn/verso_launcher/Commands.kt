@@ -30,8 +30,7 @@ internal class Commands(private val app: VersoApp) {
 
     /** "~backup" after the picker answered with a new document: the config as it is now. */
     fun writeBackup(uri: Uri) {
-        val snapshot = core.state.loadedSnapshot() ?: return results.refuse(app.getString(R.string.toast_not_loaded))
-        val payload = ConfigJson.serialize(snapshot)
+        val payload = ConfigJson.serialize(core.state.config)
         val resolver = app.contentResolver
         Thread(Guard.wrap("backup write", ::logWarning) {
             val written = writeDocument(resolver, uri, payload)
@@ -57,20 +56,16 @@ internal class Commands(private val app: VersoApp) {
         }, "verso-restore-read").start()
     }
 
-    /**
-     * Asks the window in front about a read pick. Only with the config loaded: a first load would
-     * replace the config under the open dialog and void it (hard rule 5).
-     */
+    /** Asks the window in front about a read pick; one read while away waits for onStart. */
     fun offerPendingPick() {
-        if (!core.state.configLoaded) return
         val front = window?.takeIf { it.inFront } ?: return
         val restored = app.pick.ask() ?: return
         front.offerRestore(restored)
     }
 
     /**
-     * The restore dialog's answer: OK adopts (once the config is loaded). Cancel ends the pick
-     * without a word; a dialog gone unanswered (the page turned, the window left) ends it with one.
+     * The restore dialog's answer: OK adopts. Cancel ends the pick without a word; a dialog gone
+     * unanswered (the page turned, the window left) ends it with one.
      */
     fun answerPick(confirmed: Boolean, byCancel: Boolean) {
         if (!app.pick.answer(confirmed)) return
@@ -80,9 +75,7 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /** Adopts a confirmed pick once the config is loaded (hard rule 5): of the OK and a load, the last one adopts. */
-    fun adoptPendingPick() {
-        if (!core.state.configLoaded) return
+    private fun adoptPendingPick() {
         val restored = app.pick.take() ?: return
         // So a "my favorites are gone" report can be settled from the log.
         Log.i(
@@ -101,7 +94,6 @@ internal class Commands(private val app: VersoApp) {
 
     private fun swap(next: VersoConfig, undo: Boolean) {
         val message = when (core.state.replace(next) { payload -> core.undoSlot.write(payload) }) {
-            Replaced.NOT_LOADED -> return results.refuse(app.getString(R.string.toast_not_loaded))
             Replaced.SAME -> if (undo) R.string.toast_undo_same else R.string.toast_restore_same
             Replaced.UNDO_FAILED -> R.string.toast_restore_undo_failed
             Replaced.DONE -> if (undo) R.string.toast_undo_ok else R.string.toast_restore_ok

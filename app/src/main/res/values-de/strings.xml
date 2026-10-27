@@ -33,7 +33,6 @@
     <!-- Einmal-Befehle mit "~". -->
     <string name="toast_save_failed">Nicht gespeichert</string>
     <string name="toast_config_unreadable">Konfiguration unlesbar, leer gestartet — erst ~restart, sonst ~restore</string>
-    <string name="toast_not_loaded">Konfiguration noch nicht geladen — gleich nochmal versuchen</string>
     <string name="toast_not_default_home">Für Arbeits-Apps Verso als Standard-Startseite festlegen</string>
     <string name="toast_backup_ok">Gesichert — ~restore wählt die Datei auf jedem Handy</string>
     <string name="toast_backup_failed">Backup fehlgeschlagen — anderen Ort versuchen</string>

@@ -124,8 +124,8 @@ class SourceGuardTest {
     }
 
     /**
-     * Rules 5 and 15: the permit's constructor is module-internal, so the type alone would let any
-     * class build one past the load check. Only LauncherState.editPermit may.
+     * The permit's constructor is module-internal, so the type alone would let any class build one
+     * for any state. Only LauncherState.editPermit may, for itself.
      */
     @Test fun `an EditPermit is built only by LauncherState's editPermit`() {
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }

@@ -29,22 +29,27 @@ internal fun testLauncherState(
     loadUsage: () -> Map<String, Usage>? = { emptyMap() },
     writeUsage: (Map<String, Usage>, Long) -> Unit = { _, _ -> },
     now: () -> Long = { 0L },
-) = LauncherState(
-    io = io,
-    main = main,
-    configFile = ConfigFile(
-        load = loadConfig,
-        isFresh = isFreshInstall,
-        serialize = serialize,
-        write = writeConfig,
-    ),
-    enumerateApps = enumerateApps,
-    defaultFavoriteCandidates = defaultFavoriteCandidates,
-    recentsFile = RecentsFile(read = loadRecents, write = writeRecents),
-    usageFile = UsageFile(read = loadUsage, write = writeUsage),
-    process = process,
-    now = now,
-    onSaveFailed = onSaveFailed,
-    onConfigUnusable = onConfigUnusable,
-    onRefreshed = onRefreshed,
-)
+): LauncherState {
+    // As Core does it: the file read before the state exists, an unreadable one said at once.
+    val freshInstall = isFreshInstall()
+    val read = loadConfig()
+    if (read == null) onConfigUnusable()
+    return LauncherState(
+        io = io,
+        main = main,
+        initial = read ?: VersoConfig(),
+        freshInstall = freshInstall,
+        configFile = ConfigFile(
+            serialize = serialize,
+            write = writeConfig,
+        ),
+        enumerateApps = enumerateApps,
+        defaultFavoriteCandidates = defaultFavoriteCandidates,
+        recentsFile = RecentsFile(read = loadRecents, write = writeRecents),
+        usageFile = UsageFile(read = loadUsage, write = writeUsage),
+        process = process,
+        now = now,
+        onSaveFailed = onSaveFailed,
+        onRefreshed = onRefreshed,
+    )
+}

@@ -21,6 +21,9 @@ import java.io.File
  * one reads verso.json again (and recents.txt / usage.txt if they were never read); the old one's
  * late hand-backs are dropped. Only "~restart" resets; no command has a hand-back through the
  * state (a "~backup" write and a "~restore" read hand back to the process), so none is dropped.
+ *
+ * verso.json is read here, on main, before the state exists (hard rule 5): a few KB in the app's
+ * own files, read once per process and once per "~restart" — so the state is never "not loaded".
  */
 internal class Core(private val app: VersoApp) {
 
@@ -44,20 +47,28 @@ internal class Core(private val app: VersoApp) {
     var state: LauncherState = newState()
         private set
 
-    /** "~restart": a fresh state, which reads the files again on its first refresh. */
+    /**
+     * "~restart": a fresh state, which reads verso.json again. The old state's save still queued is
+     * written first, or the new one would read the file before it and the next edit write over it.
+     */
     fun reset() {
+        state.flushSave()
         state = newState()
     }
 
     private fun newState(): LauncherState {
+        val freshInstall = store.isFresh()
+        val read = store.load()
+        // hard rule 4: loaded as empty all the same, said before an edit would write over it.
+        if (read == null) app.results.report(app.getString(R.string.toast_config_unreadable))
         lateinit var built: LauncherState
         built = LauncherState(
             io = app::submitIo,
             // Never dropped for a recreation — only once a reset replaced this state.
             main = { task -> app.onMain { if (state === built) task.run() } },
+            initial = read ?: VersoConfig(),
+            freshInstall = freshInstall,
             configFile = ConfigFile(
-                load = { store.load() },
-                isFresh = { store.isFresh() },
                 serialize = ConfigJson::serialize,
                 write = { payload -> store.write(payload) },
             ),
@@ -75,15 +86,8 @@ internal class Core(private val app: VersoApp) {
             now = System::currentTimeMillis,
             // A result: said now if a window is in front, else queued for the next start.
             onSaveFailed = { app.results.report(app.getString(R.string.toast_save_failed)) },
-            // A result too: an empty start must not go unsaid while the next change would write over the file.
-            onConfigUnusable = { app.results.report(app.getString(R.string.toast_config_unreadable)) },
             // No window between a recreation's two halves: the next one renders the state anew.
-            // A pick read before the first load waited for it: to be asked about, or to be adopted.
-            onRefreshed = { configReplaced, listChanged ->
-                app.instance?.refreshed(built, configReplaced, listChanged)
-                app.commands.offerPendingPick()
-                app.commands.adoptPendingPick()
-            },
+            onRefreshed = { configReplaced, listChanged -> app.instance?.refreshed(built, configReplaced, listChanged) },
         )
         return built
     }

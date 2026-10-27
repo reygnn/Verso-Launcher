@@ -28,14 +28,12 @@ waits aside: a second unreadable one replaces it.
 
 ## Default favorites can still be missed
 
-On a fresh install Verso seeds the default favorites from the first app list it gets; with no
-list at all it waits for the next one (also across `~restart`), and a running `~` command holds
-it back until you return to the launcher. A restore ends the wait: its favorites, or none, are
-yours. The wait lives in memory, so the defaults are not seeded if the process ends before any
-list came *and* an edit (say `%`) had already written `verso.json` — the next start is no fresh
-install. Nor if the seeding's own save, the first write of `verso.json`, is cut off halfway:
-there is no earlier file to fall back on, so the next start loads it as empty. Pick your
-favorites with `!` then.
+On a fresh install Verso seeds the default favorites from the first app list it gets; with no list
+at all it waits for the next one (also across `~restart`). A restore ends the wait: its favorites,
+or none, are yours. The wait lives in memory, so the defaults are not seeded if the process ends
+before any list came *and* an edit (say `%`) had already written `verso.json` — the next start is no
+fresh install; pick your favorites with `!` then. A seeding whose own save is cut off halfway left
+nothing behind: the next start is a fresh install again and seeds them anew.
 
 ## Private space is not reachable
 

@@ -9,7 +9,7 @@ import java.io.FileOutputStream
  * A write goes to verso.json.new, is fsynced and renamed over verso.json, then the directory is
  * synced: the file on disk is always one complete config, the old or the new. A file that cannot be
  * read or parsed is set aside as verso.json.unreadable before [load] answers null (it loads as the
- * empty config, LauncherState, and the user is told), so the next write never lands on it; a later
+ * empty config, Core.newState, and the user is told), so the next write never lands on it; a later
  * load with no verso.json reads it again and takes it back if it is readable by then (a passing read
  * error heals itself).
  *
@@ -36,8 +36,8 @@ internal class ConfigStore(
 
     /**
      * Null when a file is there but cannot be read or parsed; no file is the empty config.
-     * Synchronized with [write]: one lock for the file, whichever LauncherState reads or writes it
-     * (a state "~restart" replaced may still flush on main while the new one loads on IO).
+     * Synchronized with [write]: one lock for the file, whoever reads or writes it (the old state's
+     * queued save may still write on IO while Core loads the new one on main, "~restart").
      */
     @Synchronized
     fun load(): VersoConfig? {

@@ -106,8 +106,8 @@ One module, one package. The process owns the data, an activity is a window (har
 
 The rest are small helpers named for what they do. Data flow: a `LauncherApps` callback or a
 profile broadcast → `MainActivity.appsMaybeChanged` → now if in front, else at `onResume` →
-`LauncherState.refresh()` → IO thread (the config once, the apps of every profile, system labels
-only) → main thread, the newest load generation wins; custom names come from the live config
+`LauncherState.refresh()` → IO thread (the apps of every profile, system labels only) → main
+thread, the newest load generation wins; custom names come from the live config
 (`LauncherLogic.named`) → `AppDrawer.refilter`. An edit is serialized on main, written on IO.
 
 ---
@@ -123,23 +123,25 @@ only) → main thread, the newest load generation wins; custom names come from t
 3. **One IO thread, process-wide** (`VersoApp.io`): never another executor, never shut down; main-
    thread state only on main. Hand-backs: the process's through `VersoApp.onMain` (never
    dropped), one window's through `MainActivity.onUi` (dropped once it is destroyed). Deliberate
-   exceptions, not breaches to fix: a picked document read or written on a thread of its own
-   (`Commands.readPick`, `writeBackup`: a provider may block for good), the undo slot read and
-   written on main in the step that swaps (`LauncherState.replace`), Guru's report on the dying
+   exceptions, not breaches to fix: verso.json read on main before the state exists (hard rule
+   5), a picked document read or written on a thread of its own (`Commands.readPick`,
+   `writeBackup`: a provider may block for good), the undo slot read and written on main in the
+   step that swaps (`LauncherState.replace`), Guru's report on the dying
    thread and its alert via `runOnUiThread`, a pending save written on main at `onStop`
    (`LauncherState.flushSave`), and the IO thread's watchdog (`IoWatchdog`): a task stuck 30 s
    crashes the process so HOME starts again clean, at most once in 10 minutes (`stalls.txt`).
 4. **`verso.json` is written whole or not at all** (`ConfigStore`): `verso.json.new`, fsynced,
    renamed over it, the directory synced. A file that cannot be read or parsed loads as empty, a
-   toast says so (`onConfigUnusable`), and it is set aside as `verso.json.unreadable`, never
+   toast says so (`Core.newState`), and it is set aside as `verso.json.unreadable`, never
    written over; a load with no `verso.json` takes it back once it reads. A save is on disk once
    `onStop` is through, like SharedPreferences' `apply()` (`flushSave`). Fresh = nothing that
    stands for `verso.json` (`isFresh`). A `.bak` of versions up to 0.5.9 is taken back once. The
    net is the backups.
-5. **Nothing is written before the config is loaded.** No `EditPermit` (`LauncherState.editPermit`,
-   `SourceGuardTest`), no save, no `~` command but `~restart`; a backup comes from
-   `loadedSnapshot`, a swap refuses (`replace`); home and its cache are drawn only from a loaded
-   config.
+5. **The config is read before the state exists** (`Core.newState`, on main: a few KB, once per
+   process and per `~restart`), so there is no "not loaded yet" to guard: every edit, save and
+   command works on the config the user has. `~restart` writes the old state's pending save first
+   (`Core.reset`), or the new state would read the file before it. Home and its cache are drawn
+   only once the first app list is in (`appsLoaded`).
 6. **Backups are the user's files** (`Commands.writeBackup`, `readPick`): written and read through
    the document picker, wherever the user puts them; Verso lists, names after the fact or deletes
    none, and needs no storage permission. What lives with the app is the config and one undo point.
@@ -170,9 +172,8 @@ only) → main thread, the newest load generation wins; custom names come from t
     riskiest command; a new one needs a reason and the user's OK.
 15. **No `~` command runs in the background against the config.** A swap (`~restore`, `~undo`) is
     one step on main; a backup writes a snapshot. So nothing needs to hold edits back, and no
-    command waits for another. Results wait in `Results` for a window in front; refusals are never
-    queued. A `~restore` pick is the process's (`PendingPick`) until its adoption, and holds back a
-    second swap meanwhile.
+    command waits for another. Results wait in `Results` for a window in front. A `~restore` pick
+    is the process's (`PendingPick`) until its adoption, and holds back a second swap meanwhile.
 16. **The process owns the data; an activity is a window.** `Core`, `Commands`, `Results` and the
     pick live in `VersoApp`, see the window only as a `LauncherWindow` (never an
     Activity, `SourceGuardTest`) and keep none past a call. A recreation shares the loaded state;

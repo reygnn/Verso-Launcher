@@ -203,7 +203,7 @@ class PageTurnTest {
     /** "%" most used first, then Bravo launched while the drawer is out of sight. */
     private fun bravoLaunchedOutOfSight() {
         byUsage = true
-        state.toggleOrder(checkNotNull(state.editPermit()))
+        state.toggleOrder(state.editPermit())
         drawer.refilter()
         state.recordLaunch(bravo.key)
         assertEquals("nothing re-sorts a drawer out of sight", listOf("Alpha", "Bravo"), rows())

@@ -8,11 +8,12 @@ package com.github.reygnn.verso_launcher
  *
  * Android-bound collaborators come in as functions, so a test passes a lambda or a fake:
  *
- *   LauncherState(io, main, configFile, enumerateApps, defaultFavoriteCandidates,
- *                 recentsFile, usageFile, process, now, onSaveFailed, onConfigUnusable,
+ *   LauncherState(io, main, initial, freshInstall, configFile, enumerateApps,
+ *                 defaultFavoriteCandidates, recentsFile, usageFile, process, now, onSaveFailed,
  *                 onRefreshed)
  *     — built through testLauncherState (TestLauncherState.kt): flat parameters with inert
- *       defaults; the production constructor has none. One shared ProcessState between two
+ *       defaults, the file read through loadConfig as Core reads it; the production constructor
+ *       has none. One shared ProcessState between two
  *       instances models a recreation.
  *   ConfigStore(dir, log, syncDir, rename, delete, readText, writeSynced) — the seams force a failure
  *   UndoSlot(dir, log, syncDir)                                     — real files; a directory in the way fails it

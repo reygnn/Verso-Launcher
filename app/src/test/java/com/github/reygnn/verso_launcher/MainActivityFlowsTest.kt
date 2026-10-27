@@ -168,34 +168,40 @@ class MainActivityFlowsTest {
         assertEquals(listOf(someApp.key, otherApp.key), savedFavorites())
     }
 
-    @Test fun `no edit before the first load`() {
-        holdIo()                                // the first load queues behind the hold
+    /** Hard rule 5: the config is read before the window exists, so an edit never waits for a load. */
+    @Test fun `an edit while the first app list is still loading is saved`() {
+        File(app.filesDir, "verso.json").writeText(ConfigJson.serialize(VersoConfig(favorites = listOf(otherApp.key))))
+        holdIo()                                // the first app list queues behind the hold
         controller.setup()
         tap(DrawerAction.ToggleFavorite(someApp))
-        assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
+        hold.countDown()
+        settle()
+        assertEquals("added to the config read at the start", listOf(otherApp.key, someApp.key), savedFavorites())
     }
 
-    /** A cached favorite can be held before the load: the dialog would open on the empty default. */
-    @Test fun `no rename dialog before the first load`() {
-        holdIo()
+    /**
+     * Before the first app list home shows the cached favorites, whose label is the custom name: a
+     * rename dialog there would offer it as the app's own, and an unchanged OK would drop it.
+     */
+    @Test fun `no rename dialog before the first app list`() {
+        File(app.filesDir, "verso.json").writeText(
+            ConfigJson.serialize(VersoConfig(favorites = listOf(someApp.key), names = mapOf(someApp.key to "Mine"))),
+        )
+        holdIo()                                // the first app list queues behind the hold
         controller.setup()
-        activity.promptRename(someApp)
+        activity.promptRename(someApp.copy(label = "Mine", systemLabel = "Mine"))
         assertFalse(ShadowDialog.getLatestDialog()?.isShowing == true)
+        hold.countDown()
+        settle()
+        assertEquals("Mine", app.core.state.config.names[someApp.key])
     }
 
-    /** Before the load too: a deliberate crash waits for nothing. */
-    @Test fun `~crash throws at once, even before the first load`() {
+    /** With the IO thread held too: a deliberate crash waits for nothing. */
+    @Test fun `~crash throws at once, even with the IO thread held`() {
         holdIo()
         controller.setup()
         val thrown = runCatching { enter("~crash") }.exceptionOrNull()
         assertEquals(DailyDriver.ENABLED, thrown is IllegalStateException)
-    }
-
-    @Test fun `no command but ~restart before the first load`() {
-        holdIo()
-        controller.setup()
-        enter("~backup")
-        assertEquals(activity.getString(R.string.toast_not_loaded), ShadowToast.getTextOfLatestToast())
     }
 
     @Test fun `~undo with no undo point says so and changes nothing`() {
@@ -284,20 +290,6 @@ class MainActivityFlowsTest {
         enter("~restart")
         assertEquals(failed, ShadowToast.getTextOfLatestToast())
         assertEquals("", prompt.text.toString())
-    }
-
-    @Test fun `a restore closes an open rename dialog`() {
-        started()
-        activity.promptRename(someApp)
-        val dialog = ShadowDialog.getLatestDialog()
-        assertTrue(dialog.isShowing)
-        pick("verso.json", configWith(someApp))
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle() // the read lands: the restore dialog asks
-        answerRestore()
-        settle()
-        assertTrue("restored", someApp.key in savedFavorites())
-        assertFalse(dialog.isShowing)
     }
 
     @Test fun `~backup offers a stamped name and writes the config to the picked document`() {
@@ -489,32 +481,6 @@ class MainActivityFlowsTest {
         assertTrue("read again", someApp.key in app.core.state.config.favorites)
     }
 
-
-    /**
-     * A picker's answer can reach an instance whose first load has not landed (the process was
-     * killed while the picker was open): the pick waits for the load instead of being refused, and
-     * is asked about only then — a load landing under an open dialog would void it.
-     */
-    @Test fun `a pick read before the first load is asked about once it lands`() {
-        holdIo()                                // the first load queues behind the hold
-        controller.setup()
-        val picked = Uri.parse("content://cloud/verso.json")
-        shadowOf(activity.contentResolver).registerInputStream(picked, configWith(otherApp))
-        // Answered without the command, which is refused before the load: a picker opened earlier.
-        val request = Intent(Intent.ACTION_OPEN_DOCUMENT)
-        activity.startActivityForResult(request, REQ_RESTORE)
-        shadowOf(activity).receiveResult(request, Activity.RESULT_OK, Intent().setData(picked))
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertNull("not asked before the load", restoreDialog())
-        hold.countDown()
-        settle()
-        answerRestore()
-        settle()
-        assertTrue("adopted once loaded and confirmed", otherApp.key in savedFavorites())
-        assertRestoredToast()
-    }
-
     @Test fun `every queued result is shown at the next start, oldest first, once`() {
         started()
         controller.pause().stop()
@@ -553,16 +519,16 @@ class MainActivityFlowsTest {
     }
 
     /**
-     * The state's hand-backs are the process's too: a load landing while no window exists still
-     * loads.
+     * The state's hand-backs are the process's too: a refresh landing while no window exists still
+     * lands (Robolectric lists no apps, so its usage.txt read is what shows it).
      */
-    @Test fun `the state loads while no window exists`() {
-        holdIo()                                // the first load queues behind the hold
+    @Test fun `a refresh lands while no window exists`() {
+        holdIo()                                // the first refresh queues behind the hold
         controller.setup()
         controller.pause().stop().destroy()
         hold.countDown()
         settle()
-        assertTrue(app.core.state.configLoaded)
+        assertTrue(app.process.usage.loaded)
     }
 
     /**
@@ -574,6 +540,18 @@ class MainActivityFlowsTest {
         enter("~restart")                       // the recreation is queued; the looper does not run
         enter("~backup")
         assertEquals("not taken, left for the new window", "~backup", prompt.text.toString())
+    }
+
+    /** The new state reads verso.json at once: a save still queued behind the IO thread is written first. */
+    @Test fun `~restart right after an edit keeps the edit`() {
+        started()
+        holdIo()                                // the edit's save waits behind the hold
+        tap(DrawerAction.ToggleFavorite(someApp))
+        enter("~restart")
+        assertTrue("read by the fresh state", someApp.key in app.core.state.config.favorites)
+        hold.countDown()
+        settle()
+        assertEquals(listOf(someApp.key), savedFavorites())
     }
 
     @Test fun `a second ~restart before the recreation lands resets nothing more`() {

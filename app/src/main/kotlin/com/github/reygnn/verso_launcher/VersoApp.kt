@@ -90,7 +90,7 @@ class VersoApp : Application() {
     // the report to Download/Guru (MediaStore, no permission, without asking) and the alert
     // says so (MainActivity.onCreate) — a hold shares the files with an app the user picks.
     // Its disk work runs on [io] like everything else (hard rule 3), each task behind Guard
-    // (hard rule 2), queued ahead of Verso's first load. Only Verso's own version and label are
+    // (hard rule 2), queued ahead of Verso's first app list. Only Verso's own version and label are
     // asked here, on main, once (both caught): the dying thread must not ask the PackageManager.
     override fun onCreate() {
         super.onCreate()

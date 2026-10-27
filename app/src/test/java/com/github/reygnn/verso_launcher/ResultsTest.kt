@@ -51,17 +51,4 @@ class ResultsTest {
         assertEquals(listOf("now" to true), window.shown)
         assertTrue(messages.isEmpty())
     }
-
-    /** A refusal is no result: out of context later it means nothing, so it is never queued. */
-    @Test fun `a refusal shows in front and is dropped while away`() {
-        val window = FakeWindow(front = false)
-        live = window
-        results.refuse("not loaded")
-        assertTrue(messages.isEmpty())
-        window.front = true
-        results.flush()
-        assertTrue("dropped, not shown later", window.shown.isEmpty())
-        results.refuse("busy")
-        assertEquals(listOf("busy" to false), window.shown)
-    }
 }

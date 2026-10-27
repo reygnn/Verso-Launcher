@@ -4,7 +4,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** How [LauncherState.replace] ended. */
-internal enum class Replaced { NOT_LOADED, SAME, UNDO_FAILED, DONE }
+internal enum class Replaced { SAME, UNDO_FAILED, DONE }
 
 /** A value that outlives a [LauncherState], and whether its file was read into it yet. Main thread only. */
 internal class Kept<T>(var value: T, var loaded: Boolean = false)
@@ -19,9 +19,8 @@ internal class Kept<T>(var value: T, var loaded: Boolean = false)
  * @property usage the "%" launches, and whether usage.txt was read into them.
  * @property messages the commands' results not yet shown, oldest first: a "~backup" written while
  *   the user is away, a save that failed. Shown once each, in order, by whichever instance is in
- *   front first. A queue, not one slot: a result never replaces another. Only results go here — a
- *   refusal ("not loaded") is shown at once or not at all, since it means nothing later. At most
- *   one result per command, and commands start from the front, so it stays short without a cap.
+ *   front first. A queue, not one slot: a result never replaces another. At most one result per
+ *   command, and commands start from the front, so it stays short without a cap.
  */
 internal class ProcessState(
     val seedPending: AtomicBoolean = AtomicBoolean(),
@@ -31,16 +30,12 @@ internal class ProcessState(
 )
 
 /**
- * verso.json as [LauncherState] sees it (ConfigStore and ConfigJson behind it).
+ * verso.json as [LauncherState] writes it (ConfigJson and ConfigStore behind it); Core reads it
+ * before the state exists.
  *
- * @property load the config on disk; empty when there is none, null when it is there but cannot be
- *   read or parsed — loaded as empty all the same (hard rule 4), and reported.
- * @property isFresh nothing that stands for verso.json: a fresh install (hard rule 10).
  * @property write false if the write failed.
  */
 internal class ConfigFile(
-    val load: () -> VersoConfig?,
-    val isFresh: () -> Boolean,
     val serialize: (VersoConfig) -> String,
     val write: (String) -> Boolean,
 )

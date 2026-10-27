@@ -11,28 +11,31 @@ import java.util.concurrent.atomic.AtomicReference
  * the atomic:
  *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
  *   unsaved        — set by [save], taken by whoever writes first: a save's IO task or [flushSave].
- * Nothing changes the config before it is loaded (no [EditPermit] is issued, [adopt] refuses),
- * so a first load lands as read.
+ * The config comes in loaded ([initial], read by Core before the state exists, hard rule 5): there
+ * is no "not loaded yet", and nothing on the IO side ever reads it.
  * An enumeration carries no config (system labels only); custom names are applied on main from
  * the live config ([relabel]), so no edit can make an enumeration stale.
  *
  * Every collaborator is passed, none defaulted: a wire MainActivity forgot would otherwise be
  * a silent no-op. Tests build it through testLauncherState, which supplies inert ones.
  *
+ * @param initial the config as read from verso.json (the empty one for a fresh install or a file
+ *   that could not be read, hard rule 4).
+ * @param freshInstall nothing stood for verso.json: the default favorites wait for a first list
+ *   (hard rule 10).
  * @param enumerateApps null if the enumeration failed — the last good list is kept; an
  *   incomplete one is shown but retried on the next resume ([needsRefresh]).
  * @param process what outlives this instance. Its seedPending ends with the seeding itself,
  *   [toggleFavorite] and [adopt]; while it is set the favorites are empty (a fresh config has
  *   none, the first toggle ends it), so no other edit can touch them.
- * @param onConfigUnusable verso.json was there but could not be read or parsed: it loaded as the
- *   empty config (hard rule 4), and the next change writes over it. Called once per load that
- *   lands, so the user hears of it before an edit does.
  * @param onRefreshed configReplaced: drop anything holding the old config (a rename dialog);
  *   listChanged false: nothing to re-render (a re-render would void a tap in flight).
  */
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
+    initial: VersoConfig,
+    freshInstall: Boolean,
     private val configFile: ConfigFile,
     private val enumerateApps: () -> Enumeration?,
     private val defaultFavoriteCandidates: () -> List<List<String>>,
@@ -41,12 +44,15 @@ internal class LauncherState(
     private val process: ProcessState,
     private val now: () -> Long,
     private val onSaveFailed: () -> Unit,
-    private val onConfigUnusable: () -> Unit,
     private val onRefreshed: (configReplaced: Boolean, listChanged: Boolean) -> Unit,
 ) {
     /** Immutable: every change goes through this class (and its save) as a new config. */
     val config: VersoConfig get() = cfg
-    private var cfg: VersoConfig = VersoConfig()
+    private var cfg: VersoConfig = initial
+
+    init {
+        if (freshInstall) process.seedPending.set(true)
+    }
 
     /** [enumerated] under the live custom names, in drawer order. */
     var apps: List<AppEntry> = emptyList()
@@ -60,7 +66,7 @@ internal class LauncherState(
 
     /** Refresh on resume even without a package change: no package event retries a failed or incomplete load. */
     val needsRefresh: Boolean
-        get() = !configLoaded || !lastLoadCommitted || process.seedPending.get()
+        get() = !lastLoadCommitted || process.seedPending.get()
 
     private var lastLoadCommitted = false
 
@@ -70,19 +76,13 @@ internal class LauncherState(
     /** The launches behind the "%" order. Written only once the file was read (or it was lost). */
     val usage: Map<String, Usage> get() = process.usage.value
 
-    /** Read from disk once; after that [config] is the truth. */
-    var configLoaded = false
-        private set
-
     /**
-     * Proof an edit may run: the config was loaded when it was issued (hard rule 5; it never
-     * unloads). Every edit takes one, so an edit path that skips the check does not compile, and
-     * honours only its own: a permit of another state (one "~restart" replaced) edits nothing here.
+     * Proof an edit is for this state: a permit of another one ("~restart" replaced it, and a window
+     * still holds it) edits nothing here, so its save cannot write the old config over the new one.
      */
     class EditPermit internal constructor(internal val from: LauncherState)
 
-    /** Null before the config is loaded: an edit then would land on the empty default. */
-    fun editPermit(): EditPermit? = if (configLoaded) EditPermit(this) else null
+    fun editPermit(): EditPermit = EditPermit(this)
 
     @Volatile private var loadGeneration = 0
 
@@ -94,53 +94,28 @@ internal class LauncherState(
 
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, cfg.favorites)
 
-    /** Null until loaded — never the empty default (hard rule 5). */
-    fun loadedSnapshot(): VersoConfig? = if (configLoaded) cfg else null
-
-    /** Re-enumerate the apps (and, until loaded, read the config first) off the main thread. */
+    /** Re-enumerate the apps off the main thread (and, until they are read, recents.txt and usage.txt). */
     fun refresh() {
         val generation = ++loadGeneration
-        val loadConfigNow = !configLoaded
         val loadUsageNow = !process.usage.loaded
         val loadRecentsNow = !process.recents.loaded
         val seedStillPending = process.seedPending.get()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
-            val fresh = loadConfigNow && configFile.isFresh()
-            val read = if (loadConfigNow) configFile.load() else null
-            // hard rule 4: what cannot be read or parsed loads as the empty config.
-            val diskConfig = if (loadConfigNow) read ?: VersoConfig() else null
-            val unusable = loadConfigNow && read == null
             val diskUsage = if (loadUsageNow) usageFile.read() else null
             val diskRecents = if (loadRecentsNow) recentsFile.read() else null
             val enumeration = enumerateApps()
             val loaded = enumeration?.apps
             // From any enumeration with a list, complete or not: one that never completes (a
             // profile that stays unreadable) must not starve the defaults.
-            val seeds = if ((fresh || seedStillPending) && loaded != null) {
+            val seeds = if (seedStillPending && loaded != null) {
                 LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
             } else emptyList()
             main(Runnable {
-                // The first config read lands even from a superseded refresh: nothing is written
-                // before it, so every refresh reads the same file — else a burst of package
-                // events keeps the launcher "not loaded" until it ends.
-                val replaced = diskConfig != null && !configLoaded
-                if (replaced) {
-                    cfg = diskConfig
-                    configLoaded = true
-                    if (fresh) process.seedPending.set(true)
-                }
-                if (generation != loadGeneration) {  // superseded meanwhile: the newer one brings the list
-                    if (replaced) {
-                        relabel()
-                        onRefreshed(true, true)
-                        if (unusable) onConfigUnusable()
-                    }
-                    return@Runnable
-                }
+                if (generation != loadGeneration) return@Runnable  // superseded meanwhile: the newer one brings the list
                 // Still pending here means nothing touched the favorites since the request.
                 var seeded = false
-                if (configLoaded && loaded != null && process.seedPending.get()) {
+                if (loaded != null && process.seedPending.get()) {
                     process.seedPending.set(false)
                     if (seeds.isNotEmpty() && cfg.favorites.isEmpty()) {
                         cfg = cfg.copy(favorites = cfg.favorites + seeds)
@@ -165,24 +140,20 @@ internal class LauncherState(
                     if (launched.isNotEmpty()) persistRecents()
                 }
                 lastLoadCommitted = enumeration?.complete == true
-                // Most refreshes bring the same list; AppEntry ==, status included, sees any change. A
-                // seeding held back by a command lands with the same list: home must still show it.
-                val changed = replaced || seeded || recentsChanged || (loaded != null && (!appsLoaded || loaded != enumerated))
+                // Most refreshes bring the same list; AppEntry ==, status included, sees any change.
+                val changed = seeded || recentsChanged || (loaded != null && (!appsLoaded || loaded != enumerated))
                 if (loaded != null) {
                     enumerated = loaded
                     appsLoaded = true
                 }
                 if (changed) relabel()
-                onRefreshed(replaced, changed)
-                if (replaced && unusable) onConfigUnusable()
+                onRefreshed(false, changed)
             })
         })
     }
 
     /** Serialized on main (a consistent config), written on IO. */
     fun save() {
-        // Last line of hard rule 5: the empty default must never overwrite verso.json.
-        if (!configLoaded) return
         val payload = configFile.serialize(cfg)
         val earlier = unsaved.getAndSet(payload)
         val accepted = io(Runnable {
@@ -287,7 +258,6 @@ internal class LauncherState(
      * the undo point and the swap.
      */
     fun replace(next: VersoConfig, keepUndo: (String) -> Boolean): Replaced = when {
-        !configLoaded -> Replaced.NOT_LOADED
         next == cfg -> Replaced.SAME
         !keepUndo(configFile.serialize(cfg)) -> Replaced.UNDO_FAILED
         else -> {
@@ -296,19 +266,14 @@ internal class LauncherState(
         }
     }
 
-    /**
-     * False, nothing adopted, before the first load: it would land over the restore. Saved like any
-     * edit; no re-enumeration: the apps are the same.
-     */
-    fun adopt(restored: VersoConfig): Boolean {
-        if (!configLoaded) return false
+    /** Saved like any edit; no re-enumeration: the apps are the same. */
+    fun adopt(restored: VersoConfig) {
         cfg = restored
         // The restored favorites, or none, are the user's.
         process.seedPending.set(false)
         mutated()
         relabel()
         onRefreshed(true, true)
-        return true
     }
 
     private fun Set<String>.toggled(key: String): Set<String> = if (key in this) this - key else this + key

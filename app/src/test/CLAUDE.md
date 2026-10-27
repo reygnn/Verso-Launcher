@@ -33,11 +33,11 @@ Pure logic
   IoWatchdogTest           the IO thread's watchdog: ticks, the executor's hooks, the loop guard
 
 State and threads (manual queues)
-  LauncherStateTest        the concurrency rules: load, edit, adopt and save interleaved;
-                           seeding; saves before the load, failed, at onStop; an unreadable
-                           config; replace (~restore, ~undo); recents.txt and usage.txt
+  LauncherStateTest        the concurrency rules: refresh, edit, adopt and save interleaved;
+                           seeding; saves failed and at onStop; an unreadable config;
+                           replace (~restore, ~undo); recents.txt and usage.txt
   PendingPickTest          a "~restore" pick's states
-  ResultsTest              results queued until a window is in front, refusals never
+  ResultsTest              results queued until a window is in front, shown once, in order
   WallpaperPaletteTest     the palette's question against the colour listener
 
 Files (real temp files)
