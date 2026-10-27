@@ -146,9 +146,8 @@ class MainActivity : Activity() {
 
         watchApps()
 
-        // Queued on the IO thread ahead of the first app list, so the cached favorites land long
-        // before the full enumeration does — behind Guru's save after a crash (VersoApp), at
-        // worst ~0.7 s later (8 ANR reports, release build on the A17).
+        // First on the IO thread (Guru's save after a crash has a thread of its own, VersoApp), so
+        // the cached favorites land long before the full enumeration does.
         submitIo {
             val cached = HomeCache.read(filesDir, ::logWarning)
             onUi {
@@ -164,7 +163,7 @@ class MainActivity : Activity() {
         unwatchWallpaper = WallpaperSystem.watch(this, wallpaper)
 
         // Crash reports from an earlier run: Guru's alert, once the window is up. Queued on
-        // the IO thread behind Guru's look at the exit records and its save to Download/Guru.
+        // Guru's own thread (VersoApp.guruIo) behind its look at the exit records and its save.
         // Not through onUi: Guru wants every block run (its README) — a destroyed activity is
         // Guru's own check, which keeps the alert for the next call; onUi would drop it.
         Guru.showPending(this) { show -> runOnUiThread(show) }

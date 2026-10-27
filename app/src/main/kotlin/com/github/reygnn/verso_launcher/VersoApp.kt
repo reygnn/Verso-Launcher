@@ -5,8 +5,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.github.reygnn.guru.Guru
-import java.io.File
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 
 /**
@@ -16,10 +16,14 @@ import java.util.concurrent.RejectedExecutionException
  */
 class VersoApp : Application() {
 
-    private val watchdog = IoWatchdog(onStall = ::stalled).apply { start() }
+    /** Verso's disk and PackageManager work, in submission order. Never shut down (hard rule 3). */
+    val io: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "verso-io") }
 
-    /** All disk and PackageManager work, in submission order. Never shut down (hard rule 3). */
-    val io: ExecutorService = WatchedIo(watchdog)
+    /**
+     * Guru's disk work: its store and the MediaStore save of a report. A thread of its own, so a
+     * MediaStore that hangs holds back a crash report, never Verso's first app list or its saves.
+     */
+    internal val guruIo: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "verso-guru") }
 
     /** Badged labels ("Gmail (Work)"), a binder call each. [io] only. */
     internal val badgedLabels = HashMap<BadgeKey, String>()
@@ -74,29 +78,19 @@ class VersoApp : Application() {
             false
         }
 
-    /**
-     * A crash, on the watchdog's thread, so the system starts HOME again with a free IO thread and
-     * Guru reports the stuck call. What it cuts off is covered: a write cut off never reached
-     * verso.json (hard rule 4); a save still queued is lost unless onStop wrote it (flushSave).
-     */
-    private fun stalled(ioThread: Thread) {
-        if (StallTrips(File(filesDir, StallTrips.FILE)).allow()) throw IoStallException(ioThread.stackTrace)
-        Log.w("Verso", "IO task stuck; no crash, the watchdog's loop guard holds")
-    }
-
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 
     // Guru (guru/): writes a crash report while the process dies; at the next start it saves
     // the report to Download/Guru (MediaStore, no permission, without asking) and the alert
     // says so (MainActivity.onCreate) — a hold shares the files with an app the user picks.
-    // Its disk work runs on [io] like everything else (hard rule 3), each task behind Guard
-    // (hard rule 2), queued ahead of Verso's first app list. Only Verso's own version and label are
-    // asked here, on main, once (both caught): the dying thread must not ask the PackageManager.
+    // Its disk work runs on [guruIo], each task behind Guard (hard rule 2). Only Verso's own
+    // version and label are asked here, on main, once (both caught): the dying thread must not ask
+    // the PackageManager.
     override fun onCreate() {
         super.onCreate()
         Guru.install(
             this,
-            io = { task -> io.execute(Guard.wrap("Guru", ::logWarning, task)) },
+            io = { task -> guruIo.execute(Guard.wrap("Guru", ::logWarning, task)) },
             texts = VersoGuruTexts(this),
         )
     }

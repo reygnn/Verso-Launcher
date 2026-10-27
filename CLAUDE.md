@@ -36,7 +36,7 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   XML layouts. `LauncherState` is the ViewModel in plain Kotlin, one per process (`Core`).
 - **Persistence:** `filesDir/verso.json` (`ConfigStore`, hard rule 4) and its one undo point
   `verso.prev.json` (`UndoSlot`). Beside them only disposable files, never in a backup:
-  `home-cache.txt`, `usage.txt`, `recents.txt`, `stalls.txt`, and Guru's `filesDir/guru/` (also
+  `home-cache.txt`, `usage.txt`, `recents.txt`, and Guru's `filesDir/guru/` (also
   kept out of a device transfer, `data_extraction_rules.xml`). Backups go where the user picks
   (the system's document picker, hard rule 6); Guru's reports to `Download/Guru/` through MediaStore.
 - **Tests:** JUnit 4, the real `org.json` on the JVM classpath, Robolectric only where a real
@@ -101,8 +101,7 @@ One module, one package. The process owns the data, an activity is a window (har
   default favorites), `LauncherState`, `PendingPick`, `SwipeGesture`, `ConfigJson`,
   `WallpaperPalette`, `HomeStyle`, `CommandDialogText`; the data `AppEntry` and `VersoConfig` (immutable: an edit is a new one).
 - **IO:** `ConfigStore`, `UndoSlot`, `Apps` (enumeration, default favorites), `HomeCache`,
-  `UsageLog`, `RecentsLog`, `IoWatchdog` (the IO thread's watchdog and its loop guard), and
-  `Guard` (hard rule 2's backstop, beside it `logWarning`).
+  `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it `logWarning`).
 
 The rest are small helpers named for what they do. Data flow: a `LauncherApps` callback or a
 profile broadcast → `MainActivity.appsMaybeChanged` → now if in front, else at `onResume` →
@@ -120,16 +119,16 @@ thread, the newest load generation wins; custom names come from the live config
    degrades. Beyond that, crash-only: a catch only where it breaks a crash loop or protects
    `verso.json`'s write; disposable work may crash. Main-thread catches always log and say what failed where the user acted
    — never a silent catch-all.
-3. **One IO thread, process-wide** (`VersoApp.io`): never another executor, never shut down; main-
-   thread state only on main. Hand-backs: the process's through `VersoApp.onMain` (never
+3. **One IO thread for Verso, process-wide** (`VersoApp.io`): never another executor for Verso's
+   own work, never shut down; main-thread state only on main. Hand-backs: the process's through `VersoApp.onMain` (never
    dropped), one window's through `MainActivity.onUi` (dropped once it is destroyed). Deliberate
    exceptions, not breaches to fix: verso.json read on main before the state exists (hard rule
    5), a picked document read or written on a thread of its own (`Commands.readPick`,
    `writeBackup`: a provider may block for good), the undo slot read and written on main in the
-   step that swaps (`LauncherState.replace`), Guru's report on the dying
-   thread and its alert via `runOnUiThread`, a pending save written on main at `onStop`
-   (`LauncherState.flushSave`), and the IO thread's watchdog (`IoWatchdog`): a task stuck 30 s
-   crashes the process so HOME starts again clean, at most once in 10 minutes (`stalls.txt`).
+   step that swaps (`LauncherState.replace`), Guru's disk work on a thread of its own
+   (`VersoApp.guruIo`: a MediaStore that hangs must not hold the first app list or a save), its
+   report on the dying thread and its alert via `runOnUiThread`, and a pending save written on
+   main at `onStop` (`LauncherState.flushSave`).
 4. **`verso.json` is written whole or not at all** (`ConfigStore`): `verso.json.new`, fsynced,
    renamed over it, the directory synced. A file that cannot be read or parsed loads as empty, a
    toast says so (`Core.newState`), and it is set aside as `verso.json.unreadable`, never

@@ -29,7 +29,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * Guru as Verso wires it: VersoApp's install on the real IO thread, MainActivity's showPending.
+ * Guru as Verso wires it: VersoApp's install on its own real thread, MainActivity's showPending.
  * Guru's own behaviour is tested in its repo; this only shows that it runs here at all and that
  * Verso's hand-back loses no alert. A start is VersoApp.onCreate run again, as a process start
  * would run it, with a report the handler left behind.
@@ -48,7 +48,7 @@ class GuruWiringTest {
         handler = Thread.getDefaultUncaughtExceptionHandler()
         media = Robolectric.setupContentProvider(Downloads::class.java, MediaStore.AUTHORITY)
         // Robolectric's own start of VersoApp has queued Guru's steps already; done before the report.
-        app.io.submit {}.get(5, TimeUnit.SECONDS)
+        app.guruIo.submit {}.get(5, TimeUnit.SECONDS)
         GuruStore(File(app.filesDir, "guru"), log = { _, _ -> }, syncDir = {}).write(
             GuruProcess(GuruEnv(app.packageName, "0", 0, "16", 36, "brand", "model", "device"), 0)
                 .crash(UUID.randomUUID().toString(), "worker", IllegalStateException("boom"), System.currentTimeMillis() - 60_000),
@@ -62,7 +62,9 @@ class GuruWiringTest {
         Thread.setDefaultUncaughtExceptionHandler(handler)
     }
 
+    /** Both threads: Guru's own, and Verso's (the activity's home cache and first app list). */
     private fun settle() = repeat(4) {
+        app.guruIo.submit {}.get(5, TimeUnit.SECONDS)
         app.io.submit {}.get(5, TimeUnit.SECONDS)
         shadowOf(Looper.getMainLooper()).idle()
     }
@@ -71,7 +73,7 @@ class GuruWiringTest {
 
     private fun alertShowing() = ShadowDialog.getLatestDialog()?.isShowing == true
 
-    @Test fun `a report left by the last run is saved on Verso's IO thread and shown`() {
+    @Test fun `a report left by the last run is saved on Guru's thread and shown`() {
         app.onCreate()
         controller.setup()
         settle()
@@ -84,7 +86,7 @@ class GuruWiringTest {
 
     @Test fun `an alert whose activity was recreated before it came shows on the new one`() {
         // The save is slow (MediaStore); a recreation lands before Guru hands the alert back.
-        app.io.execute { hold.await(5, TimeUnit.SECONDS) }
+        app.guruIo.execute { hold.await(5, TimeUnit.SECONDS) }
         app.onCreate()
         controller.setup()
         controller.recreate()
@@ -97,19 +99,16 @@ class GuruWiringTest {
     }
 
     /**
-     * MediaStore for Robolectric, which has none: what a save needs, its bytes in real files, and the
-     * names asked for (MainActivityFlowsTest reads them).
+     * MediaStore for Robolectric, which has none: what a save needs, its bytes in real files.
      */
     class Downloads : ContentProvider() {
         private val pending = mutableMapOf<Uri, Int>()
-        val names = mutableListOf<String>()
 
         fun published() = pending.values.count { it == 0 }
 
         override fun onCreate() = true
 
         override fun insert(uri: Uri, values: ContentValues?): Uri {
-            names += values?.getAsString(MediaStore.MediaColumns.DISPLAY_NAME).orEmpty()
             return uri.buildUpon().appendPath((pending.size + 1).toString()).build().also { pending[it] = 1 }
         }
 

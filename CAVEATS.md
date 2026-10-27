@@ -139,19 +139,15 @@ An app that renames it in an update — rare — comes back as a new entry; the 
 place, name, tags and mark (its tags still listed under `##`). Favorite, rename or tag it again: carrying them over would
 need a migration of the stored keys.
 
-## A stuck system call restarts Verso
+## A stuck system call
 
-The first app list on a cold start, the saves and Guru's report do their disk and system work on
-one thread. If a system service does not answer (MediaStore or the package manager; not seen so far),
-Verso waits 30 seconds and then stops itself: Android starts the launcher again at once, and Guru
-reports where it hung at the next start. A write cut off halfway never reached `verso.json`.
-Until then launching, searching and turning pages go on; on a cold start the
-drawer stays empty and home shows only its cached favorites.
-
-So that a service stuck for good cannot restart the launcher over and over, Verso stops itself
-at most once in ten minutes (a second crash right after the first would also bring Android's
-"keeps stopping" dialog and ask for the default home app again); a hang within those ten minutes
-waits as before, until the call returns or Settings → Apps → Verso → Force stop.
+Verso's own disk and system work runs on one thread: the app list, the saves, the disposable files.
+If a system service never answers (the package manager; not seen so far), the list stays as it
+was — on a cold start the drawer stays empty and home shows its cached favorites — and changes
+wait to be written until you leave the launcher, when they are written at once. The commands go
+on: `~backup` and `~restore` have threads of their own, `~undo` needs none. Guru saves its crash
+reports through MediaStore on a thread of its own, so a stuck MediaStore holds only those.
+Settings → Apps → Verso → Force stop ends a hang; the next start is clean.
 
 ## Portrait lock does not hold on tablets and foldables
 

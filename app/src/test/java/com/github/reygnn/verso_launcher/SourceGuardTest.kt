@@ -161,13 +161,13 @@ class SourceGuardTest {
 
     /**
      * Guru (guru/): installed once, from the Application, with Verso's words; its disk work
-     * (its store and the MediaStore save) on the one IO thread (hard rule 3), behind Guard (hard
+     * (its store and the MediaStore save) on a thread of its own (hard rule 3), behind Guard (hard
      * rule 2). A second install elsewhere would replace this setup.
      */
-    @Test fun `Guru is installed once, from VersoApp, on the IO thread behind Guard`() {
+    @Test fun `Guru is installed once, from VersoApp, on its own thread behind Guard`() {
         val app = code("src/main/kotlin/com/github/reygnn/verso_launcher/VersoApp.kt")
         assertTrue(has(app, "Guru.install(this, io ="))
-        assertTrue(has(app, "io.execute(Guard.wrap("))
+        assertTrue(has(app, "guruIo.execute(Guard.wrap("))
         assertTrue(has(app, "texts = VersoGuruTexts(this)"))
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
         val sites = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
@@ -235,14 +235,10 @@ class SourceGuardTest {
         assertTrue(has(transfer, """<exclude domain="file" path="guru/" />"""))
     }
 
-    /**
-     * Renamed classes or lost line numbers would change a crash's Guru number with every release;
-     * a merged IoStallException would report a stall under another class.
-     */
-    @Test fun `R8 keeps names, line numbers and the stall's class for Guru's reports`() {
+    /** Renamed classes or lost line numbers would change a crash's Guru number with every release. */
+    @Test fun `R8 keeps names and line numbers for Guru's reports`() {
         val rules = code("proguard-rules.pro")
         assertTrue(has(rules, "-dontobfuscate"))
         assertTrue(has(rules, "-keepattributes SourceFile,LineNumberTable"))
-        assertTrue(has(rules, "-keep class com.github.reygnn.verso_launcher.IoStallException"))
     }
 }
