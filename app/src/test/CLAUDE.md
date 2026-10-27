@@ -27,6 +27,8 @@ Pure logic
   ConfigJsonTest           round trip, parseForeign's refusals, hostile input, size limits,
                            readCapped (a picked file's bounded read)
   VersoConfigTest          equality as file content
+  ConfigTextTest           the config file the user writes: its lines, the apps they name
+                           (key, package, folded label), a new file written from a config
   AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
