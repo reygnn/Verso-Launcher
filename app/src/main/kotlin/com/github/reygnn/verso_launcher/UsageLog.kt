@@ -9,7 +9,7 @@ internal data class Usage(val score: Double, val at: Long)
 /**
  * The "%" order: every launch from Verso counts e^(-λ·Δt) (Kolibri's λ = 1e-6/s: a day 92 %,
  * a week 55 %, a month 10 %). The sum is carried as one number per app, decayed on each use.
- * The file beside verso.json is disposable like [HomeCache]: lost or torn, counting starts over.
+ * Its file, among the app's own, is disposable like [HomeCache]: lost or torn, counting starts over.
  * Used on VersoApp.io for the file, pure otherwise; [read]'s log is the caller's.
  */
 internal object UsageLog {

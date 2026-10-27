@@ -125,6 +125,16 @@ class ConfigTextTest {
         assertFalse(ConfigText.parse("# nothing yet\n\n").isNoConfig)
     }
 
+    /** Hard rule 7: an old backup is read with parseForeign; a file that only starts like JSON is lines. */
+    @Test fun `a JSON config of an earlier version reads as its keys`() {
+        val config = VersoConfig(favorites = listOf(maps.key), hidden = setOf(firefox.key), names = mapOf(gmail.key to "Mail"))
+        assertEquals(config, ConfigText.resolve(ConfigText.read("\uFEFF  " + legacyJson(config)), apps))
+        assertEquals(ConfigText.of(config), ConfigText.read(legacyJson(config)))
+        assertTrue("JSON, but no config", ConfigText.read("{\"name\": \"some package.json\"}").isNoConfig)
+        assertTrue("not even JSON", ConfigText.read("{ fav Maps").isNoConfig)
+        assertEquals(listOf("Maps"), ConfigText.read("fav Maps").favorites)
+    }
+
     @Test fun `a name may hold an equals sign, only the first one splits`() {
         assertEquals("a = b", resolved("name Maps = a = b").names[maps.key])
     }

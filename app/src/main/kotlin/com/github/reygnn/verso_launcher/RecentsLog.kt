@@ -3,7 +3,7 @@ package com.github.reygnn.verso_launcher
 import java.io.File
 
 /**
- * The "?" list beside verso.json, newest first, so it outlives the process. Disposable like
+ * The "?" list in the app's own files, newest first, so it outlives the process. Disposable like
  * [UsageLog]: lost or torn, the list starts over. Used on VersoApp.io for the file, pure otherwise;
  * [read]'s log is the caller's.
  */

@@ -8,7 +8,7 @@ class LauncherActionsTest {
 
     private fun app(key: String): Row<OrderedFake> = AppRow(OrderedFake(key))
     private val tag: Row<OrderedFake> = TagRow("work")
-    private val cmd: Row<OrderedFake> = CommandRow("~backup", Command.BACKUP)
+    private val cmd: Row<OrderedFake> = CommandRow("~open", Command.OPEN)
 
     // ---- enterAction ---------------------------------------------------------
 
@@ -22,18 +22,18 @@ class LauncherActionsTest {
         }
     }
 
-    /** "~b" both resolves to BACKUP and is COMMAND mode: the command branch must come first. */
+    /** "~o" both resolves to OPEN and is COMMAND mode: the command branch must come first. */
     @Test fun `a resolved command runs, even in COMMAND mode`() {
         assertEquals(
-            DrawerAction.Run(Command.BACKUP),
-            LauncherLogic.enterAction(Mode.COMMAND, Command.BACKUP, promptBlank = false, lastRow = cmd),
+            DrawerAction.Run(Command.OPEN),
+            LauncherLogic.enterAction(Mode.COMMAND, Command.OPEN, promptBlank = false, lastRow = cmd),
         )
     }
 
     @Test fun `a resolved command beats the empty-prompt branch`() {
         assertEquals(
-            DrawerAction.Run(Command.BACKUP),
-            LauncherLogic.enterAction<OrderedFake>(Mode.COMMAND, Command.BACKUP, promptBlank = true, lastRow = null),
+            DrawerAction.Run(Command.OPEN),
+            LauncherLogic.enterAction<OrderedFake>(Mode.COMMAND, Command.OPEN, promptBlank = true, lastRow = null),
         )
     }
 
@@ -136,7 +136,7 @@ class LauncherActionsTest {
     }
 
     @Test fun `tapping a command row runs its command`() {
-        assertEquals(DrawerAction.Run(Command.BACKUP), LauncherLogic.tapAction(Mode.COMMAND, cmd))
+        assertEquals(DrawerAction.Run(Command.OPEN), LauncherLogic.tapAction(Mode.COMMAND, cmd))
     }
 
     @Test fun `tapping an app row launches under the read modes`() {

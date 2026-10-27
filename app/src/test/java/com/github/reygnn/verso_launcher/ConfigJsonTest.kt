@@ -9,7 +9,10 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 
-/** Plain JVM: the REAL org.json is on the test classpath — android.jar's is a throwing stub. */
+/**
+ * The JSON of earlier versions, read only now (legacyJson writes it for the tests). Plain JVM: the
+ * REAL org.json is on the test classpath — android.jar's is a throwing stub.
+ */
 class ConfigJsonTest {
 
     private fun config(
@@ -26,7 +29,7 @@ class ConfigJsonTest {
             names = mapOf("com.a/.A" to "Alpha", "com.b/.B" to "Beta"),
             tags = mapOf("com.a/.A" to listOf("work", "fun"), "com.b/.B" to listOf("games")),
         )
-        val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
+        val parsed = ConfigJson.parse(legacyJson(original))!!
         assertEquals(original.hidden, parsed.hidden)
         assertEquals(original.favorites, parsed.favorites)
         assertEquals(original.names, parsed.names)
@@ -35,8 +38,8 @@ class ConfigJsonTest {
 
     @Test fun `the order round-trips, and an older or unknown one is A to Z`() {
         val byUsage = VersoConfig(byUsage = true)
-        assertTrue(ConfigJson.parse(ConfigJson.serialize(byUsage))!!.byUsage)
-        assertFalse(ConfigJson.parse(ConfigJson.serialize(VersoConfig()))!!.byUsage)
+        assertTrue(ConfigJson.parse(legacyJson(byUsage))!!.byUsage)
+        assertFalse(ConfigJson.parse(legacyJson(VersoConfig()))!!.byUsage)
         assertFalse(ConfigJson.parse("""{"favorites":[]}""")!!.byUsage)
         assertFalse(ConfigJson.parse("""{"order":"USAGE"}""")!!.byUsage)
         assertFalse(ConfigJson.parse("""{"order":1}""")!!.byUsage)
@@ -48,7 +51,7 @@ class ConfigJsonTest {
     }
 
     @Test fun `round-trips an empty config`() {
-        val parsed = ConfigJson.parse(ConfigJson.serialize(VersoConfig()))!!
+        val parsed = ConfigJson.parse(legacyJson(VersoConfig()))!!
         assertTrue(parsed.hidden.isEmpty())
         assertTrue(parsed.favorites.isEmpty())
         assertTrue(parsed.names.isEmpty())
@@ -57,12 +60,12 @@ class ConfigJsonTest {
 
     @Test fun `round-trips tags, preserving per-key order`() {
         val original = config(tags = mapOf("com.a/.A" to listOf("z", "a", "m")))
-        val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
+        val parsed = ConfigJson.parse(legacyJson(original))!!
         assertEquals(listOf("z", "a", "m"), parsed.tags["com.a/.A"])
     }
 
     @Test fun `an empty tag list is not materialized on parse`() {
-        // serialize never writes [], but a hand-edited file might.
+        // Earlier versions never wrote [], but a hand-edited file might.
         val parsed = ConfigJson.parse("""{"tags":{"com.a/.A":[]}}""")!!
         assertTrue(parsed.tags.isEmpty())
     }
@@ -70,7 +73,7 @@ class ConfigJsonTest {
     @Test fun `round-trips tags with unicode and special characters`() {
         // Already lowercase: tags are stored ROOT-folded.
         val original = config(tags = mapOf("com.a/.A" to listOf("café", "c/c++", "a b")))
-        val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
+        val parsed = ConfigJson.parse(legacyJson(original))!!
         assertEquals(original.tags, parsed.tags)
     }
 
@@ -81,7 +84,7 @@ class ConfigJsonTest {
 
     @Test fun `preserves favorite order (the rank)`() {
         val original = config(favorites = listOf("z", "a", "m"))
-        val parsed = ConfigJson.parse(ConfigJson.serialize(original))!!
+        val parsed = ConfigJson.parse(legacyJson(original))!!
         assertEquals(listOf("z", "a", "m"), parsed.favorites)
     }
 
@@ -121,12 +124,12 @@ class ConfigJsonTest {
             "com.b/.B" to "back\\slash",
             "com.c/.C" to "絵文字 😀",
         )
-        val parsed = ConfigJson.parse(ConfigJson.serialize(config(names = tricky)))!!
+        val parsed = ConfigJson.parse(legacyJson(config(names = tricky)))!!
         assertEquals(tricky, parsed.names)
     }
 
     @Test fun `control characters in a stored name are dropped on load`() {
-        val parsed = ConfigJson.parse(ConfigJson.serialize(config(names = mapOf("com.b/.B" to "tab\tand\nnewline"))))!!
+        val parsed = ConfigJson.parse(legacyJson(config(names = mapOf("com.b/.B" to "tab\tand\nnewline"))))!!
         assertEquals("tabandnewline", parsed.names["com.b/.B"])
     }
 
@@ -148,7 +151,7 @@ class ConfigJsonTest {
         val adopted = ConfigJson.parseForeign(raw)!!
         assertEquals("N", adopted.names["a/b"])
         assertEquals(listOf("x"), adopted.tags["a/b"])
-        val onDisk = String(ConfigJson.serialize(adopted).toByteArray(Charsets.UTF_8), Charsets.UTF_8)
+        val onDisk = String(legacyJson(adopted).toByteArray(Charsets.UTF_8), Charsets.UTF_8)
         assertEquals(adopted, ConfigJson.parse(onDisk))
     }
 
@@ -229,7 +232,7 @@ class ConfigJsonTest {
             names = linkedMapOf("f/1" to "Custom"),
             tags = linkedMapOf("f/2" to mutableListOf("work")),
         )
-        val back = ConfigJson.parseForeign(ConfigJson.serialize(cfg))
+        val back = ConfigJson.parseForeign(legacyJson(cfg))
         assertNotNull(back)
         assertEquals(listOf("f/1", "f/2"), back!!.favorites)
         assertEquals(listOf("h/1"), back.hidden.toList())
@@ -254,7 +257,7 @@ class ConfigJsonTest {
         assertEquals(listOf("work"), cfg!!.tags["pkg/A"])
     }
 
-    /** An empty list would disagree with what serialize writes next. */
+    /** No empty list: the tag overview lists only tags some app carries. */
     @Test
     fun `an app whose tags all vanish loses its key`() {
         val cfg = ConfigJson.parse("""{"tags":{"pkg/A":["###",",",""],"pkg/B":["work"]}}""")

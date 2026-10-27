@@ -3,8 +3,6 @@ package com.github.reygnn.verso_launcher
 import java.text.BreakIterator
 import java.text.Collator
 import java.text.Normalizer
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The launcher's pure decisions: no framework, disk or shared state. */
@@ -17,7 +15,7 @@ internal enum class Mode {
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { CRASH, RESTART, BACKUP, RESTORE, UNDO }
+internal enum class Command { CRASH, RESTART, NEW, OPEN, EDIT }
 
 /** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
 internal interface Ordered {
@@ -71,25 +69,22 @@ internal object LauncherLogic {
 
     /**
      * Every "~" command, the one list the overview, the abbreviations and the parser share. The
-     * overview is bottom-anchored: harmless ones first, the config-changing ones (each with an
-     * undo point) nearest the prompt, "~undo" nearest of all.
+     * overview is bottom-anchored: the rare ones first, "~edit", the everyday one, nearest the prompt.
      */
     val COMMANDS: List<Pair<String, Command>> = listOfNotNull(
         ("~crash" to Command.CRASH).takeIf { DailyDriver.ENABLED },
         "~restart" to Command.RESTART,
-        "~backup" to Command.BACKUP,
-        "~restore" to Command.RESTORE,
-        "~undo" to Command.UNDO,
+        "~new" to Command.NEW,
+        "~open" to Command.OPEN,
+        "~edit" to Command.EDIT,
     )
 
-    private val BACKUP_STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss")
-
-    /** What "~backup" offers the picker as the file's name ("verso-2026-10-13_120745.json"); the user may change it. */
-    fun backupFileName(now: LocalDateTime): String = "verso-${BACKUP_STAMP.format(now)}.json"
+    /** What "~new" offers the picker as the file's name; the user may change it. */
+    const val CONFIG_FILE_NAME = "verso.txt"
 
     /** The command spelled exactly by [trimmed] (folded), or null; a bare "~" is none. */
     fun parseCommand(trimmed: String): Command? {
-        // The fold drops U+0307, so "\u0307~restore" would fold to a command its mode never showed.
+        // The fold drops U+0307, so "\u0307~open" would fold to a command its mode never showed.
         if (!trimmed.startsWith("~")) return null
         val q = foldLabel(trimmed)
         return COMMANDS.firstOrNull { it.first == q }?.second
@@ -101,8 +96,8 @@ internal object LauncherLogic {
     }
 
     /**
-     * An exact match, else an unambiguous abbreviation ("~b"). Exact must win should one spelling
-     * ever prefix another. An ambiguous abbreviation ("~r") resolves to null, never a guess.
+     * An exact match, else an unambiguous abbreviation ("~e"). Exact must win should one spelling
+     * ever prefix another. An ambiguous abbreviation (a bare "~") resolves to null, never a guess.
      * "~crash" is never abbreviated: "~c" means nothing in every build.
      */
     fun resolveCommand(trimmed: String): Command? {
@@ -316,9 +311,9 @@ internal object LauncherLogic {
     private val LINE_BREAKS = Regex("[\r\n\t]+")
 
     /**
-     * [s] without a lone UTF-16 surrogate. Memory would hold it, but UTF-8 has no form for it:
-     * verso.json and every backup would say "?", so the file would differ from the config it saves.
-     * After the other filters, so a pair they separated is whole again.
+     * [s] without a lone UTF-16 surrogate. Memory would hold it, but UTF-8 has no form for it: a
+     * new file ("~new") would say "?", so it would read back as another config than it was written
+     * from. After the other filters, so a pair they separated is whole again.
      */
     private fun pairedOnly(s: String): String = buildString(s.length) {
         s.codePoints().forEach { if (Character.getType(it) != Character.SURROGATE.toInt()) appendCodePoint(it) }

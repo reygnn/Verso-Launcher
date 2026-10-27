@@ -17,8 +17,8 @@ comments:
 
 complexity:
   TooManyFunctions:
-    # Commands holds one entry per "~" command plus the steps they share: each is a feature,
-    # not a split waiting to happen.
+    # Commands holds one entry per config-file step ("~open", "~new", the read at every start)
+    # plus what they share: each is a feature, not a split waiting to happen.
     allowedFunctionsPerClass: 13
 
 style:
@@ -34,7 +34,7 @@ style:
     # would gain from it.
     maxLineLength: 150
   ReturnCount:
-    # The hard rules are guard clauses ("no app list yet: return", "no permit: return"); a function
+    # The hard rules are guard clauses ("no app list yet: return", "not linked: return"); a function
     # that checks them first is the point, not a smell.
     excludeGuardClauses: true
 

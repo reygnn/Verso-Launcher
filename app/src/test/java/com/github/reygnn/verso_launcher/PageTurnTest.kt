@@ -36,16 +36,12 @@ class PageTurnTest {
     private val state = testLauncherState(
         io = { task -> task.run(); true },
         main = { task -> task.run() },
-        loadConfig = { VersoConfig() },
         enumerateApps = { Enumeration(listOf(alpha, bravo), true) },
-        serialize = { "" },
-        writeConfig = { true },
-        onRefreshed = { _, _ -> },
+        onRefreshed = {},
         // The drawer sorts by usage against the wall clock; a launch counted at 0 has decayed away.
         now = System::currentTimeMillis,
     ).also { it.refresh() }
 
-    private var dialogOpen = false
     private var byUsage = false
     private var opened = 0
     private var closed = 0
@@ -73,7 +69,6 @@ class PageTurnTest {
             homePage = home,
             appDrawer = drawer,
             byUsage = { byUsage },
-            dialogOpen = { dialogOpen },
             onOpen = { opened++ },
             onClose = { closed++ },
         )
@@ -205,7 +200,7 @@ class PageTurnTest {
     /** "%" most used first, then Bravo launched while the drawer is out of sight. */
     private fun bravoLaunchedOutOfSight() {
         byUsage = true
-        state.toggleOrder(state.editPermit())
+        state.toggleOrder()
         drawer.refilter()
         state.recordLaunch(bravo.key)
         assertEquals("nothing re-sorts a drawer out of sight", listOf("Alpha", "Bravo"), rows())
@@ -224,15 +219,6 @@ class PageTurnTest {
     }
 
     // ---- who may start a drag or a flick ----------------------------------------------
-
-    @Test fun `an open dialog blocks both drag and flick`() {
-        dialogOpen = true
-        assertFalse(root.host.canDrag(SwipeDir.UP, height / 2))
-        assertFalse(root.host.claims(SwipeDir.UP, height / 2))
-        dialogOpen = false
-        assertTrue(root.host.canDrag(SwipeDir.UP, height / 2))
-        assertTrue(root.host.claims(SwipeDir.UP, height / 2))
-    }
 
     @Test fun `a pull down is the shade's in the top band, the recents' from its edge on`() {
         val band = SwipeGesture.TOP_EXCLUSION_DP * activity.resources.displayMetrics.density

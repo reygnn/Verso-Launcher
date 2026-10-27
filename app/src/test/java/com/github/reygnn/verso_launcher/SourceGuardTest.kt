@@ -93,15 +93,16 @@ class SourceGuardTest {
         assertTrue("a \"/*\" in a string opens no comment", has(stripped, "writeConfig = w"))
     }
 
-    // Rule 7: the commands read outside files (Commands); the window must not read one either.
+    // Rule 7: a file from outside is read through ConfigText.read, whose JSON is parseForeign's;
+    // only LegacyConfig reads the app's own verso.json leniently.
     @Test fun `outside files are read with parseForeign, never the lenient parse`() {
-        val commands = code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt")
-        for (path in listOf("MainActivity.kt", "Commands.kt")) {
+        for (path in listOf("MainActivity.kt", "Commands.kt", "Core.kt", "ConfigText.kt")) {
             val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$path")
             assertFalse(path, Regex("""ConfigJson\s*\.\s*parse\s*\(""").containsMatchIn(text))
             assertFalse(path, Regex("""ConfigJson\s*::\s*parse\b(?!Foreign)""").containsMatchIn(text))
         }
-        assertTrue(has(commands, "ConfigJson.parseForeign"))
+        assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/ConfigText.kt"), "ConfigJson.parseForeign(trimmed)"))
+        assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt"), "ConfigText.read(text)"))
     }
 
     @Test fun `no string template reaches through an object without braces`() {
@@ -124,30 +125,21 @@ class SourceGuardTest {
     }
 
     /**
-     * The permit's constructor is module-internal, so the type alone would let any class build one
-     * for any state. Only LauncherState.editPermit may, for itself.
+     * What no JVM test reaches: the user's file is read and written on threads of its own, never
+     * on the IO thread a provider could block, and never written but by "~new" (hard rule 4).
      */
-    @Test fun `an EditPermit is built only by LauncherState's editPermit`() {
-        val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
-        // A call (also split over lines) or a constructor reference (LauncherState::EditPermit).
-        val built = Regex("""\bEditPermit\s*\(|::\s*EditPermit\b""")
-        val sites = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
-            built.findAll(f.readText()).map { f.name }
-        }.toList()
-        assertEquals(listOf("LauncherState.kt"), sites)
-    }
-
-    /**
-     * What no JVM test reaches: "~restore" and "~undo" keep the replaced config in the undo slot
-     * (hard rule 7), and the picked document is read and written off main, never on the IO thread
-     * a provider could block.
-     */
-    @Test fun `the undo slot and the document threads are wired into Commands`() {
+    @Test fun `the config file's threads are wired into Commands, and only ~new writes`() {
         val commands = code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt")
-        assertTrue(has(commands, "core.state.replace(next) { payload -> core.undoSlot.write(payload) }"))
-        assertTrue(has(commands, "\"verso-backup-write\").start()"))
-        assertTrue(has(commands, "\"verso-restore-read\").start()"))
+        assertTrue(has(commands, "\"verso-config-write\").start()"))
+        assertTrue(has(commands, "\"verso-config-read\").start()"))
         assertFalse(has(commands, "submitIo"))
+        // One call of it: "~new"'s, into the document the picker has just made.
+        assertEquals(1, Regex("""\bwriteDocument\s*\(\s*resolver\s*,""").findAll(commands).count())
+        val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+        val writers = dir.walk().filter { it.extension == "kt" }
+            .filter { Regex("""\bopenOutputStream\s*\(""").containsMatchIn(withoutComments(it.readText(), "kt")) }
+            .map { it.name }.toList()
+        assertEquals(listOf("Commands.kt"), writers)
     }
 
     // Rule 13.
@@ -184,8 +176,8 @@ class SourceGuardTest {
      */
     @Test fun `the process's code knows no Activity`() {
         val process = listOf(
-            "Core.kt", "Commands.kt", "Results.kt", "PendingPick.kt", "LauncherWindow.kt",
-            "UndoSlot.kt", "LauncherState.kt", "LauncherStateParts.kt",
+            "Core.kt", "Commands.kt", "Results.kt", "LauncherWindow.kt",
+            "LauncherState.kt", "LauncherStateParts.kt", "ConfigLink.kt", "LegacyConfig.kt",
         )
         for (file in process) {
             val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$file")

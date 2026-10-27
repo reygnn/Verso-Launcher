@@ -21,19 +21,20 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * A "~restore" read that never returns (a provider that never hands the file over) runs on a thread of its own
- * (hard rule 3). It must not keep the activity that started it alive once that one is destroyed.
- * A class of its own: MainActivityFlowsTest's controller holds its activity for the whole test.
+ * A read of the config file that never returns (a provider that never hands the file over) runs on
+ * a thread of its own (hard rule 3). It must not keep the activity that started it alive once that
+ * one is destroyed. A class of its own: MainActivityFlowsTest's controller holds its activity for
+ * the whole test.
  */
 @RunWith(RobolectricTestRunner::class)
-class RestoreReadLeakTest {
+class ConfigReadLeakTest {
 
     private val app = RuntimeEnvironment.getApplication() as VersoApp
     private val hold = CountDownLatch(1)
 
     @After fun release() {
         hold.countDown()
-        Thread.getAllStackTraces().keys.filter { it.name == "verso-restore-read" }.forEach { it.join(5000) }
+        Thread.getAllStackTraces().keys.filter { it.name == "verso-config-read" }.forEach { it.join(5000) }
     }
 
     private fun settle() = repeat(4) {
@@ -49,26 +50,26 @@ class RestoreReadLeakTest {
         }
     }
 
-    /** Starts an activity, picks a file whose read hangs, destroys the activity; only a weak reference stays. */
+    /** Starts an activity, links a file whose read hangs, destroys the activity; only a weak reference stays. */
     private fun destroyedWhileReading(): WeakReference<MainActivity> {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         settle()
         val activity = controller.get()
-        val picked = Uri.parse("content://cloud/stuck.json")
+        val picked = Uri.parse("content://cloud/stuck.txt")
         shadowOf(activity.contentResolver).registerInputStream(picked, hanging())
         val prompt = activity.window.decorView.collect<EditText>().single()
-        prompt.setText("~restore")
+        prompt.setText("~open")
         prompt.onEditorAction(EditorInfo.IME_ACTION_GO)
-        val request = shadowOf(activity).nextStartedActivityForResult
+        val request = checkNotNull(shadowOf(activity).nextStartedActivityForResult)
         shadowOf(activity).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(picked))
         controller.pause().stop().destroy()
         settle()
         return WeakReference(activity)
     }
 
-    @Test fun `a hanging ~restore read keeps no destroyed activity alive`() {
+    @Test fun `a hanging read of the config file keeps no destroyed activity alive`() {
         val gone = destroyedWhileReading()
-        assertTrue("the read is still hanging", Thread.getAllStackTraces().keys.any { it.name == "verso-restore-read" })
+        assertTrue("the read is still hanging", Thread.getAllStackTraces().keys.any { it.name == "verso-config-read" })
         repeat(20) {
             if (gone.get() == null) return@repeat
             System.gc()

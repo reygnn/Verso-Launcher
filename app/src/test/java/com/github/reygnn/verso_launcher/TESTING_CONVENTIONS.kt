@@ -8,15 +8,13 @@ package com.github.reygnn.verso_launcher
  *
  * Android-bound collaborators come in as functions, so a test passes a lambda or a fake:
  *
- *   LauncherState(io, main, initial, freshInstall, configFile, enumerateApps,
- *                 defaultFavoriteCandidates, recentsFile, usageFile, process, now, onSaveFailed,
+ *   LauncherState(io, main, initial, useDefaults, byUsage, enumerateApps,
+ *                 defaultFavoriteCandidates, recentsFile, usageFile, writeOrder, process, now,
  *                 onRefreshed)
  *     — built through testLauncherState (TestLauncherState.kt): flat parameters with inert
- *       defaults, the file read through loadConfig as Core reads it; the production constructor
- *       has none. One shared ProcessState between two
- *       instances models a recreation.
- *   ConfigStore(dir, log, syncDir, rename, delete, readText, writeSynced) — the seams force a failure
- *   UndoSlot(dir, log, syncDir)                                     — real files; a directory in the way fails it
+ *       defaults, the config given as the file's text (ConfigText) or as keys; the production
+ *       constructor has none. One shared ProcessState between two instances models a recreation.
+ *   ConfigLink, DrawerOrder, LegacyConfig, HomeCache, UsageLog, RecentsLog — real files in a dir
  *
  * `log` is the error channel of a class that never throws: collect it and assert on it. Pure
  * decisions live in objects (LauncherLogic, SwipeGesture,
@@ -41,9 +39,10 @@ package com.github.reygnn.verso_launcher
  * Where the real Activity runs, the process's IO executor is real: drain it with
  * `app.io.submit {}.get(…)` plus `shadowOf(Looper.getMainLooper()).idle()`, or hold it with a
  * latch to keep the first load waiting. recreate() is posted, as on a device: controller.get()
- * switches only once the main looper idles. A picked document is read or written on a thread of
- * its own, joined by name ("verso-restore-read", "verso-backup-write"); the document itself is a
- * stream registered with the shadow ContentResolver (registerInputStream, registerOutputStream).
+ * switches only once the main looper idles. The user's config file is read or written on a thread
+ * of its own, joined by name ("verso-config-read", "verso-config-write"); the file itself is a
+ * stream registered with the shadow ContentResolver (registerInputStreamSupplier for one read
+ * again at every start, registerInputStream, registerOutputStream).
  *
  * FILES AND LOCALES
  *
@@ -51,7 +50,7 @@ package com.github.reygnn.verso_launcher
  *
  * A class whose tests set the default locale holds `@get:Rule val locale = DefaultLocaleRule()`;
  * it restores all three defaults (main, FORMAT, DISPLAY), a hand-written try/finally only one.
- * Better still, pass a Locale where the API takes one (sortedForDrawer, sortedTags, allTags,
+ * Better still, pass a Locale where the API takes one (sortedForDrawer, sortedTags,
  * tagsInUse). Search and fold get a Turkish case; sorting a German AND a Swedish one (Ä under A,
  * or after Z).
  *
@@ -75,7 +74,7 @@ package com.github.reygnn.verso_launcher
  *
  * Read the implementation beside the test: the asymmetries are invisible from one side. What the
  * JVM cannot test is said in KDoc and tested on a device, never faked. A rule in Activity glue
- * becomes a type where it can (EditPermit); only what no type or test reaches gets a scan
- * in SourceGuardTest. Comments are sparse — the backtick name says what is tested; comment only
- * why a fixture or boundary was chosen, a bug the name does not make clear, or a harness trap.
+ * becomes a type where it can; only what no type or test reaches gets a scan in SourceGuardTest.
+ * Comments are sparse — the backtick name says what is tested; comment only why a fixture or
+ * boundary was chosen, a bug the name does not make clear, or a harness trap.
  */

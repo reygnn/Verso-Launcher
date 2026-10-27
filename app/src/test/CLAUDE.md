@@ -18,7 +18,6 @@ Pure logic
   LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
                            (Turkish, İ, NFC, accents, other scripts' marks), the ranking,
                            Collator sort, tags, recents, default favorites
-  CommandDialogTextTest    what the ~restore dialog says
   LauncherRowsTest         rowsFor per mode
   LauncherActionsTest      Enter and tap decisions
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
@@ -33,29 +32,27 @@ Pure logic
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
 
 State and threads (manual queues)
-  LauncherStateTest        the concurrency rules: refresh, adopt and save interleaved;
-                           seeding; saves failed and at onStop; an unreadable config;
-                           replace (~restore, ~undo); recents.txt and usage.txt
-  PendingPickTest          a "~restore" pick's states
+  LauncherStateTest        the concurrency rules: refresh and a new text interleaved; the
+                           config resolved against each list; the default favorites;
+                           recents.txt, usage.txt, the "%" order
   ResultsTest              results queued until a window is in front, shown once, in order
   WallpaperPaletteTest     the palette's question against the colour listener
 
 Files (real temp files)
-  ConfigStoreTest          verso.json whole or not at all: torn and unreadable files set
-                           aside, a write killed mid-way, the legacy .bak
-  UndoSlotTest             the one undo point: whole or not at all, read back as written
-  HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside it
+  ConfigLinkTest           the app's own files around the config: the link, the copy, order.txt,
+                           verso.json of earlier versions (read only, the .bak, a torn one)
+  HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside them
 
 The window (R)
-  MainActivityFlowsTest    the real Activity: ~backup and ~restore through their pickers,
-                           ~undo, picks across ~restart and recreation, results that wait,
-                           what happens before the first load
+  MainActivityFlowsTest    the real Activity: ~open, ~new and ~edit, the file read again at
+                           every start, an unreadable one, verso.json of earlier versions, "%",
+                           ~restart and recreation, results that wait
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, TalkBack, the tap guard
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
-  RestoreReadLeakTest      a hung "~restore" read keeps no activity alive
+  ConfigReadLeakTest       a hung read of the config file keeps no activity alive
   VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso
 
 Source scans
@@ -74,14 +71,14 @@ Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51
 
 ## Deliberately not
 
-- **No mocks.** Android-bound collaborators are functions (`LauncherState`'s `io`/`main`/…,
-  `ConfigStore`'s seams); tests pass lambdas and fakes.
+- **No mocks.** Android-bound collaborators are functions (`LauncherState`'s `io`/`main`/…);
+  tests pass lambdas and fakes.
   If a real need appears: MockK, never Mockito.
 - **No coroutines**, so no `MainDispatcherRule`, `runTest` or Turbine: two manual FIFO queues
   make every interleaving deterministic.
 - **Few Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic` and
-  `LauncherState`. Rules an edit could break silently are types where possible (`EditPermit`).
-- **No MediaStore model.** Verso's own backups go through the user's picker, a plain document
+  `LauncherState`; the config file's format is `ConfigText`'s, pure.
+- **No MediaStore model.** The config file goes through the user's picker, a plain document
   stream. Guru's reports still use MediaStore, tested in Guru's repo; `GuruWiringTest.Downloads`
   only takes a save and keeps its name.
 
@@ -90,13 +87,14 @@ Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51
 ## Where a new test goes
 
 - Start from a template: pure logic `LauncherLogicTest`; threads and state `LauncherStateTest`
-  (its queue harness, `testLauncherState`); files `ConfigStoreTest`; a widget `AppDrawerTest`;
+  (its queue harness, `testLauncherState`); files `ConfigLinkTest`; a widget `AppDrawerTest`;
   Android-only behaviour `androidTest`.
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
-- Config shape: `ConfigJsonTest`, and older `verso.json` files must still parse.
-- `~backup`, `~restore`, `~undo`: the swap and its undo point in `LauncherStateTest`, the slot in
-  `UndoSlotTest`, the pickers and their threads in `MainActivityFlowsTest`.
+- The config file's format: `ConfigTextTest`, and the files users already have must still read;
+  older `verso.json` files and backups: `ConfigJsonTest`.
+- `~open`, `~new`, `~edit` and the file read again: a new text in `LauncherStateTest`, the
+  pickers, the editor and the threads in `MainActivityFlowsTest`.
 
 ---
 

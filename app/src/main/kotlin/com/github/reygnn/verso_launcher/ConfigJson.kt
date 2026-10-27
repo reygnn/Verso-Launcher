@@ -1,25 +1,13 @@
 package com.github.reygnn.verso_launcher
 
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 
-/** verso.json String <-> [VersoConfig], pure; the parsers return null instead of throwing. */
+/**
+ * The JSON config of earlier versions (verso.json, their backups) -> [VersoConfig], pure: read,
+ * never written any more. The parsers return null instead of throwing.
+ */
 internal object ConfigJson {
-
-    fun serialize(config: VersoConfig): String {
-        val names = JSONObject()
-        for ((k, v) in config.names) names.put(k, v)
-        val tags = JSONObject()
-        for ((k, v) in config.tags) tags.put(k, JSONArray(v))
-        return JSONObject().apply {
-            put("hidden", JSONArray(config.hidden.toList()))
-            put("favorites", JSONArray(config.favorites))
-            put("names", names)
-            put("tags", tags)
-            put("order", if (config.byUsage) ORDER_USAGE else ORDER_NAME)
-        }.toString(2)
-    }
 
     /** Lenient (a missing section is empty): only for our own file — outside files use [parseForeign]. */
     // null is the answer: unparseable

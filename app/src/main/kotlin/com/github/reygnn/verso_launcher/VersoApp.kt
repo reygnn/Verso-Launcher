@@ -11,8 +11,8 @@ import java.util.concurrent.RejectedExecutionException
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
- * write verso.json concurrently), the launcher's data ([core]), the pending pick, the
- * [ProcessState] and the label/palette caches.
+ * write the same file concurrently), the launcher's data ([core]), the config file's reads
+ * ([commands]), the [ProcessState] and the label/palette caches.
  */
 class VersoApp : Application() {
 
@@ -21,7 +21,7 @@ class VersoApp : Application() {
 
     /**
      * Guru's disk work: its store and the MediaStore save of a report. A thread of its own, so a
-     * MediaStore that hangs holds back a crash report, never Verso's first app list or its saves.
+     * MediaStore that hangs holds back a crash report, never Verso's first app list.
      */
     internal val guruIo: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "verso-guru") }
 
@@ -31,11 +31,8 @@ class VersoApp : Application() {
     /** Last applied wallpaper palette, so a recreated activity starts in the right colours. Main thread only. */
     internal var palette: Palette? = null
 
-    /** What a recreated LauncherState takes over: the recents, the launches, the two flags, the messages. */
+    /** What a recreated LauncherState takes over: the recents, the launches, the messages. */
     internal val process = ProcessState()
-
-    /** The "~restore" pick from the picker's answer until its adoption. Main thread only. */
-    internal val pick = PendingPick()
 
     /**
      * The live window (MainActivity), between its onCreate and its onDestroy, for what the process

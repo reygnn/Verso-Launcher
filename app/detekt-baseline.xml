@@ -29,7 +29,6 @@
     <ID>TooManyFunctions:AppDrawer.kt:AppDrawer</ID>
     <ID>TooManyFunctions:HomePage.kt:HomePage</ID>
     <ID>TooManyFunctions:LauncherLogic.kt:LauncherLogic</ID>
-    <ID>TooManyFunctions:LauncherState.kt:LauncherState</ID>
     <ID>TooManyFunctions:MainActivity.kt:MainActivity : Activity</ID>
     <ID>TooManyFunctions:PageTurn.kt:PageTurn</ID>
   </CurrentIssues>

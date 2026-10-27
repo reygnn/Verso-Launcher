@@ -1,7 +1,6 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -21,11 +20,10 @@ import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import com.github.reygnn.guru.Guru
-import java.time.LocalDateTime
 
 /**
  * The launcher's single window: the home page (recto) in front, the drawer with Sigil's command
- * line (verso) behind it ([PageTurn] turns between them), and the side effects of taps, edits and
+ * line (verso) behind it ([PageTurn] turns between them), and the side effects of taps, "%" and
  * the "~" commands. The decisions themselves are pure, in [LauncherLogic] and [LauncherState].
  */
 class MainActivity : Activity() {
@@ -47,13 +45,11 @@ class MainActivity : Activity() {
     private val state: LauncherState by lazy { app.core.state }
 
     /**
-     * The state's hand-back after a refresh or a restore (Core sends it to the live window). An
+     * The state's hand-back after a refresh or a new config (Core sends it to the live window). An
      * instance made with another state (a reset since) ignores it: the recreation renders anew.
      */
-    private fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) {
+    private fun refreshed(from: LauncherState, listChanged: Boolean) {
         if (from !== state) return
-        // An open restore dialog was about the config that was just replaced.
-        if (configReplaced) dismissDialogs()
         // A recreated instance's first refresh: the results left while no window was in front.
         app.results.flush()
         if (listChanged) appDrawer.refilter()
@@ -66,12 +62,9 @@ class MainActivity : Activity() {
     private val launcherWindow = object : LauncherWindow {
         override val inFront: Boolean get() = started
 
-        override fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) =
-            this@MainActivity.refreshed(from, configReplaced, listChanged)
+        override fun refreshed(from: LauncherState, listChanged: Boolean) = this@MainActivity.refreshed(from, listChanged)
 
         override fun show(text: String, long: Boolean) = toast(text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT)
-
-        override fun offerRestore(restored: VersoConfig) = this@MainActivity.offerRestore(restored)
     }
 
     // ---- the two pages ------------------------------------------------------
@@ -81,15 +74,13 @@ class MainActivity : Activity() {
     private lateinit var wallpaper: WallpaperPalette
     private var unwatchWallpaper: () -> Unit = {}
 
-    // Tracked so it can be dismissed on teardown: an undismissed dialog leaks its window.
-    private var commandDialog: AlertDialog? = null
     // Set by "~restart" until the recreation replaces this window: the process's state is already the
-    // fresh one, this window's is not, so it takes no more commands or edits.
+    // fresh one, this window's is not, so it takes no more commands or "%".
     private var restarting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The process hands a "~restore" pick to whichever instance is alive (VersoApp.pick).
+        // The process hands its results and refreshes to whichever instance is alive.
         app.instance = launcherWindow
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
@@ -129,9 +120,6 @@ class MainActivity : Activity() {
             homePage = homePage,
             appDrawer = appDrawer,
             byUsage = { state.config.byUsage },
-            dialogOpen = { commandDialog != null },
-            onOpen = ::dismissDialogs,
-            onClose = ::turnAway,
         )
         setContentView(pageTurn.root)
         onBackInvokedDispatcher.registerOnBackInvokedCallback(
@@ -172,8 +160,8 @@ class MainActivity : Activity() {
         started = true
         homePage.startBattery()
         app.results.flush()
-        // A pick read while away is asked about now.
-        app.commands.offerPendingPick()
+        // Back from an editor, or after a while: the file may have changed.
+        app.commands.readLinked()
     }
 
     override fun onResume() {
@@ -235,27 +223,14 @@ class MainActivity : Activity() {
     /** Leaving the launcher turns the page home instantly, so a return lands on home, not a half-typed search. */
     override fun onStop() {
         started = false
-        // Also from the home page, where closing the drawer does nothing.
-        turnAway()
         pageTurn.close(animate = false)
         homePage.stopBattery()
         super.onStop()
-        // After onStop, where Android waits for SharedPreferences' writes too (hard rule 4).
-        state.flushSave()
-    }
-
-    /** The user left the page they acted on: a dialog opened there is void. */
-    private fun turnAway() = dismissDialogs()
-
-    private fun dismissDialogs() {
-        commandDialog?.dismiss()
     }
 
     override fun onDestroy() {
-        dismissDialogs()
-        commandDialog = null
-        // No executor shutdown: work this instance queued (a save above all) must still run. A
-        // backup write or restore read it started hands back to the process (Commands).
+        // No executor shutdown: work this instance queued must still run. A read or write of the
+        // config file it started hands back to the process (Commands).
         if (app.instance === launcherWindow) app.instance = null
         unwatchApps()
         unwatchWallpaper()
@@ -285,8 +260,6 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)  // keep getIntent() in sync with the latest launch intent
-        // A dialog confirmed after HOME would apply an edit the user has visually left behind.
-        turnAway()
         pageTurn.close()
         homePage.scrollToTop()
     }
@@ -301,92 +274,52 @@ class MainActivity : Activity() {
             if (DailyDriver.ENABLED) error("~crash: deliberate crash (daily-driver build)")
             return
         }
-        if (heldBackByPick(command)) return
-        if (command != Command.RESTART && !editable()) return
+        // After "~restart" this window holds the old state until the recreation lands: it takes
+        // nothing more. Nothing to say — the new window comes at once.
+        if (restarting) return
         // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
         appDrawer.clearPrompt()
         when (command) {
             Command.RESTART -> restart()
             // Only the pickers here: the answer is the process's (onActivityResult, Commands).
-            Command.BACKUP -> pickBackupFile()
-            Command.RESTORE -> pickRestoreFile()
-            Command.UNDO -> app.commands.undo()
+            Command.OPEN -> pickConfigFile()
+            Command.NEW -> pickNewConfigFile()
+            Command.EDIT -> editConfigFile()
             Command.CRASH -> Unit // returned above
         }
     }
 
     /** "~restart": the repair by hand. */
     private fun restart() {
-        // Already replaced: a second ~restart before the recreation lands would reset again.
-        if (restarting) return
-        // A hung provider must not block ~restart: the pick is dropped, read or still being read,
-        // and a read that lands later finds it gone.
-        if (app.pick.drop()) toast(getString(R.string.toast_restore_dropped), Toast.LENGTH_LONG)
-        // A fresh state reads verso.json (and an unread recents.txt or usage.txt) again, and the
-        // recreation builds every view anew around it. Until that recreation lands this window still
-        // holds the old state, so it takes nothing more (editable, editPermit).
+        // A fresh state reads the app's own files again, and the recreation builds every view anew
+        // around it; onStart reads the linked file. Until that recreation lands this window still
+        // holds the old state, so it takes nothing more.
         restarting = true
         app.core.reset()
         recreate()
     }
 
-    /**
-     * A "~restore" or "~undo" while a pick is read or waits to be adopted (PendingPick) is refused,
-     * with a toast: the adoption behind it would replace what it brought. The prompt stays, to send
-     * again.
-     */
-    private fun heldBackByPick(command: Command): Boolean {
-        val swap = command == Command.RESTORE || command == Command.UNDO
-        if (!swap || !app.pick.pending) return false
-        toast(getString(R.string.toast_restore_pending), Toast.LENGTH_LONG)
-        return true
-    }
-
-    /**
-     * A "~restore" file was read (Commands): what it would set. Only OK adopts; Cancel ends the
-     * pick quietly, and a dialog the page turned away from or the window left ends it with a word
-     * (Commands.answerPick).
-     */
-    private fun offerRestore(restored: VersoConfig) {
-        commandDialog?.dismiss()
-        commandDialog = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(R.string.restore_title)
-            .setMessage(CommandDialogText.restore(restored, ::words))
-            .setPositiveButton(R.string.restore_apply) { _, _ -> app.commands.answerPick(confirmed = true, byCancel = false) }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> app.commands.answerPick(confirmed = false, byCancel = true) }
-            .create()
-            .apply {
-                setOnDismissListener { d ->
-                    if (commandDialog === d) commandDialog = null
-                    // After OK or Cancel nobody is asked any more: a no-op. Else the dialog went unanswered.
-                    app.commands.answerPick(confirmed = false, byCancel = false)
-                }
-            }
-        commandDialog?.show()
-    }
-
-    /**
-     * "~backup": the user picks where the file goes and what it is called (Download/Verso is the
-     * suggestion); a cloud folder or another device works as well. The user's pick is the permission.
-     */
-    private fun pickBackupFile() = startPicker(
-        Intent(Intent.ACTION_CREATE_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("application/json")
-            .putExtra(Intent.EXTRA_TITLE, LauncherLogic.backupFileName(LocalDateTime.now())),
-        REQ_BACKUP,
-    )
-
-    /** "~restore": any file the user picks — this phone's backups, another phone's, an older install's. */
-    private fun pickRestoreFile() = startPicker(
+    /** "~open": the user's config file, wherever it is — this phone's, a cloud folder's, an old backup. */
+    private fun pickConfigFile() = startPicker(
         Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            // Not a strict "application/json": a .json arrives as text/plain or octet-stream
-            // depending on who wrote it, and a strict filter would grey it out.
+            // Not a strict "text/plain": a file arrives as octet-stream or JSON depending on who
+            // wrote it, and a strict filter would grey it out.
             .setType("*/*")
-            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "application/octet-stream")),
-        REQ_RESTORE,
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/json", "application/octet-stream"))
+            .addFlags(PERSISTED_GRANT),
+        REQ_OPEN,
+    )
+
+    /** "~new": a new file for the config in use, where and under what name the user picks. */
+    private fun pickNewConfigFile() = startPicker(
+        Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_TITLE, LauncherLogic.CONFIG_FILE_NAME)
+            .addFlags(PERSISTED_GRANT),
+        REQ_NEW,
     )
 
     private fun startPicker(intent: Intent, request: Int) {
@@ -395,7 +328,7 @@ class MainActivity : Activity() {
             DocumentsContract.EXTRA_INITIAL_URI,
             DocumentsContract.buildDocumentUri(
                 "com.android.externalstorage.documents",
-                "primary:${Environment.DIRECTORY_DOWNLOADS}/$BACKUP_DIR",
+                "primary:${Environment.DIRECTORY_DOWNLOADS}/$CONFIG_DIR",
             ),
         )
         try {
@@ -414,28 +347,46 @@ class MainActivity : Activity() {
         // From here the answer is the process's: a recreation or a stop loses it no more, and the
         // thread that reads or writes the document holds nothing of this activity.
         when (requestCode) {
-            REQ_BACKUP -> app.commands.writeBackup(uri)
-            REQ_RESTORE -> app.commands.readPick(uri)
+            REQ_OPEN -> app.commands.link(uri)
+            REQ_NEW -> app.commands.create(uri)
         }
     }
 
     /**
-     * After "~restart" this window holds the old state until the recreation lands: it takes no
-     * command and no edit. Nothing to say — the new window comes at once.
+     * "~edit": the linked file in the user's editor, in a task of its own (not on top of HOME,
+     * where a press of Home would close it with the edits); onStart reads it back. An app that
+     * only views it, if none edits; the write grant only where Verso holds one itself.
      */
-    private fun editable(): Boolean = !restarting
-
-    private fun editPermit(): LauncherState.EditPermit? = if (restarting) null else state.editPermit()
-
-    private fun words(id: Int, count: Int?): String = if (count == null) getString(id) else getString(id, count)
+    private fun editConfigFile() {
+        val uri = app.core.link ?: return toast(getString(R.string.toast_no_config_file), Toast.LENGTH_LONG)
+        val flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val tries = listOf(
+            Intent(Intent.ACTION_EDIT).setDataAndType(uri, "text/plain").addFlags(flags or Intent.FLAG_GRANT_WRITE_URI_PERMISSION),
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "text/plain").addFlags(flags),
+        )
+        var noAccess = false
+        for (intent in tries) {
+            try {
+                startActivity(intent)
+                return
+            } catch (e: ActivityNotFoundException) {
+                Log.w("Verso", "no app takes ${intent.action} for the config file", e)
+            } catch (e: SecurityException) {
+                // No grant to pass on (a read-only link, or one that is gone): the next is tried.
+                Log.w("Verso", "cannot pass on ${intent.action} for the config file", e)
+                noAccess = true
+            }
+        }
+        toast(getString(if (noAccess) R.string.toast_edit_no_access else R.string.toast_no_editor), Toast.LENGTH_LONG)
+    }
 
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
         Toast.makeText(this, text, duration).show()
 
-    /** "%": saved at once like every edit; the prompt clears onto the drawer in its new order. */
+    /** "%": kept at once (order.txt); the prompt clears onto the drawer in its new order. */
     private fun toggleOrder() {
-        val permit = editPermit() ?: return
-        val byUsage = state.toggleOrder(permit) ?: return
+        if (restarting) return
+        val byUsage = state.toggleOrder()
         toast(getString(if (byUsage) R.string.toast_order_usage else R.string.toast_order_name))
         appDrawer.setPrompt("")
     }
@@ -545,7 +496,11 @@ class MainActivity : Activity() {
 
     private companion object {
         /** The folder the pickers suggest: Download/Verso, where the backups of earlier versions are. */
-        const val BACKUP_DIR = "Verso"
+        const val CONFIG_DIR = "Verso"
+
+        /** The picker's grant, to be kept across restarts (Commands.keepAccess). */
+        const val PERSISTED_GRANT = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
 
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
@@ -553,5 +508,5 @@ class MainActivity : Activity() {
 }
 
 /** The pickers' request codes. Internal for MainActivityFlowsTest, which answers them. */
-internal const val REQ_RESTORE = 1
-internal const val REQ_BACKUP = 2
+internal const val REQ_OPEN = 1
+internal const val REQ_NEW = 2

@@ -25,14 +25,14 @@ keyboard, no prompt:
   bolt while charging and a shield while battery protection holds the charge. **Double
   tap** the clock for your alarms, the date for your calendar, the battery for battery
   usage — a single stray touch does nothing, as in Kolibri.
-- Your favorites in large bold text, in your own order, top to bottom. Tap to launch,
-  long-press for *App info*. More favorites than fit
+- Your favorites in large bold text, in the order of your config file, top to bottom. Tap to
+  launch, long-press for *App info*. More favorites than fit
   simply scroll. Home text sizes are fixed (dp): they do not follow the system font size.
 - All home text (and the two icons) carries Kolibri's thin tonal outline, so it stays
   readable on any wallpaper without darkening it.
-- First start: Verso picks your default phone, messenger (default SMS app), email,
-  browser and camera as starting favorites. Only once — remove them and they stay gone.
-- No favorites yet? A short hint says how to reach the drawer (tap it to open it).
+- With no config yet, Verso shows your default phone, messenger (default SMS app), email,
+  browser and camera as favorites; `~new` writes them into your first config file.
+- No favorites yet? A short hint says where they come from (tap it to open the drawer).
 - Text follows the wallpaper: white with a dark outline on a dark wallpaper, black with
   a light outline on a light one (the drawer and the status-bar icons too), switching
   by itself when you change the wallpaper.
@@ -88,30 +88,52 @@ keyboard, no prompt:
   - `%` — **Enter** switches the plain drawer between A to Z and **most used first** (each
     launch counts, fading with time: a week old about half), and keeps it
   - `~[text]` — commands. `~` lists them, typing narrows the list; tap one, or **Enter** once
-    what you typed can only mean one (`~b` is `~backup`). Every change is saved at once, so
-    there is no save command:
-    - `~restart` — read the config again and rebuild the list (after editing `verso.json` by
-      hand, or when something looks stale)
-    - `~backup` — the config as a file wherever you pick: the system's file picker suggests
-      `Download/Verso/` and a name after the moment (`verso-2026-10-13_120745.json`), and a
-      cloud folder works as well. The file survives an uninstall and is how a config moves to
-      another phone
-    - `~restore` — a config file you pick: this phone's backups, another phone's, an earlier
-      install's. A dialog shows what the file sets before anything changes; the config it
-      replaces is kept for `~undo`
-    - `~undo` — take back the last `~restore` or `~undo` (a second `~undo` redoes it). There is
-      one undo point, not a history: older configs are your backups
+    what you typed can only mean one (`~e` is `~edit`):
+    - `~edit` — your config file in your text editor; back in Verso, your changes show at once
+    - `~new` — a new config file wherever you pick (the system's file picker suggests
+      `Download/Verso/verso.txt`; a cloud folder works as well), holding what Verso shows now —
+      the default favorites, or the config of an earlier version — and linked from then on
+    - `~open` — link a config file you already have: one you wrote, another phone's, an old
+      `~backup` of an earlier version (its JSON is read as it is). A file that is no config is
+      not linked
+    - `~restart` — read everything again and rebuild the list (when something looks stale)
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
       on purpose, to see Guru's report. Never abbreviated
 - Tap a row or press **Enter** to launch the row nearest the command line. On an empty line
   **Enter** only drops the keyboard. The `×` at the end of the line clears it.
 - Long-press any row for its *App info*.
-- Favorites, hidden apps, custom names and tags are no longer edited in the app: they come
-  from the config (tags are lowercased and trimmed; `#` and `,` are dropped).
 - Registers as `HOME` + `LAUNCHER`, `singleTask` (package `com.github.reygnn.verso_launcher`).
 
-What can go wrong around the backups, an unreadable config, a result that comes later and
-moving to a new phone: `CAVEATS.md`.
+## The config file
+
+Favorites, hidden apps, custom names and tags live in a plain text file of yours. Verso reads it
+— at every return to the launcher — and never writes it: edit it in any editor, keep it where
+you like, copy it to back it up or to take it to another phone.
+
+```
+# a comment
+fav WhatsApp
+fav org.mozilla.firefox
+hide com.samsung.android.bixby.agent
+name com.google.android.apps.maps = Maps
+tag Firefox = web, browser
+```
+
+- `fav` — a favorite; home shows them in the file's order
+- `hide` — not in the plain drawer (a search still finds it; a favorite always shows)
+- `name … = …` — your own name for an app; the last one given wins
+- `tag … = a, b` — its tags, lowercased and trimmed (`#` and `,` are dropped); they add up
+
+An app is its name as the system shows it (`Gmail`, `Gmail (Work)` for a work copy), its package
+(`com.google.android.gm`: every app of it in your own profile) or its key
+(`package/class`, `#serial` for another profile). A name is matched ignoring case, never your own
+names; it changes with the device language, a package does not — so `~new` writes packages and
+keys, each with the app's name as a comment above it. Long-press an app for its *App info* if you need the package. A line Verso does not
+understand is named in a toast and skipped; the rest still counts. An app that is not installed
+is simply left out until it is.
+
+What can go wrong around the config file, a result that comes later and moving to a new phone:
+`CAVEATS.md`.
 
 ## Lineage
 
@@ -135,15 +157,13 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 
 - no Compose, no Material, **no AndroidX at all** — platform widgets only
 - no Hilt / DI — a single `Activity` wires itself
-- no Navigation / Fragments — one `Activity` (the restore question is a bare platform dialog)
-- no DataStore / Room / SharedPreferences — the small amount of state (hidden
-  apps, favorites, custom names, tags) is a single hand-rolled `verso.json` in
-  `filesDir` (beside it only throwaway files: `home-cache.txt`, a copy of the favorites for an
-  instant first frame, and `usage.txt` and `recents.txt` behind `%` and `?`; and Guru's crash
-  reports in `guru/` until the next start saves them, see "Crash reports"), written whole or
-  not at all (a new file, synced, renamed over the old; one that cannot be read loads as empty,
-  is set aside and never written over, and a toast says so) — your own `~backup`s are the copies
-  to fall back on, and `verso.prev.json` the one undo point
+- no Navigation / Fragments — one `Activity`, no dialogs
+- no DataStore / Room / SharedPreferences — the config is your own text file, which Verso only
+  reads; in `filesDir` it keeps only throwaway files: where that file is and a copy of its last
+  text (for an instant first frame, and when the file cannot be read), `order.txt` behind `%`,
+  `home-cache.txt`, a copy of the favorites as shown, `usage.txt` and `recents.txt` behind `%`
+  and `?`, and Guru's crash reports in `guru/` until the next start saves them (see "Crash
+  reports"). `verso.json` of earlier versions is read until you link a file, never written
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code

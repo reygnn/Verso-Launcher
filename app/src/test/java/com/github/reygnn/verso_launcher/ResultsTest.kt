@@ -15,11 +15,10 @@ class ResultsTest {
     private class FakeWindow(var front: Boolean) : LauncherWindow {
         val shown = mutableListOf<Pair<String, Boolean>>()
         override val inFront: Boolean get() = front
-        override fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean) = Unit
+        override fun refreshed(from: LauncherState, listChanged: Boolean) = Unit
         override fun show(text: String, long: Boolean) {
             shown += text to long
         }
-        override fun offerRestore(restored: VersoConfig) = Unit
     }
 
     @Test fun `a result while no window is in front waits, then shows once, in order`() {

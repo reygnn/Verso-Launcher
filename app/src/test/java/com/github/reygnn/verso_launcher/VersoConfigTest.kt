@@ -5,9 +5,8 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * A config is a value: equal means "the same file content". LauncherState.replace stops a restore
- * that would change nothing on it (hard rule 7), so a false "equal" would skip a real restore and a
- * false "different" would replace the undo point with the very config it protects.
+ * A config is a value: equal means "the same content". The tests of the file format compare what a
+ * file resolves to by it (ConfigTextTest), so a false "equal" would let a lost line pass.
  */
 class VersoConfigTest {
 

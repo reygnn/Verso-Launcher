@@ -45,6 +45,16 @@ internal data class ConfigText(
             return ConfigText(lines.favorites, lines.hidden, lines.names, lines.tags, lines.bad)
         }
 
+        /**
+         * A file from outside, as Verso reads it: the line format, or a JSON config of an earlier
+         * version (its verso.json, a backup), read with parseForeign (hard rule 7) and named by its keys.
+         */
+        fun read(text: String): ConfigText {
+            val trimmed = text.removePrefix(BOM).trimStart()
+            if (trimmed.startsWith('{')) ConfigJson.parseForeign(trimmed)?.let { return of(it) }
+            return parse(text)
+        }
+
         /** "ref = value" taken apart at the first "=", or null when either side is empty. */
         private fun split(rest: String): Pair<String, String>? {
             val eq = rest.indexOf('=')

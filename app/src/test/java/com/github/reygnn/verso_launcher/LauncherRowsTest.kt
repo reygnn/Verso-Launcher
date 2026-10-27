@@ -156,9 +156,9 @@ class LauncherRowsTest {
     }
 
     @Test fun `tilde prefix narrows the command overview`() {
-        val rows = rowsFor(Mode.COMMAND, "~b")
+        val rows = rowsFor(Mode.COMMAND, "~o")
         assertEquals(1, rows.size)
-        assertEquals(Command.BACKUP, (rows.single() as CommandRow).command)
+        assertEquals(Command.OPEN, (rows.single() as CommandRow).command)
     }
 
     @Test fun `a non-matching tilde prefix yields an empty command overview`() {

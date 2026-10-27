@@ -21,18 +21,17 @@ import kotlin.math.abs
  *
  * @param byUsage whether the plain drawer is sorted most used first: then it is re-sorted
  *   before it shows (a launch changes the order, none re-sorts a drawer out of sight).
- * @param dialogOpen a dialog is up: it blocks both drag and flick.
- * @param onOpen the drawer turned up (dialogs opened on home are dismissed).
- * @param onClose the drawer turned away (see MainActivity.turnAway).
+ * @param onOpen the drawer turned up. Nothing in the window needs it today (no dialog is left to
+ *   dismiss); PageTurnTest counts the turns through it and [onClose].
+ * @param onClose the drawer turned away.
  */
 internal class PageTurn(
     private val activity: Activity,
     private val homePage: HomePage,
     private val appDrawer: AppDrawer,
     private val byUsage: () -> Boolean,
-    private val dialogOpen: () -> Boolean,
-    private val onOpen: () -> Unit,
-    private val onClose: () -> Unit,
+    private val onOpen: () -> Unit = {},
+    private val onClose: () -> Unit = {},
 ) {
     private val home: View = homePage.view
     // GONE while closed and blocking descendant focus, so the prompt can never raise the IME on home.
@@ -60,8 +59,6 @@ internal class PageTurn(
     /** The window root: both pages, and the swipe watched in its dispatchTouchEvent. */
     val root: SwipeFrame = SwipeFrame(activity, object : SwipeFrame.Host {
         override fun claims(dir: SwipeDir, downY: Float): Boolean {
-            // A long-press that opened a dialog can carry on into a drag with the finger still down.
-            if (dialogOpen()) return false
             // A flick down on favorites scrolled down scrolls them back, not to the recents.
             if (dir == SwipeDir.DOWN && !isOpen && homePage.scroller.canScrollVertically(-1)) return false
             return SwipeGesture.claims(isOpen, dir, downY, topExclusionPx())
@@ -78,15 +75,12 @@ internal class PageTurn(
 
         override fun closeDirection(): SwipeDir? = if (isOpen) closeDir() else null
 
-        override fun canDrag(dir: SwipeDir, downY: Float): Boolean {
-            if (dialogOpen()) return false
-            return when {
-                isOpen && drawerFromTop -> appDrawer.listAtBottom
-                isOpen -> appDrawer.listAtTop
-                dir == SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
-                // A pull from the very top is the notification shade's.
-                else -> downY >= topExclusionPx() && !homePage.scroller.canScrollVertically(-1)
-            }
+        override fun canDrag(dir: SwipeDir, downY: Float): Boolean = when {
+            isOpen && drawerFromTop -> appDrawer.listAtBottom
+            isOpen -> appDrawer.listAtTop
+            dir == SwipeDir.UP -> !homePage.scroller.canScrollVertically(1)
+            // A pull from the very top is the notification shade's.
+            else -> downY >= topExclusionPx() && !homePage.scroller.canScrollVertically(-1)
         }
 
         override fun pageHeight(): Float = this@PageTurn.pageHeight()

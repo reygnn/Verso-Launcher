@@ -30,11 +30,9 @@ class AppDrawerTest {
     private val state = testLauncherState(
         io = { task -> task.run(); true },
         main = { task -> task.run() },
-        loadConfig = { VersoConfig(favorites = listOf(installed[1].key)) },
+        config = VersoConfig(favorites = listOf(installed[1].key)),
         enumerateApps = { Enumeration(installed, true) },
-        serialize = { "" },
-        writeConfig = { true },
-        onRefreshed = { _, _ -> },
+        onRefreshed = {},
     ).also { it.refresh() }
 
     private val taps = mutableListOf<DrawerAction<AppEntry>>()
@@ -86,11 +84,8 @@ class AppDrawerTest {
         val withPaused = testLauncherState(
             io = { task -> task.run(); true },
             main = { task -> task.run() },
-            loadConfig = { VersoConfig() },
             enumerateApps = { Enumeration(installed + paused, true) },
-            serialize = { "" },
-            writeConfig = { true },
-            onRefreshed = { _, _ -> },
+            onRefreshed = {},
         ).also { it.refresh() }
         val drawer = AppDrawer(
             activity = activity,

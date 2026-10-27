@@ -26,7 +26,7 @@ with its reason — the performance points after measuring; Guru's own points be
   - A profile that never reads makes every return home enumerate again (`needsRefresh`). Not seen:
     no "skipping profile" or "skipping app" in the A17's or the Pixel's log, and neither has a
     second profile. Throttle the retry only once a device shows it.
-  - Guru's alert does not count as a dialog for the page turn (`dialogOpen`, hard rule 11). It
+  - Guru's alert does not block the page turn (no dialog does any more, hard rule 11). It
     cannot meet a running drag: it comes with a new window, already in that window's first frame
     (A17, release, `am crash` and the relaunch filmed at 20 fps), so no touch on the window can
     start before it; a drag started after it goes to the alert (tried: the drawer stays shut).
@@ -36,9 +36,6 @@ with its reason — the performance points after measuring; Guru's own points be
   MotionEvents through the page turn), the list's top and end and scrolling it to the top (a
   laid-out list longer than the screen, or apps in `MainActivityFlowsTest`). The rules beneath are pinned (`LauncherStateTest`, `SwipeGestureTest`,
   `LauncherActionsTest`); the wiring is used on the devices every day.
-- The dropped-pick toast's wording (then `~restore-saf`, now `~restore`; audit 2026-10-21 (2)
-  #24, "nothing changed — …" like the other failures): it now says "dropped — the picked file was
-  not restored yet", which says as much.
 - "First swipe after returning from an app does nothing" (A17): seen once, never reproduced. A
   late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
   workaround was tried and removed again. Discarded until a real reproduction.
@@ -50,9 +47,10 @@ with its reason — the performance points after measuring; Guru's own points be
 
 ## Kept as an idea
 
-- A `~restore` pick lives in memory (`VersoApp.pick`) until its adoption starts: a process
-  that dies before then loses it (documented in `CAVEATS.md`). Only a pick on disk (a small
-  journal) would survive that.
+- An `~open` pick lives in memory until its read lands: a process that dies before then loses it
+  (documented in `CAVEATS.md`). Only a pick on disk would survive that.
+- Reading the config file only when it changed (`DocumentsContract`'s last-modified) instead of at
+  every `onStart`: a cloud provider's read may cost a download. Not needed while it is a few KB.
 
 ## Taken out (2026-10-21)
 

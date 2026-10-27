@@ -10,12 +10,9 @@ internal interface LauncherWindow {
     /** Between onStart and onStop: it may show something without covering another app. */
     val inFront: Boolean
 
-    /** The state's hand-back after a refresh or a restore ([from]: the state it came from). */
-    fun refreshed(from: LauncherState, configReplaced: Boolean, listChanged: Boolean)
+    /** The state's hand-back after a refresh or a new config ([from]: the state it came from). */
+    fun refreshed(from: LauncherState, listChanged: Boolean)
 
     /** A toast; only called while [inFront]. */
     fun show(text: String, long: Boolean)
-
-    /** A "~restore" file was read: show what it would set (the dialog answers Commands.answerPick). */
-    fun offerRestore(restored: VersoConfig)
 }

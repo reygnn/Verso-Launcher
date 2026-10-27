@@ -134,16 +134,6 @@ class LauncherLogicTest {
         assertEquals(emptyList<String>(), LauncherLogic.parseTags("#, ,,"))
     }
 
-    // ---- ~backup's file name ---------------------------------------------------
-
-    /** The pattern of the backups up to 0.5.9, so old and new sort side by side in Download/Verso. */
-    @Test fun `a backup is offered under a name stamped to the second`() {
-        assertEquals(
-            "verso-2026-10-13_120745.json",
-            LauncherLogic.backupFileName(java.time.LocalDateTime.of(2026, 10, 13, 12, 7, 45)),
-        )
-    }
-
     // ---- parseCommand -------------------------------------------------------
 
     @Test fun `every command parses, a bare tilde and the dropped ones do not`() {
@@ -152,43 +142,45 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.parseCommand("~save"))
         assertEquals(Command.RESTART, LauncherLogic.parseCommand("~restart"))
         assertNull(LauncherLogic.parseCommand("~reset"))
-        assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~backup"))
-        assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
-        assertEquals(Command.UNDO, LauncherLogic.parseCommand("~undo"))
+        assertEquals(Command.NEW, LauncherLogic.parseCommand("~new"))
+        assertEquals(Command.OPEN, LauncherLogic.parseCommand("~open"))
+        assertEquals(Command.EDIT, LauncherLogic.parseCommand("~edit"))
     }
 
-    /** "~restore" now picks a file itself: the old spelling of that is no command any more. */
-    @Test fun `~restore-saf and ~cleanup are gone`() {
-        assertNull(LauncherLogic.parseCommand("~restore-saf"))
-        assertNull(LauncherLogic.resolveCommand("~restore-saf"))
-        assertNull(LauncherLogic.parseCommand("~cleanup"))
-        assertNull(LauncherLogic.resolveCommand("~cleanup"))
+    /** The config is the user's file now: backups are copies of it, and there is nothing to undo. */
+    @Test fun `~backup, ~restore, ~undo, ~restore-saf and ~cleanup are gone`() {
+        for (gone in listOf("~backup", "~restore", "~undo", "~restore-saf", "~cleanup")) {
+            assertNull(gone, LauncherLogic.parseCommand(gone))
+            assertNull(gone, LauncherLogic.resolveCommand(gone))
+        }
+        assertNull(LauncherLogic.resolveCommand("~b"))
+        assertNull(LauncherLogic.resolveCommand("~u"))
     }
 
     @Test fun `commands are case-insensitive`() {
-        assertEquals(Command.BACKUP, LauncherLogic.parseCommand("~BACKUP"))
-        assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~ReStOrE"))
+        assertEquals(Command.OPEN, LauncherLogic.parseCommand("~OPEN"))
+        assertEquals(Command.RESTART, LauncherLogic.parseCommand("~ReStArT"))
     }
 
-    /** Under tr the "I" of "~RESTORE" would fold to a dotless i. */
+    /** Under tr the "I" of "~EDIT" would fold to a dotless i. */
     @Test fun `commands still parse under a Turkish default locale`() {
         Locale.setDefault(Locale.forLanguageTag("tr"))
-        assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~RESTORE"))
+        assertEquals(Command.EDIT, LauncherLogic.parseCommand("~EDIT"))
     }
 
     /** Exact matching is what spares the "~" sigil an escape. */
     @Test fun `a prefix or a partial is not a command`() {
-        assertNull(LauncherLogic.parseCommand("~backups"))
-        assertNull(LauncherLogic.parseCommand("~ backup"))
-        assertNull(LauncherLogic.parseCommand("~backu"))
-        assertNull(LauncherLogic.parseCommand("~backup now"))
-        assertNull(LauncherLogic.parseCommand("backup"))
+        assertNull(LauncherLogic.parseCommand("~opens"))
+        assertNull(LauncherLogic.parseCommand("~ open"))
+        assertNull(LauncherLogic.parseCommand("~ope"))
+        assertNull(LauncherLogic.parseCommand("~open now"))
+        assertNull(LauncherLogic.parseCommand("open"))
         assertNull(LauncherLogic.parseCommand(""))
     }
 
     @Test fun `tilde text is COMMAND mode`() {
         assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~"))
-        assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~backup"))
+        assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~edit"))
         assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~zzz"))
     }
 
@@ -199,25 +191,24 @@ class LauncherLogicTest {
     }
 
     @Test fun `typing narrows the overview`() {
-        assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~b").map { it.first })
-        assertEquals(listOf("~restart", "~restore"), LauncherLogic.commandsMatching("~r").map { it.first })
-        assertEquals(listOf("~restore"), LauncherLogic.commandsMatching("~resto").map { it.first })
-        assertEquals(listOf("~undo"), LauncherLogic.commandsMatching("~u").map { it.first })
+        assertEquals(listOf("~edit"), LauncherLogic.commandsMatching("~e").map { it.first })
+        assertEquals(listOf("~new"), LauncherLogic.commandsMatching("~n").map { it.first })
+        assertEquals(listOf("~open"), LauncherLogic.commandsMatching("~o").map { it.first })
+        assertEquals(listOf("~restart"), LauncherLogic.commandsMatching("~r").map { it.first })
         assertEquals(emptyList<String>(), LauncherLogic.commandsMatching("~zzz").map { it.first })
     }
 
-    /** A new command must not take an abbreviation over: "~u" is new, the old ones still resolve. */
-    @Test fun `~u is ~undo, and every earlier abbreviation still resolves`() {
-        assertEquals(Command.UNDO, LauncherLogic.resolveCommand("~u"))
-        assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
-        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
-        assertEquals(Command.RESTORE, LauncherLogic.resolveCommand("~resto"))
-        assertNull(LauncherLogic.resolveCommand("~r"))
+    /** Each first letter is its own command: one key after the tilde does. */
+    @Test fun `every command resolves from its first letter`() {
+        assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~e"))
+        assertEquals(Command.NEW, LauncherLogic.resolveCommand("~n"))
+        assertEquals(Command.OPEN, LauncherLogic.resolveCommand("~o"))
+        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~r"))
     }
 
-    /** The overview is bottom-anchored: the step back sits right above the prompt. */
-    @Test fun `~undo is the command nearest the prompt`() {
-        assertEquals("~undo", LauncherLogic.COMMANDS.last().first)
+    /** The overview is bottom-anchored: the everyday one sits right above the prompt. */
+    @Test fun `~edit is the command nearest the prompt`() {
+        assertEquals("~edit", LauncherLogic.COMMANDS.last().first)
     }
 
     /** "~crash": only in a daily-driver build (unit tests compile it in) and only spelled out. */
@@ -230,12 +221,6 @@ class LauncherLogicTest {
         assertEquals(DailyDriver.ENABLED, "~crash" in LauncherLogic.commandsMatching("~").map { it.first })
     }
 
-    @Test fun `an unambiguous abbreviation resolves`() {
-        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~resta"))
-        assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
-        assertEquals(Command.RESTORE, LauncherLogic.resolveCommand("~resto"))
-    }
-
     @Test fun `an exact spelling resolves`() {
         for ((spelling, command) in LauncherLogic.COMMANDS.filter { it.second != Command.CRASH }) {
             assertEquals(spelling, command, LauncherLogic.resolveCommand(spelling))
@@ -246,12 +231,6 @@ class LauncherLogicTest {
         assertNull(LauncherLogic.resolveCommand("~"))
     }
 
-    @Test fun `an ambiguous abbreviation resolves to nothing`() {
-        assertNull(LauncherLogic.resolveCommand("~r"))
-        assertNull(LauncherLogic.resolveCommand("~re"))
-        assertNull(LauncherLogic.resolveCommand("~rest"))  // ~restart or ~restore
-    }
-
     /** Otherwise a command added to COMMANDS without a line here would look covered. */
     @Test fun `parseCommand covers every entry in COMMANDS`() {
         for ((spelling, command) in LauncherLogic.COMMANDS) {
@@ -259,15 +238,15 @@ class LauncherLogicTest {
         }
     }
 
-    /** These fold apart from parseCommand. Not a ROOT test: no spelling has an "i" yet (see the next test). */
+    /** These fold apart from parseCommand; the Turkish case is the next test. */
     @Test fun `commandsMatching and resolveCommand are case-insensitive too`() {
-        assertEquals(listOf("~backup"), LauncherLogic.commandsMatching("~B").map { it.first })
-        assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~B"))
-        assertEquals(Command.RESTORE, LauncherLogic.resolveCommand("~RESTO"))
-        assertEquals(Command.UNDO, LauncherLogic.resolveCommand("~UNDO"))
+        assertEquals(listOf("~open"), LauncherLogic.commandsMatching("~O").map { it.first })
+        assertEquals(Command.OPEN, LauncherLogic.resolveCommand("~O"))
+        assertEquals(Command.NEW, LauncherLogic.resolveCommand("~NE"))
+        assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~EDIT"))
     }
 
-    /** Forward guard: a spelling with an "i" (say "~import") would stop resolving on a Turkish phone. */
+    /** "~edit" has an "i": typed in caps on a Turkish phone it must still resolve. */
     @Test fun `every command spelling survives a Turkish uppercase round trip`() {
         Locale.setDefault(Locale.forLanguageTag("tr"))
         for ((spelling, _) in LauncherLogic.COMMANDS) {
@@ -281,7 +260,7 @@ class LauncherLogicTest {
 
     @Test fun `an abbreviation matching nothing resolves to nothing`() {
         assertNull(LauncherLogic.resolveCommand("~zzz"))
-        assertNull(LauncherLogic.resolveCommand("~backupp"))
+        assertNull(LauncherLogic.resolveCommand("~openn"))
     }
 
     // ---- foldLabel ----------------------------------------------------------
@@ -313,7 +292,7 @@ class LauncherLogicTest {
     /** Typing passes untouched: a rewritten run would drop the keyboard's composing span ("wwo"). */
     @Test fun `promptRun leaves a run without control characters alone`() {
         assertNull(LauncherLogic.promptRun("Google Maps"))
-        assertNull(LauncherLogic.promptRun("~backup"))
+        assertNull(LauncherLogic.promptRun("~open"))
         assertNull(LauncherLogic.promptRun(""))
     }
 
@@ -324,7 +303,7 @@ class LauncherLogicTest {
         assertEquals("Google Maps", LauncherLogic.promptRun("Google\n\n\tMaps"))
         assertEquals("a b", LauncherLogic.promptRun("a\tb"))
         assertEquals("ab", LauncherLogic.promptRun("a\u0007b"))
-        assertEquals("~backup ", LauncherLogic.promptRun("~backup\n"))
+        assertEquals("~open ", LauncherLogic.promptRun("~open\n"))
     }
 
     @Test fun `cleanName drops invisible bidi and zero-width characters`() {
@@ -912,9 +891,9 @@ class LauncherLogicTest {
     // ---- fixed points and safe cuts ------------------------------------------
 
     @Test fun `a command needs the tilde in the raw prompt, not just after folding`() {
-        assertNull(LauncherLogic.parseCommand("\u0307~restore"))
-        assertNull(LauncherLogic.resolveCommand("\u0307~restore"))
-        assertEquals(Command.RESTORE, LauncherLogic.parseCommand("~restore"))
+        assertNull(LauncherLogic.parseCommand("\u0307~open"))
+        assertNull(LauncherLogic.resolveCommand("\u0307~open"))
+        assertEquals(Command.OPEN, LauncherLogic.parseCommand("~open"))
     }
 
     @Test fun `foldLabel is its own fixed point, also where the dropped dot lets a letter compose`() {
@@ -951,11 +930,11 @@ class LauncherLogicTest {
     }
 
     @Test fun `an abbreviated command needs the tilde in the raw prompt too`() {
-        assertNull(LauncherLogic.resolveCommand("\u0307~b"))
-        assertEquals(Command.BACKUP, LauncherLogic.resolveCommand("~b"))
+        assertNull(LauncherLogic.resolveCommand("\u0307~e"))
+        assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~e"))
     }
 
-    @Test fun `no app gets more tags than a restore accepts`() {
+    @Test fun `no app gets more tags than the file format allows`() {
         val typed = (1..ConfigJson.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
         assertEquals(ConfigJson.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
     }

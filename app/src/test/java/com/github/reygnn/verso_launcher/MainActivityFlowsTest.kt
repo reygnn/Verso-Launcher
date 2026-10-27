@@ -1,8 +1,6 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.app.AlertDialog
-import android.content.DialogInterface
 import android.content.Intent
 import android.net.Uri
 import android.os.Looper
@@ -23,7 +21,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.shadows.ShadowDialog
 import org.robolectric.shadows.ShadowToast
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -34,10 +31,10 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * Only flows that need no LauncherApps fake (Robolectric models it too thinly). The process's IO
- * thread is real: the tests drain it, or hold it with a latch to keep the first load waiting. A
- * picked document is a stream registered with Robolectric's ContentResolver; one that hangs waits
- * for [hold].
+ * Only flows that need no LauncherApps fake (Robolectric models it too thinly: it lists no apps, so
+ * the files here name apps by key). The process's IO thread is real: the tests drain it, or hold
+ * it with a latch to keep the first load waiting. The user's config file is a document registered
+ * with Robolectric's ContentResolver; one that hangs waits for [hold].
  */
 @RunWith(RobolectricTestRunner::class)
 class MainActivityFlowsTest {
@@ -49,8 +46,8 @@ class MainActivityFlowsTest {
 
     @After fun release() {
         hold.countDown()
-        // Else a read's or a command's hand-back lands on the main looper after the test, in the next one.
-        joinReads()
+        // Else a read's or a write's hand-back lands on the main looper after the test, in the next one.
+        joinDocuments()
         settle()
         if (!activity.isDestroyed) controller.pause().stop().destroy()
     }
@@ -60,16 +57,47 @@ class MainActivityFlowsTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun reads() = Thread.getAllStackTraces().keys.filter { it.name == "verso-restore-read" || it.name == "verso-backup-write" }
+    private fun documentThreads() =
+        Thread.getAllStackTraces().keys.filter { it.name == "verso-config-read" || it.name == "verso-config-write" }
 
-    /** A picked document is read or written on a thread of its own. */
-    private fun joinReads(threads: Collection<Thread> = reads()) = threads.forEach {
-        it.join(5000)
-        check(!it.isAlive) { "a document read or write is still running" }
+    /**
+     * The config file is read or written on a thread of its own: joined, then its hand-back run —
+     * again while a hand-back starts another (a read asked for meanwhile).
+     */
+    private fun joinDocuments() {
+        repeat(4) {
+            val running = documentThreads()
+            running.forEach {
+                it.join(5000)
+                check(!it.isAlive) { "a config file read or write is still running" }
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+            if (running.isEmpty()) return
+        }
     }
 
-    private fun configWith(entry: AppEntry) =
-        ConfigJson.serialize(VersoConfig(favorites = listOf(entry.key))).byteInputStream()
+    private val someApp = AppEntry("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
+    private val otherApp = AppEntry("Yankee", "com.yankee", "com.yankee.Main", "Yankee")
+
+    private val fileUri = Uri.parse("content://cloud/verso.txt")
+    /** What the user's file holds now: read anew by every read, as a provider would. */
+    private var fileText = ""
+
+    /** The user's config file, readable at [fileUri]. */
+    private fun provided(text: String) {
+        fileText = text
+        shadowOf(app.contentResolver).registerInputStreamSupplier(fileUri) { fileText.byteInputStream() }
+    }
+
+    /** A file linked by an earlier start: the link and the copy of its last text, as Verso left them. */
+    private fun linkedBefore(cached: String?) {
+        File(app.filesDir, ConfigLink.LINK).writeText("$fileUri\n")
+        if (cached != null) File(app.filesDir, ConfigLink.CACHE).writeText(cached)
+    }
+
+    /** verso.json of an earlier version, there before the start. */
+    private fun legacy(vararg favorites: AppEntry) =
+        File(app.filesDir, LegacyConfig.FILE).writeText(legacyJson(VersoConfig(favorites = favorites.map { it.key })))
 
     /** A provider that hangs, slow to hand the file over: the read waits for the hold. */
     private fun hanging(content: InputStream) = object : InputStream() {
@@ -77,25 +105,6 @@ class MainActivityFlowsTest {
             check(hold.await(30, TimeUnit.SECONDS))
             return content.read()
         }
-    }
-
-    /** A "~restore" whose picker answered with [content]. */
-    private fun pick(name: String, content: InputStream) {
-        val picked = Uri.parse("content://cloud/$name")
-        shadowOf(activity.contentResolver).registerInputStream(picked, content)
-        enter("~restore")
-        val request = shadowOf(activity).nextStartedActivityForResult
-        shadowOf(activity).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(picked))
-    }
-
-    /** A "~backup" whose picker answered with a new document that [out] takes; returns the picker's request. */
-    private fun backUp(out: OutputStream): Intent {
-        val target = Uri.parse("content://cloud/backup.json")
-        shadowOf(activity.contentResolver).registerOutputStream(target, out)
-        enter("~backup")
-        val request = shadowOf(activity).nextStartedActivityForResult
-        shadowOf(activity).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(target))
-        return request.intent
     }
 
     /** A provider that hangs while it takes the file: the write waits for the hold. */
@@ -106,7 +115,14 @@ class MainActivityFlowsTest {
         }
     }
 
-    /** Whatever is queued after this waits: the first load, a save. */
+    /** A picker the command started, answered with [uri]; returns its request. */
+    private fun answer(uri: Uri): Intent {
+        val request = checkNotNull(shadowOf(activity).nextStartedActivityForResult) { "no picker started" }
+        shadowOf(activity).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(uri))
+        return request.intent
+    }
+
+    /** Whatever is queued after this waits: the first load, a cache write. */
     // 30 s, like a hanging read: the hold must outlast a slow machine, and @After releases it anyway.
     private fun holdIo() = app.io.execute { hold.await(30, TimeUnit.SECONDS) }
 
@@ -123,38 +139,266 @@ class MainActivityFlowsTest {
     /** No LauncherApps, so no rows to tap: the tap as AppDrawer hands it on. */
     private fun tap(action: DrawerAction<AppEntry>) = activity.onDrawerAction(action)
 
-    private val someApp = AppEntry("Zulu", "com.zulu", "com.zulu.Main", "Zulu")
-    private val otherApp = AppEntry("Yankee", "com.yankee", "com.yankee.Main", "Yankee")
-    private fun saved(): VersoConfig? =
-        File(app.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText()) }
-    private fun savedFavorites(): List<String> = saved()?.favorites.orEmpty()
-    private fun savedByUsage(): Boolean = saved()?.byUsage == true
+    private fun favorites() = app.core.state.config.favorites
 
-    /** verso.json before the start, as a "~restore" or an earlier version left it. */
-    private fun configured(vararg favorites: AppEntry) =
-        File(app.filesDir, "verso.json").writeText(ConfigJson.serialize(VersoConfig(favorites = favorites.map { it.key })))
+    private fun toast(id: Int, vararg args: Any) = activity.getString(id, *args)
 
-    /** SharedPreferences' apply is on disk once onStop is through (QueuedWork); so is a change here. */
-    @Test fun `a change the IO thread has not written yet is on disk once the stop is through`() {
+    // ---- ~open --------------------------------------------------------------------
+
+    @Test fun `~open links a picked config file, reads it and keeps it for the next start`() {
+        provided("fav ${someApp.key}")
         started()
-        holdIo()
-        tap(DrawerAction.ToggleOrder)
-        assertFalse("the save waits behind the hold", savedByUsage())
-        controller.pause().stop()
-        assertTrue(savedByUsage())
+        enter("~open")
+        val request = answer(fileUri)
+        joinDocuments()
+        settle()
+        assertEquals(Intent.ACTION_OPEN_DOCUMENT, request.action)
+        assertTrue("a grant that lasts", request.flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0)
+        assertEquals(fileUri, app.core.link)
+        assertEquals(listOf(someApp.key), favorites())
+        assertEquals(toast(R.string.toast_linked), ShadowToast.getTextOfLatestToast())
+        assertEquals(fileUri.toString(), File(app.filesDir, ConfigLink.LINK).readText().trim())
+        assertEquals(fileText, File(app.filesDir, ConfigLink.CACHE).readText())
     }
 
-    /** Hard rule 5: the config is read before the window exists, so an edit never waits for a load. */
-    @Test fun `an edit while the first app list is still loading is saved`() {
-        configured(otherApp)
-        holdIo()                                // the first app list queues behind the hold
-        controller.setup()
-        tap(DrawerAction.ToggleOrder)
-        hold.countDown()
+    @Test fun `a picked file that is no config is not linked`() {
+        provided("Dear diary,\ntoday I picked the wrong file.")
+        started()
+        enter("~open")
+        answer(fileUri)
+        joinDocuments()
         settle()
-        assertTrue(savedByUsage())
-        assertEquals("on the config read at the start", listOf(otherApp.key), savedFavorites())
+        assertNull(app.core.link)
+        assertEquals(toast(R.string.toast_not_a_config), ShadowToast.getTextOfLatestToast())
+        assertFalse(File(app.filesDir, ConfigLink.LINK).exists())
     }
+
+    /** Hard rule 7: an old "~backup" is read with parseForeign, and named by its keys. */
+    @Test fun `an old JSON backup can be linked as it is`() {
+        provided(legacyJson(VersoConfig(favorites = listOf(otherApp.key), hidden = setOf(someApp.key))))
+        started()
+        enter("~open")
+        answer(fileUri)
+        joinDocuments()
+        assertEquals(listOf(otherApp.key), favorites())
+        assertEquals(setOf(someApp.key), app.core.state.config.hidden)
+    }
+
+    /** The user's last choice stands: a slow provider's answer to an earlier pick changes nothing. */
+    @Test fun `a pick landing after a newer one is dropped`() {
+        val slow = Uri.parse("content://cloud/slow.txt")
+        shadowOf(app.contentResolver).registerInputStream(slow, hanging("fav ${otherApp.key}".byteInputStream()))
+        provided("fav ${someApp.key}")
+        started()
+        enter("~open")
+        answer(slow)
+        enter("~open")
+        answer(fileUri)
+        hold.countDown()
+        joinDocuments()
+        settle()
+        assertEquals(fileUri, app.core.link)
+        assertEquals(listOf(someApp.key), favorites())
+    }
+
+    @Test fun `the lines a file has that are no entry are named, the rest counts`() {
+        provided("fav ${someApp.key}\nfavourite Zulu\nhide")
+        started()
+        enter("~open")
+        answer(fileUri)
+        joinDocuments()
+        assertEquals(listOf(someApp.key), favorites())
+        assertEquals(toast(R.string.toast_config_lines_skipped, "2, 3"), ShadowToast.getTextOfLatestToast())
+    }
+
+    // ---- the linked file read again ---------------------------------------------------
+
+    /** Back from the editor: onStart reads the file, and a changed text is the config at once. */
+    @Test fun `the linked file is read again at every start, a change shows`() {
+        provided("fav ${someApp.key}")
+        linkedBefore(cached = fileText)
+        started()
+        assertEquals(listOf(someApp.key), favorites())
+        controller.pause().stop()
+        fileText = "fav ${otherApp.key}\nfav ${someApp.key}"
+        controller.restart().resume()
+        joinDocuments()
+        settle()
+        assertEquals(listOf(otherApp.key, someApp.key), favorites())
+        assertEquals(fileText, File(app.filesDir, ConfigLink.CACHE).readText())
+    }
+
+    /** Hard rule 5: the copy is the config from the first frame; the read only confirms it. */
+    @Test fun `a start shows the copy of the linked file before the file is read`() {
+        linkedBefore(cached = "fav ${someApp.key}")
+        shadowOf(app.contentResolver).registerInputStream(fileUri, hanging("fav ${otherApp.key}".byteInputStream()))
+        started()
+        assertEquals("the copy, while the read hangs", listOf(someApp.key), favorites())
+        hold.countDown()
+        joinDocuments()
+        assertEquals(listOf(otherApp.key), favorites())
+    }
+
+    @Test fun `a linked file that cannot be read keeps the last text read, and says so once`() {
+        linkedBefore(cached = "fav ${someApp.key}")    // no document registered: every read fails
+        started()
+        joinDocuments()
+        settle()
+        assertEquals(listOf(someApp.key), favorites())
+        assertEquals(toast(R.string.toast_config_file_unreadable), ShadowToast.getTextOfLatestToast())
+        ShadowToast.reset()
+        controller.pause().stop().restart().resume()
+        joinDocuments()
+        settle()
+        assertEquals("said once, not at every start", 0, ShadowToast.shownToastCount())
+        assertEquals(listOf(someApp.key), favorites())
+    }
+
+    // ---- ~new ---------------------------------------------------------------------------
+
+    @Test fun `~new writes the config in use into a new file, links it and says so`() {
+        legacy(someApp, otherApp)
+        val written = ByteArrayOutputStream()
+        shadowOf(app.contentResolver).registerOutputStream(fileUri, written)
+        started()
+        enter("~new")
+        val request = answer(fileUri)
+        joinDocuments()
+        settle()
+        assertEquals(Intent.ACTION_CREATE_DOCUMENT, request.action)
+        assertEquals(LauncherLogic.CONFIG_FILE_NAME, request.getStringExtra(Intent.EXTRA_TITLE))
+        val text = written.toString(Charsets.UTF_8)
+        assertTrue("the header is comments", text.lines().first().startsWith("# "))
+        assertEquals(listOf(someApp.key, otherApp.key), ConfigText.parse(text).favorites)
+        assertEquals(fileUri, app.core.link)
+        assertEquals(listOf(someApp.key, otherApp.key), favorites())
+        assertEquals(toast(R.string.toast_new_ok), ShadowToast.getTextOfLatestToast())
+    }
+
+    /** Hard rule 4: the picker hands over an existing file when the user agrees to replace it. */
+    @Test fun `~new on the linked file itself writes nothing and says so`() {
+        provided("fav ${someApp.key}")
+        linkedBefore(cached = fileText)
+        started()
+        enter("~new")
+        answer(fileUri)
+        joinDocuments()
+        settle()
+        assertEquals(toast(R.string.toast_new_not_new), ShadowToast.getTextOfLatestToast())
+        assertEquals(fileUri, app.core.link)
+        assertEquals(listOf(someApp.key), favorites())
+    }
+
+    @Test fun `a new file the provider refuses says so and links nothing`() {
+        shadowOf(app.contentResolver).registerOutputStream(
+            fileUri,
+            object : OutputStream() {
+                override fun write(b: Int) = throw IOException("full")
+            },
+        )
+        started()
+        enter("~new")
+        answer(fileUri)
+        joinDocuments()
+        settle()
+        assertEquals(toast(R.string.toast_new_failed), ShadowToast.getTextOfLatestToast())
+        assertNull(app.core.link)
+    }
+
+    /**
+     * Hard rule 16: a command's hand-back is the process's. The system may destroy the window while
+     * the process lives, with no successor yet: the write still ends and its result waits for the
+     * next window. (controller.recreate is synchronous; only a destroy without a successor makes the gap.)
+     */
+    @Test fun `a new file is written and its result waits while no window exists`() {
+        val written = ByteArrayOutputStream()
+        shadowOf(app.contentResolver).registerOutputStream(fileUri, hangingOut(written))
+        // The next window reads the file back at its start: the same text, nothing more to say.
+        shadowOf(app.contentResolver).registerInputStreamSupplier(fileUri) { written.toByteArray().inputStream() }
+        started()
+        enter("~new")
+        answer(fileUri)
+        controller.pause().stop().destroy()
+        hold.countDown()
+        joinDocuments()
+        settle()
+        assertEquals(fileUri, app.core.link)
+        assertEquals("its result waits", 1, app.process.messages.size)
+        ShadowToast.reset()
+        val next = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            assertTrue("shown by the next window", app.process.messages.isEmpty())
+            assertEquals(1, ShadowToast.shownToastCount())
+        } finally {
+            next.pause().stop().destroy()
+        }
+    }
+
+    // ---- ~edit --------------------------------------------------------------------------
+
+    @Test fun `~edit with no file linked says how to get one`() {
+        started()
+        enter("~edit")
+        assertEquals(toast(R.string.toast_no_config_file), ShadowToast.getTextOfLatestToast())
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test fun `~edit hands the linked file to an editor, with the grant to write it`() {
+        linkedBefore(cached = "")
+        started()
+        enter("~edit")
+        val editor = checkNotNull(shadowOf(activity).nextStartedActivity)
+        assertEquals(Intent.ACTION_EDIT, editor.action)
+        assertEquals(fileUri, editor.data)
+        assertTrue(editor.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0)
+        assertTrue("not in the home task", editor.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+        assertEquals("", prompt.text.toString())
+    }
+
+    // ---- verso.json of an earlier version ---------------------------------------------
+
+    @Test fun `the order an earlier version kept in verso json is carried into order_txt`() {
+        File(app.filesDir, LegacyConfig.FILE).writeText(legacyJson(VersoConfig(byUsage = true)))
+        started()
+        assertTrue(app.core.state.config.byUsage)
+        assertEquals("usage", File(app.filesDir, DrawerOrder.FILE).readText().trim())
+    }
+
+    @Test fun `verso json of an earlier version is the config while no file is linked`() {
+        legacy(someApp)
+        started()
+        assertEquals(listOf(someApp.key), favorites())
+        assertNull(app.core.link)
+    }
+
+    /** Never written over (hard rule 4): the file stays as it is. */
+    @Test fun `an unreadable verso json is said at the start and left as it is`() {
+        File(app.filesDir, LegacyConfig.FILE).writeText("{ torn")
+        started()
+        assertEquals(toast(R.string.toast_config_unreadable), ShadowToast.getTextOfLatestToast())
+        assertTrue(favorites().isEmpty())
+        tap(DrawerAction.ToggleOrder)
+        settle()
+        assertEquals("{ torn", File(app.filesDir, LegacyConfig.FILE).readText())
+    }
+
+    // ---- "%" ------------------------------------------------------------------------------
+
+    @Test fun `percent keeps the order in order_txt, never in the config`() {
+        legacy(someApp)
+        val before = File(app.filesDir, LegacyConfig.FILE).readText()
+        started()
+        tap(DrawerAction.ToggleOrder)
+        settle()
+        assertTrue(app.core.state.config.byUsage)
+        assertEquals("usage", File(app.filesDir, DrawerOrder.FILE).readText().trim())
+        assertEquals(before, File(app.filesDir, LegacyConfig.FILE).readText())
+        enter("~restart")
+        settle()
+        assertTrue("read again by the fresh state", app.core.state.config.byUsage)
+    }
+
+    // ---- ~restart, ~crash, recreation ----------------------------------------------------
 
     /** With the IO thread held too: a deliberate crash waits for nothing. */
     @Test fun `~crash throws at once, even with the IO thread held`() {
@@ -164,74 +408,6 @@ class MainActivityFlowsTest {
         assertEquals(DailyDriver.ENABLED, thrown is IllegalStateException)
     }
 
-    @Test fun `~undo with no undo point says so and changes nothing`() {
-        configured(someApp)
-        started()
-        enter("~undo")
-        settle()
-        assertEquals(activity.getString(R.string.toast_undo_none), ShadowToast.getTextOfLatestToast())
-        assertEquals(listOf(someApp.key), savedFavorites())
-    }
-
-    /** Hard rule 4 loads it as empty all the same; the toast is what Core wires to the state. */
-    @Test fun `an unreadable verso json is said at the start, and the next change writes over it`() {
-        File(app.filesDir, "verso.json").writeText("{ torn")
-        started()
-        assertEquals(activity.getString(R.string.toast_config_unreadable), ShadowToast.getTextOfLatestToast())
-        tap(DrawerAction.ToggleOrder)
-        settle()
-        assertTrue(savedByUsage())
-    }
-
-    @Test fun `~restart while a picked file is read drops the pick and says so`() {
-        started()
-        pick("verso.json", hanging(configWith(someApp)))
-        enter("~backup")
-        assertEquals("other commands run meanwhile", "", prompt.text.toString())
-        settle()
-        enter("~restart")
-        val dropped = activity.getString(R.string.toast_restore_dropped)
-        assertEquals(dropped, ShadowToast.getTextOfLatestToast())
-        assertEquals("", prompt.text.toString())
-        hold.countDown()
-        joinReads()
-        settle()
-        assertEquals("the late read is not adopted", dropped, ShadowToast.getTextOfLatestToast())
-        assertFalse(someApp.key in savedFavorites())
-    }
-
-    @Test fun `~restart drops a read whose hand-back is already queued`() {
-        started()
-        pick("verso.json", configWith(someApp))
-        joinReads()                             // read, its hand-back waits on the main looper
-        enter("~restart")
-        assertEquals(activity.getString(R.string.toast_restore_dropped), ShadowToast.getTextOfLatestToast())
-        settle()
-        assertFalse(someApp.key in savedFavorites())
-    }
-
-    /**
-     * While a pick is read or waits, no second swap starts: the adoption behind it would replace what
-     * that one brought. Only "~restore" and "~undo" wait — the other commands (and edits) go on.
-     */
-    @Test fun `a second restore or an undo while a pick is pending is refused and says why`() {
-        started()
-        pick("old.json", hanging(configWith(someApp)))
-        val pending = activity.getString(R.string.toast_restore_pending)
-        enter("~restore")
-        assertEquals(pending, ShadowToast.getTextOfLatestToast())
-        assertEquals("~restore", prompt.text.toString())
-        assertNull("no second picker", shadowOf(activity).nextStartedActivityForResult)
-        enter("~undo")
-        assertEquals(pending, ShadowToast.getTextOfLatestToast())
-        assertEquals("~undo", prompt.text.toString())
-        enter("~backup")
-        assertEquals("other commands go on", "", prompt.text.toString())
-        tap(DrawerAction.ToggleOrder)
-        settle()
-        assertTrue("and edits", savedByUsage())
-    }
-
     @Test fun `~restart builds the activity anew`() {
         val before = started()
         enter("~restart")
@@ -239,203 +415,39 @@ class MainActivityFlowsTest {
         assertTrue(before.isDestroyed)
     }
 
-    @Test fun `~restart drops nothing once the picked file was read`() {
+    /**
+     * The state is the process's: a recreation keeps what was loaded and does not read the app's
+     * files again — only "~restart", the repair by hand, gives a fresh state that does.
+     */
+    @Test fun `a recreation keeps the loaded config, ~restart reads it again`() {
         started()
-        pick("verso.json", "not json".byteInputStream())
-        joinReads()
+        val loaded = app.core.state
+        legacy(someApp)                            // there now, as an earlier version would have left it
+        controller.recreate()
         settle()
-        val failed = activity.getString(R.string.toast_restore_failed)
-        assertEquals(failed, ShadowToast.getTextOfLatestToast())
+        assertSame("one state for both instances", loaded, app.core.state)
+        assertFalse("not read again", someApp.key in favorites())
         enter("~restart")
-        assertEquals(failed, ShadowToast.getTextOfLatestToast())
-        assertEquals("", prompt.text.toString())
-    }
-
-    @Test fun `~backup offers a stamped name and writes the config to the picked document`() {
-        configured(someApp)
-        started()
-        val written = ByteArrayOutputStream()
-        val request = backUp(written)
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(Intent.ACTION_CREATE_DOCUMENT, request.action)
-        assertTrue(request.getStringExtra(Intent.EXTRA_TITLE).orEmpty().matches(Regex("""verso-\d{4}-\d{2}-\d{2}_\d{6}\.json""")))
-        assertEquals(activity.getString(R.string.toast_backup_ok), ShadowToast.getTextOfLatestToast())
-        // parseForeign, as "~restore" reads it on any phone.
-        assertEquals(listOf(someApp.key), ConfigJson.parseForeign(written.toString(Charsets.UTF_8))?.favorites)
-    }
-
-    @Test fun `a backup the provider refuses says so`() {
-        started()
-        backUp(object : OutputStream() {
-            override fun write(b: Int) = throw IOException("full")
-        })
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(activity.getString(R.string.toast_backup_failed), ShadowToast.getTextOfLatestToast())
-    }
-
-    /** Hard rule 7: no undo point, no restore — not even in memory. */
-    @Test fun `a restore whose undo point cannot be kept adopts nothing and says so`() {
-        started()
-        pick("verso.json", configWith(someApp))
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        // A directory where the slot's temp file goes: the write fails, as root too (chmod would not).
-        File(activity.filesDir, "${UndoSlot.FILE}.new").mkdirs()
-        answerRestore()
         settle()
-        assertEquals(activity.getString(R.string.toast_restore_undo_failed), ShadowToast.getTextOfLatestToast())
-        assertFalse(someApp.key in app.core.state.config.favorites)
-        assertFalse(someApp.key in savedFavorites())
+        assertNotSame("a fresh state", loaded, app.core.state)
+        assertTrue("read again", someApp.key in favorites())
     }
 
-    /** The one undo slot: "~undo" takes the restore back, a second "~undo" redoes it. */
-    @Test fun `~undo after a restore takes it back, and a second ~undo redoes it`() {
-        configured(otherApp)
+    /** The read is the process's: one that lands after a recreation goes into the state both share. */
+    @Test fun `a read landing across a recreation is the shared state's`() {
+        shadowOf(app.contentResolver).registerInputStream(fileUri, hanging("fav ${someApp.key}".byteInputStream()))
         started()
-        pick("verso.json", configWith(someApp))
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        answerRestore()
-        settle()
-        assertEquals(listOf(someApp.key), savedFavorites())
-        enter("~undo")
-        settle()
-        assertEquals(activity.getString(R.string.toast_undo_ok), ShadowToast.getTextOfLatestToast())
-        assertEquals(listOf(otherApp.key), savedFavorites())
-        enter("~undo")
-        settle()
-        assertEquals(listOf(someApp.key), savedFavorites())
-    }
-
-    private fun assertRestoredToast() =
-        assertEquals(activity.getString(R.string.toast_restore_ok), ShadowToast.getTextOfLatestToast())
-
-    /** The "~restore" confirmation in front, or null. */
-    private fun restoreDialog(): AlertDialog? = (ShadowDialog.getLatestDialog() as? AlertDialog)
-        ?.takeIf { it.isShowing && shadowOf(it).title == activity.getString(R.string.restore_title) }
-
-    /** Answers the restore dialog (it must be up) and lets the answer's hand-backs run. */
-    private fun answerRestore(ok: Boolean = true) {
-        val dialog = checkNotNull(restoreDialog()) { "no restore dialog in front" }
-        dialog.getButton(if (ok) DialogInterface.BUTTON_POSITIVE else DialogInterface.BUTTON_NEGATIVE).performClick()
-        shadowOf(Looper.getMainLooper()).idle()
-    }
-
-    private fun savedConfig(): VersoConfig? =
-        File(activity.filesDir, "verso.json").takeIf { it.isFile }?.let { ConfigJson.parse(it.readText()) }
-
-    /** The write lands after onStop — no toast over another app, but none lost either. */
-    @Test fun `a backup finishing after onStop says so at the next start`() {
-        started()
-        val written = ByteArrayOutputStream()
-        backUp(hangingOut(written))
-        controller.pause().stop()
-        ShadowToast.reset()
-        hold.countDown()
-        joinReads()
-        settle()
-        assertTrue("the backup still happened", written.size() > 0)
-        assertNull("no toast over the app now in front", ShadowToast.getLatestToast())
-        controller.restart()
-        assertEquals(activity.getString(R.string.toast_backup_ok), ShadowToast.getTextOfLatestToast())
-        controller.resume()
-    }
-
-    /** A file read while away is not adopted unseen: the next start asks about it. */
-    @Test fun `a pick read while away is asked about at the next start`() {
-        started()
-        controller.pause().stop()
-        pick("verso.json", configWith(someApp))
-        joinReads()
-        settle()
-        assertNull("no dialog over another app", restoreDialog())
-        assertFalse("nothing adopted unasked", someApp.key in savedFavorites())
-        controller.restart()
-        answerRestore()
-        settle()
-        assertTrue(someApp.key in savedFavorites())
-        assertRestoredToast()
-        controller.resume()
-    }
-
-    /**
-     * A file another app planted in Download can hide or rename apps: the dialog shows what it
-     * sets — zeros too — and Cancel adopts nothing, says nothing, and frees ~restore again.
-     */
-    @Test fun `the restore dialog shows the file's counts, and Cancel adopts nothing`() {
-        started()
-        val planted = VersoConfig(hidden = setOf(someApp.key, otherApp.key), names = mapOf(someApp.key to "Bank"))
-        pick("planted.json", ConfigJson.serialize(planted).byteInputStream())
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        val message = shadowOf(checkNotNull(restoreDialog())).message.toString()
-        assertTrue(message, activity.getString(R.string.count_favorites, 0) in message)
-        assertTrue(message, activity.getString(R.string.count_hidden, 2) in message)
-        assertTrue(message, activity.getString(R.string.count_names, 1) in message)
-        ShadowToast.reset()
-        answerRestore(ok = false)
-        settle()
-        assertTrue("nothing hidden", savedConfig()?.hidden.orEmpty().isEmpty())
-        assertNull("Cancel says nothing", ShadowToast.getLatestToast())
-        enter("~restore")
-        assertTrue("the pick is over: a new one may start", shadowOf(activity).nextStartedActivityForResult != null)
-    }
-
-    /** A question the user turned away from is void, like every dialog left behind (turnAway). */
-    @Test fun `a restore dialog left unanswered ends the pick and says so`() {
-        started()
-        pick("verso.json", configWith(someApp))
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        checkNotNull(restoreDialog())
-        controller.newIntent(home)
-        shadowOf(Looper.getMainLooper()).idle()
-        assertNull(restoreDialog())
-        assertEquals(activity.getString(R.string.toast_restore_dropped), ShadowToast.getTextOfLatestToast())
-        settle()
-        assertFalse(someApp.key in savedFavorites())
-    }
-
-    /**
-     * The pick is the process's: a read that lands while a recreation replaced the window is asked
-     * about by the new one, and adopted into the state both share.
-     */
-    @Test fun `a pick read across a recreation is asked about by the new instance and adopted`() {
-        started()
-        pick("verso.json", hanging(configWith(someApp)))
+        enter("~open")
+        answer(fileUri)
         val before = activity
         before.recreate()
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue(before.isDestroyed)
         hold.countDown()
-        joinReads()
-        shadowOf(Looper.getMainLooper()).idle()
-        answerRestore()
+        joinDocuments()
         settle()
-        assertTrue("written", someApp.key in savedFavorites())
-        assertTrue("and in memory", someApp.key in app.core.state.config.favorites)
-        assertRestoredToast()
-    }
-
-    /**
-     * The state is the process's: a recreation keeps what was loaded and does not read verso.json
-     * again — only "~restart", the repair by hand, gives a fresh state that does.
-     */
-    @Test fun `a recreation keeps the loaded config, ~restart reads it again`() {
-        started()
-        val loaded = app.core.state
-        // Changed behind the launcher's back, as a hand edit of verso.json would.
-        File(activity.filesDir, "verso.json").writeText(ConfigJson.serialize(VersoConfig(favorites = listOf(someApp.key))))
-        controller.recreate()
-        settle()
-        assertSame("one state for both instances", loaded, app.core.state)
-        assertFalse("not read again", someApp.key in app.core.state.config.favorites)
-        enter("~restart")
-        settle()
-        assertNotSame("a fresh state", loaded, app.core.state)
-        assertTrue("read again", someApp.key in app.core.state.config.favorites)
+        assertEquals(fileUri, app.core.link)
+        assertEquals(listOf(someApp.key), favorites())
     }
 
     @Test fun `every queued result is shown at the next start, oldest first, once`() {
@@ -450,29 +462,6 @@ class MainActivityFlowsTest {
         assertEquals("second", ShadowToast.getTextOfLatestToast())
         assertTrue(app.process.messages.isEmpty())
         controller.resume()
-    }
-
-    /**
-     * Hard rule 16: a command's hand-back is the process's. The system may destroy the window while
-     * the process lives, with no successor yet: the write still ends and its result waits for the
-     * next window. (controller.recreate is synchronous; only a destroy without a successor makes the gap.)
-     */
-    @Test fun `a backup ends and its result waits while no window exists`() {
-        started()
-        backUp(hangingOut(ByteArrayOutputStream()))
-        controller.pause().stop().destroy()
-        hold.countDown()
-        joinReads()
-        settle()
-        assertEquals("its result waits", 1, app.process.messages.size)
-        ShadowToast.reset()
-        val next = Robolectric.buildActivity(MainActivity::class.java).setup()
-        try {
-            assertTrue("shown by the next window", app.process.messages.isEmpty())
-            assertEquals(1, ShadowToast.shownToastCount())
-        } finally {
-            next.pause().stop().destroy()
-        }
     }
 
     /**
@@ -495,20 +484,8 @@ class MainActivityFlowsTest {
     @Test fun `the window ~restart replaces takes no command before the recreation lands`() {
         started()
         enter("~restart")                       // the recreation is queued; the looper does not run
-        enter("~backup")
-        assertEquals("not taken, left for the new window", "~backup", prompt.text.toString())
-    }
-
-    /** The new state reads verso.json at once: a save still queued behind the IO thread is written first. */
-    @Test fun `~restart right after an edit keeps the edit`() {
-        started()
-        holdIo()                                // the edit's save waits behind the hold
-        tap(DrawerAction.ToggleOrder)
-        enter("~restart")
-        assertTrue("read by the fresh state", app.core.state.config.byUsage)
-        hold.countDown()
-        settle()
-        assertTrue(savedByUsage())
+        enter("~edit")
+        assertEquals("not taken, left for the new window", "~edit", prompt.text.toString())
     }
 
     @Test fun `a second ~restart before the recreation lands resets nothing more`() {
