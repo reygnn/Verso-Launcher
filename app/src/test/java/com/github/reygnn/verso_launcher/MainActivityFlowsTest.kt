@@ -285,6 +285,26 @@ class MainActivityFlowsTest {
         assertEquals(toast(R.string.toast_config_file_stuck), ShadowToast.getTextOfLatestToast())
     }
 
+    /**
+     * A read that finds the text known when it began parses nothing. If the config took another
+     * text meanwhile, the file is read again, so no writer of [Core.linkedText] has to know about
+     * that shortcut.
+     *
+     * Why: today only "~open" changes that text while a read runs, and it drops the read. So the
+     *   test changes it directly, the way a future writer would.
+     */
+    @Test fun `a read that finds the old text reads again when the config changed meanwhile`() {
+        linkedBefore(cached = "fav ${someApp.key}")
+        hangingFile("fav ${someApp.key}")
+        started()
+        app.core.adoptLinked("fav ${otherApp.key}", ConfigText.read("fav ${otherApp.key}"))
+        assertEquals(listOf(otherApp.key), favorites())
+        hold.countDown()
+        joinDocuments()
+        settle()
+        assertEquals("the file's text, read again", listOf(someApp.key), favorites())
+    }
+
     @Test fun `a read that answered in time says nothing when its time is up`() {
         provided("fav ${someApp.key}")
         linkedBefore(cached = fileText)

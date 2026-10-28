@@ -77,8 +77,12 @@ internal class Commands(private val app: VersoApp) {
         // launcher is away, the next start says it instead (the branch above), if the read still
         // hangs then.
         app.onMainAfter(READ_STUCK_MS) { if (app.instance?.inFront == true) checkStuck() }
+        // Only a text that changed is parsed: most starts find the file as it was. Whether the
+        // config still has the text known now is checked when the read hands back (readDone).
+        val known = core.linkedText
+        val parse = { text: String -> if (text == known) Same(text) else document(text) }
         // Set before its hand-back can run, because the hand-back is posted to this main thread.
-        current = Read(read(uri, ::readDone), since)
+        current = Read(read(uri, parse, ::readDone), since)
     }
 
     /**
@@ -96,16 +100,25 @@ internal class Commands(private val app: VersoApp) {
         results.report(app.getString(R.string.toast_config_file_stuck))
     }
 
-    private fun readDone(number: Int, document: Document?) {
+    private fun readDone(number: Int, outcome: Outcome?) {
         // A read that relinked dropped: the file has been read since, so its result is ignored.
         if (current?.number != number) return
         current = null
-        if (document == null) {
-            if (!failing) results.report(app.getString(R.string.toast_config_file_unreadable))
-            failing = true
-        } else {
-            failing = false
-            if (document.text != core.linkedText) adopt(number, document)
+        when (outcome) {
+            null -> {
+                if (!failing) results.report(app.getString(R.string.toast_config_file_unreadable))
+                failing = true
+            }
+            is Same -> {
+                failing = false
+                // The config took another text while this read ran, so the file's text was compared
+                // with an old one: it is read again, against the config's text now.
+                if (outcome.text != core.linkedText) readAgain = true
+            }
+            is Document -> {
+                failing = false
+                if (outcome.text != core.linkedText) adopt(number, outcome)
+            }
         }
         if (readAgain) {
             readAgain = false
@@ -117,7 +130,7 @@ internal class Commands(private val app: VersoApp) {
     fun link(uri: Uri) {
         val pick = picked(uri)
         if (!keepAccess(uri)) return results.report(app.getString(R.string.toast_link_failed))
-        read(uri) { number, document ->
+        read(uri, ::document) { number, document ->
             if (superseded(pick, uri)) return@read
             if (document == null) {
                 dropAccess(uri)
@@ -183,27 +196,39 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /** A document's text and what it says; both are made on the reading thread. */
-    private class Document(val text: String, val parsed: ConfigText)
+    /** What a read of the linked file brings back: the text known when it began ([Same]), or a new [Document]. */
+    private sealed interface Outcome
 
     /**
-     * Reads and parses [uri] on a thread of its own, then hands the result back on main ([then])
-     * with the read's number, which this also returns. The document is null if the file cannot be
-     * read or parsed.
+     * The file's [text] is the one the config had when the read began, so it was not parsed.
+     *
+     * Why: the config may have taken another text meanwhile. [readDone] compares [text] with the
+     *   config's text then, and reads the file again if they differ, so no writer of
+     *   [Core.linkedText] needs to know about this shortcut.
+     */
+    private class Same(val text: String) : Outcome
+
+    /** A document's text and what it says; both are made on the reading thread. */
+    private class Document(val text: String, val parsed: ConfigText) : Outcome
+
+    /**
+     * Reads [uri] on a thread of its own and makes the result there with [parse], then hands it
+     * back on main ([then]) with the read's number, which this also returns. The result is null if
+     * the file cannot be read, or if [parse] throws.
      *
      * Why: a text that makes [ConfigText.read] throw becomes a message, never a throw on main (hard
      *   rule 2).
      */
-    private fun read(uri: Uri, then: (number: Int, Document?) -> Unit): Int {
+    private fun <T : Any> read(uri: Uri, parse: (String) -> T, then: (number: Int, T?) -> Unit): Int {
         val number = ++reads
         val resolver = app.contentResolver
         Thread(Guard.wrap("config read", ::logWarning) {
-            var document: Document? = null
+            var result: T? = null
             try {
-                document = readDocument(resolver, uri)?.let { text -> Document(text, ConfigText.read(text)) }
+                result = readDocument(resolver, uri)?.let(parse)
             } finally {
                 // Also after an Error: a read that never handed back would hold every later one.
-                app.onMain { then(number, document) }
+                app.onMain { then(number, result) }
             }
         }, "verso-config-read").start()
         return number
@@ -246,6 +271,9 @@ internal class Commands(private val app: VersoApp) {
     private companion object {
         /** How many skipped line numbers a toast names. */
         const val SKIPPED_SHOWN = 5
+
+        /** [text] and what it says, made on the reading thread ([read]). */
+        fun document(text: String) = Document(text, ConfigText.read(text))
 
         /** The text of [uri], or null if it cannot be read or is larger than any config; a failure is logged. */
         fun readDocument(resolver: ContentResolver, uri: Uri): String? =

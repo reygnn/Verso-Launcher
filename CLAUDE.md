@@ -130,8 +130,9 @@ profile broadcast → `MainActivity.appsMaybeChanged` → now if in front, else 
 `LauncherState.refresh()` → IO thread (the apps of every profile, system labels only) → main
 thread, the newest load generation wins; the file's text is resolved against the list
 (`ConfigText.resolve`) and the custom names applied (`LauncherLogic.named`) → `AppDrawer.refilter`.
-The user's file: `MainActivity.onStart` → `Commands.readLinked` → a thread of its own (read and
-parsed) → main → a changed text is adopted (`Core.adoptLinked`) and copied for the next start.
+The user's file: `MainActivity.onStart` → `Commands.readLinked` → a thread of its own (read, and
+parsed if the text changed) → main → a changed text is adopted (`Core.adoptLinked`) and copied for
+the next start.
 
 ---
 
