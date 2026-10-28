@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import java.io.InputStream
 import java.util.Locale
 
 /**
@@ -46,13 +47,14 @@ internal data class ConfigText(
         }
 
         /**
-         * A file from outside, as Verso reads it: the line format, or a JSON config of an earlier
-         * version (a backup), read with parseForeign (hard rule 7) and named by its keys.
+         * The text of [input], or null if it holds more than [maxBytes]. One byte past the cap is
+         * read to tell, so a file too large is refused whole, never cut (hard rule 7).
+         *
+         * Why: a real config is a few KB. A file this big is not one, and is not read into memory.
          */
-        fun read(text: String): ConfigText {
-            val trimmed = text.removePrefix(BOM).trimStart()
-            if (trimmed.startsWith('{')) ConfigJson.parseForeign(trimmed)?.let { return of(it) }
-            return parse(text)
+        fun readCapped(input: InputStream, maxBytes: Int = MAX_FILE_BYTES): String? {
+            val bytes = input.readNBytes(maxBytes + 1)
+            return if (bytes.size > maxBytes) null else bytes.toString(Charsets.UTF_8)
         }
 
         /** "ref = value" taken apart at the first "=", or null when either side is empty. */
@@ -63,14 +65,6 @@ internal data class ConfigText(
             val value = rest.substring(eq + 1).trim()
             return if (ref.isEmpty() || value.isEmpty()) null else ref to value
         }
-
-        /** A config of keys, as the JSON files of earlier versions held it: every reference is a key. */
-        fun of(config: VersoConfig): ConfigText = ConfigText(
-            favorites = config.favorites,
-            hidden = config.hidden.toList(),
-            names = config.names.toList(),
-            tags = config.tags.toList(),
-        )
 
         /**
          * The config [text] sets for [apps] (system labels; byUsage is not the file's). A key
@@ -88,7 +82,7 @@ internal data class ConfigText(
             val tags = LinkedHashMap<String, List<String>>()
             for ((ref, list) in text.tags) {
                 for (key in index.keys(ref)) {
-                    tags[key] = (tags[key].orEmpty() + list).distinct().take(ConfigJson.MAX_TAGS_PER_APP)
+                    tags[key] = (tags[key].orEmpty() + list).distinct().take(LauncherLogic.MAX_TAGS_PER_APP)
                 }
             }
             return VersoConfig(hidden = hidden, favorites = favorites.toList(), names = names, tags = tags)
@@ -98,6 +92,7 @@ internal data class ConfigText(
         private const val HIDE = "hide"
         private const val NAME = "name"
         private const val TAG = "tag"
+        private const val MAX_FILE_BYTES = 1024 * 1024
         private const val BOM = "\uFEFF"
         private val WHITESPACE = Regex("\\s+")
     }

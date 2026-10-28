@@ -2,10 +2,13 @@ package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 
-/** The config file the user writes: its lines, the apps they name, and a new file written from a config. */
+/** The config file the user writes: its lines, the apps they name, and its capped read ([ConfigText.readCapped]). */
 class ConfigTextTest {
 
     private val whatsApp = AppEntry("WhatsApp", "com.whatsapp", "com.whatsapp.Main", "WhatsApp")
@@ -86,11 +89,11 @@ class ConfigTextTest {
     }
 
     @Test fun `names and tags come in cleaned, a tag list capped`() {
-        val tags = (1..ConfigJson.MAX_TAGS_PER_APP + 5).joinToString(", ") { "t$it" }
+        val tags = (1..LauncherLogic.MAX_TAGS_PER_APP + 5).joinToString(", ") { "t$it" }
         val config = resolved("name Maps = \u202EKarte\u202C\ntag Maps = #Reise, Reise, $tags")
         assertEquals("Karte", config.names[maps.key])
         assertEquals("reise", config.tags[maps.key]!!.first())
-        assertEquals(ConfigJson.MAX_TAGS_PER_APP, config.tags[maps.key]!!.size)
+        assertEquals(LauncherLogic.MAX_TAGS_PER_APP, config.tags[maps.key]!!.size)
     }
 
     @Test fun `comments, blank lines, a BOM, CRLF and any keyword case are fine`() {
@@ -125,16 +128,6 @@ class ConfigTextTest {
         assertFalse(ConfigText.parse("# nothing yet\n\n").isNoConfig)
     }
 
-    /** Hard rule 7: an old backup is read with parseForeign; a file that only starts like JSON is lines. */
-    @Test fun `a JSON config of an earlier version reads as its keys`() {
-        val config = VersoConfig(favorites = listOf(maps.key), hidden = setOf(firefox.key), names = mapOf(gmail.key to "Mail"))
-        assertEquals(config, ConfigText.resolve(ConfigText.read("\uFEFF  " + legacyJson(config)), apps))
-        assertEquals(ConfigText.of(config), ConfigText.read(legacyJson(config)))
-        assertTrue("JSON, but no config", ConfigText.read("{\"name\": \"some package.json\"}").isNoConfig)
-        assertTrue("not even JSON", ConfigText.read("{ fav Maps").isNoConfig)
-        assertEquals(listOf("Maps"), ConfigText.read("fav Maps").favorites)
-    }
-
     @Test fun `a name may hold an equals sign, only the first one splits`() {
         assertEquals("a = b", resolved("name Maps = a = b").names[maps.key])
     }
@@ -146,6 +139,42 @@ class ConfigTextTest {
             names = mapOf(firefox.key to "Web"),
             tags = mapOf(maps.key to listOf("travel")),
         )
-        assertEquals(config, ConfigText.resolve(ConfigText.of(config), apps))
+        assertEquals(config, ConfigText.resolve(textOf(config), apps))
+    }
+
+    // ---- readCapped: the OOM guard of a picked file's read ----------------------
+
+    private fun capped(text: String, max: Int) = ConfigText.readCapped(ByteArrayInputStream(text.toByteArray()), maxBytes = max)
+
+    @Test fun `reads content under the cap`() {
+        assertEquals("hello", capped("hello", 16))
+    }
+
+    @Test fun `content exactly at the cap is accepted (inclusive)`() {
+        assertEquals("x".repeat(8), capped("x".repeat(8), 8))
+    }
+
+    @Test fun `content one byte over the cap is refused, not truncated`() {
+        assertNull(capped("x".repeat(9), 8))
+    }
+
+    @Test fun `an empty stream reads as empty, never null`() {
+        assertEquals("", capped("", 8))
+    }
+
+    @Test fun `a chunked over-cap stream is still refused`() {
+        // A real ContentProvider can hand out bytes a few at a time.
+        val chunky = object : InputStream() {
+            private var remaining = 9
+            override fun read(): Int = if (remaining-- > 0) 'x'.code else -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (remaining <= 0) return -1
+                val n = minOf(3, len, remaining)
+                for (i in 0 until n) b[off + i] = 'x'.code.toByte()
+                remaining -= n
+                return n
+            }
+        }
+        assertNull(ConfigText.readCapped(chunky, maxBytes = 8))
     }
 }

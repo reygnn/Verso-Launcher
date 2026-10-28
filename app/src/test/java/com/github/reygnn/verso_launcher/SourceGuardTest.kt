@@ -93,14 +93,13 @@ class SourceGuardTest {
         assertTrue("a \"/*\" in a string opens no comment", has(stripped, "writeConfig = w"))
     }
 
-    // Rule 7: a file from outside is read through ConfigText.read, whose JSON is parseForeign's.
-    @Test fun `outside files are read with parseForeign`() {
-        assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/ConfigText.kt"), "ConfigJson.parseForeign(trimmed)"))
-        assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt"), "ConfigText.read(text)"))
+    // Rule 7: a picked file is read through readCapped, so one too large is refused whole.
+    @Test fun `outside files are read with readCapped`() {
+        assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt"), "ConfigText.readCapped(it)"))
     }
 
     @Test fun `no string template reaches through an object without braces`() {
-        // "$ConfigJson.MAX_ENTRIES" compiles to "ConfigJson@1a2b.MAX_ENTRIES"; "$FILE.tmp" (a value, then a suffix) is fine.
+        // "$LauncherLogic.MAX_TAG_LENGTH" compiles to "LauncherLogic@1a2b.MAX_TAG_LENGTH"; "$FILE.tmp" (a value, then a suffix) is fine.
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
         val offenders = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().mapIndexedNotNull { i, line ->

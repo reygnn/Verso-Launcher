@@ -259,7 +259,7 @@ internal object LauncherLogic {
 
     fun parseTags(raw: String): List<String> =
         raw.split(',').map(::canonicalTag).filter { it.isNotEmpty() }.distinct()
-            .take(ConfigJson.MAX_TAGS_PER_APP)
+            .take(MAX_TAGS_PER_APP)
 
     /**
      * The one definition of a tag; "" when nothing survives. Dropped silently rather than
@@ -277,6 +277,8 @@ internal object LauncherLogic {
     const val MAX_NAME_LENGTH = 100
 
     const val MAX_TAG_LENGTH = 50
+
+    const val MAX_TAGS_PER_APP = 100
 
     /**
      * Invisible characters that only make text look different from what it is (bidi controls,
@@ -307,8 +309,9 @@ internal object LauncherLogic {
     private val LINE_BREAKS = Regex("[\r\n\t]+")
 
     /**
-     * [s] without a lone UTF-16 surrogate, which a JSON backup can carry as an escape ("\uD800")
-     * and no font draws. After the other filters, so a pair they separated is whole again.
+     * [s] without a lone UTF-16 surrogate, which no font draws. A string from the platform, such as
+     * an app's label, may hold one; the config file cannot, because its UTF-8 decoding replaces
+     * one. After the other filters, so a pair they separated is whole again.
      */
     private fun pairedOnly(s: String): String = buildString(s.length) {
         s.codePoints().forEach { if (Character.getType(it) != Character.SURROGATE.toInt()) appendCodePoint(it) }

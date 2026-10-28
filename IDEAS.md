@@ -67,4 +67,4 @@ with its reason — the performance points after measuring; Guru's own points be
 
 - RTL layouts.
 - Lint's version bumps: targetSdk 37 (with the whole family, tested on a device), Robolectric
-  4.17 (only worth it with SDK 37), androidx.test runner 1.7.0.
+  4.17 (only worth it with SDK 37).

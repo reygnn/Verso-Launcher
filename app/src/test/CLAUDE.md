@@ -23,11 +23,10 @@ Pure logic
   LauncherActionsTest      Enter and tap decisions
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
   HomeStyleTest            sizes, luminance, outline thresholds, battery, AppStatus
-  ConfigJsonTest           round trip, parseForeign's refusals, hostile input, size limits,
-                           readCapped (a picked file's bounded read)
   VersoConfigTest          equality as file content
   ConfigTextTest           the config file the user writes: its lines, the apps they name
-                           (key, package, folded label), a new file written from a config
+                           (key, package, folded label), readCapped (a picked file's
+                           bounded read)
   AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
@@ -56,8 +55,8 @@ The window (R)
   VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso
 
 Source scans
-  SourceGuardTest          only what neither a type nor a test reaches (hard rules 5, 16,
-                           the lenient parse, configChanges, Guru's wiring, R8 keeping names)
+  SourceGuardTest          only what neither a type nor a test reaches (hard rules 5, 7, 16,
+                           configChanges, Guru's wiring, R8 keeping names)
   CommentLinkTest          links in comments, KDoc or not, and code names in the Markdown
                            files that name code which is gone, or a test from code that ships
 ```
@@ -69,8 +68,7 @@ Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.
 `DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest` and `RecentsLogTest` use
 `chmod`, so they fail when run as root.
 
-Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51D5VHZ` for the A17):
-`ConfigJsonInstrumentedTest` (Android's own `org.json`).
+No instrumented tests: everything runs on the JVM.
 
 ---
 
@@ -92,12 +90,10 @@ Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51
 ## Where a new test goes
 
 - Start from a template: pure logic `LauncherLogicTest`; threads and state `LauncherStateTest`
-  (its queue harness, `testLauncherState`); files `ConfigLinkTest`; a widget `AppDrawerTest`;
-  Android-only behaviour `androidTest`.
+  (its queue harness, `testLauncherState`); files `ConfigLinkTest`; a widget `AppDrawerTest`.
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
-- The config file's format: `ConfigTextTest`, and the files users already have must still read;
-  the JSON backups of earlier versions: `ConfigJsonTest`.
+- The config file's format: `ConfigTextTest`, and the files users already have must still read.
 - `~open`, `~edit` and the file read again: a new text in `LauncherStateTest`, the picker, the
   editor and the thread in `MainActivityFlowsTest`.
 
@@ -110,6 +106,4 @@ Instrumented (`./gradlew connectedDebugAndroidTest`, e.g. `ANDROID_SERIAL=R5GL51
 - **A test that passes for any threshold:** greys at 0.09 and 0.60 held for every threshold in
   between. Pin a boundary from both sides.
 - **A fixture that mirrors production:** a re-implemented sort cannot show the sort's bug.
-- **The JVM's `org.json` is not Android's:** deep nesting throws on one and overflows the stack on
-  the other. Behaviour that differs gets an instrumented test.
 - **Mutation-check every fix:** revert it, watch the new test fail, restore.

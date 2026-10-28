@@ -11,15 +11,10 @@ agp    = "9.4.1"
 # No kotlin entry: no Kotlin plugin is applied, so AGP's built-in Kotlin sets the version.
 # Test-only.
 junit  = "4.13.2"
-json   = "20260814"
 # Test-only — Robolectric runs the framework-bound bits (the real Activity, its widgets,
 # MotionEvents) on the JVM. 4.16.1 is the version that ships an SDK 36 android-all
 # jar and supports JDK 21 — earlier lines top out below API 36. OK to upgrade.
 robolectric = "4.16.1"
-# Test-only — the on-device (androidTest) runner, for behaviour no JVM test can reproduce
-# (Android's own org.json, ConfigJsonInstrumentedTest). Same versions as darkroom.
-androidxTestExt    = "1.3.0"
-androidxTestRunner = "1.6.2"
 # Build-only — static analysis (./gradlew detekt, part of check); a Gradle plugin, never in
 # the APK. 2.0 because 1.23 predates AGP 9's built-in Kotlin (supported since 2.0.0-alpha.3).
 # Still alpha: pinned exactly, and an upgrade is its own commit — the rule names and their
@@ -29,16 +24,10 @@ detekt = "2.0.0-alpha.6"
 [libraries]
 # Test-only — JVM unit tests for the pure logic in LauncherLogic.kt.
 junit = { group = "junit", name = "junit", version.ref = "junit" }
-# Test-only — the REAL org.json impl on the unit-test classpath, so the
-# ConfigJson round-trip runs on the JVM (android.jar ships only a throwing stub).
-json = { group = "org.json", name = "json", version.ref = "json" }
 # Test-only — an Android runtime on the JVM for the tests that need real widgets (the
 # Activity, the prompt's EditText, the page turn's MotionEvents). Everything else stays
 # plain JUnit4; Robolectric is opt-in per test via @RunWith(RobolectricTestRunner).
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
-# Test-only (androidTestImplementation) — never in the shipped APK.
-androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit",  version.ref = "androidxTestExt" }
-androidx-test-runner    = { group = "androidx.test",     name = "runner", version.ref = "androidxTestRunner" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

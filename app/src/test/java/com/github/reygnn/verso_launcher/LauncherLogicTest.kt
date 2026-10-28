@@ -318,7 +318,7 @@ class LauncherLogicTest {
         assertEquals(persian, LauncherLogic.cleanName(persian))
     }
 
-    /** No font draws a lone surrogate; a JSON backup can carry one as an escape. */
+    /** No font draws a lone surrogate; a string from the platform, such as an app's label, can hold one. */
     @Test fun `cleanName and canonicalTag drop a lone surrogate, keep a pair`() {
         assertEquals("x", LauncherLogic.cleanName("x\uD800"))
         assertEquals("xy", LauncherLogic.cleanName("x\uDC00y"))
@@ -933,7 +933,7 @@ class LauncherLogicTest {
     }
 
     @Test fun `no app gets more tags than the file format allows`() {
-        val typed = (1..ConfigJson.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
-        assertEquals(ConfigJson.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
+        val typed = (1..LauncherLogic.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
+        assertEquals(LauncherLogic.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
     }
 }

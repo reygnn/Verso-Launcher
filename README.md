@@ -91,9 +91,8 @@ keyboard, no prompt:
     what you typed can only mean one (`~e` is `~edit`):
     - `~edit` — your config file in your text editor; back in Verso, your changes show at once
     - `~open` — link your config file, wherever it is (the system's file picker starts in
-      `Download/Verso/`; a cloud folder works as well): one you wrote, another phone's, an old
-      `~backup` of an earlier version (its JSON is read as it is). A file that is no config is
-      not linked
+      `Download/Verso/`; a cloud folder works as well): one you wrote, another phone's, a copy.
+      A file that is no config, an old JSON `~backup` among them, is not linked
     - `~restart` — read everything again and rebuild the list (when something looks stale)
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
       on purpose, to see Guru's report. Never abbreviated
@@ -190,8 +189,8 @@ that reads `Download` — see `CAVEATS.md`.
 Guru adds about 30 KB of code and keeping class names (`-dontobfuscate`, for readable crash
 traces) about 18 KB: the release APK went from about 180 to 231 KB. The only
 *shipped* dependencies are the Kotlin stdlib (added automatically by AGP's
-built-in Kotlin); JUnit, org.json and Robolectric are `testImplementation`,
-androidx.test is `androidTestImplementation`, so the release stays dependency-free.
+built-in Kotlin); JUnit and Robolectric are `testImplementation`, so the release stays
+dependency-free.
 
 ## Build
 

@@ -46,7 +46,7 @@ class LauncherStateTest {
         testLauncherState(
             io = { task -> ioQueue.addLast(task); true },
             main = { task -> mainQueue.addLast(task) },
-            initial = ConfigText.read(file),
+            initial = ConfigText.parse(file),
             useDefaults = fresh,
             enumerateApps = {
                 enumerations++

@@ -39,12 +39,12 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   rules 4 and 6). The app keeps only small files of its own, each rewritten whole through a temp
   file and a rename, none of them precious: `config-link.txt` and `config-cache.txt` (where the
   file is, and its last text, `ConfigLink`), `order.txt` (`%`, `DrawerOrder`), `home-cache.txt`,
-  `usage.txt`, `recents.txt`, and Guru's `filesDir/guru/`. `verso.json` of earlier versions is
-  no longer read; their JSON backups link with `~open`. No cloud backup; a device transfer
+  `usage.txt`, `recents.txt`, and Guru's `filesDir/guru/`. The JSON of earlier versions
+  (`verso.json` and its backups) is no longer read. No cloud backup; a device transfer
   leaves out the home-cache and Guru's files (`data_extraction_rules.xml`). Guru's reports go to
   `Download/Guru/` through MediaStore.
-- **Tests:** JUnit 4, the real `org.json` on the JVM classpath, Robolectric only where a real
-  widget is needed, no mocks (fakes and manual queues); `androidTest` for Android's own `org.json`.
+- **Tests:** JUnit 4 on the JVM, Robolectric only where a real widget is needed, no mocks (fakes
+  and manual queues), no instrumented tests.
 - **Warnings are errors** — Kotlin, lint and detekt (`config/detekt/detekt.yml`, part of
   `check`). A deliberate finding gets a `@Suppress` at the narrowest scope — on the `try` itself
   where the function does more (`val x = @Suppress(…) try`) — with its reason as a comment on the
@@ -73,8 +73,7 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   - **A change of behaviour changes its comment in the same commit.** detekt's
     `OutdatedDocumentation` checks `@param`/`@property` names against the declaration, not their
     content. Older KDoc moves to this form when its file is touched; there is no sweep.
-- **Debug build:** `applicationIdSuffix = ".debug"`, so `connectedAndroidTest` installs beside the
-  release.
+- **Debug build:** `applicationIdSuffix = ".debug"`, so a debug build installs beside the release.
 - **Guru (`guru/`)**, the crash reporter, is a `git subtree` of reygnn/guru, compiled into `:app`
   and checked by detekt. **Never edit it here**: fix it upstream, tag it, then
   `git subtree pull --prefix=guru https://github.com/reygnn/guru <tag> --squash`; the commit names
@@ -119,9 +118,9 @@ One module, one package. The process owns the data, an activity is a window (har
   only as a `LauncherWindow`), `AppLauncher` (a start or "App info" in the entry's profile, a
   paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
-  default favorites), `LauncherState`, `ConfigText` (the file's lines, the apps they name, a new
-  file), `ConfigJson` (the JSON backups of earlier versions), `SwipeGesture`, `WallpaperPalette`,
-  `HomeStyle`; the data `AppEntry` and `VersoConfig` (immutable, resolved anew from the text).
+  default favorites), `LauncherState`, `ConfigText` (the file's lines, the apps they name,
+  `readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data `AppEntry` and
+  `VersoConfig` (immutable, resolved anew from the text).
 - **IO:** `ConfigLink`, `DrawerOrder`, `Apps` (enumeration, default favorites),
   `HomeCache`, `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it
   `logWarning`).
@@ -139,8 +138,8 @@ the next start.
 
 ## Hard rules
 
-1. **No production dependencies.** `dependencies {}` holds only `testImplementation` and
-   `androidTestImplementation`. New deps and build plugins need the user's OK.
+1. **No production dependencies.** `dependencies {}` holds only `testImplementation`. New deps
+   and build plugins need the user's OK.
 2. **A HOME app must never throw.** Every IO- and SAF-thread task runs behind `Guard` and
    degrades. Beyond that, crash-only: a catch only where it breaks a crash loop or keeps the
    config file's read a message; disposable work may crash. Main-thread catches always log and say what failed where the user acted
@@ -167,9 +166,10 @@ the next start.
    wherever the user keeps it, its grant kept (`takePersistableUriPermission`); Verso
    lists, renames or deletes nothing of theirs and needs no storage permission. Backups are copies
    of that file, made by the user.
-7. **A file from outside is read as text or as a JSON config** (`ConfigText.read`): JSON only
-   through `parseForeign`, which wants at least one known section. A picked file
-   with lines and not one entry is no config and is not linked ("~open" is read first).
+7. **A file from outside is read as the line format, and only as that** (`ConfigText.parse`),
+   through `ConfigText.readCapped`: a file past its cap is refused whole, never cut. A picked file
+   with lines and not one entry is no config and is not linked ("~open" is read first); an old
+   JSON backup is such a file.
 8. **Config keys are `package/class`**, `package/class#<serial>` for another profile
    (`AppEntry.keyOf`); launch and app info go through `LauncherApps` with the entry's profile. The
    file may name an app by key, package or system label (`ConfigText`). No change to the key or

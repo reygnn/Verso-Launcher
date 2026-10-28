@@ -5,7 +5,7 @@ package com.github.reygnn.verso_launcher
  * source of truth for hidden/favorite/name/tag membership, keyed by [AppEntry.key].
  *
  * Immutable: a new text or list is a new config, so one is handed on as it is, with no copy
- * taken. The collections are read-only types and every producer (ConfigText, ConfigJson,
+ * taken. The collections are read-only types and every producer (ConfigText and
  * LauncherState) builds them fresh; nobody holds a mutable view of them.
  *
  * Equality is content, as the data class gives it: the favorites in their order (it ranks the

@@ -161,17 +161,6 @@ class MainActivityFlowsTest {
         assertFalse(File(app.filesDir, ConfigLink.LINK).exists())
     }
 
-    /** Hard rule 7: an old "~backup" is read with parseForeign, and named by its keys. */
-    @Test fun `an old JSON backup can be linked as it is`() {
-        provided(legacyJson(VersoConfig(favorites = listOf(otherApp.key), hidden = setOf(someApp.key))))
-        started()
-        enter("~open")
-        answer(fileUri)
-        joinDocuments()
-        assertEquals(listOf(otherApp.key), favorites())
-        assertEquals(setOf(someApp.key), app.core.state.config.hidden)
-    }
-
     /** The user's last choice stands: a slow provider's answer to an earlier pick changes nothing. */
     @Test fun `a pick landing after a newer one is dropped`() {
         val slow = Uri.parse("content://cloud/slow.txt")
@@ -297,7 +286,7 @@ class MainActivityFlowsTest {
         linkedBefore(cached = "fav ${someApp.key}")
         hangingFile("fav ${someApp.key}")
         started()
-        app.core.adoptLinked("fav ${otherApp.key}", ConfigText.read("fav ${otherApp.key}"))
+        app.core.adoptLinked("fav ${otherApp.key}", ConfigText.parse("fav ${otherApp.key}"))
         assertEquals(listOf(otherApp.key), favorites())
         hold.countDown()
         joinDocuments()

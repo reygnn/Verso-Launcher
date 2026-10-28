@@ -299,14 +299,14 @@ class MainActivity : Activity() {
         recreate()
     }
 
-    /** "~open": the user's config file, wherever it is — this phone's, a cloud folder's, an old backup. */
+    /** "~open": the user's config file, wherever it is — this phone's, a cloud folder's, a copy of it. */
     private fun pickConfigFile() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            // Not a strict "text/plain": a file arrives as octet-stream or JSON depending on who
-            // wrote it, and a strict filter would grey it out.
+            // Not a strict "text/plain": a provider may hand a text file out as octet-stream, and a
+            // strict filter would grey it out.
             .setType("*/*")
-            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/json", "application/octet-stream"))
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/octet-stream"))
             .addFlags(PERSISTED_GRANT)
             // Only a hint; DocumentsUI ignores it when the folder does not exist yet.
             .putExtra(

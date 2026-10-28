@@ -73,7 +73,7 @@ internal class Core(private val app: VersoApp) {
         // on disk may still be on its way), else the copy — or nothing yet (never the defaults: the
         // file is the user's, even an empty one).
         if (!useDefaults && linkedText == null) linkedText = ConfigLink.readCache(dir, ::logWarning)
-        val initial = linkedText?.let(ConfigText::read) ?: ConfigText()
+        val initial = linkedText?.let(ConfigText::parse) ?: ConfigText()
         val byUsage = DrawerOrder.read(dir, ::logWarning) ?: false
         lateinit var built: LauncherState
         built = LauncherState(

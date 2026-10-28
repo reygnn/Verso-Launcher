@@ -15,7 +15,7 @@ detekt {
     // guru/: Guru's sources (git subtree), checked with Verso's rules like Verso's own.
     source.setFrom(
         "src/main/kotlin", "src/dailyDriver/kotlin", "src/public/kotlin",
-        "src/test/java", "src/androidTest/java", "../guru/library/src/main/kotlin",
+        "src/test/java", "../guru/library/src/main/kotlin",
     )
     baseline = file("detekt-baseline.xml")
 }
@@ -39,10 +39,6 @@ android {
         // own. A release bump is +2 (CLAUDE.md, Stack particulars).
         versionCode = 54 + if (dailyDriver) 1 else 0
         versionName = "0.6.3" + if (dailyDriver) "-daily" else ""
-
-        // On-device tests only for what a JVM can't reproduce: Android's own org.json. Everything
-        // else stays a JVM test.
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // The daily-driver build: debug always, a release only with -PdailyDriver. DailyDriver.ENABLED
@@ -65,8 +61,8 @@ android {
     buildTypes {
         debug {
             // The release build on the device is signed with the family key, a debug build with
-            // the debug key — same applicationId and the install (e.g. for connectedAndroidTest)
-            // fails on the signature. A separate id lets both coexist; release is unaffected.
+            // the debug key — same applicationId and the install fails on the signature. A separate
+            // id lets both coexist; release is unaffected.
             applicationIdSuffix = ".debug"
         }
         release {
@@ -176,23 +172,16 @@ val sourceScanTest = tasks.register<Test>("sourceScanTest") {
 tasks.named("check") { dependsOn(sourceScanTest) }
 
 // No PRODUCTION dependencies — that is the feature; the release APK is Kotlin
-// stdlib + platform APIs only. Every entry below is testImplementation or
-// androidTestImplementation, so none of them ever enters the shipped APK.
+// stdlib + platform APIs only. Every entry below is testImplementation, so none of them ever
+// enters the shipped APK.
 dependencies {
     testImplementation(libs.junit)
-    // Real org.json on the unit-test classpath for the ConfigJson round-trip
-    // (the android.jar org.json is a throwing stub). Test-only — not in the APK.
-    testImplementation(libs.json)
     // Android runtime on the JVM for the tests that need it (the real Activity, its widgets,
     // MotionEvents, TalkBack nodes). Test-only — never in the shipped APK. No
     // androidx.test/ActivityScenario here on purpose: a plain Activity with no Hilt/AppCompat is
     // driven with Robolectric's own APIs, which keeps the whole androidx.test consistent-resolution
     // force-pin out.
     testImplementation(libs.robolectric)
-    // On-device tests (connectedAndroidTest) — test APK only, never in the shipped one.
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.androidx.test.runner)
 }
 
 // The release mapping, after every assembleRelease/bundleRelease: kept outside the repo (a crash

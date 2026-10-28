@@ -27,10 +27,8 @@ changes nothing then.
 A line Verso does not understand is named in a toast and skipped; the rest of the file still
 counts.
 
-An old JSON backup's `order` (A to Z or most used) is not read: `%` keeps its own setting.
-
-`verso.json` of an earlier version is no longer read: until you link a file, Verso shows the
-default favorites. A JSON backup of an earlier version links with `~open` as it is.
+The JSON of earlier versions is no longer read: not `verso.json`, and not a JSON backup, which
+`~open` refuses as no config. Until you link a text file, Verso shows the default favorites.
 
 ## Default favorites are shown, not written
 
@@ -66,10 +64,10 @@ Nothing is pruned: Verso cannot change your file, so a reinstalled app gets its 
 tags back, and a line still names a hidden app removed years ago. An entry of an app that is gone
 costs a few bytes and shows nowhere: the `#` overview lists only the tags of installed apps.
 
-The backups of earlier versions (`verso-….json`, also the `verso-pre-restore-…`,
-`verso-pre-undo-…` and `verso-pre-cleanup-…` files in `Download/Verso/`) are config files too:
-`~open` links one as it is. There is no undo inside Verso: your editor's, and your copies of the
-file, are the history.
+The JSON backups of earlier versions (`verso-….json`, also the `verso-pre-restore-…`,
+`verso-pre-undo-…` and `verso-pre-cleanup-…` files in `Download/Verso/`) are not read any more;
+they can be deleted. There is no undo inside Verso: your editor's, and your copies of the file,
+are the history.
 
 Android's cloud backup leaves Verso out (`data_extraction_rules.xml`). A device-to-device
 transfer copies the app's own files, on purpose: the link to your file (whose grant does not move

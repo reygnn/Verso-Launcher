@@ -216,7 +216,7 @@ internal class Commands(private val app: VersoApp) {
      * back on main ([then]) with the read's number, which this also returns. The result is null if
      * the file cannot be read, or if [parse] throws.
      *
-     * Why: a text that makes [ConfigText.read] throw becomes a message, never a throw on main (hard
+     * Why: a text that makes [ConfigText.parse] throw becomes a message, never a throw on main (hard
      *   rule 2).
      */
     private fun <T : Any> read(uri: Uri, parse: (String) -> T, then: (number: Int, T?) -> Unit): Int {
@@ -273,13 +273,13 @@ internal class Commands(private val app: VersoApp) {
         const val SKIPPED_SHOWN = 5
 
         /** [text] and what it says, made on the reading thread ([read]). */
-        fun document(text: String) = Document(text, ConfigText.read(text))
+        fun document(text: String) = Document(text, ConfigText.parse(text))
 
         /** The text of [uri], or null if it cannot be read or is larger than any config; a failure is logged. */
         fun readDocument(resolver: ContentResolver, uri: Uri): String? =
             // hard rule 2: an unreadable file is a message
             @Suppress("TooGenericExceptionCaught") try {
-                resolver.openInputStream(uri)?.use { ConfigJson.readCapped(it) }
+                resolver.openInputStream(uri)?.use { ConfigText.readCapped(it) }
             } catch (e: Exception) {
                 logWarning("config: cannot read $uri", e)
                 null

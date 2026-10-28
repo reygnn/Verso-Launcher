@@ -64,12 +64,6 @@ package com.github.reygnn.verso_launcher
  * built in code with `view.collect<T>()` (ViewTrees.kt), read a started intent with
  * `shadowOf(activity).nextStartedActivity`.
  *
- * INSTRUMENTED (androidTest)
- *
- * Only for what a device alone has: Android's own libraries (its org.json).
- * `ANDROID_SERIAL=R5GL51D5VHZ ./gradlew connectedDebugAndroidTest`; the ".debug" suffix installs
- * beside the release.
- *
  * WRITING ONE
  *
  * Read the implementation beside the test: the asymmetries are invisible from one side. What the
