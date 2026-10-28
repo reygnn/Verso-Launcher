@@ -5,6 +5,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
 import android.window.BackEvent
@@ -17,6 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.util.ReflectionHelpers
 import java.time.Duration
 
 /**
@@ -342,6 +344,165 @@ class PageTurnTest {
         assertTrue("the drag has started", root.isDragging)
         pageTurn.open()
         assertFalse(root.isDragging)
+    }
+
+    private fun liftFinger() {
+        val t = SystemClock.uptimeMillis()
+        root.dispatchTouchEvent(MotionEvent.obtain(t, t + 200, MotionEvent.ACTION_UP, 100f, height * 0.5f, 0))
+    }
+
+    /** HOME closes the page (onNewIntent) while a finger pulls the drawer up: the drawer falls back. */
+    @Test fun `close during an opening drag settles home, and the release opens nothing`() {
+        startSwipeUp()
+        assertTrue("the drawer follows the finger", drawer.view.translationY < height)
+        pageTurn.close()
+        settle()
+        liftFinger()
+        settle()
+        assertFalse(pageTurn.isOpen)
+        assertEquals(View.GONE, drawer.view.visibility)
+        assertEquals(1f, home.view.alpha, 0.01f)
+        assertEquals(0, opened)
+    }
+
+    /** onStop closes without animation, so home must show at once, with nothing left to run. */
+    @Test fun `close without animation during an opening drag is home at once`() {
+        startSwipeUp()
+        pageTurn.close(animate = false)
+        assertFalse(root.isDragging)
+        assertEquals(View.GONE, drawer.view.visibility)
+        assertEquals(View.VISIBLE, home.view.visibility)
+        assertEquals(1f, home.view.alpha, 0.01f)
+    }
+
+    /** A callback of a drag whose page was turned some other way meanwhile must act on nothing. */
+    @Test fun `a late drag callback after the drawer opened another way moves nothing`() {
+        root.host.onDragStart(SwipeDir.UP)
+        root.host.onDrag(SwipeDir.UP, height / 3)
+        pageTurn.open()
+        settle()
+        root.host.onDrag(SwipeDir.UP, height / 10)
+        assertEquals(0f, drawer.view.translationY, 0.5f)
+        root.host.onDragEnd(SwipeDir.UP, DragEnd.CANCEL)
+        settle()
+        assertTrue(pageTurn.isOpen)
+        assertEquals(0f, drawer.view.translationY, 0.5f)
+        assertEquals(View.INVISIBLE, home.view.visibility)
+    }
+
+    @Test fun `a late cancel of a closing drag after the drawer closed another way leaves home showing`() {
+        openSettled()
+        root.host.onDragStart(SwipeDir.DOWN)
+        pageTurn.close()
+        settle()
+        root.host.onDragEnd(SwipeDir.DOWN, DragEnd.CANCEL)
+        settle()
+        assertFalse(pageTurn.isOpen)
+        assertEquals(View.GONE, drawer.view.visibility)
+        assertEquals(1f, home.view.alpha, 0.01f)
+    }
+
+    /** A drag that catches a page mid-turn continues from where the page is; SwipeFrame adds that to the finger. */
+    @Test fun `a drag that catches a turning page starts from what it already travelled`() {
+        openSettled()
+        pageTurn.close()
+        // Set mid-close by hand, as in the recents test above, because the looper cannot stop a slide midway.
+        drawer.view.translationY = height / 4
+        assertEquals("opening: the part of the drawer showing", height * 3 / 4, root.host.onDragStart(SwipeDir.UP), 0.5f)
+        root.host.onDragEnd(SwipeDir.UP, DragEnd.COMMIT)
+        settle()
+        pageTurn.close()
+        pageTurn.open()
+        drawer.view.translationY = height / 3
+        assertEquals("closing: how far it is already away", height / 3, root.host.onDragStart(SwipeDir.DOWN), 0.5f)
+    }
+
+    /** Typing during the recents' pull up makes them the plain drawer, but the running drag keeps its side. */
+    @Test fun `a mode change during a drag does not switch the side the drawer closes to`() {
+        openSettled("?", fromTop = true)
+        startSwipeUp()
+        assertTrue("the closing drag has started", root.isDragging)
+        drawer.setPrompt("a")
+        assertEquals(SwipeDir.UP, root.host.closeDirection())
+    }
+
+    // ---- focus (the IME itself is not modelled) -----------------------------------------
+
+    private val promptField: EditText get() = drawer.view.collect<EditText>().single()
+
+    /**
+     * Puts the window in touch mode, as a phone is after a touch. Out of touch mode, as Robolectric
+     * starts, the window hands the focus to the first focusable view by itself, so a page would look
+     * focused that no touch would focus.
+     */
+    private fun inTouchMode() {
+        val viewRoot = ReflectionHelpers.callInstanceMethod<Any>(activity.window.decorView, "getViewRootImpl")
+        ReflectionHelpers.callInstanceMethod<Any>(
+            viewRoot, "ensureTouchModeLocally", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true),
+        )
+        assertTrue(root.isInTouchMode)
+    }
+
+    @Test fun `the opened drawer focuses the prompt, the recents do not`() {
+        inTouchMode()
+        openSettled()
+        assertTrue(promptField.isFocused)
+        pageTurn.close(animate = false)
+        openSettled("?", fromTop = true)
+        assertFalse(promptField.isFocused)
+    }
+
+    /** A resume without a stop returns to the drawer with the keyboard and to the recents without it. */
+    @Test fun `a resume focuses the prompt of the drawer, not of the recents`() {
+        inTouchMode()
+        openSettled()
+        promptField.clearFocus()
+        pageTurn.resumed()
+        assertTrue(promptField.isFocused)
+        pageTurn.close(animate = false)
+        openSettled("?", fromTop = true)
+        pageTurn.resumed()
+        assertFalse(promptField.isFocused)
+    }
+
+    /**
+     * The keyboard request is posted, so a close before it runs must not leave the focus behind.
+     *
+     * Why: the closed drawer blocks focus anyway. The post's own guard keeps the IME off home, which
+     *   Robolectric does not model, so this test cannot see that guard.
+     */
+    @Test fun `an open closed before its keyboard request runs leaves no focus`() {
+        inTouchMode()
+        pageTurn.open()
+        pageTurn.close(animate = false)
+        settle()
+        assertFalse(promptField.hasFocus())
+        assertNull(drawer.view.findFocus())
+    }
+
+    // ---- scrolled favorites ------------------------------------------------------------
+
+    private fun scrolledFavorites() {
+        val many = (1..60).map { AppEntry("App $it", "com.app$it", "com.app$it.Main", "App $it") }
+        home.render(many, loaded = true)
+        settle()
+        home.scroller.scrollTo(0, height.toInt())
+        assertTrue("the favorites are scrolled down", home.scroller.canScrollVertically(-1))
+    }
+
+    /** If the favorites are scrolled down, a pull down scrolls them back instead of turning to the recents. */
+    @Test fun `on favorites scrolled down a pull down is the list's, not the recents'`() {
+        scrolledFavorites()
+        assertFalse(root.host.claims(SwipeDir.DOWN, height / 2))
+        assertFalse(root.host.canDrag(SwipeDir.DOWN, height / 2))
+    }
+
+    /** If the favorites can still scroll, they take the drag up, and only the flick opens the drawer. */
+    @Test fun `on favorites that can scroll further a drag up is the list's`() {
+        scrolledFavorites()
+        home.scroller.scrollTo(0, 0)
+        assertFalse(root.host.canDrag(SwipeDir.UP, height / 2))
+        assertTrue(root.host.claims(SwipeDir.UP, height / 2))
     }
 
     // ---- Back --------------------------------------------------------------------------

@@ -47,7 +47,8 @@ The window (R)
                            again by ~restart only, "%", ~restart and recreation
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
-  AppDrawerTest            the back page: rows, TalkBack, the tap guard
+  AppDrawerTest            the back page: rows, empty hints, TalkBack, the tap guard, Enter
+                           and keys, the clear button, insets
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
   VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso

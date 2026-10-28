@@ -4,18 +4,29 @@ import android.app.Activity
 import android.graphics.Typeface
 import android.text.Spanned
 import android.text.style.StyleSpan
+import android.graphics.Insets
+import android.os.Looper
+import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.inputmethod.EditorInfo
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.AbsListView
 import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.util.ReflectionHelpers
 
 /** A real [LauncherState] whose IO and main "threads" run inline. */
@@ -38,12 +49,13 @@ class AppDrawerTest {
     private val taps = mutableListOf<DrawerAction<AppEntry>>()
     private var filtered = 0
     private val modes = mutableListOf<Mode>()
+    private val longPresses = mutableListOf<AppEntry>()
     private val drawer = AppDrawer(
         activity = activity,
         state = state,
         palette = HomeStyle.palette(lightWallpaper = false),
         onAction = { taps += it },
-        onLongPress = {},
+        onLongPress = { longPresses += it },
         onFiltered = { filtered++ },
         onModeChanged = { modes += it },
     )
@@ -162,6 +174,23 @@ class AppDrawerTest {
         assertEquals(activity.getString(R.string.empty_no_tags), emptyHint.text.toString())
         drawer.setPrompt("~zz")
         assertEquals(activity.getString(R.string.empty_no_command), emptyHint.text.toString())
+        drawer.setPrompt("#zz")
+        assertEquals(activity.getString(R.string.empty_no_tag_match), emptyHint.text.toString())
+        drawer.setPrompt("?")
+        assertEquals(activity.getString(R.string.empty_no_recents), emptyHint.text.toString())
+    }
+
+    @Test fun `no apps at all says so`() {
+        val drawer = drawerOf(apps = emptyList())
+        drawer.setPrompt("")
+        assertEquals(activity.getString(R.string.empty_no_apps), (drawer.list().emptyView as TextView).text.toString())
+    }
+
+    /** Before the first list arrives, "no apps" would be false, so the hint stays empty. */
+    @Test fun `before the apps are loaded the empty list says nothing`() {
+        val drawer = drawerOf(apps = installed, loaded = false)
+        drawer.setPrompt("zzz")
+        assertEquals("", (drawer.list().emptyView as TextView).text.toString())
     }
 
     @Test fun `a palette switch recolours the prompt, the hint and the rows`() {
@@ -262,5 +291,186 @@ class AppDrawerTest {
         drawer.clearPrompt()
         assertEquals("", drawer.promptText)
         assertEquals(Mode.NORMAL, drawer.mode)
+    }
+
+    // ---- a drawer of its own --------------------------------------------------------------
+
+    /** A drawer over [apps] with [config]. If [loaded] is false, no app list has arrived yet. */
+    private fun drawerOf(apps: List<AppEntry>, config: VersoConfig = VersoConfig(), loaded: Boolean = true): AppDrawer {
+        val state = testLauncherState(
+            io = { task -> task.run(); true },
+            main = { task -> task.run() },
+            config = config,
+            enumerateApps = { Enumeration(apps, true) },
+            onRefreshed = {},
+        )
+        if (loaded) state.refresh()
+        return AppDrawer(
+            activity = activity,
+            state = state,
+            palette = HomeStyle.palette(lightWallpaper = false),
+            onAction = { taps += it },
+            onLongPress = { longPresses += it },
+            onFiltered = {},
+            onModeChanged = {},
+        )
+    }
+
+    private fun AppDrawer.list(): ListView = view.collect<ListView>().single()
+
+    private fun AppDrawer.row(position: Int): TextView = list().let { it.adapter.getView(position, null, it) as TextView }
+
+    private val tagged = drawerOf(installed, VersoConfig(tags = mapOf(installed[0].key to listOf("work"))))
+
+    // ---- Enter --------------------------------------------------------------------------
+
+    @Test fun `Enter launches the row right above the prompt`() {
+        drawer.setPrompt("a")
+        val shown = rows()
+        assertTrue("several rows: $shown", shown.size > 1)
+        prompt.onEditorAction(EditorInfo.IME_ACTION_GO)
+        assertEquals(listOf(shown.last()), taps.map { (it as DrawerAction.Launch).entry.label })
+    }
+
+    private fun key(action: Int, code: Int, repeat: Int = 0) = KeyEvent(0L, 0L, action, code, repeat)
+
+    /** A hardware Enter calls the listener for its down, for every repeat and for its up; only the first down may act. */
+    @Test fun `a held hardware Enter acts once`() {
+        drawer.setPrompt("br")
+        prompt.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+        prompt.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, repeat = 1))
+        prompt.dispatchKeyEvent(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+    }
+
+    @Test fun `the number pad's Enter is an Enter`() {
+        drawer.setPrompt("br")
+        prompt.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_NUMPAD_ENTER))
+        prompt.dispatchKeyEvent(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_NUMPAD_ENTER))
+        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+    }
+
+    // ---- the list's anchor, the clear button, keys in the list ---------------------------
+
+    /** The bare drawer reads from the top. Every other list sits on the prompt, where Enter acts. */
+    @Test fun `only the bare drawer hangs from the top`() {
+        drawer.setPrompt("")
+        assertFalse(list.isStackFromBottom)
+        drawer.setPrompt("a")
+        assertTrue(list.isStackFromBottom)
+        drawer.setPrompt("?")
+        assertTrue(list.isStackFromBottom)
+        drawer.setPrompt("")
+        assertFalse(list.isStackFromBottom)
+    }
+
+    private val clearButton: TextView get() = drawer.view.collect<TextView>().single { it.text.toString() == "×" }
+
+    @Test fun `the clear button comes with text, and a tap on it empties the prompt`() {
+        drawer.setPrompt("")
+        assertEquals(View.GONE, clearButton.visibility)
+        drawer.setPrompt("?a")
+        assertEquals(View.VISIBLE, clearButton.visibility)
+        clearButton.performClick()
+        assertEquals("", drawer.promptText)
+        assertEquals(Mode.NORMAL, drawer.mode)
+        assertEquals(View.GONE, clearButton.visibility)
+    }
+
+    /** A hardware keyboard's focus can land in the list, and what it types must still reach the prompt. */
+    @Test fun `a key typed into the list goes to the prompt`() {
+        drawer.setPrompt("")
+        // A view group takes a key itself only while it is focused and laid out, so the list is shown first.
+        activity.setContentView(drawer.view)
+        drawer.view.visibility = View.VISIBLE
+        drawer.view.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(list.requestFocus())
+        assertTrue(list.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_B)))
+        assertFalse("the release types nothing", list.dispatchKeyEvent(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_B)))
+        assertEquals("b", drawer.promptText)
+        assertEquals(listOf("Bravo"), rows())
+    }
+
+    // ---- long press ---------------------------------------------------------------------
+
+    private fun longPress(list: ListView, position: Int): Boolean =
+        list.onItemLongClickListener.onItemLongClick(list, list.adapter.getView(position, null, list), position, 0)
+
+    private fun fingerDown(list: ListView) =
+        list.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 10f, 10f, 0))
+
+    @Test fun `a long press on an app row is App info`() {
+        drawer.setPrompt("br")
+        fingerDown(list)
+        assertTrue(longPress(list, 0))
+        assertEquals(listOf(installed[1]), longPresses)
+    }
+
+    /** A tag row has no App info. The press is not taken, so the list goes on with the touch. */
+    @Test fun `a long press on a tag row is not taken`() {
+        tagged.setPrompt("#")
+        val list = tagged.list()
+        fingerDown(list)
+        assertFalse(longPress(list, 0))
+        assertEquals(emptyList<AppEntry>(), longPresses)
+    }
+
+    /** If the finger came down on another list, the press would land on a row it never touched. */
+    @Test fun `a long press whose list was replaced meanwhile is dropped`() {
+        drawer.setPrompt("")
+        fingerDown(list)
+        drawer.setPrompt("br")
+        assertFalse(longPress(list, 0))
+        assertEquals(emptyList<AppEntry>(), longPresses)
+    }
+
+    // ---- insets -------------------------------------------------------------------------
+
+    /** The bars count by their size whether they are shown or not (hard rule 12); the keyboard counts where it is larger. */
+    @Test fun `the drawer pads for the bars or the keyboard, whichever is larger, plus a margin`() {
+        val pad = activity.dp(12)
+        val bars = Insets.of(0, 80, 0, 40)
+        fun insets(ime: Insets) = WindowInsets.Builder()
+            .setInsets(WindowInsets.Type.systemBars(), Insets.NONE)
+            .setInsetsIgnoringVisibility(WindowInsets.Type.systemBars(), bars)
+            .setInsets(WindowInsets.Type.ime(), ime)
+            .build()
+        drawer.view.dispatchApplyWindowInsets(insets(ime = Insets.NONE))
+        assertEquals(80 + pad, drawer.view.paddingTop)
+        assertEquals(40 + pad, drawer.view.paddingBottom)
+        drawer.view.dispatchApplyWindowInsets(insets(ime = Insets.of(0, 0, 0, 700)))
+        assertEquals(80 + pad, drawer.view.paddingTop)
+        assertEquals(700 + pad, drawer.view.paddingBottom)
+    }
+
+    // ---- what a row shows -----------------------------------------------------------------
+
+    @Test fun `a paused app's row says paused and what a double-tap does`() {
+        val paused = AppEntry("Delta", "com.delta", "com.delta.Main", "Delta", status = AppStatus.PAUSED)
+        val drawer = drawerOf(installed + paused)
+        drawer.setPrompt("delta")
+        val list = drawer.list()
+        val row = drawer.row(0)
+        assertEquals(activity.getString(R.string.a11y_state_paused), row.stateDescription)
+        val info = AccessibilityNodeInfo()
+        list.onInitializeAccessibilityNodeInfoForItem(row, 0, info)
+        val click = info.actionList.single { it.id == AccessibilityNodeInfo.ACTION_CLICK }
+        assertEquals(activity.getString(R.string.a11y_do_turn_on_work), click.label)
+    }
+
+    /** The "%" row names what it turns the order into, in the command font. A tag row reads like an app row. */
+    @Test fun `the order row and a tag row show their words in their fonts`() {
+        drawer.setPrompt("%")
+        val order = rowView(0)
+        assertEquals(activity.getString(R.string.order_to_usage), order.text.toString())
+        assertEquals(Typeface.MONOSPACE, order.typeface)
+        tagged.setPrompt("")
+        val appFont = tagged.row(0).typeface
+        tagged.setPrompt("#")
+        val tag = tagged.row(0)
+        assertEquals("work", tag.text.toString())
+        assertEquals(appFont, tag.typeface)
+        assertNotEquals(Typeface.MONOSPACE, tag.typeface)
     }
 }
