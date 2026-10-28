@@ -23,7 +23,7 @@ detekt {
 // -PdailyDriver (bare or =true): the personal release build (see sourceSets below).
 val dailyDriver = providers.gradleProperty("dailyDriver").map { it.isBlank() || it.toBoolean() }.getOrElse(false)
 
-// The source scans; when they run: sourceScanTest, below.
+// The tests that read files instead of code. When they run is described at sourceScanTest, below.
 val sourceScans = listOf("*.SourceGuardTest", "*.CommentLinkTest")
 
 android {
