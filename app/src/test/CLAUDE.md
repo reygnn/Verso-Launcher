@@ -64,8 +64,9 @@ Source scans
 
 The scans read files that are not compiled, so they run in a task of their own,
 `sourceScanTest`, with those files as inputs; a changed comment or Markdown file alone would
-leave a test task up to date. The unit test tasks leave the scans out. A new scan goes into
-`sourceScans` in `app/build.gradle.kts`, and a file it reads into the task's inputs there.
+leave a test task up to date. The unit test tasks run them as well, so `--tests` finds them in
+either task. A new scan goes into `sourceScans` in `app/build.gradle.kts`, and a file it reads
+into the task's inputs there.
 
 Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
 `DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest` and `RecentsLogTest` use

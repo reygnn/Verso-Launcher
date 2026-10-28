@@ -10,10 +10,11 @@ import java.io.File
  * Comments that name code which is no longer there. The next session trusts a comment, so a name
  * that outlived its declaration misleads it (CLAUDE.md, "Comments and KDoc").
  *
- * Checked: every KDoc link in a comment of Verso's Kotlin sources, and in the Markdown files every
- * name in backticks that has the form `Owner.member` (Owner one of Verso's or Guru's types) or
- * `Name.kt`. A link resolves when each of its segments is declared somewhere in Verso's or Guru's
- * code, or imported there; a link in code that ships resolves only against code that ships.
+ * Checked: every name in brackets in a comment of Verso's Kotlin sources, KDoc or not, and in the
+ * Markdown files every name in backticks that has the form `Owner.member` (Owner one of Verso's or
+ * Guru's types) or `Name.kt`. A link resolves when each of its segments is declared somewhere in
+ * Verso's or Guru's code, or imported there; a link in code that ships resolves only against code
+ * that ships.
  *
  * Why: the IDE does not resolve a test from main code, so such a link would be dead there.
  * Why: a resolver this loose catches what drifts in practice, a name that is gone everywhere. It

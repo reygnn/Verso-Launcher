@@ -65,8 +65,9 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
     and renames a link, `CommentLinkTest` fails on one whose name is gone, and a plain name
     outlives its declaration unseen. Code that ships links only to code that ships: the IDE does
     not resolve a test from it, so a test is named in prose there. Files, commands and other text
-    in backticks or quotes. In Markdown, `Owner.member` and a Kotlin file's name in backticks are
-    checked the same way.
+    in backticks or quotes. A name in brackets in a line or block comment is checked the same
+    way, though the IDE does not follow it there. In Markdown, `Owner.member` and a Kotlin file's
+    name in backticks are checked too.
   - **Each fact in one place:** a rule is its hard rule here or one KDoc, and everything else
     points to it ("hard rule 15", `[Commands.adopt]`). `CAVEATS.md` tells users in their words.
   - **A change of behaviour changes its comment in the same commit.** detekt's

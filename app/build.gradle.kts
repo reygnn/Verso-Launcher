@@ -23,8 +23,8 @@ detekt {
 // -PdailyDriver (bare or =true): the personal release build (see sourceSets below).
 val dailyDriver = providers.gradleProperty("dailyDriver").map { it.isBlank() || it.toBoolean() }.getOrElse(false)
 
-// The tests that read files instead of code: they run in sourceScanTest (below), not with the
-// unit tests.
+// The tests that read files instead of code. They also run with the unit tests; sourceScanTest
+// (below) reruns them when one of those files changes.
 val sourceScans = listOf("*.SourceGuardTest", "*.CommentLinkTest")
 
 android {
@@ -129,8 +129,6 @@ android {
                 // on a Turkish host "Linux" becomes "lınux", its native library is not found and
                 // every Robolectric test fails before it runs. Verso uses no TLS — leave it out.
                 it.systemProperty("robolectric.conscryptMode", "OFF")
-                // The source scans run in sourceScanTest (below), with the files they read as inputs.
-                it.filter { sourceScans.forEach { scan -> excludeTestsMatching(scan) } }
             }
         }
     }
@@ -159,6 +157,8 @@ android {
 // and as part of check. A change to a Markdown file then reruns the scans alone, not every unit
 // test. They reuse the debug unit tests' classes and classpath, so they compile once with the
 // other tests. One scan alone: ./gradlew sourceScanTest --tests '*CommentLinkTest'
+// Why the unit test tasks keep them: --tests then finds a scan in either task, and both scans
+//   together take under a second.
 val sourceScanTest = tasks.register<Test>("sourceScanTest") {
     group = "verification"
     description = "Runs the source scans whenever a file they read changes."
