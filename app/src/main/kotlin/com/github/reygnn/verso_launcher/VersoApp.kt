@@ -11,8 +11,8 @@ import java.util.concurrent.RejectedExecutionException
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
- * write the same file concurrently), the launcher's data ([core]), the config file's reads
- * ([commands]), the [ProcessState] and the label/palette caches.
+ * write the same file concurrently), the launcher's data ([core]), the [ProcessState] and the
+ * label/palette caches.
  */
 class VersoApp : Application() {
 
@@ -31,14 +31,13 @@ class VersoApp : Application() {
     /** Last applied wallpaper palette, so a recreated activity starts in the right colours. Main thread only. */
     internal var palette: Palette? = null
 
-    /** What a recreated LauncherState takes over: the recents, the launches, the messages. */
+    /** What a recreated LauncherState takes over: the recents and the launches. */
     internal val process = ProcessState()
 
     /**
      * The live window (MainActivity), between its onCreate and its onDestroy, for what the process
-     * hands over: the state's refreshes (Core) and the commands' results (Commands, Results). Seen
-     * only as a [LauncherWindow]. Main thread only; never held past onDestroy, so it keeps no
-     * instance alive.
+     * hands over: the state's refreshes (Core). Seen only as a [LauncherWindow]. Main thread only;
+     * never held past onDestroy, so it keeps no instance alive.
      */
     internal var instance: LauncherWindow? = null
 
@@ -48,22 +47,11 @@ class VersoApp : Application() {
      */
     internal val core by lazy { Core(this) }
 
-    /** The "~" commands' work; their results go through [results]. */
-    internal val commands by lazy { Commands(this) }
-
-    /** The commands' results, queued until a window is in front (ProcessState.messages). */
-    internal val results by lazy { Results(process.messages) { instance } }
-
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /** On the main thread for the process, never dropped — unlike MainActivity.onUi, which is per instance. */
     internal fun onMain(block: () -> Unit) {
         mainHandler.post { block() }
-    }
-
-    /** As [onMain], after [delayMs]. */
-    internal fun onMainAfter(delayMs: Long, block: () -> Unit) {
-        mainHandler.postDelayed({ block() }, delayMs)
     }
 
     /**

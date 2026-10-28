@@ -1,9 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
@@ -119,13 +117,15 @@ class ConfigTextTest {
         assertEquals(listOf(2, 3, 4, 5, 6, 7), text.badLines)
         assertEquals(listOf("Maps"), text.favorites)
         assertEquals(listOf("Firefox"), text.hidden)
-        assertFalse(text.isNoConfig)
     }
 
-    @Test fun `a file of lines none of which is an entry is no config, an empty or comment-only one is`() {
-        assertTrue(ConfigText.parse("{\n  \"favorites\": []\n}").isNoConfig)
-        assertFalse(ConfigText.parse("").isNoConfig)
-        assertFalse(ConfigText.parse("# nothing yet\n\n").isNoConfig)
+    /** An old JSON backup put where the config goes: every line skipped, nothing set, no throw. */
+    @Test fun `a file of no entries sets nothing, an empty or comment-only one skips nothing`() {
+        val json = ConfigText.parse("{\n  \"favorites\": []\n}")
+        assertEquals(listOf(1, 2, 3), json.badLines)
+        assertEquals(ConfigText(badLines = listOf(1, 2, 3)), json)
+        assertEquals(ConfigText(), ConfigText.parse(""))
+        assertEquals(ConfigText(), ConfigText.parse("# nothing yet\n\n"))
     }
 
     @Test fun `a name may hold an equals sign, only the first one splits`() {
@@ -142,7 +142,7 @@ class ConfigTextTest {
         assertEquals(config, ConfigText.resolve(textOf(config), apps))
     }
 
-    // ---- readCapped: the OOM guard of a picked file's read ----------------------
+    // ---- readCapped: the OOM guard of the file's read ------------------------------
 
     private fun capped(text: String, max: Int) = ConfigText.readCapped(ByteArrayInputStream(text.toByteArray()), maxBytes = max)
 

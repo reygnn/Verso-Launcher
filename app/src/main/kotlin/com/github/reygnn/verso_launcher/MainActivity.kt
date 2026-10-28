@@ -1,19 +1,16 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
-import android.provider.DocumentsContract
 import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowInsetsController
@@ -33,8 +30,6 @@ class MainActivity : Activity() {
     private var resumed = false
     // Set by a launch that started: the pause it brings turns the page home (see onPause).
     private var launchedApp = false
-    // Between onStart and onStop: the launcher can be seen (results wait for it, Results).
-    private var started = false
 
     private val app get() = VersoApp.from(this)
 
@@ -45,13 +40,11 @@ class MainActivity : Activity() {
     private val state: LauncherState by lazy { app.core.state }
 
     /**
-     * The state's hand-back after a refresh or a new config (Core sends it to the live window). An
-     * instance made with another state (a reset since) ignores it: the recreation renders anew.
+     * The state's hand-back after a refresh (Core sends it to the live window). An instance made
+     * with another state (a reset since) ignores it: the recreation renders anew.
      */
     private fun refreshed(from: LauncherState, listChanged: Boolean) {
         if (from !== state) return
-        // A recreated instance's first refresh: the results left while no window was in front.
-        app.results.flush()
         if (listChanged) appDrawer.refilter()
     }
 
@@ -60,11 +53,7 @@ class MainActivity : Activity() {
      * Activity exposes none of the internal types, and the process holds it only until onDestroy.
      */
     private val launcherWindow = object : LauncherWindow {
-        override val inFront: Boolean get() = started
-
         override fun refreshed(from: LauncherState, listChanged: Boolean) = this@MainActivity.refreshed(from, listChanged)
-
-        override fun show(text: String, long: Boolean) = toast(text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT)
     }
 
     // ---- the two pages ------------------------------------------------------
@@ -80,7 +69,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The process hands its results and refreshes to whichever instance is alive.
+        // The process hands its refreshes to whichever instance is alive.
         app.instance = launcherWindow
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
@@ -157,11 +146,7 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
-        started = true
         homePage.startBattery()
-        app.results.flush()
-        // Back from an editor, or after a while: the file may have changed.
-        app.commands.readLinked()
     }
 
     override fun onResume() {
@@ -222,15 +207,13 @@ class MainActivity : Activity() {
 
     /** Leaving the launcher turns the page home instantly, so a return lands on home, not a half-typed search. */
     override fun onStop() {
-        started = false
         pageTurn.close(animate = false)
         homePage.stopBattery()
         super.onStop()
     }
 
     override fun onDestroy() {
-        // No executor shutdown: work this instance queued must still run. A read of the config
-        // file it started hands back to the process (Commands).
+        // No executor shutdown: work this instance queued must still run.
         if (app.instance === launcherWindow) app.instance = null
         unwatchApps()
         unwatchWallpaper()
@@ -264,9 +247,9 @@ class MainActivity : Activity() {
         homePage.scrollToTop()
     }
 
-    // ---- config -------------------------------------------------------------
+    // ---- commands -----------------------------------------------------------
 
-    /** Run a "~" command; each reports its real result with a toast. */
+    /** Run a "~" command. */
     private fun runCommand(command: Command) {
         // A deliberate crash, for Guru and the crash-only paths, at any time. The constant compiles
         // it out of a public release, where nothing parses to CRASH anyway.
@@ -282,84 +265,18 @@ class MainActivity : Activity() {
         appDrawer.clearPrompt()
         when (command) {
             Command.RESTART -> restart()
-            // Only the picker here: the answer is the process's (onActivityResult, Commands).
-            Command.OPEN -> pickConfigFile()
-            Command.EDIT -> editConfigFile()
             Command.CRASH -> Unit // returned above
         }
     }
 
-    /** "~restart": the repair by hand. */
+    /** "~restart": the reload of the config file, and the repair by hand. */
     private fun restart() {
-        // A fresh state (Core.reset) loads the app list anew, and the recreation builds every view
-        // anew around it; onStart reads the linked file. Until that recreation lands this window still
-        // holds the old state, so it takes nothing more.
+        // A fresh state (Core.reset) reads the config file again and loads the app list anew, and
+        // the recreation builds every view anew around it. Until that recreation lands this window
+        // still holds the old state, so it takes nothing more.
         restarting = true
         app.core.reset()
         recreate()
-    }
-
-    /** "~open": the user's config file, wherever it is — this phone's, a cloud folder's, a copy of it. */
-    private fun pickConfigFile() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            // Not a strict "text/plain": a provider may hand a text file out as octet-stream, and a
-            // strict filter would grey it out.
-            .setType("*/*")
-            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/octet-stream"))
-            .addFlags(PERSISTED_GRANT)
-            // Only a hint; DocumentsUI ignores it when the folder does not exist yet.
-            .putExtra(
-                DocumentsContract.EXTRA_INITIAL_URI,
-                DocumentsContract.buildDocumentUri(
-                    "com.android.externalstorage.documents",
-                    "primary:${Environment.DIRECTORY_DOWNLOADS}/$CONFIG_DIR",
-                ),
-            )
-        try {
-            startActivityForResult(intent, REQ_OPEN)
-        } catch (e: ActivityNotFoundException) {
-            Log.w("Verso", "no document picker on this device", e)
-            toast(getString(R.string.toast_no_picker))
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        val uri = data?.data
-        // Backing out of the picker is not an error — say nothing.
-        if (resultCode != RESULT_OK || uri == null) return
-        // From here the answer is the process's: a recreation or a stop loses it no more, and the
-        // thread that reads the document holds nothing of this activity.
-        if (requestCode == REQ_OPEN) app.commands.link(uri)
-    }
-
-    /**
-     * "~edit": the linked file in the user's editor, in a task of its own (not on top of HOME,
-     * where a press of Home would close it with the edits); onStart reads it back. An app that
-     * only views it, if none edits; the write grant only where Verso holds one itself.
-     */
-    private fun editConfigFile() {
-        val uri = app.core.link ?: return toast(getString(R.string.toast_no_config_file), Toast.LENGTH_LONG)
-        val flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-        val tries = listOf(
-            Intent(Intent.ACTION_EDIT).setDataAndType(uri, "text/plain").addFlags(flags or Intent.FLAG_GRANT_WRITE_URI_PERMISSION),
-            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "text/plain").addFlags(flags),
-        )
-        var noAccess = false
-        for (intent in tries) {
-            try {
-                startActivity(intent)
-                return
-            } catch (e: ActivityNotFoundException) {
-                Log.w("Verso", "no app takes ${intent.action} for the config file", e)
-            } catch (e: SecurityException) {
-                // No grant to pass on (a read-only link, or one that is gone): the next is tried.
-                Log.w("Verso", "cannot pass on ${intent.action} for the config file", e)
-                noAccess = true
-            }
-        }
-        toast(getString(if (noAccess) R.string.toast_edit_no_access else R.string.toast_no_editor), Toast.LENGTH_LONG)
     }
 
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
@@ -477,17 +394,7 @@ class MainActivity : Activity() {
     }
 
     private companion object {
-        /** The folder the picker suggests: Download/Verso, where the backups of earlier versions are. */
-        const val CONFIG_DIR = "Verso"
-
-        /** The picker's grant, to be kept across restarts (Commands.keepAccess). */
-        const val PERSISTED_GRANT = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-
         /** How long package changes in front are collected into one refresh. */
         const val CHANGE_SETTLE_MS = 500L
     }
 }
-
-/** The picker's request code. Internal for MainActivityFlowsTest, which answers it. */
-internal const val REQ_OPEN = 1

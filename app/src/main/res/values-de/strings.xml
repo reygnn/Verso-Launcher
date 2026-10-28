@@ -4,7 +4,7 @@
     <string name="hint_search">&gt; suche</string>
     <string name="clear_prompt">Eingabe löschen</string>
     <!-- Startseite (Vorderseite; der Drawer ist die Rückseite). -->
-    <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nDeine Favoriten kommen aus einer Config-Datei von dir: in einem beliebigen Editor anlegen (fav Gmail, eine App je Zeile) und in der App-Liste mit ~open verknüpfen.</string>
+    <string name="home_hint">Nach oben wischen für alle Apps, nach unten für die zuletzt genutzten.\n\nDeine Favoriten kommen aus einer Config-Datei von dir: in einem beliebigen Editor anlegen (fav Gmail, eine App je Zeile), vom PC nach Android/data/com.github.reygnn.verso_launcher/files/config.txt kopieren und in der App-Liste ~restart eingeben.</string>
     <string name="a11y_home">Startbildschirm</string>
     <string name="a11y_open_drawer">Alle Apps öffnen</string>
     <string name="a11y_open_recents">Zuletzt verwendete Apps öffnen</string>
@@ -27,18 +27,6 @@
     <string name="toast_not_found">Nicht gefunden: %1$s</string>
     <string name="toast_denied">Verweigert: %1$s</string>
     <string name="toast_not_default_home">Für Arbeits-Apps Verso als Standard-Startseite festlegen</string>
-    <!-- Die Config-Datei (~open, ~edit) und ihr Lesen. -->
-    <string name="toast_config_file_unreadable">Config-Datei nicht lesbar — es gilt die zuletzt gelesene; ~open verknüpft sie neu</string>
-    <string name="toast_config_file_stuck">Config-Datei antwortet nicht — es gilt die zuletzt gelesene, bis sie antwortet</string>
-    <string name="toast_open_unreadable">Diese Datei ist nicht lesbar — nichts geändert</string>
-    <string name="toast_not_a_config">Keine Verso-Config — nichts geändert</string>
-    <string name="toast_link_failed">Verso bekommt keinen dauerhaften Zugriff auf die Datei — anderen Ort versuchen</string>
-    <string name="toast_linked">Config-Datei verknüpft — ~edit öffnet sie</string>
-    <string name="toast_config_lines_skipped">Config-Datei: nicht verstandene Zeilen übersprungen: %1$s</string>
-    <string name="toast_edit_no_access">Verso hat keinen Zugriff mehr auf die Config-Datei — ~open verknüpft sie neu</string>
-    <string name="toast_no_config_file">Noch keine Config-Datei — in einem Editor anlegen, ~open verknüpft sie</string>
-    <string name="toast_no_editor">Keine App hier bearbeitet oder zeigt Textdateien</string>
-    <string name="toast_no_picker">Keine Dateiauswahl auf diesem Gerät</string>
     <!-- Eine Zeile oder ein Favorit, wie ein Screenreader sie nimmt: der App-Name, daneben der
          Zustand (stateDescription), und was Doppeltippen tut (die Beschriftung des Klicks;
          TalkBack setzt "Doppeltippen zum" davor). -->

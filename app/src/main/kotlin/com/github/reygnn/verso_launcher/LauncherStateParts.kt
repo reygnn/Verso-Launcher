@@ -1,7 +1,5 @@
 package com.github.reygnn.verso_launcher
 
-import java.util.concurrent.ConcurrentLinkedQueue
-
 /** A value that outlives a [LauncherState], and whether its file was read into it yet. Main thread only. */
 internal class Kept<T>(var value: T, var loaded: Boolean = false)
 
@@ -11,15 +9,10 @@ internal class Kept<T>(var value: T, var loaded: Boolean = false)
  *
  * @property recents the "?" list, newest first, and whether recents.txt was read into it.
  * @property usage the "%" launches, and whether usage.txt was read into them.
- * @property messages the results not yet shown, oldest first: a config file read while the user
- *   is away, a line it skipped. Shown once each, in order, by whichever instance is in
- *   front first. A queue, not one slot: a result never replaces another. At most one per command
- *   or read, and those start from the front, so it stays short without a cap.
  */
 internal class ProcessState(
     val recents: Kept<List<String>> = Kept(emptyList()),
     val usage: Kept<Map<String, Usage>> = Kept(emptyMap()),
-    val messages: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue(),
 )
 
 /** recents.txt: [read] null when it is there but unreadable (then it is never written over). */

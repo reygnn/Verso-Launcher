@@ -8,7 +8,7 @@ import org.junit.Test
 
 /**
  * The IO thread and the main thread are two manual FIFO queues, so a test decides exactly when
- * the background part of a load runs and when its result is handed back, and can put a new text in
+ * the background part of a load runs and when its result is handed back, and can put a tap in
  * between.
  */
 class LauncherStateTest {
@@ -22,7 +22,7 @@ class LauncherStateTest {
 
     /** The user's file as Core read it before the state exists; set before the first use of [state]. */
     private var file = ""
-    /** No config at all (no file linked): the defaults. */
+    /** No config at all (no config file): the defaults. */
     private var fresh = false
 
     /** Reported without custom names and NOT sorted (reversed below), so the tests see LauncherState apply both. */
@@ -46,7 +46,7 @@ class LauncherStateTest {
         testLauncherState(
             io = { task -> ioQueue.addLast(task); true },
             main = { task -> mainQueue.addLast(task) },
-            initial = ConfigText.parse(file),
+            text = ConfigText.parse(file),
             useDefaults = fresh,
             enumerateApps = {
                 enumerations++
@@ -278,45 +278,6 @@ class LauncherStateTest {
         runAll()
         assertTrue("Delta" in labels())
         assertFalse(state.needsRefresh)
-    }
-
-    // ---- a new text: the file read anew ------------------------------------------------
-
-    @Test fun `a new text sets its config at once and re-renders, without enumerating`() {
-        file = "fav Alpha\nname Bravo = Mine"
-        started()
-        val before = enumerations
-        state.adopt(ConfigText.parse("fav Bravo\nname Alpha = Zulu"))
-        assertEquals(listOf(key("Bravo")), state.config.favorites)
-        assertEquals("the names it does not have are gone", listOf("Bravo", "Charlie", "Zulu"), labels())
-        assertEquals(listOf(true), listChanges)
-        assertEquals(before, enumerations)
-    }
-
-    @Test fun `a new text reports only once its config and its names are in place`() {
-        started()
-        val seen = mutableListOf<Pair<List<String>, List<String>>>()
-        onReport = { seen += state.config.favorites to labels() }
-        state.adopt(ConfigText.parse("fav Bravo\nname Alpha = Zulu"))
-        assertEquals(listOf(listOf(key("Bravo")) to listOf("Bravo", "Charlie", "Zulu")), seen)
-    }
-
-    @Test fun `a refresh hand-off landing after a new text keeps that text's config and the new apps`() {
-        started()
-        installed = installed + app("Delta")
-        state.refresh()
-        runIo()                               // its hand-off is queued
-        state.adopt(ConfigText.parse("fav Bravo\nfav Delta"))
-        runAll()
-        assertTrue("Delta" in labels())
-        assertEquals("Delta named by label once its list is in", listOf(key("Bravo"), key("Delta")), state.config.favorites)
-    }
-
-    @Test fun `the drawer order stays when a new text comes`() {
-        started()
-        state.toggleOrder()
-        state.adopt(ConfigText.parse("fav Bravo"))
-        assertTrue(state.config.byUsage)
     }
 
     // ---- recents ----------------------------------------------------------------
@@ -551,19 +512,6 @@ class LauncherStateTest {
         assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
     }
 
-    @Test fun `a file linked ends the defaults, also against a load picked for them before`() {
-        fresh = true
-        state.refresh()
-        runIo()                                   // the defaults are picked, the hand-off waits
-        state.adopt(ConfigText.parse("fav Bravo"))
-        runAll()
-        assertEquals(listOf(key("Bravo")), state.config.favorites)
-        state.refresh()
-        runAll()
-        assertEquals(listOf(key("Bravo")), state.config.favorites)
-        assertEquals("no more picks", 1, candidatesCalls)
-    }
-
     // ---- AppEntry --------------------------------------------------------------
 
     @Test fun `a personal app keeps the plain key, another profile's copy gets the serial`() {
@@ -586,11 +534,10 @@ class LauncherStateTest {
     @Test fun `a work copy is its own row with its own favorite state`() {
         val work = AppEntry("Charlie (Work)", "com.charlie", "com.charlie.Main", "Charlie (Work)", profile = 10)
         installed = installed + work
-        file = "fav Charlie"
+        file = "fav Charlie\nhide Charlie (Work)"
         started()
-        assertEquals(listOf("Charlie"), state.favorites().map { it.label })
-        state.adopt(ConfigText.parse("fav Charlie\nfav Charlie (Work)"))
-        assertEquals(listOf("Charlie", "Charlie (Work)"), state.favorites().map { it.label })
+        assertEquals("the label of one copy names that copy alone", listOf("Charlie"), state.favorites().map { it.label })
+        assertEquals(setOf(work.key), state.config.hidden)
     }
 
     @Test fun `the personal key is package slash class, the format old configs were written in`() {

@@ -4,7 +4,7 @@
     <string name="hint_search">&gt; search</string>
     <string name="clear_prompt">Clear prompt</string>
     <!-- Home page (the front of the page; the drawer is its back). -->
-    <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nYour favorites come from a config file of yours: write one in any editor (fav Gmail, one app a line) and link it with ~open in the drawer.</string>
+    <string name="home_hint">Swipe up for all apps, down for recent ones.\n\nYour favorites come from a config file of yours: write one in any editor (fav Gmail, one app a line), copy it from a PC to Android/data/com.github.reygnn.verso_launcher/files/config.txt and type ~restart in the drawer.</string>
     <string name="a11y_home">Home screen</string>
     <string name="a11y_open_drawer">Open all apps</string>
     <string name="a11y_open_recents">Open recent apps</string>
@@ -28,19 +28,6 @@
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
     <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
-    <!-- The config file (~open, ~edit) and its reads. -->
-    <string name="toast_config_file_unreadable">config file unreadable — the last one read stays; ~open links it again</string>
-    <string name="toast_config_file_stuck">config file not answering — the last one read stays until it does</string>
-    <string name="toast_open_unreadable">that file cannot be read — nothing changed</string>
-    <string name="toast_not_a_config">not a Verso config — nothing changed</string>
-    <string name="toast_link_failed">Verso cannot keep access to that file — try another place</string>
-    <string name="toast_linked">config file linked — ~edit opens it</string>
-    <!-- %1$s: the numbers of the lines that are no entry ("3, 7"). -->
-    <string name="toast_config_lines_skipped">config file: lines not understood, skipped: %1$s</string>
-    <string name="toast_edit_no_access">Verso has no access to the config file any more — ~open links it again</string>
-    <string name="toast_no_config_file">no config file yet — write one in any editor, ~open links it</string>
-    <string name="toast_no_editor">no app here edits or shows text files</string>
-    <string name="toast_no_picker">no file picker on this device</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
          (stateDescription), and what a double-tap does (the click's label; TalkBack adds
          "double-tap to"). -->

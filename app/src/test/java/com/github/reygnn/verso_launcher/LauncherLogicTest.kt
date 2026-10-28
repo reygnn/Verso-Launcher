@@ -143,44 +143,47 @@ class LauncherLogicTest {
         assertEquals(Command.RESTART, LauncherLogic.parseCommand("~restart"))
         assertNull(LauncherLogic.parseCommand("~reset"))
         assertNull(LauncherLogic.parseCommand("~new"))
-        assertEquals(Command.OPEN, LauncherLogic.parseCommand("~open"))
-        assertEquals(Command.EDIT, LauncherLogic.parseCommand("~edit"))
     }
 
-    /** The config is the user's file now: backups are copies of it, and there is nothing to undo. */
-    @Test fun `~backup, ~restore, ~undo, ~restore-saf and ~cleanup are gone`() {
-        for (gone in listOf("~backup", "~restore", "~undo", "~restore-saf", "~cleanup")) {
+    /**
+     * The config is the user's file at a fixed place: backups are copies of it, there is nothing to
+     * undo, link or edit here, and "~restart" reads it again.
+     */
+    @Test fun `~backup, ~restore, ~undo, ~restore-saf, ~cleanup, ~open and ~edit are gone`() {
+        for (gone in listOf("~backup", "~restore", "~undo", "~restore-saf", "~cleanup", "~open", "~edit")) {
             assertNull(gone, LauncherLogic.parseCommand(gone))
             assertNull(gone, LauncherLogic.resolveCommand(gone))
         }
         assertNull(LauncherLogic.resolveCommand("~b"))
         assertNull(LauncherLogic.resolveCommand("~u"))
+        assertNull(LauncherLogic.resolveCommand("~o"))
+        assertNull(LauncherLogic.resolveCommand("~e"))
     }
 
     @Test fun `commands are case-insensitive`() {
-        assertEquals(Command.OPEN, LauncherLogic.parseCommand("~OPEN"))
+        assertEquals(Command.RESTART, LauncherLogic.parseCommand("~RESTART"))
         assertEquals(Command.RESTART, LauncherLogic.parseCommand("~ReStArT"))
     }
 
-    /** Under tr the "I" of "~EDIT" would fold to a dotless i. */
+    /** No spelling has an "i" today; one added with it ("~edit" had) must still parse under tr. */
     @Test fun `commands still parse under a Turkish default locale`() {
         Locale.setDefault(Locale.forLanguageTag("tr"))
-        assertEquals(Command.EDIT, LauncherLogic.parseCommand("~EDIT"))
+        assertEquals(Command.RESTART, LauncherLogic.parseCommand("~RESTART"))
     }
 
     /** Exact matching is what spares the "~" sigil an escape. */
     @Test fun `a prefix or a partial is not a command`() {
-        assertNull(LauncherLogic.parseCommand("~opens"))
-        assertNull(LauncherLogic.parseCommand("~ open"))
-        assertNull(LauncherLogic.parseCommand("~ope"))
-        assertNull(LauncherLogic.parseCommand("~open now"))
-        assertNull(LauncherLogic.parseCommand("open"))
+        assertNull(LauncherLogic.parseCommand("~restarts"))
+        assertNull(LauncherLogic.parseCommand("~ restart"))
+        assertNull(LauncherLogic.parseCommand("~resta"))
+        assertNull(LauncherLogic.parseCommand("~restart now"))
+        assertNull(LauncherLogic.parseCommand("restart"))
         assertNull(LauncherLogic.parseCommand(""))
     }
 
     @Test fun `tilde text is COMMAND mode`() {
         assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~"))
-        assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~edit"))
+        assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~restart"))
         assertEquals(Mode.COMMAND, LauncherLogic.parseMode("~zzz"))
     }
 
@@ -191,22 +194,19 @@ class LauncherLogicTest {
     }
 
     @Test fun `typing narrows the overview`() {
-        assertEquals(listOf("~edit"), LauncherLogic.commandsMatching("~e").map { it.first })
-        assertEquals(listOf("~open"), LauncherLogic.commandsMatching("~o").map { it.first })
         assertEquals(listOf("~restart"), LauncherLogic.commandsMatching("~r").map { it.first })
+        assertEquals(listOf("~restart"), LauncherLogic.commandsMatching("~rest").map { it.first })
         assertEquals(emptyList<String>(), LauncherLogic.commandsMatching("~zzz").map { it.first })
     }
 
-    /** Each first letter is its own command: one key after the tilde does. */
-    @Test fun `every command resolves from its first letter`() {
-        assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~e"))
-        assertEquals(Command.OPEN, LauncherLogic.resolveCommand("~o"))
+    /** One key after the tilde does. */
+    @Test fun `~restart resolves from its first letter`() {
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~r"))
     }
 
-    /** The overview is bottom-anchored: the everyday one sits right above the prompt. */
-    @Test fun `~edit is the command nearest the prompt`() {
-        assertEquals("~edit", LauncherLogic.COMMANDS.last().first)
+    /** The overview is bottom-anchored: the reload of the config file sits right above the prompt. */
+    @Test fun `~restart is the command nearest the prompt`() {
+        assertEquals("~restart", LauncherLogic.COMMANDS.last().first)
     }
 
     /** "~crash": only in a daily-driver build (unit tests compile it in) and only spelled out. */
@@ -225,8 +225,13 @@ class LauncherLogicTest {
         }
     }
 
-    @Test fun `a bare tilde resolves to nothing`() {
+    /**
+     * A public build lists "~restart" alone, so "~" is a prefix of exactly one command that may be
+     * abbreviated: Enter on it must still rebuild nothing.
+     */
+    @Test fun `a bare tilde resolves to nothing, also folded`() {
         assertNull(LauncherLogic.resolveCommand("~"))
+        assertNull(LauncherLogic.resolveCommand("~\u0307"))
     }
 
     /** Otherwise a command added to COMMANDS without a line here would look covered. */
@@ -238,13 +243,13 @@ class LauncherLogicTest {
 
     /** These fold apart from parseCommand; the Turkish case is the next test. */
     @Test fun `commandsMatching and resolveCommand are case-insensitive too`() {
-        assertEquals(listOf("~open"), LauncherLogic.commandsMatching("~O").map { it.first })
-        assertEquals(Command.OPEN, LauncherLogic.resolveCommand("~O"))
+        assertEquals(listOf("~restart"), LauncherLogic.commandsMatching("~R").map { it.first })
+        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~R"))
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~RE"))
-        assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~EDIT"))
+        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~RESTART"))
     }
 
-    /** "~edit" has an "i": typed in caps on a Turkish phone it must still resolve. */
+    /** A command with an "i" typed in caps on a Turkish phone must still resolve. */
     @Test fun `every command spelling survives a Turkish uppercase round trip`() {
         Locale.setDefault(Locale.forLanguageTag("tr"))
         for ((spelling, _) in LauncherLogic.COMMANDS) {
@@ -258,7 +263,7 @@ class LauncherLogicTest {
 
     @Test fun `an abbreviation matching nothing resolves to nothing`() {
         assertNull(LauncherLogic.resolveCommand("~zzz"))
-        assertNull(LauncherLogic.resolveCommand("~openn"))
+        assertNull(LauncherLogic.resolveCommand("~restartt"))
     }
 
     // ---- foldLabel ----------------------------------------------------------
@@ -290,7 +295,7 @@ class LauncherLogicTest {
     /** Typing passes untouched: a rewritten run would drop the keyboard's composing span ("wwo"). */
     @Test fun `promptRun leaves a run without control characters alone`() {
         assertNull(LauncherLogic.promptRun("Google Maps"))
-        assertNull(LauncherLogic.promptRun("~open"))
+        assertNull(LauncherLogic.promptRun("~restart"))
         assertNull(LauncherLogic.promptRun(""))
     }
 
@@ -301,7 +306,7 @@ class LauncherLogicTest {
         assertEquals("Google Maps", LauncherLogic.promptRun("Google\n\n\tMaps"))
         assertEquals("a b", LauncherLogic.promptRun("a\tb"))
         assertEquals("ab", LauncherLogic.promptRun("a\u0007b"))
-        assertEquals("~open ", LauncherLogic.promptRun("~open\n"))
+        assertEquals("~restart ", LauncherLogic.promptRun("~restart\n"))
     }
 
     @Test fun `cleanName drops invisible bidi and zero-width characters`() {
@@ -889,9 +894,9 @@ class LauncherLogicTest {
     // ---- fixed points and safe cuts ------------------------------------------
 
     @Test fun `a command needs the tilde in the raw prompt, not just after folding`() {
-        assertNull(LauncherLogic.parseCommand("\u0307~open"))
-        assertNull(LauncherLogic.resolveCommand("\u0307~open"))
-        assertEquals(Command.OPEN, LauncherLogic.parseCommand("~open"))
+        assertNull(LauncherLogic.parseCommand("\u0307~restart"))
+        assertNull(LauncherLogic.resolveCommand("\u0307~restart"))
+        assertEquals(Command.RESTART, LauncherLogic.parseCommand("~restart"))
     }
 
     @Test fun `foldLabel is its own fixed point, also where the dropped dot lets a letter compose`() {
@@ -928,8 +933,8 @@ class LauncherLogicTest {
     }
 
     @Test fun `an abbreviated command needs the tilde in the raw prompt too`() {
-        assertNull(LauncherLogic.resolveCommand("\u0307~e"))
-        assertEquals(Command.EDIT, LauncherLogic.resolveCommand("~e"))
+        assertNull(LauncherLogic.resolveCommand("\u0307~r"))
+        assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~r"))
     }
 
     @Test fun `no app gets more tags than the file format allows`() {

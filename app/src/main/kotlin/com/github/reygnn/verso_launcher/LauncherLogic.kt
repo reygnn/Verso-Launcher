@@ -15,7 +15,7 @@ internal enum class Mode {
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_RECENTS, NO_COMMAND }
 
 /** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { CRASH, RESTART, OPEN, EDIT }
+internal enum class Command { CRASH, RESTART }
 
 /** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
 internal interface Ordered {
@@ -69,18 +69,16 @@ internal object LauncherLogic {
 
     /**
      * Every "~" command, the one list the overview, the abbreviations and the parser share. The
-     * overview is bottom-anchored: the rare ones first, "~edit", the everyday one, nearest the prompt.
+     * overview is bottom-anchored: "~restart", the reload of the config file, nearest the prompt.
      */
     val COMMANDS: List<Pair<String, Command>> = listOfNotNull(
         ("~crash" to Command.CRASH).takeIf { DailyDriver.ENABLED },
         "~restart" to Command.RESTART,
-        "~open" to Command.OPEN,
-        "~edit" to Command.EDIT,
     )
 
     /** The command spelled exactly by [trimmed] (folded), or null; a bare "~" is none. */
     fun parseCommand(trimmed: String): Command? {
-        // The fold drops U+0307, so "\u0307~open" would fold to a command its mode never showed.
+        // The fold drops U+0307, so "\u0307~restart" would fold to a command its mode never showed.
         if (!trimmed.startsWith("~")) return null
         val q = foldLabel(trimmed)
         return COMMANDS.firstOrNull { it.first == q }?.second
@@ -92,15 +90,20 @@ internal object LauncherLogic {
     }
 
     /**
-     * An exact match, else an unambiguous abbreviation ("~e"). Exact must win should one spelling
-     * ever prefix another. An ambiguous abbreviation (a bare "~") resolves to null, never a guess.
+     * An exact match, else an unambiguous abbreviation ("~r"). Exact must win should one spelling
+     * ever prefix another. A bare "~" is no abbreviation and resolves to null, never a guess.
      * "~crash" is never abbreviated: "~c" means nothing in every build.
+     *
+     * Why: a public build has one command left that may be abbreviated, so every prompt starting
+     *   with "~" would be "unambiguous". Enter on a bare "~" must still not rebuild the window.
      */
     fun resolveCommand(trimmed: String): Command? {
         // As in parseCommand: commandsMatching folds the U+0307 away.
         if (!trimmed.startsWith("~")) return null
         parseCommand(trimmed)?.let { return it }
-        return commandsMatching(trimmed).filter { it.second != Command.CRASH }.singleOrNull()?.second
+        val abbreviated = commandsMatching(trimmed).filter { it.second != Command.CRASH }.singleOrNull()?.second
+        // Folded, like the match: "~" + U+0307 is a bare "~" too.
+        return abbreviated.takeIf { foldLabel(trimmed).length > 1 }
     }
 
     /**

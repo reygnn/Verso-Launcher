@@ -8,7 +8,7 @@ import java.io.File
  *
  * Thread: VersoApp.io.
  * Why: there is no fsync because none of these files is precious. If one is lost, the cost is a
- *   slow first frame, the usage counts or one more "~open".
+ *   slow first frame, the recents, the usage counts or the "%" order.
  */
 internal fun writeDisposable(dir: File, name: String, text: String) {
     val tmp = File(dir, "$name.tmp")

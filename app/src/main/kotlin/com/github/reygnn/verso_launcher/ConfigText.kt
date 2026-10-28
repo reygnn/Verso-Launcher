@@ -30,11 +30,6 @@ internal data class ConfigText(
     val tags: List<Pair<String, List<String>>> = emptyList(),
     val badLines: List<Int> = emptyList(),
 ) {
-    val entries: Int get() = favorites.size + hidden.size + names.size + tags.size
-
-    /** Lines, and not one of them an entry: a picked file that is no config at all. */
-    val isNoConfig: Boolean get() = entries == 0 && badLines.isNotEmpty()
-
     companion object {
 
         fun parse(text: String): ConfigText {

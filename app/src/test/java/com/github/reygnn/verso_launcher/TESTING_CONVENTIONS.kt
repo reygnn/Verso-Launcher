@@ -14,7 +14,7 @@ package com.github.reygnn.verso_launcher
  *     — built through testLauncherState (TestLauncherState.kt): flat parameters with inert
  *       defaults, the config given as the file's text (ConfigText) or as keys; the production
  *       constructor has none. One shared ProcessState between two instances models a recreation.
- *   ConfigLink, DrawerOrder, HomeCache, UsageLog, RecentsLog — real files in a dir
+ *   ConfigFile, DrawerOrder, HomeCache, UsageLog, RecentsLog — real files in a dir
  *
  * `log` is the error channel of a class that never throws: collect it and assert on it. Pure
  * decisions live in objects (LauncherLogic, SwipeGesture,
@@ -39,10 +39,9 @@ package com.github.reygnn.verso_launcher
  * Where the real Activity runs, the process's IO executor is real: drain it with
  * `app.io.submit {}.get(…)` plus `shadowOf(Looper.getMainLooper()).idle()`, or hold it with a
  * latch to keep the first load waiting. recreate() is posted, as on a device: controller.get()
- * switches only once the main looper idles. The user's config file is read on a thread of its
- * own, joined by name ("verso-config-read"); the file itself is a stream registered with the
- * shadow ContentResolver (registerInputStreamSupplier for one read again at every start,
- * registerInputStream).
+ * switches only once the main looper idles. The user's config file is a real file in the
+ * application's getExternalFilesDir(null), written before the state is built (the first
+ * MainActivity) or before a "~restart".
  *
  * FILES AND LOCALES
  *

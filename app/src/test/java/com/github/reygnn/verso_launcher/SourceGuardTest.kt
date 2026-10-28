@@ -93,9 +93,9 @@ class SourceGuardTest {
         assertTrue("a \"/*\" in a string opens no comment", has(stripped, "writeConfig = w"))
     }
 
-    // Rule 7: a picked file is read through readCapped, so one too large is refused whole.
-    @Test fun `outside files are read with readCapped`() {
-        assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt"), "ConfigText.readCapped(it)"))
+    // Rule 7: the config file is read through readCapped, so one too large is refused whole.
+    @Test fun `the config file is read with readCapped`() {
+        assertTrue(has(code("src/main/kotlin/com/github/reygnn/verso_launcher/ConfigFile.kt"), "ConfigText.readCapped(it)"))
     }
 
     @Test fun `no string template reaches through an object without braces`() {
@@ -118,13 +118,14 @@ class SourceGuardTest {
     }
 
     /**
-     * What no JVM test reaches: the user's file is read on a thread of its own, never on the IO
-     * thread a provider could block, and never written (hard rule 4).
+     * Hard rule 4, what no JVM test reaches: the config file is read and never written. Nothing
+     * names a writer next to it, and no code opens a document for writing.
      */
-    @Test fun `the config file is read on a thread of its own, and nothing writes a document`() {
-        val commands = code("src/main/kotlin/com/github/reygnn/verso_launcher/Commands.kt")
-        assertTrue(has(commands, "\"verso-config-read\").start()"))
-        assertFalse(has(commands, "submitIo"))
+    @Test fun `nothing writes the config file or a document`() {
+        val file = code("src/main/kotlin/com/github/reygnn/verso_launcher/ConfigFile.kt")
+        for (writer in listOf("writeText", "writeBytes", "outputStream", "writeDisposable", "delete", "renameTo")) {
+            assertFalse("ConfigFile.kt names $writer", Regex("""\b$writer\b""").containsMatchIn(file))
+        }
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
         val writers = dir.walk().filter { it.extension == "kt" }
             .filter { Regex("""\bopenOutputStream\s*\(""").containsMatchIn(withoutComments(it.readText(), "kt")) }
@@ -161,13 +162,13 @@ class SourceGuardTest {
     /**
      * Hard rule 16: the process's code reaches the window only as a LauncherWindow — no Activity,
      * no MainActivity, so nothing of it can hold an instance or call one that is gone. A type keeps
-     * Core and Commands on the Application (their constructors take VersoApp); this keeps an
-     * Activity from coming in sideways (an import, a cast, a field).
+     * Core on the Application (its constructor takes VersoApp); this keeps an Activity from coming
+     * in sideways (an import, a cast, a field).
      */
     @Test fun `the process's code knows no Activity`() {
         val process = listOf(
-            "Core.kt", "Commands.kt", "Results.kt", "LauncherWindow.kt",
-            "LauncherState.kt", "LauncherStateParts.kt", "ConfigLink.kt",
+            "Core.kt", "ConfigFile.kt", "LauncherWindow.kt",
+            "LauncherState.kt", "LauncherStateParts.kt", "DrawerOrder.kt",
         )
         for (file in process) {
             val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$file")

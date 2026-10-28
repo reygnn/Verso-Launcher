@@ -30,7 +30,7 @@ keyboard, no prompt:
   simply scroll. Home text sizes are fixed (dp): they do not follow the system font size.
 - All home text (and the two icons) carries Kolibri's thin tonal outline, so it stays
   readable on any wallpaper without darkening it.
-- With no config file linked, Verso shows your default phone, messenger (default SMS app),
+- With no config file, Verso shows your default phone, messenger (default SMS app),
   email, browser and camera as favorites.
 - No favorites yet? A short hint says where they come from (tap it to open the drawer).
 - Text follows the wallpaper: white with a dark outline on a dark wallpaper, black with
@@ -88,12 +88,9 @@ keyboard, no prompt:
   - `%` — **Enter** switches the plain drawer between A to Z and **most used first** (each
     launch counts, fading with time: a week old about half), and keeps it
   - `~[text]` — commands. `~` lists them, typing narrows the list; tap one, or **Enter** once
-    what you typed can only mean one (`~e` is `~edit`):
-    - `~edit` — your config file in your text editor; back in Verso, your changes show at once
-    - `~open` — link your config file, wherever it is (the system's file picker starts in
-      `Download/Verso/`; a cloud folder works as well): one you wrote, another phone's, a copy.
-      A file that is no config, an old JSON `~backup` among them, is not linked
-    - `~restart` — read everything again and rebuild the list (when something looks stale)
+    what you typed can only mean one (`~r` is `~restart`; a bare `~` is none):
+    - `~restart` — read your config file and everything else again and rebuild the list: the
+      way to make a changed config file count
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
       on purpose, to see Guru's report. Never abbreviated
 - Tap a row or press **Enter** to launch the row nearest the command line. On an empty line
@@ -103,9 +100,17 @@ keyboard, no prompt:
 
 ## The config file
 
-Favorites, hidden apps, custom names and tags live in a plain text file of yours. Verso reads it
-— at every return to the launcher — and never writes it: write it in any editor, keep it where
-you like, link it once with `~open`, copy it to back it up or to take it to another phone.
+Favorites, hidden apps, custom names and tags live in a plain text file of yours, `config.txt`
+in Verso's own folder on the phone's storage. Verso reads it when it starts and at every
+`~restart`, and never writes it. Write it in any editor on a PC and put it there:
+
+```
+adb push config.txt /sdcard/Android/data/com.github.reygnn.verso_launcher/files/config.txt
+```
+
+then type `~restart` in the drawer (a debug build's folder ends in `.debug`). Since Android 11
+no app on the phone reaches that folder, a file manager included, and uninstalling Verso deletes
+it: keep your copy on the PC — it is your backup, and it takes your config to another phone.
 
 ```
 # a comment
@@ -126,8 +131,8 @@ An app is its name as the system shows it (`Gmail`, `Gmail (Work)` for a work co
 (`package/class`, `#serial` for another profile). A name is matched ignoring case, never your own
 names; it changes with the device language, a package does not, so a package outlasts a
 language switch. Long-press an app for its *App info* if you need the package. A line Verso does
-not understand is named in a toast and skipped; the rest still counts. An app that is not
-installed is simply left out until it is.
+not understand is skipped (and named in the system log, tag `Verso`); the rest still counts. An
+app that is not installed is simply left out until it is.
 
 What can go wrong around the config file, a result that comes later and moving to a new phone:
 `CAVEATS.md`.
@@ -156,11 +161,9 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no Hilt / DI — a single `Activity` wires itself
 - no Navigation / Fragments — one `Activity`, no dialogs
 - no DataStore / Room / SharedPreferences — the config is your own text file, which Verso only
-  reads; in `filesDir` it keeps only throwaway files: where that file is and a copy of its last
-  text (for an instant first frame, and when the file cannot be read), `order.txt` behind `%`,
-  `home-cache.txt`, a copy of the favorites as shown, `usage.txt` and `recents.txt` behind `%`
-  and `?`, and Guru's crash reports in `guru/` until the next start saves them (see "Crash
-  reports")
+  reads; in `filesDir` it keeps only throwaway files: `order.txt` behind `%`, `home-cache.txt`,
+  a copy of the favorites as shown, `usage.txt` and `recents.txt` behind `%` and `?`, and
+  Guru's crash reports in `guru/` until the next start saves them (see "Crash reports")
 - no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
   (no library, no permission, no network — see "Crash reports")
 - no ViewBinding / XML layouts — UI built in code

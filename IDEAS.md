@@ -42,15 +42,14 @@ with its reason — the performance points after measuring; Guru's own points be
 - `~restart` gives no toast and lands on home, not in the drawer it was typed in: by design — it
   builds the window anew, and a new window shows home; the rebuilt page is the answer.
 - One `uiAction` net for the main-thread catches (crash-only plan, 2026-10-18): each of them
-  (`startGuarded`, the launch, `openAppInfo`, the document pickers) says its own message by
+  (`startGuarded`, the launch, `openAppInfo`) says its own message by
   exception type; one `onError` would lose those or rebuild the catch inside it. No gain.
 
 ## Kept as an idea
 
-- An `~open` pick lives in memory until its read lands: a process that dies before then loses it
-  (documented in `CAVEATS.md`). Only a pick on disk would survive that.
-- Reading the config file only when it changed (`DocumentsContract`'s last-modified) instead of at
-  every `onStart`: a cloud provider's read may cost a download. Not needed while it is a few KB.
+- Reading the config file again at a return to the launcher when its last-modified time changed,
+  so a pushed file counts without `~restart`. Left out with the fixed place (suckless config,
+  2026-10-28): `~restart` is the one reload, as SIGHUP is for a daemon.
 
 ## Taken out (2026-10-21)
 

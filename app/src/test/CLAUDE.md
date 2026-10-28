@@ -25,33 +25,31 @@ Pure logic
   HomeStyleTest            sizes, luminance, outline thresholds, battery, AppStatus
   VersoConfigTest          equality as file content
   ConfigTextTest           the config file the user writes: its lines, the apps they name
-                           (key, package, folded label), readCapped (a picked file's
+                           (key, package, folded label), readCapped (the file's
                            bounded read)
   AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
 
 State and threads (manual queues)
-  LauncherStateTest        the concurrency rules: refresh and a new text interleaved; the
+  LauncherStateTest        the concurrency rules: refreshes and taps interleaved; the
                            config resolved against each list; the default favorites;
                            recents.txt, usage.txt, the "%" order
-  ResultsTest              results queued until a window is in front, shown once, in order
   WallpaperPaletteTest     the palette's question against the colour listener
 
 Files (real temp files)
-  ConfigLinkTest           the app's own files around the config: the link, the copy, order.txt
-  HomeCacheTest, UsageLogTest, RecentsLogTest   the disposable files beside them
+  ConfigFileTest           the user's config file at its fixed place: none, empty, bad lines,
+                           past the cap — never a throw
+  DrawerOrderTest, HomeCacheTest, UsageLogTest, RecentsLogTest   the app's disposable files
 
 The window (R)
-  MainActivityFlowsTest    the real Activity: ~open and ~edit, the file read again at every
-                           start, an unreadable one, one that hangs, "%", ~restart and
-                           recreation, results that wait
+  MainActivityFlowsTest    the real Activity: the config file from the first frame and read
+                           again by ~restart only, "%", ~restart and recreation
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, TalkBack, the tap guard
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
-  ConfigReadLeakTest       a hung read of the config file keeps no activity alive
   VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso
 
 Source scans
@@ -81,21 +79,21 @@ No instrumented tests: everything runs on the JVM.
   make every interleaving deterministic.
 - **Few Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic` and
   `LauncherState`; the config file's format is `ConfigText`'s, pure.
-- **No MediaStore model.** The config file goes through the user's picker, a plain document
-  stream. Guru's reports still use MediaStore, tested in Guru's repo; `GuruWiringTest.Downloads`
-  only takes a save and keeps its name.
+- **No MediaStore model.** The config file is a plain file at a fixed place. Guru's reports still
+  use MediaStore, tested in Guru's repo; `GuruWiringTest.Downloads` only takes a save and keeps
+  its name.
 
 ---
 
 ## Where a new test goes
 
 - Start from a template: pure logic `LauncherLogicTest`; threads and state `LauncherStateTest`
-  (its queue harness, `testLauncherState`); files `ConfigLinkTest`; a widget `AppDrawerTest`.
+  (its queue harness, `testLauncherState`); files `ConfigFileTest`; a widget `AppDrawerTest`.
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
 - The config file's format: `ConfigTextTest`, and the files users already have must still read.
-- `~open`, `~edit` and the file read again: a new text in `LauncherStateTest`, the picker, the
-  editor and the thread in `MainActivityFlowsTest`.
+- When the config file is read: `ConfigFileTest` for the read itself, `MainActivityFlowsTest` for
+  when (the first state, `~restart`).
 
 ---
 

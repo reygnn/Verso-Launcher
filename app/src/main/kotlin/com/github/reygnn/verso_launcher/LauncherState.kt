@@ -7,19 +7,20 @@ package com.github.reygnn.verso_launcher
  *
  * The config is what the user's file says (hard rule 4) resolved against the apps: a label or a
  * package names an app only once a list that has it is in. So [config] is derived — anew whenever
- * the list or the text changes ([resolve]) — and never written anywhere.
+ * the list changes ([resolve]) — and never written anywhere. The text itself is fixed for the
+ * state's life: a changed file comes with the next state ("~restart", Core.reset).
  *
  * Threading: every public member is main-thread only; disk and LauncherApps work runs on [io],
  * results come back through [main]. The IO side reads only the @Volatile counter:
  *   loadGeneration — bumped by [refresh]: the newest requested enumeration wins, older ones bail.
  * An enumeration carries no config (system labels only); the config is resolved and the custom
- * names applied on main, so no new text can make an enumeration stale.
+ * names applied on main.
  *
  * Every collaborator is passed, none defaulted: a wire MainActivity forgot would otherwise be
  * a silent no-op. Tests build it through testLauncherState, which supplies inert ones.
  *
- * @param initial the config as Core read it before the state exists (hard rule 5): the copy of the
- *   linked file, or nothing.
+ * @param text the config as Core read it before the state exists (hard rule 5): the user's
+ *   file, or nothing.
  * @param useDefaults no config at all, not even an empty file: the favorites are the default ones
  *   (hard rule 10), picked from every list anew and never written.
  * @param byUsage "%" as order.txt has it.
@@ -32,8 +33,8 @@ package com.github.reygnn.verso_launcher
 internal class LauncherState(
     private val io: (Runnable) -> Boolean,
     private val main: (Runnable) -> Unit,
-    initial: ConfigText,
-    useDefaults: Boolean,
+    private val text: ConfigText,
+    private val useDefaults: Boolean,
     byUsage: Boolean,
     private val enumerateApps: () -> Enumeration?,
     private val defaultFavoriteCandidates: () -> List<List<String>>,
@@ -44,8 +45,6 @@ internal class LauncherState(
     private val now: () -> Long,
     private val onRefreshed: (listChanged: Boolean) -> Unit,
 ) {
-    private var text = initial
-    private var useDefaults = useDefaults
     private var byUsage = byUsage
 
     /** The default favorites the last list offered, while [useDefaults]. */
@@ -86,7 +85,6 @@ internal class LauncherState(
         val generation = ++loadGeneration
         val loadUsageNow = !process.usage.loaded
         val loadRecentsNow = !process.recents.loaded
-        val pickDefaults = useDefaults
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
             val diskUsage = if (loadUsageNow) usageFile.read() else null
@@ -95,7 +93,7 @@ internal class LauncherState(
             val loaded = enumeration?.apps
             // From any enumeration with a list, complete or not: one that never completes (a
             // profile that stays unreadable) must not starve the defaults.
-            val picked = if (pickDefaults && loaded != null) {
+            val picked = if (useDefaults && loaded != null) {
                 LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
             } else null
             main(Runnable {
@@ -117,9 +115,8 @@ internal class LauncherState(
                     if (launched.isNotEmpty()) persistRecents()
                 }
                 lastLoadCommitted = enumeration?.complete == true
-                // A file adopted meanwhile ended the defaults: what was picked for them is dropped.
                 var defaultsChanged = false
-                if (picked != null && useDefaults && picked != defaults) {
+                if (picked != null && picked != defaults) {
                     defaults = picked
                     defaultsChanged = true
                 }
@@ -133,17 +130,6 @@ internal class LauncherState(
                 onRefreshed(listChanged || defaultsChanged || recentsChanged)
             })
         })
-    }
-
-    /**
-     * The linked file's text, newly read ("~open", or changed since): the config it sets,
-     * at once; no re-enumeration, the apps are the same. It ends the default favorites.
-     */
-    fun adopt(next: ConfigText) {
-        text = next
-        useDefaults = false
-        resolve()
-        onRefreshed(true)
     }
 
     fun recordLaunch(key: String) {
@@ -177,7 +163,7 @@ internal class LauncherState(
         if (useDefaults) VersoConfig(favorites = defaults, byUsage = byUsage)
         else ConfigText.resolve(text, enumerated).copy(byUsage = byUsage)
 
-    /** The config anew from the text and the list, and the apps under its names. */
+    /** The config anew from the list, and the apps under its names. */
     private fun resolve() {
         config = resolved()
         apps = LauncherLogic.named(enumerated, config.names)

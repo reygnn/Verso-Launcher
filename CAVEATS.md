@@ -15,27 +15,30 @@ this process's launches until a later read succeeds — at the next refresh (a p
 change, a recreation, a resume while the app list is incomplete) or at once with `~restart`.
 Launches meanwhile are merged in, unless the process ends first.
 
-## A config file that cannot be read keeps the last one read
+## The config file lives in Verso's own folder
 
-Verso reads your config file at every return to the launcher. When it cannot — the file was
-moved or deleted, its cloud folder is offline, the grant is gone, it is bigger than 1 MB — the
-config stays as it was last read (Verso keeps a copy of that text), and a toast says so once,
-not at every return. `~open` links the file again, or another one. A provider that does not hand
-the file over within 15 seconds is said once the same way; its text counts as soon as it comes,
-unless the file was read since: `~open` of it reads it afresh, and a late answer of the hung read
-changes nothing then.
-A line Verso does not understand is named in a toast and skipped; the rest of the file still
-counts.
+Your config file is `config.txt` in `Android/data/com.github.reygnn.verso_launcher/files/` on the
+phone's storage. Since Android 11 no app on the phone reaches that folder — not a file manager,
+not an editor — so you write the file on a PC and put it there over USB or with `adb push`.
+Uninstalling Verso, or clearing its storage, deletes the folder and the file with it: your copy on
+the PC is the one that counts.
 
-The JSON of earlier versions is no longer read: not `verso.json`, and not a JSON backup, which
-`~open` refuses as no config. Until you link a text file, Verso shows the default favorites.
+Verso reads the file when it starts and at every `~restart`, never at a return to the launcher:
+a file you changed counts from the next `~restart`. When it cannot read it — it is not there, is
+bigger than 1 MB, or cannot be opened — Verso shows the default favorites, and says so only in the
+system log (tag `Verso`), not on screen. A line Verso does not understand is skipped and named in
+the log the same way; the rest of the file still counts.
+
+Neither the JSON of earlier versions (`verso.json`, a JSON backup) nor the file you linked with
+`~open` up to 0.6.4 is read any more; put a copy of that file in the folder above. A JSON file put
+there sets nothing: every line of it is skipped.
 
 ## Default favorites are shown, not written
 
-With no file linked Verso shows your default phone, messenger, email, browser and camera apps
+With no config file Verso shows your default phone, messenger, email, browser and camera apps
 as favorites, picked anew from every app list, so a default app you change shows up by itself.
-They are written nowhere: your own file, made in any editor and linked with `~open`, replaces
-them. An empty file is a config of yours: no defaults are shown over it.
+They are written nowhere: your own file, put in Verso's folder, replaces them from the next
+`~restart`. An empty file is a config of yours: no defaults are shown over it.
 
 ## Private space is not reachable
 
@@ -54,11 +57,9 @@ name.
 
 ## What the config file reveals, and moving to a new phone
 
-Your config file holds favorites, custom names, tags and the apps you HIDE, in plain text, where
-you keep it. In `Download` no other app reads it without an "all files" permission or your pick
-in the file picker, but a file manager, a cloud-sync app that scans Download or a PC over USB can,
-and the file outlives an uninstall. A cloud folder holds it too. Keep that in mind before sharing
-or syncing it.
+Your config file holds favorites, custom names, tags and the apps you HIDE, in plain text. On the
+phone only Verso reads it, but a PC over USB can, and so can wherever you keep your copy. Keep that
+in mind before sharing or syncing it.
 
 Nothing is pruned: Verso cannot change your file, so a reinstalled app gets its place, name and
 tags back, and a line still names a hidden app removed years ago. An entry of an app that is gone
@@ -70,15 +71,14 @@ they can be deleted. There is no undo inside Verso: your editor's, and your copi
 are the history.
 
 Android's cloud backup leaves Verso out (`data_extraction_rules.xml`). A device-to-device
-transfer copies the app's own files, on purpose: the link to your file (whose grant does not move
-— the first read on the new phone fails, says so, and `~open` links it again), the copy of its
-last text, which shows meanwhile. Entries of a work profile or clone carry its serial
-(`package/class#10`), which on the new phone may belong to no profile or another one; they then
-match nothing. The same on one phone when a work profile is
-removed and set up again: the new one gets a new serial, and its apps start without favorites,
-names, tags or hidden marks — unless the file names them by label (`Gmail (Work)`), which
-outlives a serial (though not a change of the device language: the badge is translated). The
-personal profile's config moves over intact.
+transfer copies the app's own files, and Verso does not keep your config file out of it; whether
+the file arrives depends on how the phones transfer. Your copy on the PC is the sure way.
+Entries of a work profile or clone carry its serial (`package/class#10`), which on the new phone
+may belong to no profile or another one; they then match nothing. The same on one phone when a
+work profile is removed and set up again: the new one gets a new serial, and its apps start
+without favorites, names, tags or hidden marks — unless the file names them by label
+(`Gmail (Work)`), which outlives a serial (though not a change of the device language: the badge
+is translated). The personal profile's config moves over intact.
 
 ## Crash reports land in Download/Guru
 
@@ -114,15 +114,6 @@ title: so the search field says "Search all apps" (its visible ">" would be read
 than") and the list names itself ("Recent apps", "All apps"). The charge icons are read with the
 battery line.
 
-## A `~` command's result can come later
-
-A result is never shown over another app: a provider slow to hand over the file (a cloud
-folder) may finish after you left Verso, and the toast waits until you come back. A file picked
-with `~open` is read first and linked only if it is a config; until then the old link stays. A
-pick answered after a newer one (the slow folder again) is dropped without a word: your last
-choice stands. If the process ends first — say while a provider is slow to hand the file over,
-or never does — the pick is gone without a word: pick it again.
-
 ## Leaving the launcher resets to the front page
 
 Whenever the launcher stops (an app launched, the screen off, the recents screen opened) the
@@ -145,10 +136,9 @@ one with its key needs the new one.
 
 Verso's own disk and system work runs on one thread: the app list and the app's small files. If a
 system service never answers (the package manager; not seen so far), the list stays as it was —
-on a cold start the drawer stays empty and home shows its cached favorites. Your config file is
-read on a thread of its own, so a stuck provider holds only that file; after 15 seconds without
-an answer a toast says so, once, and the last text read stays. Guru saves its crash reports
-through MediaStore on a thread of its own, so a stuck MediaStore holds only those.
+on a cold start the drawer stays empty and home shows its cached favorites. Your config file is a
+few KB on the phone's own storage, read as Verso starts. Guru saves its crash reports through
+MediaStore on a thread of its own, so a stuck MediaStore holds only those.
 Settings → Apps → Verso → Force stop ends a hang; the next start is clean.
 
 ## Portrait lock does not hold on tablets and foldables
