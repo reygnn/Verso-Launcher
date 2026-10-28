@@ -11,7 +11,8 @@ this project leaves out its stack on purpose: no coroutines, no MockK, no Turbin
 
 ## What exists
 
-JVM tests: `./gradlew testDebugUnitTest`. Robolectric classes are marked (R).
+JVM tests: `./gradlew testDebugUnitTest`, the source scans `./gradlew sourceScanTest` (both part
+of `check`). Robolectric classes are marked (R).
 
 ```
 Pure logic
@@ -57,7 +58,14 @@ The window (R)
 Source scans
   SourceGuardTest          only what neither a type nor a test reaches (hard rules 5, 16,
                            the lenient parse, configChanges, Guru's wiring, R8 keeping names)
+  CommentLinkTest          KDoc links and code names in the Markdown files that name code
+                           which is gone, or a test from code that ships
 ```
+
+The scans read files that are not compiled, so they run in a task of their own,
+`sourceScanTest`, with those files as inputs; a changed comment or Markdown file alone would
+leave a test task up to date. The unit test tasks leave the scans out. A new scan goes into
+`sourceScans` in `app/build.gradle.kts`, and a file it reads into the task's inputs there.
 
 Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
 `DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest` and `RecentsLogTest` use

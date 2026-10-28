@@ -23,6 +23,10 @@ detekt {
 // -PdailyDriver (bare or =true): the personal release build (see sourceSets below).
 val dailyDriver = providers.gradleProperty("dailyDriver").map { it.isBlank() || it.toBoolean() }.getOrElse(false)
 
+// The tests that read files instead of code: they run in sourceScanTest (below), not with the
+// unit tests.
+val sourceScans = listOf("*.SourceGuardTest", "*.CommentLinkTest")
+
 android {
     namespace = "com.github.reygnn.verso_launcher"
     compileSdk = 37
@@ -125,6 +129,8 @@ android {
                 // on a Turkish host "Linux" becomes "lınux", its native library is not found and
                 // every Robolectric test fails before it runs. Verso uses no TLS — leave it out.
                 it.systemProperty("robolectric.conscryptMode", "OFF")
+                // The source scans run in sourceScanTest (below), with the files they read as inputs.
+                it.filter { sourceScans.forEach { scan -> excludeTestsMatching(scan) } }
             }
         }
     }
@@ -146,6 +152,29 @@ android {
     // Every buildFeature stays OFF (BuildConfig, Compose, viewBinding, …).
     // Verso Launcher has no generated code and no resource-backed binding.
 }
+
+// The source scans, SourceGuardTest and CommentLinkTest, read files that do not compile: the
+// sources, the manifest, the R8 rules and the Markdown files. A comment or a CLAUDE.md changed
+// alone would leave a test task up to date, so the scans run here, with those files as inputs,
+// and as part of check. A change to a Markdown file then reruns the scans alone, not every unit
+// test. They reuse the debug unit tests' classes and classpath, so they compile once with the
+// other tests. One scan alone: ./gradlew sourceScanTest --tests '*CommentLinkTest'
+val sourceScanTest = tasks.register<Test>("sourceScanTest") {
+    group = "verification"
+    description = "Runs the source scans whenever a file they read changes."
+    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    testClassesDirs = unitTest.testClassesDirs
+    classpath = unitTest.classpath
+    useJUnit()
+    filter { sourceScans.forEach { scan -> includeTestsMatching(scan) } }
+    inputs.files(
+        fileTree("src"),
+        file("proguard-rules.pro"),
+        fileTree("../guru") { include("library/src/**/*.kt", "sample/src/**/*.kt") },
+        rootProject.files("CLAUDE.md", "CAVEATS.md", "README.md"),
+    ).withPropertyName("scannedSources").withPathSensitivity(PathSensitivity.RELATIVE)
+}
+tasks.named("check") { dependsOn(sourceScanTest) }
 
 // No PRODUCTION dependencies — that is the feature; the release APK is Kotlin
 // stdlib + platform APIs only. Every entry below is testImplementation or
