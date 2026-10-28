@@ -78,7 +78,7 @@ internal class Commands(private val app: VersoApp) {
         // hangs then.
         app.onMainAfter(READ_STUCK_MS) { if (app.instance?.inFront == true) checkStuck() }
         // Only a text that changed is parsed: most starts find the file as it was. Whether the
-        // config still has the text known now is checked when the read hands back (readDone).
+        // config still has the text known now is checked when the read hands back ([readDone]).
         val known = core.linkedText
         val parse = { text: String -> if (text == known) Same(text) else document(text) }
         // Set before its hand-back can run, because the hand-back is posted to this main thread.

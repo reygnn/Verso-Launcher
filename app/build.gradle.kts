@@ -23,8 +23,7 @@ detekt {
 // -PdailyDriver (bare or =true): the personal release build (see sourceSets below).
 val dailyDriver = providers.gradleProperty("dailyDriver").map { it.isBlank() || it.toBoolean() }.getOrElse(false)
 
-// The tests that read files instead of code. They also run with the unit tests; sourceScanTest
-// (below) reruns them when one of those files changes.
+// The source scans; when they run: sourceScanTest, below.
 val sourceScans = listOf("*.SourceGuardTest", "*.CommentLinkTest")
 
 android {
@@ -152,13 +151,13 @@ android {
 }
 
 // The source scans, SourceGuardTest and CommentLinkTest, read files that do not compile: the
-// sources, the manifest, the R8 rules and the Markdown files. A comment or a CLAUDE.md changed
-// alone would leave a test task up to date, so the scans run here, with those files as inputs,
-// and as part of check. A change to a Markdown file then reruns the scans alone, not every unit
-// test. They reuse the debug unit tests' classes and classpath, so they compile once with the
-// other tests. One scan alone: ./gradlew sourceScanTest --tests '*CommentLinkTest'
-// Why the unit test tasks keep them: --tests then finds a scan in either task, and both scans
-//   together take under a second.
+// sources, the manifest, the R8 rules and the Markdown files. They run with the unit tests, and
+// again in this task, part of check, with those files as inputs: a comment or a CLAUDE.md changed
+// alone leaves the unit test tasks up to date, and then this task reruns the scans alone. It
+// reuses the debug unit tests' classes and classpath, so the scans compile once with the other
+// tests. One scan alone: ./gradlew sourceScanTest --tests '*CommentLinkTest'
+// Why: the unit test tasks keep the scans, so --tests finds one in either task; both together
+//   take under a second.
 val sourceScanTest = tasks.register<Test>("sourceScanTest") {
     group = "verification"
     description = "Runs the source scans whenever a file they read changes."
