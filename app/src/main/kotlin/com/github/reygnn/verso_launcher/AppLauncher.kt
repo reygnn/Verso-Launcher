@@ -61,7 +61,9 @@ internal class AppLauncher(
                 user == null -> notFound(entry)
                 system.isPaused(user) -> unpause(user, entry)
                 // Component gone since the list loaded: starting it would throw a
-                // SecurityException and misreport it as "denied".
+                // SecurityException and misreport it as "denied". An archived app's activity
+                // counts as enabled, so its start offers the system's restore (seen on a Samsung
+                // A17, Android 16): it needs no branch of its own.
                 !system.isEnabled(component, user) -> {
                     Log.w("Verso", "launch unavailable: ${entry.key}")
                     notFound(entry)
