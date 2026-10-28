@@ -6,17 +6,18 @@ import android.net.Uri
 import android.os.SystemClock
 
 /**
- * The user's config file, owned by the process: linking it ("~open") and reading it again whenever
- * the launcher comes to the front. Every hand-back goes to the process and reads the state from
- * Core, so it lands whatever happens to the window that asked. A window is reached only as a
- * [LauncherWindow]; what a window decides stays in MainActivity: refusing a command up front, the
- * picker, the editor, "~restart".
+ * The user's config file, owned by the process: linking it with "~open", and reading it again
+ * whenever the launcher comes to the front. Verso never writes the file (hard rule 4). What a
+ * window decides stays in [MainActivity]: refusing a command up front, the picker, the editor and
+ * "~restart".
  *
- * Verso never writes the file (hard rule 4). The document is read and parsed on a thread of its
- * own, never on the IO thread: a provider (a cloud folder, a USB stick) may block for good, and must
- * hold neither the IO thread nor an activity.
- *
- * Main thread only, but for those threads.
+ * Thread: main only, except the reading threads that [read] starts.
+ * Invariant: every hand-back goes to the process and reads the state from [Core], so it lands
+ *   whatever happened to the window that asked. A window is reached only as a [LauncherWindow]
+ *   (hard rule 16).
+ * Why: the document is read and parsed on a thread of its own, never on the IO thread. A provider
+ *   such as a cloud folder or a USB stick may block for good, and must then hold neither the IO
+ *   thread nor an activity (hard rule 3).
  */
 internal class Commands(private val app: VersoApp) {
 
@@ -24,36 +25,46 @@ internal class Commands(private val app: VersoApp) {
     private val results get() = app.results
 
     /**
-     * The read of the linked file under way; one more asked for meanwhile runs after it
-     * ([readAgain]). Only its own hand-back ends it ([readDone]); a new link leaves it behind
-     * ([relinked]), so its file is always the link.
+     * The read of the linked file under way, or null. A read asked for meanwhile runs after it
+     * ([readAgain]).
+     *
+     * Invariant: its file is always the link. [relinked], the only place the link changes, drops
+     *   it; otherwise only its own hand-back ([readDone]) ends it.
      */
     private var current: Read? = null
     private var readAgain = false
 
-    /** A read of the linked file: its number ([reads]) and when it began (SystemClock.uptimeMillis). */
+    /** A read of the linked file: its number (from [reads]) and when it began ([SystemClock.uptimeMillis]). */
     private class Read(val number: Int, val since: Long)
 
     /**
-     * Every read numbered as it starts, "~open"'s too. Of one file, a text never replaces one from a
-     * read started later ([adopted]): a read that hung and comes back at last brings an older text.
-     * A file newly linked starts over ([relinked]): it is the user's last choice, whatever was read
-     * of the old one meanwhile.
+     * Every read gets a number as it starts, "~open"'s too. [adopted] is the number of the read
+     * whose text the config has now.
+     *
+     * Invariant: of one file, a text never replaces one from a read that started later. A read
+     *   that hung and comes back at last brings an older text.
+     * Why: a file newly linked starts over at 0 ([relinked]). It is the user's last choice (hard
+     *   rule 15), whatever was read of the old file meanwhile.
      */
     private var reads = 0
     private var adopted = 0
 
-    /** The last read of the linked file failed, or has hung past [READ_STUCK_MS]: said once, until one works again. */
+    /**
+     * The last read of the linked file failed, or has run for [READ_STUCK_MS]. That is said once,
+     * and again only after a read has worked.
+     */
     private var failing = false
 
     /**
-     * The newest "~open" answer: the user's last choice. One that lands after a newer one (a slow
-     * provider) is dropped without a word, so it cannot undo that choice.
+     * Every "~open" answer gets a number ([picks]); [lastPicked] is the file of the newest one.
+     *
+     * Invariant: the user's last choice stands. An answer that lands after a newer one, from a
+     *   slow provider, is dropped without a word ([superseded]).
      */
     private var picks = 0
     private var lastPicked: Uri? = null
 
-    /** Reads the linked file (every onStart): a changed text replaces the config at once. */
+    /** Reads the linked file again, at every start (hard rule 5). A text that changed replaces the config at once. */
     fun readLinked() {
         val uri = core.link ?: return
         if (current != null) {
@@ -62,18 +73,21 @@ internal class Commands(private val app: VersoApp) {
             return
         }
         val since = SystemClock.uptimeMillis()
-        // Only in front: queued, the word could outlive the read it is about. Away, the next start
-        // says it (above), if the read is still hanging then.
+        // Only while in front: a word queued now could outlive the read it is about. While the
+        // launcher is away, the next start says it instead (the branch above), if the read still
+        // hangs then.
         app.onMainAfter(READ_STUCK_MS) { if (app.instance?.inFront == true) checkStuck() }
-        // Set before its hand-back can run: that is posted to this, the main thread.
+        // Set before its hand-back can run, because the hand-back is posted to this main thread.
         current = Read(read(uri, ::readDone), since)
     }
 
     /**
-     * The read under way, if it has been for [READ_STUCK_MS]: said once, like a read that failed,
-     * and left to finish. Never a second read beside it (hard rule 15): a provider that blocks for
-     * good would take another thread with every return home. Only "~open" of the file, the user's
-     * own step, reads it afresh and leaves the hung read behind ([relinked]).
+     * Says once that the read under way hangs, if it has run for [READ_STUCK_MS]. The read is left
+     * to finish.
+     *
+     * Why: a second read beside it is never started (hard rule 15). A provider that blocks for good
+     *   would take another thread with every return home. Only "~open" of the file, the user's own
+     *   step, reads it afresh and drops the hung read ([relinked]).
      */
     private fun checkStuck() {
         val running = current ?: return
@@ -83,7 +97,7 @@ internal class Commands(private val app: VersoApp) {
     }
 
     private fun readDone(number: Int, document: Document?) {
-        // A read "~open" left behind: whatever it brings, the file was read since.
+        // A read that relinked dropped: the file has been read since, so its result is ignored.
         if (current?.number != number) return
         current = null
         if (document == null) {
@@ -99,7 +113,7 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /** "~open" after the picker answered: read first — a file that is no config is not linked. */
+    /** "~open", after the picker answered. The file is read first: a file that is no config is not linked. */
     fun link(uri: Uri) {
         val pick = picked(uri)
         if (!keepAccess(uri)) return results.report(app.getString(R.string.toast_link_failed))
@@ -124,22 +138,25 @@ internal class Commands(private val app: VersoApp) {
         return ++picks
     }
 
-    /** A newer pick came meanwhile: this one ends here, its grant with it unless still in use. */
+    /**
+     * True if a newer pick came meanwhile. This pick then ends here, and so does its grant, unless
+     * the file is still in use as the newest pick or as the link.
+     */
     private fun superseded(pick: Int, uri: Uri): Boolean {
         if (pick == picks) return false
         if (uri != lastPicked) dropAccess(uri)
         return true
     }
 
-    /** The grant of a file not linked; the linked one keeps its own. */
+    /** Releases the grant of [uri], unless [uri] is the link: the link keeps its grant. */
     private fun dropAccess(uri: Uri) {
         if (uri != core.link) release(uri)
     }
 
     /**
-     * [uri] is the link now, read just now: a read still under way (one that hangs, perhaps of this
-     * very file) is left behind, so the next start reads afresh. Another file's text counts whatever
-     * was read of the old one meanwhile ([adopted]).
+     * [uri] is the link now, and was read just now. A read still under way is dropped, even one of
+     * this very file that hangs, so the next start reads afresh. For another file, [adopted] starts
+     * over.
      */
     private fun relinked(uri: Uri) {
         val old = core.link
@@ -153,6 +170,7 @@ internal class Commands(private val app: VersoApp) {
         readAgain = false
     }
 
+    /** The config takes [document]'s text, unless a read of this file that started later gave one ([adopted]). */
     private fun adopt(number: Int, document: Document) {
         if (number < adopted) return
         adopted = number
@@ -165,13 +183,16 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /** A document's text and what it says, both taken on the reading thread. */
+    /** A document's text and what it says; both are made on the reading thread. */
     private class Document(val text: String, val parsed: ConfigText)
 
     /**
-     * [uri]'s text and what it says, on a thread of its own, handed back on main ([then]) with the
-     * read's number, which this returns: null if it cannot be read — or parsed: a text that makes
-     * ConfigText.read throw is a message, never a throw on main (hard rule 2).
+     * Reads and parses [uri] on a thread of its own, then hands the result back on main ([then])
+     * with the read's number, which this also returns. The document is null if the file cannot be
+     * read or parsed.
+     *
+     * Why: a text that makes [ConfigText.read] throw becomes a message, never a throw on main (hard
+     *   rule 2).
      */
     private fun read(uri: Uri, then: (number: Int, Document?) -> Unit): Int {
         val number = ++reads
@@ -181,14 +202,17 @@ internal class Commands(private val app: VersoApp) {
             try {
                 document = readDocument(resolver, uri)?.let { text -> Document(text, ConfigText.read(text)) }
             } finally {
-                // Even after an Error: a read that never handed back would hold every later one.
+                // Also after an Error: a read that never handed back would hold every later one.
                 app.onMain { then(number, document) }
             }
         }, "verso-config-read").start()
         return number
     }
 
-    /** The picker's grant kept across restarts: read and write (the editor gets both), else read. */
+    /**
+     * Keeps the picker's grant across restarts: read and write if the provider grants both (the
+     * editor gets both), else read only. False if neither can be kept.
+     */
     private fun keepAccess(uri: Uri): Boolean {
         val resolver = app.contentResolver
         val modes = listOf(
@@ -206,7 +230,7 @@ internal class Commands(private val app: VersoApp) {
         return false
     }
 
-    /** A grant no longer needed: a file not linked, or the one a new link replaced. */
+    /** Releases a grant no longer needed: of a file that was not linked, or of the one a new link replaced. */
     private fun release(uri: Uri) {
         val resolver = app.contentResolver
         val held = resolver.persistedUriPermissions.firstOrNull { it.uri == uri } ?: return
@@ -223,7 +247,7 @@ internal class Commands(private val app: VersoApp) {
         /** How many skipped line numbers a toast names. */
         const val SKIPPED_SHOWN = 5
 
-        /** Null if it cannot be read or is beyond any config's size; logged. */
+        /** The text of [uri], or null if it cannot be read or is larger than any config; a failure is logged. */
         fun readDocument(resolver: ContentResolver, uri: Uri): String? =
             // hard rule 2: an unreadable file is a message
             @Suppress("TooGenericExceptionCaught") try {
@@ -236,7 +260,9 @@ internal class Commands(private val app: VersoApp) {
 }
 
 /**
- * How long a read of the linked file may take before Verso says it hangs: a cloud provider may
- * fetch the file first. The read itself goes on. Internal for MainActivityFlowsTest.
+ * How long a read of the linked file may run before Verso says it hangs. The read itself goes on.
+ * Internal so that a test can wait it out.
+ *
+ * Why: a cloud provider may download the file before it hands it over.
  */
 internal const val READ_STUCK_MS = 15_000L
