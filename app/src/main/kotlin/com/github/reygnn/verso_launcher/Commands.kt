@@ -24,24 +24,24 @@ internal class Commands(private val app: VersoApp) {
     private val results get() = app.results
 
     /**
-     * The file a read is under way for; one more asked for meanwhile runs after it. Per file: a
-     * provider that never hands one over holds only the reads of that one, not of a file linked
-     * since.
+     * The read of the linked file under way; one more asked for meanwhile runs after it
+     * ([readAgain]). Only its own hand-back ends it ([readDone]); a new link leaves it behind
+     * ([relinked]), so its file is always the link.
      */
-    private var reading: Uri? = null
-    /** That read's number ([reads]): only its hand-back ends it. */
-    private var readingNumber = 0
+    private var current: Read? = null
     private var readAgain = false
 
+    /** A read of the linked file: its number ([reads]) and when it began (SystemClock.uptimeMillis). */
+    private class Read(val number: Int, val since: Long)
+
     /**
-     * Every read numbered as it starts, "~open"'s too. A text never replaces one from a read started
-     * later ([adopted]): a read that hung and comes back at last brings an older file.
+     * Every read numbered as it starts, "~open"'s too. Of one file, a text never replaces one from a
+     * read started later ([adopted]): a read that hung and comes back at last brings an older text.
+     * A file newly linked starts over ([relinked]): it is the user's last choice, whatever was read
+     * of the old one meanwhile.
      */
     private var reads = 0
     private var adopted = 0
-
-    /** When the read under way began (SystemClock.uptimeMillis), for [checkStuck]. */
-    private var readingSince = 0L
 
     /** The last read of the linked file failed, or has hung past [READ_STUCK_MS]: said once, until one works again. */
     private var failing = false
@@ -56,45 +56,42 @@ internal class Commands(private val app: VersoApp) {
     /** Reads the linked file (every onStart): a changed text replaces the config at once. */
     fun readLinked() {
         val uri = core.link ?: return
-        if (reading == uri) {
+        if (current != null) {
             readAgain = true
-            checkStuck(uri)
+            checkStuck()
             return
         }
-        reading = uri
-        readingSince = SystemClock.uptimeMillis()
+        val since = SystemClock.uptimeMillis()
         // Only in front: queued, the word could outlive the read it is about. Away, the next start
         // says it (above), if the read is still hanging then.
-        app.onMainAfter(READ_STUCK_MS) { if (app.instance?.inFront == true) checkStuck(uri) }
-        readingNumber = read(uri) { number, document -> readDone(uri, number, document) }
+        app.onMainAfter(READ_STUCK_MS) { if (app.instance?.inFront == true) checkStuck() }
+        // Set before its hand-back can run: that is posted to this, the main thread.
+        current = Read(read(uri, ::readDone), since)
     }
 
     /**
-     * A read of [uri] still under way after [READ_STUCK_MS]: said once, like a read that failed,
+     * The read under way, if it has been for [READ_STUCK_MS]: said once, like a read that failed,
      * and left to finish. Never a second read beside it (hard rule 15): a provider that blocks for
      * good would take another thread with every return home. Only "~open" of the file, the user's
      * own step, reads it afresh and leaves the hung read behind ([relinked]).
      */
-    private fun checkStuck(uri: Uri) {
-        if (reading != uri || uri != core.link || failing) return
-        if (SystemClock.uptimeMillis() - readingSince < READ_STUCK_MS) return
+    private fun checkStuck() {
+        val running = current ?: return
+        if (failing || SystemClock.uptimeMillis() - running.since < READ_STUCK_MS) return
         failing = true
         results.report(app.getString(R.string.toast_config_file_stuck))
     }
 
-    private fun readDone(uri: Uri, number: Int, document: Document?) {
+    private fun readDone(number: Int, document: Document?) {
         // A read "~open" left behind: whatever it brings, the file was read since.
-        if (number != readingNumber) return
-        reading = null
-        // A link replaced meanwhile: this text is the old file's, and the new one is read below.
-        if (uri == core.link) {
-            if (document == null) {
-                if (!failing) results.report(app.getString(R.string.toast_config_file_unreadable))
-                failing = true
-            } else {
-                failing = false
-                if (document.text != core.linkedText) adopt(number, document)
-            }
+        if (current?.number != number) return
+        current = null
+        if (document == null) {
+            if (!failing) results.report(app.getString(R.string.toast_config_file_unreadable))
+            failing = true
+        } else {
+            failing = false
+            if (document.text != core.linkedText) adopt(number, document)
         }
         if (readAgain) {
             readAgain = false
@@ -141,15 +138,18 @@ internal class Commands(private val app: VersoApp) {
 
     /**
      * [uri] is the link now, read just now: a read still under way (one that hangs, perhaps of this
-     * very file) is left behind, so the next start reads afresh.
+     * very file) is left behind, so the next start reads afresh. Another file's text counts whatever
+     * was read of the old one meanwhile ([adopted]).
      */
     private fun relinked(uri: Uri) {
         val old = core.link
         core.relink(uri)
-        if (old != null && old != uri) release(old)
+        if (old != uri) {
+            if (old != null) release(old)
+            adopted = 0
+        }
         failing = false
-        reading = null
-        readingNumber = 0
+        current = null
         readAgain = false
     }
 

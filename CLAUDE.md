@@ -176,8 +176,9 @@ parsed) → main → a changed text is adopted (`Core.adoptLinked`) and copied f
 15. **One read of the linked file at a time** (`Commands.readLinked`): one asked for meanwhile runs
     after it; one that has not answered after `READ_STUCK_MS` is said once and left to finish,
     never read again beside it — only "~open" of the file reads it afresh and leaves it behind;
-    a text never replaces one from a read started later (`Commands.adopt`); a read whose link was
-    replaced meanwhile is dropped, and so is an "~open" answer that lands after a newer one
+    of one file, a text never replaces one from a read started later (`Commands.adopt`), while a
+    file newly linked counts whatever was read of the old one; a read whose link was replaced
+    meanwhile is dropped, and so is an "~open" answer that lands after a newer one
     (`Commands.superseded`): the user's last choice stands. Nothing else runs against the config,
     so nothing holds the user back and no command waits for another. Results wait in `Results`
     for a window in front.

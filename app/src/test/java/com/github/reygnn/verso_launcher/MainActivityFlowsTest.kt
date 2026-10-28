@@ -61,11 +61,12 @@ class MainActivityFlowsTest {
 
     /**
      * The config file is read on a thread of its own: joined, then its hand-back run —
-     * again while a hand-back starts another (a read asked for meanwhile).
+     * again while a hand-back starts another (a read asked for meanwhile). [except]: reads left
+     * hanging on purpose, for what lands while they still hang.
      */
-    private fun joinDocuments() {
+    private fun joinDocuments(except: Collection<Thread> = emptyList()) {
         repeat(4) {
-            val running = documentThreads()
+            val running = documentThreads() - except.toSet()
             running.forEach {
                 it.join(5000)
                 check(!it.isAlive) { "a config file read is still running" }
@@ -247,16 +248,6 @@ class MainActivityFlowsTest {
 
     private fun waitFor(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
 
-    /** Runs the main looper until [done], for a read that lands while another one still hangs. */
-    private fun awaitMain(what: String, done: () -> Boolean) {
-        repeat(500) {
-            shadowOf(Looper.getMainLooper()).idle()
-            if (done()) return
-            Thread.sleep(10)
-        }
-        throw AssertionError("never came: $what")
-    }
-
     @Test fun `a read of the linked file that hangs is said once, and its text still counts when it comes`() {
         linkedBefore(cached = "fav ${someApp.key}")
         hangingFile("fav ${otherApp.key}")
@@ -333,18 +324,46 @@ class MainActivityFlowsTest {
         shadowOf(app.contentResolver).registerInputStreamSupplier(fileUri) {
             if (opened.getAndIncrement() == 0) hanging("fav ${someApp.key}".byteInputStream()) else fileText.byteInputStream()
         }
-        started()                                 // its read hangs
+        started()
+        val hung = documentThreads()
         enter("~open")
         answer(fileUri)
-        awaitMain("the ~open read") { favorites() == listOf(otherApp.key) }
+        joinDocuments(except = hung)
         assertEquals(fileUri, app.core.link)
+        assertEquals("the ~open read", listOf(otherApp.key), favorites())
         fileText = "fav ${otherApp.key}\nfav ${someApp.key}"
         controller.pause().stop().restart().resume()
-        awaitMain("a read afresh at the next start") { favorites() == listOf(otherApp.key, someApp.key) }
+        joinDocuments(except = hung)
+        assertEquals("a read afresh at the next start", listOf(otherApp.key, someApp.key), favorites())
         hold.countDown()
         joinDocuments()
         settle()
         assertEquals("the hung read's late text changes nothing", listOf(otherApp.key, someApp.key), favorites())
+    }
+
+    /**
+     * Hard rule 15, the user's last choice stands: a file picked with "~open" counts even when the
+     * old file, read again while the pick was slow to come, brought a text from a later read.
+     */
+    @Test fun `a file picked with ~open counts even after a later read of the old one`() {
+        provided("fav ${someApp.key}")
+        linkedBefore(cached = fileText)
+        val picked = Uri.parse("content://cloud/picked.txt")
+        shadowOf(app.contentResolver).registerInputStream(picked, hanging("fav ${otherApp.key}".byteInputStream()))
+        started()
+        joinDocuments()
+        enter("~open")
+        answer(picked)
+        val slow = documentThreads()
+        fileText = "fav ${someApp.key}\nfav ${otherApp.key}"
+        controller.pause().stop().restart().resume()
+        joinDocuments(except = slow)
+        assertEquals("the old file, read again", listOf(someApp.key, otherApp.key), favorites())
+        hold.countDown()
+        joinDocuments()
+        settle()
+        assertEquals(picked, app.core.link)
+        assertEquals(listOf(otherApp.key), favorites())
     }
 
     // ---- ~edit --------------------------------------------------------------------------
