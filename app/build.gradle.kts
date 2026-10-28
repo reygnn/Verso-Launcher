@@ -34,8 +34,8 @@ android {
         // A GitHub release has an even versionCode; the daily-driver build of the same release the
         // odd one above it and "-daily" in its name, so each build's mapping has a versionCode of its
         // own. A release bump is +2 (CLAUDE.md, Stack particulars).
-        versionCode = 50 + if (dailyDriver) 1 else 0
-        versionName = "0.6.1" + if (dailyDriver) "-daily" else ""
+        versionCode = 52 + if (dailyDriver) 1 else 0
+        versionName = "0.6.2" + if (dailyDriver) "-daily" else ""
 
         // On-device tests only for what a JVM can't reproduce: Android's own org.json. Everything
         // else stays a JVM test.
