@@ -21,7 +21,9 @@ Verso reads your config file at every return to the launcher. When it cannot —
 moved or deleted, its cloud folder is offline, the grant is gone, it is bigger than 1 MB — the
 config stays as it was last read (Verso keeps a copy of that text), and a toast says so once,
 not at every return. `~open` links the file again, or another one. A provider that does not hand
-the file over within 15 seconds is said once the same way; its text counts as soon as it comes.
+the file over within 15 seconds is said once the same way; its text counts as soon as it comes,
+unless the file was read since: `~open` of it reads it afresh, and a late answer of the hung read
+changes nothing then.
 A line Verso does not understand is named in a toast and skipped; the rest of the file still
 counts.
 

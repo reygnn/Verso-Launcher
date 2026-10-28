@@ -23,11 +23,11 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowToast
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Only flows that need no LauncherApps fake (Robolectric models it too thinly: it lists no apps, so
@@ -247,6 +247,16 @@ class MainActivityFlowsTest {
 
     private fun waitFor(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
 
+    /** Runs the main looper until [done], for a read that lands while another one still hangs. */
+    private fun awaitMain(what: String, done: () -> Boolean) {
+        repeat(500) {
+            shadowOf(Looper.getMainLooper()).idle()
+            if (done()) return
+            Thread.sleep(10)
+        }
+        throw AssertionError("never came: $what")
+    }
+
     @Test fun `a read of the linked file that hangs is said once, and its text still counts when it comes`() {
         linkedBefore(cached = "fav ${someApp.key}")
         hangingFile("fav ${otherApp.key}")
@@ -309,6 +319,32 @@ class MainActivityFlowsTest {
         assertEquals("the first read's time is up, not the second's", 0, ShadowToast.shownToastCount())
         waitFor(READ_STUCK_MS / 2)
         assertEquals(toast(R.string.toast_config_file_stuck), ShadowToast.getTextOfLatestToast())
+    }
+
+    /**
+     * The user's own step past a read that hangs: "~open" of the same file reads it afresh, the
+     * next start reads it again beside the hung read, and the hung read's late text — an older
+     * file — changes nothing.
+     */
+    @Test fun `~open of a file whose read hangs reads it afresh, and the late text changes nothing`() {
+        linkedBefore(cached = "fav ${someApp.key}")
+        fileText = "fav ${otherApp.key}"
+        val opened = AtomicInteger()
+        shadowOf(app.contentResolver).registerInputStreamSupplier(fileUri) {
+            if (opened.getAndIncrement() == 0) hanging("fav ${someApp.key}".byteInputStream()) else fileText.byteInputStream()
+        }
+        started()                                 // its read hangs
+        enter("~open")
+        answer(fileUri)
+        awaitMain("the ~open read") { favorites() == listOf(otherApp.key) }
+        assertEquals(fileUri, app.core.link)
+        fileText = "fav ${otherApp.key}\nfav ${someApp.key}"
+        controller.pause().stop().restart().resume()
+        awaitMain("a read afresh at the next start") { favorites() == listOf(otherApp.key, someApp.key) }
+        hold.countDown()
+        joinDocuments()
+        settle()
+        assertEquals("the hung read's late text changes nothing", listOf(otherApp.key, someApp.key), favorites())
     }
 
     // ---- ~edit --------------------------------------------------------------------------

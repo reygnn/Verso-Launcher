@@ -29,7 +29,16 @@ internal class Commands(private val app: VersoApp) {
      * since.
      */
     private var reading: Uri? = null
+    /** That read's number ([reads]): only its hand-back ends it. */
+    private var readingNumber = 0
     private var readAgain = false
+
+    /**
+     * Every read numbered as it starts, "~open"'s too. A text never replaces one from a read started
+     * later ([adopted]): a read that hung and comes back at last brings an older file.
+     */
+    private var reads = 0
+    private var adopted = 0
 
     /** When the read under way began (SystemClock.uptimeMillis), for [checkStuck]. */
     private var readingSince = 0L
@@ -57,13 +66,14 @@ internal class Commands(private val app: VersoApp) {
         // Only in front: queued, the word could outlive the read it is about. Away, the next start
         // says it (above), if the read is still hanging then.
         app.onMainAfter(READ_STUCK_MS) { if (app.instance?.inFront == true) checkStuck(uri) }
-        read(uri) { document -> readDone(uri, document) }
+        readingNumber = read(uri) { number, document -> readDone(uri, number, document) }
     }
 
     /**
      * A read of [uri] still under way after [READ_STUCK_MS]: said once, like a read that failed,
      * and left to finish. Never a second read beside it (hard rule 15): a provider that blocks for
-     * good would take another thread with every return home.
+     * good would take another thread with every return home. Only "~open" of the file, the user's
+     * own step, reads it afresh and leaves the hung read behind ([relinked]).
      */
     private fun checkStuck(uri: Uri) {
         if (reading != uri || uri != core.link || failing) return
@@ -72,8 +82,10 @@ internal class Commands(private val app: VersoApp) {
         results.report(app.getString(R.string.toast_config_file_stuck))
     }
 
-    private fun readDone(uri: Uri, document: Document?) {
-        if (reading == uri) reading = null
+    private fun readDone(uri: Uri, number: Int, document: Document?) {
+        // A read "~open" left behind: whatever it brings, the file was read since.
+        if (number != readingNumber) return
+        reading = null
         // A link replaced meanwhile: this text is the old file's, and the new one is read below.
         if (uri == core.link) {
             if (document == null) {
@@ -81,7 +93,7 @@ internal class Commands(private val app: VersoApp) {
                 failing = true
             } else {
                 failing = false
-                if (document.text != core.linkedText) adopt(document)
+                if (document.text != core.linkedText) adopt(number, document)
             }
         }
         if (readAgain) {
@@ -94,7 +106,7 @@ internal class Commands(private val app: VersoApp) {
     fun link(uri: Uri) {
         val pick = picked(uri)
         if (!keepAccess(uri)) return results.report(app.getString(R.string.toast_link_failed))
-        read(uri) { document ->
+        read(uri) { number, document ->
             if (superseded(pick, uri)) return@read
             if (document == null) {
                 dropAccess(uri)
@@ -106,7 +118,7 @@ internal class Commands(private val app: VersoApp) {
             }
             relinked(uri)
             results.report(app.getString(R.string.toast_linked))
-            adopt(document)
+            adopt(number, document)
         }
     }
 
@@ -127,14 +139,23 @@ internal class Commands(private val app: VersoApp) {
         if (uri != core.link) release(uri)
     }
 
+    /**
+     * [uri] is the link now, read just now: a read still under way (one that hangs, perhaps of this
+     * very file) is left behind, so the next start reads afresh.
+     */
     private fun relinked(uri: Uri) {
         val old = core.link
         core.relink(uri)
         if (old != null && old != uri) release(old)
         failing = false
+        reading = null
+        readingNumber = 0
+        readAgain = false
     }
 
-    private fun adopt(document: Document) {
+    private fun adopt(number: Int, document: Document) {
+        if (number < adopted) return
+        adopted = number
         val parsed = document.parsed
         core.adoptLinked(document.text, parsed)
         if (parsed.badLines.isNotEmpty()) {
@@ -148,11 +169,12 @@ internal class Commands(private val app: VersoApp) {
     private class Document(val text: String, val parsed: ConfigText)
 
     /**
-     * [uri]'s text and what it says, on a thread of its own, handed back on main ([then]): null if
-     * it cannot be read — or parsed: a text that makes ConfigText.read throw is a message, never a
-     * throw on main (hard rule 2).
+     * [uri]'s text and what it says, on a thread of its own, handed back on main ([then]) with the
+     * read's number, which this returns: null if it cannot be read — or parsed: a text that makes
+     * ConfigText.read throw is a message, never a throw on main (hard rule 2).
      */
-    private fun read(uri: Uri, then: (Document?) -> Unit) {
+    private fun read(uri: Uri, then: (number: Int, Document?) -> Unit): Int {
+        val number = ++reads
         val resolver = app.contentResolver
         Thread(Guard.wrap("config read", ::logWarning) {
             var document: Document? = null
@@ -160,9 +182,10 @@ internal class Commands(private val app: VersoApp) {
                 document = readDocument(resolver, uri)?.let { text -> Document(text, ConfigText.read(text)) }
             } finally {
                 // Even after an Error: a read that never handed back would hold every later one.
-                app.onMain { then(document) }
+                app.onMain { then(number, document) }
             }
         }, "verso-config-read").start()
+        return number
     }
 
     /** The picker's grant kept across restarts: read and write (the editor gets both), else read. */
