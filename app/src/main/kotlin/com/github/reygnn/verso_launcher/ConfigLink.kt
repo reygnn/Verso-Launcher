@@ -7,8 +7,9 @@ import java.io.File
  * (hard rule 4): where it is (config-link.txt, the document's URI) and a copy of the last text read
  * from it (config-cache.txt), so a start draws the config before the document is read. Both are
  * read on main before the state exists (hard rule 5: a few bytes in the app's own files) and
- * written on VersoApp.io through a temp file and a rename. Lost, the link costs one "~open"; the
- * copy, one read of the document. [read]'s log is the caller's.
+ * written on VersoApp.io through a temp file and a rename. If config-link.txt is lost, the user
+ * runs "~open" once more; if config-cache.txt is lost, a start shows no config until the document
+ * has been read. [readLink]'s and [readCache]'s log is the caller's.
  */
 internal object ConfigLink {
 

@@ -291,8 +291,8 @@ class MainActivity : Activity() {
 
     /** "~restart": the repair by hand. */
     private fun restart() {
-        // A fresh state reads the app's own files again, and the recreation builds every view anew
-        // around it; onStart reads the linked file. Until that recreation lands this window still
+        // A fresh state (Core.reset) loads the app list anew, and the recreation builds every view
+        // anew around it; onStart reads the linked file. Until that recreation lands this window still
         // holds the old state, so it takes nothing more.
         restarting = true
         app.core.reset()

@@ -14,8 +14,8 @@ import android.provider.Telephony
  *
  * Its hand-backs run on the process's main thread and are never dropped while the state is the
  * current one; what touches a window goes to the live instance, if any (VersoApp.instance), which
- * renders the state anew whenever it is created. [reset] ("~restart") replaces the state: a fresh
- * one reads the app's own files again; the old one's late hand-backs are dropped.
+ * renders the state anew whenever it is created. [reset] ("~restart") replaces the state, and the
+ * old one's late hand-backs are dropped.
  *
  * The config is read here, on main, before the state exists (hard rule 5): the copy of the linked
  * file (config-cache.txt), a few KB in the app's own files. The linked document itself is read
@@ -46,7 +46,10 @@ internal class Core(private val app: VersoApp) {
     var state: LauncherState = newState()
         private set
 
-    /** "~restart": a fresh state, which reads the app's own files again. */
+    /**
+     * "~restart": a fresh state, which loads the app list anew. Of the app's own files it reads only
+     * order.txt again: the config's text, the recents and the usage stay as the process holds them.
+     */
     fun reset() {
         state = newState()
     }

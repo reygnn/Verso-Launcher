@@ -158,7 +158,7 @@ the next start.
    is no entry is named and skipped, the rest counts. In-app editing stays out: anything that
    changed the config here would bring back the saves, backups and undo points this rule removed.
 5. **The config is there before the state exists** (`Core.newState`, on main: the copy of the
-   linked file's text, a few KB once per process and per `~restart`), so there is
+   linked file's text, a few KB read once per process), so there is
    no "not loaded yet" to guard. The file itself is read at every `onStart`, off main; a changed
    text replaces the config at once (`LauncherState.adopt`). Home and its cache are drawn only
    once the first app list is in (`appsLoaded`).
