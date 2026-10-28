@@ -16,6 +16,7 @@ internal fun legacyJson(config: VersoConfig): String {
         put("favorites", JSONArray(config.favorites))
         put("names", names)
         put("tags", tags)
-        put("order", if (config.byUsage) ConfigJson.ORDER_USAGE else ConfigJson.ORDER_NAME)
+        // Written as those files had it; never read (ConfigJsonTest).
+        put("order", if (config.byUsage) "usage" else "name")
     }.toString(2)
 }

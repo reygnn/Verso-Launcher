@@ -44,8 +44,8 @@ Files (real temp files)
 
 The window (R)
   MainActivityFlowsTest    the real Activity: ~open and ~edit, the file read again at every
-                           start, an unreadable one, "%", ~restart and recreation, results that
-                           wait
+                           start, an unreadable one, one that hangs, "%", ~restart and
+                           recreation, results that wait
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, TalkBack, the tap guard

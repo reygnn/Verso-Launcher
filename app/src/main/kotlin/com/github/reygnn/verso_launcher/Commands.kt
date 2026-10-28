@@ -3,6 +3,7 @@ package com.github.reygnn.verso_launcher
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 
 /**
  * The user's config file, owned by the process: linking it ("~open") and reading it again whenever
@@ -11,9 +12,9 @@ import android.net.Uri
  * [LauncherWindow]; what a window decides stays in MainActivity: refusing a command up front, the
  * picker, the editor, "~restart".
  *
- * Verso never writes the file (hard rule 4). The document is read on a thread of its own, never on
- * the IO thread: a provider (a cloud folder, a USB stick) may block for good, and must hold neither
- * the IO thread nor an activity.
+ * Verso never writes the file (hard rule 4). The document is read and parsed on a thread of its
+ * own, never on the IO thread: a provider (a cloud folder, a USB stick) may block for good, and must
+ * hold neither the IO thread nor an activity.
  *
  * Main thread only, but for those threads.
  */
@@ -30,7 +31,10 @@ internal class Commands(private val app: VersoApp) {
     private var reading: Uri? = null
     private var readAgain = false
 
-    /** The last read of the linked file failed: said once, until one works again. */
+    /** When the read under way began (SystemClock.uptimeMillis), for [checkStuck]. */
+    private var readingSince = 0L
+
+    /** The last read of the linked file failed, or has hung past [READ_STUCK_MS]: said once, until one works again. */
     private var failing = false
 
     /**
@@ -45,22 +49,39 @@ internal class Commands(private val app: VersoApp) {
         val uri = core.link ?: return
         if (reading == uri) {
             readAgain = true
+            checkStuck(uri)
             return
         }
         reading = uri
-        read(uri) { text -> readDone(uri, text) }
+        readingSince = SystemClock.uptimeMillis()
+        // Only in front: queued, the word could outlive the read it is about. Away, the next start
+        // says it (above), if the read is still hanging then.
+        app.onMainAfter(READ_STUCK_MS) { if (app.instance?.inFront == true) checkStuck(uri) }
+        read(uri) { document -> readDone(uri, document) }
     }
 
-    private fun readDone(uri: Uri, text: String?) {
+    /**
+     * A read of [uri] still under way after [READ_STUCK_MS]: said once, like a read that failed,
+     * and left to finish. Never a second read beside it (hard rule 15): a provider that blocks for
+     * good would take another thread with every return home.
+     */
+    private fun checkStuck(uri: Uri) {
+        if (reading != uri || uri != core.link || failing) return
+        if (SystemClock.uptimeMillis() - readingSince < READ_STUCK_MS) return
+        failing = true
+        results.report(app.getString(R.string.toast_config_file_stuck))
+    }
+
+    private fun readDone(uri: Uri, document: Document?) {
         if (reading == uri) reading = null
         // A link replaced meanwhile: this text is the old file's, and the new one is read below.
         if (uri == core.link) {
-            if (text == null) {
+            if (document == null) {
                 if (!failing) results.report(app.getString(R.string.toast_config_file_unreadable))
                 failing = true
             } else {
                 failing = false
-                if (text != core.linkedText) adopt(text, ConfigText.read(text))
+                if (document.text != core.linkedText) adopt(document)
             }
         }
         if (readAgain) {
@@ -73,20 +94,19 @@ internal class Commands(private val app: VersoApp) {
     fun link(uri: Uri) {
         val pick = picked(uri)
         if (!keepAccess(uri)) return results.report(app.getString(R.string.toast_link_failed))
-        read(uri) { text ->
+        read(uri) { document ->
             if (superseded(pick, uri)) return@read
-            if (text == null) {
+            if (document == null) {
                 dropAccess(uri)
                 return@read results.report(app.getString(R.string.toast_open_unreadable))
             }
-            val parsed = ConfigText.read(text)
-            if (parsed.isNoConfig) {
+            if (document.parsed.isNoConfig) {
                 dropAccess(uri)
                 return@read results.report(app.getString(R.string.toast_not_a_config))
             }
             relinked(uri)
             results.report(app.getString(R.string.toast_linked))
-            adopt(text, parsed)
+            adopt(document)
         }
     }
 
@@ -114,8 +134,9 @@ internal class Commands(private val app: VersoApp) {
         failing = false
     }
 
-    private fun adopt(text: String, parsed: ConfigText) {
-        core.adoptLinked(text, parsed)
+    private fun adopt(document: Document) {
+        val parsed = document.parsed
+        core.adoptLinked(document.text, parsed)
         if (parsed.badLines.isNotEmpty()) {
             val lines = parsed.badLines.take(SKIPPED_SHOWN).joinToString(", ") +
                 if (parsed.badLines.size > SKIPPED_SHOWN) ", …" else ""
@@ -123,16 +144,23 @@ internal class Commands(private val app: VersoApp) {
         }
     }
 
-    /** [uri]'s text on a thread of its own, handed back on main ([then]): null if it cannot be read. */
-    private fun read(uri: Uri, then: (String?) -> Unit) {
+    /** A document's text and what it says, both taken on the reading thread. */
+    private class Document(val text: String, val parsed: ConfigText)
+
+    /**
+     * [uri]'s text and what it says, on a thread of its own, handed back on main ([then]): null if
+     * it cannot be read — or parsed: a text that makes ConfigText.read throw is a message, never a
+     * throw on main (hard rule 2).
+     */
+    private fun read(uri: Uri, then: (Document?) -> Unit) {
         val resolver = app.contentResolver
         Thread(Guard.wrap("config read", ::logWarning) {
-            var text: String? = null
+            var document: Document? = null
             try {
-                text = readDocument(resolver, uri)
+                document = readDocument(resolver, uri)?.let { text -> Document(text, ConfigText.read(text)) }
             } finally {
                 // Even after an Error: a read that never handed back would hold every later one.
-                app.onMain { then(text) }
+                app.onMain { then(document) }
             }
         }, "verso-config-read").start()
     }
@@ -183,3 +211,9 @@ internal class Commands(private val app: VersoApp) {
             }
     }
 }
+
+/**
+ * How long a read of the linked file may take before Verso says it hangs: a cloud provider may
+ * fetch the file first. The read itself goes on. Internal for MainActivityFlowsTest.
+ */
+internal const val READ_STUCK_MS = 15_000L

@@ -96,7 +96,7 @@ One module, one package. The process owns the data, an activity is a window (har
 
 - **Process:** `VersoApp` (the IO executor, `Core`, `Commands`, `Results`, the live window,
   `ProcessState`), `Core` (the one `LauncherState`, the link to the user's file, the app list),
-  `Commands` (the file linked, written and read again) and `Results` (their queued words).
+  `Commands` (the file linked and read again) and `Results` (their queued words).
 - **Window:** `MainActivity` (refusals up front, the pickers, the editor, `%`; the process sees it
   only as a `LauncherWindow`), `AppLauncher` (a start or "App info" in the entry's profile, a
   paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `OutlinedViews`.
@@ -113,8 +113,8 @@ profile broadcast → `MainActivity.appsMaybeChanged` → now if in front, else 
 `LauncherState.refresh()` → IO thread (the apps of every profile, system labels only) → main
 thread, the newest load generation wins; the file's text is resolved against the list
 (`ConfigText.resolve`) and the custom names applied (`LauncherLogic.named`) → `AppDrawer.refilter`.
-The user's file: `MainActivity.onStart` → `Commands.readLinked` → a thread of its own → main → a
-changed text is adopted (`Core.adoptLinked`) and copied for the next start.
+The user's file: `MainActivity.onStart` → `Commands.readLinked` → a thread of its own (read and
+parsed) → main → a changed text is adopted (`Core.adoptLinked`) and copied for the next start.
 
 ---
 
@@ -174,10 +174,11 @@ changed text is adopted (`Core.adoptLinked`) and copied for the next start.
     "not readable right now" (a paused or unlisted profile, an unmounted card) is what made
     `~cleanup` (up to 0.5.9) the riskiest command.
 15. **One read of the linked file at a time** (`Commands.readLinked`): one asked for meanwhile runs
-    after it; a read whose link was replaced meanwhile is dropped, and so is an "~open" answer
-    that lands after a newer one (`Commands.superseded`): the user's last choice stands. Nothing
-    else runs against the config, so nothing holds the user back and no command waits for
-    another. Results wait in `Results` for a window in front.
+    after it; one that has not answered after `READ_STUCK_MS` is said once and left to finish,
+    never read again beside it; a read whose link was replaced meanwhile is dropped, and so is an
+    "~open" answer that lands after a newer one (`Commands.superseded`): the user's last choice
+    stands. Nothing else runs against the config, so nothing holds the user back and no command
+    waits for another. Results wait in `Results` for a window in front.
 16. **The process owns the data; an activity is a window.** `Core`, `Commands` and `Results` live
     in `VersoApp`, see the window only as a `LauncherWindow` (never an Activity,
     `SourceGuardTest`) and keep none past a call. A recreation shares the loaded state; only

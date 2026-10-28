@@ -25,6 +25,7 @@ import org.robolectric.shadows.ShadowToast
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -238,6 +239,76 @@ class MainActivityFlowsTest {
         settle()
         assertEquals("said once, not at every start", 0, ShadowToast.shownToastCount())
         assertEquals(listOf(someApp.key), favorites())
+    }
+
+    /** A provider that hands each read [text] only once [hold] is released. */
+    private fun hangingFile(text: String) =
+        shadowOf(app.contentResolver).registerInputStreamSupplier(fileUri) { hanging(text.byteInputStream()) }
+
+    private fun waitFor(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
+
+    @Test fun `a read of the linked file that hangs is said once, and its text still counts when it comes`() {
+        linkedBefore(cached = "fav ${someApp.key}")
+        hangingFile("fav ${otherApp.key}")
+        // The read starts somewhere inside started(), and Robolectric's clock moves during setup.
+        val before = SystemClock.uptimeMillis()
+        started()
+        val after = SystemClock.uptimeMillis()
+        ShadowToast.reset()
+        waitFor(before + READ_STUCK_MS - 1 - after)
+        assertEquals("not yet", 0, ShadowToast.shownToastCount())
+        waitFor(after - before + 1)
+        assertEquals(toast(R.string.toast_config_file_stuck), ShadowToast.getTextOfLatestToast())
+        assertEquals("the copy stays", listOf(someApp.key), favorites())
+        ShadowToast.reset()
+        controller.pause().stop().restart().resume()
+        assertEquals("said once, not at every start", 0, ShadowToast.shownToastCount())
+        assertEquals("never a second read beside it", 1, documentThreads().size)
+        hold.countDown()
+        joinDocuments()
+        settle()
+        assertEquals(listOf(otherApp.key), favorites())
+        assertEquals(0, ShadowToast.shownToastCount())
+    }
+
+    /** Queued while away, the word could outlive the read it is about: the next start decides. */
+    @Test fun `a read that hangs while the launcher is away is said at the next start`() {
+        linkedBefore(cached = "fav ${someApp.key}")
+        hangingFile("fav ${someApp.key}")
+        started()
+        controller.pause().stop()
+        waitFor(READ_STUCK_MS)
+        assertTrue("nothing queued while away", app.process.messages.isEmpty())
+        ShadowToast.reset()
+        controller.restart().resume()
+        assertEquals(toast(R.string.toast_config_file_stuck), ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test fun `a read that answered in time says nothing when its time is up`() {
+        provided("fav ${someApp.key}")
+        linkedBefore(cached = fileText)
+        started()
+        joinDocuments()
+        settle()
+        ShadowToast.reset()
+        waitFor(READ_STUCK_MS)
+        assertEquals(0, ShadowToast.shownToastCount())
+    }
+
+    @Test fun `a read is timed from its own start, not an earlier read's`() {
+        provided("fav ${someApp.key}")
+        linkedBefore(cached = fileText)
+        started()
+        joinDocuments()
+        controller.pause().stop()
+        waitFor(READ_STUCK_MS / 2)
+        hangingFile("fav ${someApp.key}")
+        controller.restart().resume()
+        ShadowToast.reset()
+        waitFor(READ_STUCK_MS / 2)
+        assertEquals("the first read's time is up, not the second's", 0, ShadowToast.shownToastCount())
+        waitFor(READ_STUCK_MS / 2)
+        assertEquals(toast(R.string.toast_config_file_stuck), ShadowToast.getTextOfLatestToast())
     }
 
     // ---- ~edit --------------------------------------------------------------------------

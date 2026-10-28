@@ -229,8 +229,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        // No executor shutdown: work this instance queued must still run. A read or write of the
-        // config file it started hands back to the process (Commands).
+        // No executor shutdown: work this instance queued must still run. A read of the config
+        // file it started hands back to the process (Commands).
         if (app.instance === launcherWindow) app.instance = null
         unwatchApps()
         unwatchWallpaper()

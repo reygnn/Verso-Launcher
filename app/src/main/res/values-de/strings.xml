@@ -29,6 +29,7 @@
     <string name="toast_not_default_home">Für Arbeits-Apps Verso als Standard-Startseite festlegen</string>
     <!-- Die Config-Datei (~open, ~edit) und ihr Lesen. -->
     <string name="toast_config_file_unreadable">Config-Datei nicht lesbar — es gilt die zuletzt gelesene; ~open verknüpft sie neu</string>
+    <string name="toast_config_file_stuck">Config-Datei antwortet nicht — es gilt die zuletzt gelesene, bis sie antwortet</string>
     <string name="toast_open_unreadable">Diese Datei ist nicht lesbar — nichts geändert</string>
     <string name="toast_not_a_config">Keine Verso-Config — nichts geändert</string>
     <string name="toast_link_failed">Verso bekommt keinen dauerhaften Zugriff auf die Datei — anderen Ort versuchen</string>

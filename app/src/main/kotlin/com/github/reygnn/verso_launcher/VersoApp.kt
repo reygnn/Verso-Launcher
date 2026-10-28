@@ -61,6 +61,11 @@ class VersoApp : Application() {
         mainHandler.post { block() }
     }
 
+    /** As [onMain], after [delayMs]. */
+    internal fun onMainAfter(delayMs: Long, block: () -> Unit) {
+        mainHandler.postDelayed({ block() }, delayMs)
+    }
+
     /**
      * Queues [task] on [io] behind Guard (hard rule 2: an escape there kills the process on every
      * start). A refused task is reported as false, never thrown — the executor is never shut down,

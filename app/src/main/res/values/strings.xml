@@ -30,6 +30,7 @@
     <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
     <!-- The config file (~open, ~edit) and its reads. -->
     <string name="toast_config_file_unreadable">config file unreadable — the last one read stays; ~open links it again</string>
+    <string name="toast_config_file_stuck">config file not answering — the last one read stays until it does</string>
     <string name="toast_open_unreadable">that file cannot be read — nothing changed</string>
     <string name="toast_not_a_config">not a Verso config — nothing changed</string>
     <string name="toast_link_failed">Verso cannot keep access to that file — try another place</string>

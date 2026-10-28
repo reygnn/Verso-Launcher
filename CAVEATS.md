@@ -20,8 +20,12 @@ Launches meanwhile are merged in, unless the process ends first.
 Verso reads your config file at every return to the launcher. When it cannot — the file was
 moved or deleted, its cloud folder is offline, the grant is gone, it is bigger than 1 MB — the
 config stays as it was last read (Verso keeps a copy of that text), and a toast says so once,
-not at every return. `~open` links the file again, or another one. A line Verso does not
-understand is named in a toast and skipped; the rest of the file still counts.
+not at every return. `~open` links the file again, or another one. A provider that does not hand
+the file over within 15 seconds is said once the same way; its text counts as soon as it comes.
+A line Verso does not understand is named in a toast and skipped; the rest of the file still
+counts.
+
+An old JSON backup's `order` (A to Z or most used) is not read: `%` keeps its own setting.
 
 `verso.json` of an earlier version is no longer read: until you link a file, Verso shows the
 default favorites. A JSON backup of an earlier version links with `~open` as it is.
@@ -142,8 +146,9 @@ one with its key needs the new one.
 Verso's own disk and system work runs on one thread: the app list and the app's small files. If a
 system service never answers (the package manager; not seen so far), the list stays as it was —
 on a cold start the drawer stays empty and home shows its cached favorites. Your config file is
-read and written on threads of its own, so a stuck provider holds only that file. Guru saves its
-crash reports through MediaStore on a thread of its own, so a stuck MediaStore holds only those.
+read on a thread of its own, so a stuck provider holds only that file; after 15 seconds without
+an answer a toast says so, once, and the last text read stays. Guru saves its crash reports
+through MediaStore on a thread of its own, so a stuck MediaStore holds only those.
 Settings → Apps → Verso → Force stop ends a hang; the next start is clean.
 
 ## Portrait lock does not hold on tablets and foldables

@@ -36,18 +36,14 @@ class ConfigJsonTest {
         assertEquals(original.tags, parsed.tags)
     }
 
-    @Test fun `the order round-trips, and an older or unknown one is A to Z`() {
-        val byUsage = VersoConfig(byUsage = true)
-        assertTrue(ConfigJson.parseForeign(legacyJson(byUsage))!!.byUsage)
-        assertFalse(ConfigJson.parseForeign(legacyJson(VersoConfig()))!!.byUsage)
-        assertFalse(ConfigJson.parseForeign("""{"favorites":[]}""")!!.byUsage)
-        assertFalse(ConfigJson.parseForeign("""{"favorites":[],"order":"USAGE"}""")!!.byUsage)
-        assertFalse(ConfigJson.parseForeign("""{"favorites":[],"order":1}""")!!.byUsage)
+    /** "%" is the app's own (order.txt): an old backup's order sets nothing. */
+    @Test fun `an old backup's order is not read`() {
+        assertFalse(ConfigJson.parseForeign(legacyJson(VersoConfig(byUsage = true)))!!.byUsage)
     }
 
     @Test fun `an order alone does not make a foreign file a config`() {
         assertNull(ConfigJson.parseForeign("""{"order":"usage"}"""))
-        assertTrue(ConfigJson.parseForeign("""{"favorites":[],"order":"usage"}""")!!.byUsage)
+        assertNotNull(ConfigJson.parseForeign("""{"favorites":[],"order":"usage"}"""))
     }
 
     @Test fun `round-trips an empty config`() {
@@ -233,7 +229,7 @@ class ConfigJsonTest {
         assertEquals(listOf("work", "chat", "foobar", "spaced"), cfg!!.tags["pkg/A"])
     }
 
-    /** toggleTag removes only the first occurrence, so a doubled tag could never be un-ticked. */
+    /** Each tag once, as a tag line gives them (LauncherLogic.parseTags). */
     @Test
     fun `loading collapses tags that canonicalise to the same thing`() {
         val cfg = ConfigJson.parseForeign("""{"tags":{"pkg/A":["Work","work","#work"]}}""")

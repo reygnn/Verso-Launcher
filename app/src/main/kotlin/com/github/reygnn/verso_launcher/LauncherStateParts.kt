@@ -11,8 +11,8 @@ internal class Kept<T>(var value: T, var loaded: Boolean = false)
  *
  * @property recents the "?" list, newest first, and whether recents.txt was read into it.
  * @property usage the "%" launches, and whether usage.txt was read into them.
- * @property messages the results not yet shown, oldest first: a config file written or read while
- *   the user is away, a line it skipped. Shown once each, in order, by whichever instance is in
+ * @property messages the results not yet shown, oldest first: a config file read while the user
+ *   is away, a line it skipped. Shown once each, in order, by whichever instance is in
  *   front first. A queue, not one slot: a result never replaces another. At most one per command
  *   or read, and those start from the front, so it stays short without a cap.
  */

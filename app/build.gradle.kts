@@ -155,10 +155,11 @@ dependencies {
     // Real org.json on the unit-test classpath for the ConfigJson round-trip
     // (the android.jar org.json is a throwing stub). Test-only — not in the APK.
     testImplementation(libs.json)
-    // Android runtime on the JVM for the few tests that need real widgets (RenameDialog's
-    // tag InputFilter). Test-only — never in the shipped APK. No androidx.test/ActivityScenario
-    // here on purpose: a plain Activity with no Hilt/AppCompat is driven with Robolectric's
-    // own APIs, which keeps the whole androidx.test consistent-resolution force-pin out.
+    // Android runtime on the JVM for the tests that need it (the real Activity, its widgets,
+    // MotionEvents, TalkBack nodes). Test-only — never in the shipped APK. No
+    // androidx.test/ActivityScenario here on purpose: a plain Activity with no Hilt/AppCompat is
+    // driven with Robolectric's own APIs, which keeps the whole androidx.test consistent-resolution
+    // force-pin out.
     testImplementation(libs.robolectric)
     // On-device tests (connectedAndroidTest) — test APK only, never in the shipped one.
     androidTestImplementation(libs.junit)

@@ -40,9 +40,6 @@ internal object ConfigJson {
         return if (bytes.size > maxBytes) null else bytes.toString(Charsets.UTF_8)
     }
 
-    const val ORDER_NAME = "name"
-    const val ORDER_USAGE = "usage"
-
     const val MAX_ENTRIES = 5_000
 
     const val MAX_TAGS_PER_APP = 100
@@ -86,8 +83,7 @@ internal object ConfigJson {
             for (k in o.keys()) {
                 val arr = o.optJSONArray(k) ?: continue
                 val list = LinkedHashSet<String>()
-                // Canonical for every loaded file, not only app-written ones; duplicates must
-                // collapse, or toggleTag (removes the first only) could never un-tick the app.
+                // Canonical and each tag once, like a tag line's (LauncherLogic.parseTags).
                 for (i in 0 until arr.length()) {
                     val raw = arr.opt(i) as? String ?: continue
                     val tag = LauncherLogic.canonicalTag(raw)
@@ -96,7 +92,7 @@ internal object ConfigJson {
                 if (list.isNotEmpty()) tags[k] = list.toList()
             }
         }
-        // Absent (an older file) or unknown order: A to Z.
-        return VersoConfig(hidden, favorites.toList(), names, tags, byUsage = j.opt("order") == ORDER_USAGE)
+        // An old file's "order" is not read: "%" is the app's own (order.txt), not the file's.
+        return VersoConfig(hidden, favorites.toList(), names, tags)
     }
 }
