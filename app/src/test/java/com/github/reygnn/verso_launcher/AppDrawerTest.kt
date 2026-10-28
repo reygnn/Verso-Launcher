@@ -350,6 +350,29 @@ class AppDrawerTest {
         assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
     }
 
+    /** The prompt's own editor-action listener, as the field calls it. */
+    private val editorAction: TextView.OnEditorActionListener
+        get() {
+            val editor = ReflectionHelpers.getField<Any>(prompt, "mEditor")
+            val contentType = ReflectionHelpers.getField<Any>(editor, "mInputContentType")
+            return ReflectionHelpers.getField(contentType, "onEditorActionListener")
+        }
+
+    /**
+     * A key that arrives without the field's action: only the key code tells an Enter.
+     *
+     * Why: on API 36 the field calls the listener for a hardware Enter with IME_ACTION_GO, so the
+     *   key code decides only on this path, which the test above cannot reach.
+     */
+    @Test fun `a key without an action counts only if it is an Enter`() {
+        drawer.setPrompt("br")
+        assertFalse(editorAction.onEditorAction(prompt, EditorInfo.IME_NULL, key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_B)))
+        assertEquals(emptyList<DrawerAction<AppEntry>>(), taps)
+        assertTrue(editorAction.onEditorAction(prompt, EditorInfo.IME_NULL, key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_NUMPAD_ENTER)))
+        assertTrue(editorAction.onEditorAction(prompt, EditorInfo.IME_NULL, key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)))
+        assertEquals(List(2) { DrawerAction.Launch(installed[1]) }, taps)
+    }
+
     // ---- the list's anchor, the clear button, keys in the list ---------------------------
 
     /** The bare drawer reads from the top. Every other list sits on the prompt, where Enter acts. */

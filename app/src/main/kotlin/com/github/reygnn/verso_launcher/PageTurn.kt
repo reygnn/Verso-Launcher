@@ -49,6 +49,8 @@ internal class PageTurn(
     private var drawerFromTop = false
     // Whether the running drag (or Back preview) set out to open the drawer.
     private var dragOpens = false
+    // The drawer offset a running Back preview started from; null while no preview runs.
+    private var backPreviewFrom: Float? = null
 
     init {
         // A pane title, for screen readers that announce a page as it turns up. Samsung's TalkBack
@@ -101,9 +103,6 @@ internal class PageTurn(
      * A back gesture that will close the drawer previews it, like a short drag.
      */
     val backCallback: OnBackAnimationCallback = object : OnBackAnimationCallback {
-        // The drawer offset the preview started from; null while no preview runs.
-        private var previewFrom: Float? = null
-
         // The bare recents view ("?") came from a swipe down, so Back leaves it straight home.
         private fun closes(): Boolean {
             val text = appDrawer.promptText
@@ -111,11 +110,11 @@ internal class PageTurn(
         }
 
         override fun onBackStarted(backEvent: BackEvent) {
-            previewFrom = if (closes()) beginDrag(closeDir()) else null
+            backPreviewFrom = if (closes()) beginDrag(closeDir()) else null
         }
 
         override fun onBackProgressed(backEvent: BackEvent) {
-            val from = previewFrom ?: return
+            val from = backPreviewFrom ?: return
             if (!isOpen) return
             drag(from + backEvent.progress * pageHeight() * BACK_PREVIEW_FRACTION)
             // The drag's own fade starts far past the preview; let home show through faintly.
@@ -124,19 +123,24 @@ internal class PageTurn(
 
         override fun onBackCancelled() {
             // HOME or the screen going off may have closed the drawer meanwhile.
-            if (previewFrom != null && isOpen) settle(open = true)
-            previewFrom = null
+            val previewed = backPreviewFrom != null
+            backPreviewFrom = null
+            if (previewed && isOpen) {
+                settle(open = true)
+                followMode()
+            }
         }
 
         override fun onBackInvoked() {
-            val previewed = previewFrom != null
-            previewFrom = null
+            val previewed = backPreviewFrom != null
+            backPreviewFrom = null
             if (!isOpen) return
             if (closes()) close()
             else {
                 // The prompt changed during the gesture (a hardware key): undo the preview.
                 if (previewed) settle(open = true)
                 appDrawer.clearPrompt()
+                followMode()
             }
         }
     }
@@ -233,9 +237,18 @@ internal class PageTurn(
         if (isOpen && appDrawer.promptText != RECENTS_PROMPT) appDrawer.showKeyboard()
     }
 
-    /** Out of the recents (× or typing) it is the plain drawer: it goes back down like one. */
+    /**
+     * Out of the recents (× or typing) it is the plain drawer: it goes back down like one.
+     *
+     * Why: a drag or a Back preview holding the page keeps its side, or the drawer would jump to the
+     *   other one under the finger. It follows the mode once the hold ends without closing it.
+     */
     fun modeChanged(mode: Mode) {
-        if (isOpen && drawerFromTop && mode != Mode.RECENTS && !root.isDragging) drawerFromTop = false
+        if (!root.isDragging && backPreviewFrom == null) followMode(mode)
+    }
+
+    private fun followMode(mode: Mode = appDrawer.mode) {
+        if (isOpen && drawerFromTop && mode != Mode.RECENTS) drawerFromTop = false
     }
 
     private fun clearPromptIfClosed() {
@@ -327,7 +340,10 @@ internal class PageTurn(
                 open(if (drawerFromTop) RECENTS_PROMPT else "", fromTop = drawerFromTop)
             end == DragEnd.COMMIT -> close()
             dragOpens -> settle(open = false)
-            else -> settle(open = true)
+            else -> {
+                settle(open = true)
+                followMode()
+            }
         }
     }
 

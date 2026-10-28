@@ -417,13 +417,47 @@ class PageTurnTest {
         assertEquals("closing: how far it is already away", height / 3, root.host.onDragStart(SwipeDir.DOWN), 0.5f)
     }
 
+    /** A slow short pull up, released where it stopped: too little to turn the page. */
+    private fun shortPullUp() {
+        val t = SystemClock.uptimeMillis()
+        val from = height * 0.5f
+        root.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, 100f, from, 0))
+        for (i in 1..10) {
+            root.dispatchTouchEvent(MotionEvent.obtain(t, t + i * 50, MotionEvent.ACTION_MOVE, 100f, from - i * height * 0.006f, 0))
+        }
+    }
+
+    private fun releaseShortPull() {
+        val t = SystemClock.uptimeMillis()
+        root.dispatchTouchEvent(MotionEvent.obtain(t, t + 1000, MotionEvent.ACTION_UP, 100f, height * 0.44f, 0))
+    }
+
     /** Typing during the recents' pull up makes them the plain drawer, but the running drag keeps its side. */
     @Test fun `a mode change during a drag does not switch the side the drawer closes to`() {
         openSettled("?", fromTop = true)
-        startSwipeUp()
+        shortPullUp()
         assertTrue("the closing drag has started", root.isDragging)
         drawer.setPrompt("a")
         assertEquals(SwipeDir.UP, root.host.closeDirection())
+        releaseShortPull()
+        settle()
+        assertTrue("too short a pull: the drawer stays", pageTurn.isOpen)
+        assertEquals("the plain drawer now, so it goes back down", SwipeDir.DOWN, root.host.closeDirection())
+    }
+
+    /** A hardware key typed during the recents' Back preview: the drawer must not jump to the other side. */
+    @Test fun `a mode change during a Back preview keeps the side until the preview ends`() {
+        openSettled("?", fromTop = true)
+        pageTurn.backCallback.onBackStarted(back(0f))
+        pageTurn.backCallback.onBackProgressed(back(0.5f))
+        assertTrue("pulled up", drawer.view.translationY < 0f)
+        drawer.setPrompt("a")
+        pageTurn.backCallback.onBackProgressed(back(0.6f))
+        assertTrue("still pulled up: ${drawer.view.translationY}", drawer.view.translationY < 0f)
+        pageTurn.backCallback.onBackCancelled()
+        settle()
+        assertTrue(pageTurn.isOpen)
+        assertEquals("the plain drawer now, so it goes back down", SwipeDir.DOWN, root.host.closeDirection())
     }
 
     // ---- focus (the IME itself is not modelled) -----------------------------------------
