@@ -54,6 +54,6 @@
     <string name="guru_action_share">share the report</string>
     <plurals name="guru_saved">
         <item quantity="one">saved to Download/Guru</item>
-        <item quantity="other">%d reports saved to Download/Guru</item>
+        <item quantity="other">%d reports in Download/Guru</item>
     </plurals>
 </resources>

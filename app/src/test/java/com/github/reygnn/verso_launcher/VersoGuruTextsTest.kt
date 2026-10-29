@@ -23,7 +23,7 @@ class VersoGuruTextsTest {
         assertEquals("close", texts.actionClose)
         assertEquals("share the report", texts.actionShare)
         assertEquals("saved to Download/Guru", texts.saved(1))
-        assertEquals("3 reports saved to Download/Guru", texts.saved(3))
+        assertEquals("3 reports in Download/Guru", texts.saved(3))
     }
 
     @Test
@@ -33,7 +33,7 @@ class VersoGuruTextsTest {
         assertEquals("schließen", texts.actionClose)
         assertEquals("Bericht teilen", texts.actionShare)
         assertEquals("in Download/Guru gespeichert", texts.saved(1))
-        assertEquals("2 Berichte in Download/Guru gespeichert", texts.saved(2))
+        assertEquals("2 Berichte in Download/Guru", texts.saved(2))
     }
 
     /** VersoApp builds its texts once, at the process start; a language changed later must still show. */
