@@ -174,10 +174,9 @@ class SourceGuardTest {
         assertTrue(has(onCreate, "if (state.appsLoaded) appDrawer.refilter()"))
     }
 
-    /** Renamed classes or lost line numbers would leave a logcat crash trace unreadable without its mapping. */
-    @Test fun `R8 keeps names and line numbers for crash traces`() {
+    /** Without the source file and line numbers a logcat trace names no mapping and no line. */
+    @Test fun `R8 keeps source files and line numbers for crash traces`() {
         val rules = code("proguard-rules.pro")
-        assertTrue(has(rules, "-dontobfuscate"))
         assertTrue(has(rules, "-keepattributes SourceFile,LineNumberTable"))
     }
 }

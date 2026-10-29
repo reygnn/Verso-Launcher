@@ -170,14 +170,11 @@ dependencies {
     testImplementation(libs.robolectric)
 }
 
-// The release mapping, after every assembleRelease/bundleRelease: kept outside the repo (a crash
-// trace of that release can only be retraced with it — R8 inlines even with -dontobfuscate), then
-// uploaded to the ACRA backend with app/acra-scripts/upload_mapping.sh. The script and its ADMIN
-// credentials are not in the repo (app/.gitignore); without it the build only warns. A failed
-// upload fails the build — the AAB is built by then, the failure must just not go unseen.
-// Values are read here, at configuration: the tasks touch no `project` or `android` when they run.
+// The release mapping, after every assembleRelease/bundleRelease: kept outside the repo, where
+// retrace (~/AndroidStudio_Projects/retrace) finds it by the map id R8 writes into every frame. A
+// crash trace of that release can only be read with it.
+// Values are read here, at configuration: the task touches no `project` or `android` when it runs.
 val releaseMapping = layout.buildDirectory.file("outputs/mapping/release/mapping.txt")
-val mappingUploadScript = layout.projectDirectory.file("acra-scripts/upload_mapping.sh")
 val releaseId = android.defaultConfig.run { "$versionName-$versionCode" }
 val mappingArchive = providers.gradleProperty("verso.mappingArchive")
     .orElse(providers.systemProperty("user.home").map { "$it/apk/mappings" })
@@ -195,26 +192,6 @@ val archiveProguardMapping = tasks.register<Copy>("archiveProguardMapping") {
     }
 }
 
-val uploadProguardMapping = tasks.register<Exec>("uploadProguardMapping") {
-    group = "release"
-    description = "Uploads the release mapping to the ACRA backend (acra-scripts/upload_mapping.sh)."
-    dependsOn(archiveProguardMapping)
-    mustRunAfter(tasks.matching { it.name == "minifyReleaseWithR8" })
-    val mapping = releaseMapping
-    val script = mappingUploadScript
-    onlyIf("a release mapping and the upload script exist") { task ->
-        val hasMapping = mapping.get().asFile.exists()
-        val hasScript = script.asFile.exists()
-        if (!hasMapping) task.logger.warn("No release mapping at ${mapping.get().asFile} — not uploaded")
-        if (!hasScript) task.logger.warn("No ${script.asFile} — mapping not uploaded (kept locally)")
-        hasMapping && hasScript
-    }
-    commandLine(
-        "bash", script.asFile.path, mapping.get().asFile.path,
-        android.defaultConfig.applicationId!!, android.defaultConfig.versionCode.toString(),
-    )
-}
-
 tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
-    finalizedBy(uploadProguardMapping)
+    finalizedBy(archiveProguardMapping)
 }

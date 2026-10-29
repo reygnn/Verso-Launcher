@@ -3,8 +3,7 @@
 # already retain (MainActivity is referenced from the manifest). R8 full mode
 # is free to strip everything else.
 
-# No renaming and line numbers kept, so a crash trace in logcat is readable as it stands;
-# R8 still inlines, so an exact retrace needs the release mapping. Shrinking and optimisation
-# stay on.
--dontobfuscate
+# Line numbers and the source file kept: R8 then writes its map id as each frame's source file
+# (r8-map-id-<hash>), and retrace picks the archived mapping by it (app/build.gradle.kts,
+# archiveProguardMapping). Without them a crash trace in logcat cannot be read back at all.
 -keepattributes SourceFile,LineNumberTable

@@ -170,8 +170,9 @@ The launcher is one package of small files: `MainActivity.kt` is the window's fr
 the rest is pure and unit-tested on the JVM, a thin view class, or the process's own parts that
 outlive an activity. Each file's KDoc says what it is for.
 
-The release APK keeps class names and line numbers (`-dontobfuscate`) so a crash trace in
-logcat reads as it stands. The only *shipped* dependencies are the Kotlin stdlib (added
+A release build renames classes (R8) and keeps line numbers; its mapping goes to
+`~/apk/mappings/verso/<versionName>-<versionCode>/`, where
+[retrace](https://github.com/reygnn/retrace) reads a crash in logcat back with it. The only *shipped* dependencies are the Kotlin stdlib (added
 automatically by AGP's built-in Kotlin); JUnit and Robolectric are `testImplementation`, so the
 release stays dependency-free.
 

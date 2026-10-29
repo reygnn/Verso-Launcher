@@ -75,16 +75,16 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
     content. Older KDoc moves to this form when its file is touched; there is no sweep.
 - **Debug build:** `applicationIdSuffix = ".debug"`, so a debug build installs beside the release.
 - **No crash reporter** (Guru was removed after 0.6.7): a crash is in logcat only. Release builds
-  keep names and line numbers (`-dontobfuscate`) so such a trace reads as it stands.
+  are obfuscated and keep source file and line numbers, so each frame names its mapping
+  (`r8-map-id-<hash>`) for retrace (`~/AndroidStudio_Projects/retrace`, `./crash.sh`).
 - **Daily-driver build:** `./gradlew bundleRelease -PdailyDriver` (and every debug build)
   compiles in `~crash`. `DailyDriver.ENABLED` comes from twin files in `src/dailyDriver` and
   `src/public`, not from BuildConfig: every buildFeature stays off. The public build has an even
   versionCode, the daily-driver build the odd one above it and `-daily` in its name (`0.4.2` = 24,
   `0.4.2-daily` = 25). **A release bump is versionName +0.0.1, versionCode +2.**
 - **Release mapping:** kept in `~/apk/mappings/verso/<versionName>-<versionCode>/` (Gradle
-  property `verso.mappingArchive`) and uploaded to the ACRA backend (`uploadProguardMapping`) by
-  `app/acra-scripts/upload_mapping.sh` — not in the repo; ADMIN credentials from the environment
-  or `~/.config/acra/admin.env`. No script: a warning. A failed upload: a failed build.
+  property `verso.mappingArchive`) by `archiveProguardMapping`, not in the repo; without it a
+  release's crash cannot be read back.
 
 ---
 
