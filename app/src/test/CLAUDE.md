@@ -64,7 +64,7 @@ scan goes into `sourceScans` there, and a file it reads into the inputs of `sour
 
 Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
 `DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest` and `RecentsLogTest` use
-`chmod`, so they fail when run as root.
+`chmod`; run as root, which reads the file anyway, they are skipped.
 
 No instrumented tests: everything runs on the JVM.
 

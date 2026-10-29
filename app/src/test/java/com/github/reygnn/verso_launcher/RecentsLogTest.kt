@@ -2,6 +2,7 @@ package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -39,7 +40,10 @@ class RecentsLogTest {
 
     @Test fun `an unreadable file is null - it must not be written over`() {
         val dir = folder.root
-        File(dir, RecentsLog.FILE).apply { writeText("a/A\n") }.setReadable(false)
+        val file = File(dir, RecentsLog.FILE).apply { writeText("a/A\n") }
+        file.setReadable(false)
+        // Root reads it all the same: then there is no unreadable file to test, a skip, not a failure.
+        assumeFalse("running as root", file.canRead())
         assertNull(RecentsLog.read(dir, 8, noLog))
     }
 }

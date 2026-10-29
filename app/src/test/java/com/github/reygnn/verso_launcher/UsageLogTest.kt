@@ -3,6 +3,7 @@ package com.github.reygnn.verso_launcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -100,6 +101,8 @@ class UsageLogTest {
         val dir = folder.newFolder()
         val file = File(dir, UsageLog.FILE).apply { writeText("a\t1.0\t5\n") }
         file.setReadable(false)
+        // Root reads it all the same: then there is no unreadable file to test, a skip, not a failure.
+        assumeFalse("running as root", file.canRead())
         assertNull(UsageLog.read(dir, noLog))
     }
 
