@@ -120,6 +120,15 @@ class AppLauncherTest {
         assertEquals(listOf(context.getString(R.string.toast_not_default_home) to true), said)
     }
 
+    /** A dying system is no unpause: nothing waits for the profile. */
+    @Test fun `a failing unpause is not found, and waits for nothing`() {
+        system.paused = true
+        system.unpauseRefusal = IllegalStateException("system_server died")
+        launcher.launch(zulu)
+        launcher.profileAvailable(work)
+        assertEquals(listOf(word(R.string.toast_not_found) to false), said)
+    }
+
     @Test fun `app info opens in the profile, a refusal is a word`() {
         launcher.openAppInfo(zulu)
         assertEquals(listOf("details com.zulu.Main"), system.calls)

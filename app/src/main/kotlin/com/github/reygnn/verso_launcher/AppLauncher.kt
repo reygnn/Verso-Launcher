@@ -85,15 +85,19 @@ internal class AppLauncher(
     }
 
     private fun unpause(user: UserHandle, entry: AppEntry) {
-        waitingFor = user to entry.label
-        waitingSince = now()
         try {
             system.unpause(user)
         } catch (e: SecurityException) {
-            waitingFor = null
             Log.w("Verso", "quiet mode denied: ${entry.key}", e)
             say(context.getString(R.string.toast_not_default_home), true)
+            return
         }
+        // Only once the request went through: a throw of any other kind (launch's catch) must
+        // leave nothing waiting.
+        // Thread: main, like the ACTION_PROFILE_AVAILABLE receiver, so the answer cannot come
+        //   before this line.
+        waitingFor = user to entry.label
+        waitingSince = now()
     }
 
     /** ACTION_PROFILE_AVAILABLE for [user]: the app a tap was waiting for is ready, if it was asked for lately. */
