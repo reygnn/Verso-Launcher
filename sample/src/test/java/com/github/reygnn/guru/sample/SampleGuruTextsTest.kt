@@ -18,7 +18,7 @@ class SampleGuruTextsTest {
         assertEquals("close", texts.actionClose)
         assertEquals("share the report", texts.actionShare)
         assertEquals("saved to Download/Guru", texts.saved(1))
-        assertEquals("3 reports saved to Download/Guru", texts.saved(3))
+        assertEquals("3 reports in Download/Guru", texts.saved(3))
     }
 
     @Test
@@ -28,6 +28,6 @@ class SampleGuruTextsTest {
         assertEquals("schließen", texts.actionClose)
         assertEquals("Bericht teilen", texts.actionShare)
         assertEquals("in Download/Guru gespeichert", texts.saved(1))
-        assertEquals("2 Berichte in Download/Guru gespeichert", texts.saved(2))
+        assertEquals("2 Berichte in Download/Guru", texts.saved(2))
     }
 }

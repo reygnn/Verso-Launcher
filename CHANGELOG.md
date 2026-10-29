@@ -3,6 +3,26 @@
 Every tag has an entry here, newest first. Versions follow SemVer; what counts as major,
 minor or patch is in `CLAUDE.md`, "Versions and releases".
 
+## 2.1.3 — 2026-10-29
+
+From the external review of 2026-10-25 (Verso's `docs/audits/AUDIT-2026-10-25-extern.md`).
+Checked on the A17: "Crash twice" — "2 Berichte in Download/Guru" in the box at the Amiga lines'
+size; the on-device tests 5/5. Split screen not tried.
+
+- Fix: the host's last line was measured at the size the previous layout left it, then that
+  measure scaled the Amiga lines' size. Its size swung from layout to layout: after a narrow
+  layout (split screen) far too small, after the next wide one too big for the box. It is now
+  measured at the size it is scaled from.
+- Fix: the exit look asked for the newest 16 exit records only; a crash behind 16 other ends
+  since the mark was lost. It now takes every record the system keeps; the mark keeps the old
+  ones out.
+- The default text for several reports is shorter: "3 reports in Download/Guru" instead of
+  "3 reports saved to Download/Guru" — it no longer comes out smaller than the Amiga lines. The
+  sample says the same, in German "3 Berichte in Download/Guru". One report reads as before.
+- U+2028 / U+2029 in `AcraJson` written as escapes instead of the raw characters; the output is
+  unchanged.
+- 208 tests.
+
 ## 2.1.2 — 2026-10-25
 
 From the device test of 2.1.1. Checked on the A17: the process killed while the alert was up,

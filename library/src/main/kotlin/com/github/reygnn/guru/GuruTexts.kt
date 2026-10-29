@@ -21,7 +21,7 @@ internal interface GuruTexts {
     val actionShare: String get() = "share the report"
 
     /** Under the Guru number: [count] reports, the one shown among them, are in Download/Guru. */
-    fun saved(count: Int): String = if (count == 1) "saved to Download/Guru" else "$count reports saved to Download/Guru"
+    fun saved(count: Int): String = if (count == 1) "saved to Download/Guru" else "$count reports in Download/Guru"
 
     /** The defaults, as they are. */
     object English : GuruTexts

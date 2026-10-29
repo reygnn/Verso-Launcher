@@ -53,7 +53,7 @@ internal object AcraJson {
                 c == '\n' -> append("\\n")
                 c == '\r' -> append("\\r")
                 c == '\t' -> append("\\t")
-                c < ' ' || c == ' ' || c == ' ' || isLoneSurrogate(value, i) -> append(unicode(c))
+                c < ' ' || c == '\u2028' || c == '\u2029' || isLoneSurrogate(value, i) -> append(unicode(c))
                 else -> append(c)
             }
         }

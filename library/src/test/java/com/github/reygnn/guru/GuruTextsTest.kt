@@ -11,7 +11,7 @@ class GuruTextsTest {
     @Test
     fun `saved names the folder - one, or how many`() {
         assertEquals("saved to Download/Guru", english.saved(1))
-        assertEquals("3 reports saved to Download/Guru", english.saved(3))
+        assertEquals("3 reports in Download/Guru", english.saved(3))
     }
 
     @Test

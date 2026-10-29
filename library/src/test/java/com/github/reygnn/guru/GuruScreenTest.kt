@@ -2,7 +2,10 @@ package com.github.reygnn.guru
 
 import android.app.Dialog
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.os.Looper
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
@@ -14,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.GraphicsMode
 import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
@@ -109,6 +113,37 @@ class GuruScreenTest {
         assertEquals(quoteShort, quoteLong, 0.01f)
         assertEquals(quoteShort, lastShort, 0.01f)
         assertTrue(lastLong < quoteLong)
+    }
+
+    /**
+     * Native graphics: the legacy shadow's measureText ignores the text size. The host line is
+     * too long for the Amiga lines' size; measured at whatever size it had before, it came out
+     * of a narrow layout far too small and out of the next wide one too big.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `the host line fits the box at the size it is drawn at, on every layout`() {
+        val activity = host.activity().get()
+        val pad = GuruView.BOX_PAD_DP * activity.resources.displayMetrics.density
+        val probe = Paint().apply { typeface = Typeface.MONOSPACE }
+        fun widthAt(size: Float, s: String) = probe.apply { textSize = size }.measureText(s)
+        val wide = view(GuruScreen.show(activity, lines + "x", German, onShare = {})) as GuruView
+        host.idleMain()
+        val width = wide.width
+        val head = wide.textSizes.first
+        var last = "x"
+        while (widthAt(head, last) <= width - 4 * pad) last += "x"
+
+        val view = view(GuruScreen.show(activity, lines + last, German, onShare = {})) as GuruView
+        host.idleMain()
+        val sizes = mutableMapOf<Int, Float>()
+        for (w in listOf(width, width / 2, width, width / 2, width)) {
+            view.layout(0, 0, w, view.height)
+            val size = view.textSizes.second
+            assertEquals("the same at $w px every time", sizes.getOrPut(w) { size }, size, 0.001f)
+            // Glyph advances are whole pixels, so a scaled size can overshoot by a few: into the padding.
+            assertTrue("fits at $w px", widthAt(size, last) <= w - 4 * pad + pad / 2)
+        }
     }
 
     @Test
