@@ -82,7 +82,9 @@ is translated). The personal profile's config moves over intact.
 
 ## No crash reports
 
-Verso keeps no crash report and sends none: a crash shows only in the system log. Versions up to
+Verso keeps no crash report and sends none: a crash shows only in the system log. After a crash,
+the next Home press asks which home app to use: Android does that after every crash of a home
+app that is not part of the system. Pick Verso and "Always", and all is as before. Versions up to
 0.6.7 saved their reports to `Download/Guru/`; those files stay until you delete them.
 
 ## The front page

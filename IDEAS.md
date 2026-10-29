@@ -10,6 +10,15 @@ with its reason — the performance points after measuring.
 
 ## Discarded, with the reason (2026-10-25)
 
+- A crash count at the next start, from `ActivityManager.getHistoricalProcessExitReasons`
+  (cloud review, 2026-10-29, after Guru's removal). It would tell nothing new. That Verso crashed,
+  Android says itself: every crash of a home app that is no system app clears its preferred-home
+  setting (AOSP, Android 16, `AppErrors.handleAppCrashLocked`), so the next Home press shows the
+  launcher chooser — measured on the A17 with 0.6.10-daily, while the home page itself comes back
+  in a new process within about 70 ms, with no dialog. Where it crashed, the record cannot say: a
+  Java crash is kept as `REASON_CRASH` with the description "crash" and no stack trace, so the
+  where stays in logcat and the DropBox, which retrace reads with the archived mapping. What is
+  left, a count and a time, is no reason for a file and a message on screen.
 - Measured on release builds (R8, not debuggable), A17 and Pixel 9a, throwaway patches:
   - The first wallpaper-colour query delays the first enumeration: by about 3 ms on the A17
     (Samsung answers no colours) and 0.35–0.65 ms on the Pixel, against an enumeration of
