@@ -334,6 +334,9 @@ class MainActivity : Activity() {
         }
     }
 
+    // Not caught (hard rule 2): what makes a registration throw, the 1000 receivers a process may
+    // hold, takes a leak in this process; the crash ends it, and the new one registers anew.
+    // Why: a catch would keep the leak and a launcher that never hears of an app again.
     private fun watchApps() {
         launcherApps.registerCallback(appsChanged, Handler(Looper.getMainLooper()))
         registerReceiver(

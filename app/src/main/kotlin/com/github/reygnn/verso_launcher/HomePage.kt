@@ -229,18 +229,12 @@ internal class HomePage(
 
     fun startBattery() {
         if (batteryRegistered) return
-        // NOT_EXPORTED still receives this system broadcast.
-        // no battery line beats a home page that cannot start
-        val sticky = @Suppress("TooGenericExceptionCaught") try {
-            activity.registerReceiver(
-                batteryReceiver,
-                IntentFilter(Intent.ACTION_BATTERY_CHANGED),
-                Context.RECEIVER_NOT_EXPORTED,
-            )
-        } catch (e: RuntimeException) {
-            Log.w("Verso", "battery receiver registration failed", e)
-            return
-        }
+        // NOT_EXPORTED still receives this system broadcast. Not caught, like [MainActivity.watchApps].
+        val sticky = activity.registerReceiver(
+            batteryReceiver,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            Context.RECEIVER_NOT_EXPORTED,
+        )
         // Flag first, so stopBattery unregisters even if showing the first reading throws.
         batteryRegistered = true
         showBattery(sticky)
