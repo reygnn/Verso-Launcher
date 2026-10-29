@@ -32,7 +32,6 @@ import java.util.UUID
 internal object Guru {
 
     private const val DIR = "guru"
-    private const val EXIT_LOOKBACK = 16
 
     private class Setup(
         // The Application, never an Activity: Setup lives in a static field for the process.
@@ -209,7 +208,9 @@ internal object Guru {
     // Only an ANR's dump is text; a native crash's is a protobuf tombstone and stays out.
     private fun collectExits(s: Setup) {
         val am = s.context.getSystemService(ActivityManager::class.java) ?: return
-        val history = am.getHistoricalProcessExitReasons(null, 0, EXIT_LOOKBACK)
+        // 0 is every record the system keeps: a fixed number would lose a crash behind as many
+        // other ends since the mark; the mark keeps the old ones out.
+        val history = am.getHistoricalProcessExitReasons(null, 0, 0)
         // No pid (0) is no process: such an exit is never taken for a second end.
         val records = history.mapNotNull { info ->
             kindOf(info.reason)?.let { kind ->

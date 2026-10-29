@@ -275,6 +275,8 @@ internal class GuruView(
         val inside = width - 2 * pad
         val head = if (lines.size > 1) lines.dropLast(1) else lines
         fit(text, TEXT_SP, head, inside - 2 * pad)
+        // Measured at the size it is scaled from, not at the one the last layout left.
+        lastText.textSize = text.textSize
         lastText.textSize = fitted(text.textSize, inside - 2 * pad, lastText.measureText(lines.last()))
         fit(hintText, HINT_SP, listOf(hint), inside)
         lineHeight = text.fontSpacing

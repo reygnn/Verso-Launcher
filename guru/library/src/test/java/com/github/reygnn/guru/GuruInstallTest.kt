@@ -143,6 +143,19 @@ class GuruInstallTest {
         assertEquals(listOf(caught.id), host.store.pending().map { it.id })
     }
 
+    /** Not only the newest 16: a crash behind more ordinary ends since the mark is still found. */
+    @Test
+    fun `a crash behind many other exits is still reported`() {
+        host.store.markExitsSeen(now - 10 * GuruHostRule.MINUTE_MS)
+        exit(ApplicationExitInfo.REASON_CRASH, now - 5 * GuruHostRule.MINUTE_MS, "crash", pid = 27000)
+        repeat(20) { exit(ApplicationExitInfo.REASON_USER_REQUESTED, now - 4 * GuruHostRule.MINUTE_MS + it * 1_000L, pid = 28000 + it) }
+
+        Guru.install(host.app, host.io)
+        host.runIo()
+
+        assertEquals(listOf(GuruKind.CRASH), host.store.pending().map { it.kind })
+    }
+
     /** The pid of the end just before, of any reason: a new process with another pid crashing is new. */
     @Test
     fun `a crash of the next process is still reported`() {

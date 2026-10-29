@@ -75,6 +75,12 @@ class AcraJsonTest {
         assertEquals(trace, parsed(report(trace = trace)).getString("STACK_TRACE"))
     }
 
+    /** Valid in JSON, but a line end in JavaScript: escaped, so an older JS parser reads it too. */
+    @Test
+    fun `line and paragraph separators are escaped`() {
+        assertEquals("a\\u2028b\\u2029", AcraJson.str("a\u2028b\u2029").removeSurrounding("\""))
+    }
+
     /** A message may hold half an emoji; replacing it would change the trace. */
     @Test
     fun `lone surrogates are escaped, not replaced`() {
