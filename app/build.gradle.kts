@@ -33,8 +33,8 @@ android {
         // A GitHub release has an even versionCode; the daily-driver build of the same release the
         // odd one above it and "-daily" in its name, so each build's mapping has a versionCode of its
         // own. A release bump is +2 (CLAUDE.md, Stack particulars).
-        versionCode = 64 + if (dailyDriver) 1 else 0
-        versionName = "0.6.8" + if (dailyDriver) "-daily" else ""
+        versionCode = 66 + if (dailyDriver) 1 else 0
+        versionName = "0.6.9" + if (dailyDriver) "-daily" else ""
     }
 
     // The daily-driver build: debug always, a release only with -PdailyDriver. DailyDriver.ENABLED
