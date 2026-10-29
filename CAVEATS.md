@@ -80,15 +80,10 @@ without favorites, names, tags or hidden marks — unless the file names them by
 (`Gmail (Work)`), which outlives a serial (though not a change of the device language: the badge
 is translated). The personal profile's config moves over intact.
 
-## Crash reports land in Download/Guru
+## No crash reports
 
-After a crash, the next start saves the report to `Download/Guru/` without asking, then the alert
-says so. A report holds the full trace (messages can carry names, paths or other apps' package
-names), an ANR's dump of every thread, the device's brand, model and Android version, and an
-installation ID that lasts until Verso is reinstalled or its storage cleared. Like the backups,
-the files are readable by a file manager, a cloud-sync app, a PC or an app with access to all
-files, and they outlive an uninstall; after a reinstall Verso can no longer see or remove them.
-Every app with Guru shares the folder. Guru sends nothing; to be rid of a report, delete it.
+Verso keeps no crash report and sends none: a crash shows only in the system log. Versions up to
+0.6.7 saved their reports to `Download/Guru/`; those files stay until you delete them.
 
 ## The front page
 
@@ -137,8 +132,7 @@ one with its key needs the new one.
 Verso's own disk and system work runs on one thread: the app list and the app's small files. If a
 system service never answers (the package manager; not seen so far), the list stays as it was —
 on a cold start the drawer stays empty and home shows its cached favorites. Your config file is a
-few KB on the phone's own storage, read as Verso starts. Guru saves its crash reports through
-MediaStore on a thread of its own, so a stuck MediaStore holds only those.
+few KB on the phone's own storage, read as Verso starts.
 Settings → Apps → Verso → Force stop ends a hang; the next start is clean.
 
 ## Portrait lock does not hold on tablets and foldables

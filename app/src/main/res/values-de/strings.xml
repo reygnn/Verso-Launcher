@@ -46,12 +46,4 @@
     <string name="order_to_name" formatted="false">% von A bis Z sortieren</string>
     <string name="toast_order_usage">Drawer: meistgenutzte zuerst</string>
     <string name="toast_order_name">Drawer: von A bis Z</string>
-    <!-- Guru, der Absturz-Alarm (guru/, GuruTexts). Die Amiga-Zeilen bleiben englisch. -->
-    <string name="guru_hint">doppeltippen: schließen · halten: teilen</string>
-    <string name="guru_action_close">schließen</string>
-    <string name="guru_action_share">Bericht teilen</string>
-    <plurals name="guru_saved">
-        <item quantity="one">in Download/Guru gespeichert</item>
-        <item quantity="other">%d Berichte in Download/Guru</item>
-    </plurals>
 </resources>

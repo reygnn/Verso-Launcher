@@ -47,13 +47,4 @@
     <string name="order_to_name" formatted="false">% sort A to Z</string>
     <string name="toast_order_usage">Drawer: most used first</string>
     <string name="toast_order_name">Drawer: A to Z</string>
-    <!-- Guru, the crash alert after a crash (guru/, GuruTexts). The Amiga lines themselves stay
-         English; these are the host's words around them. -->
-    <string name="guru_hint">double-tap: close · hold: share</string>
-    <string name="guru_action_close">close</string>
-    <string name="guru_action_share">share the report</string>
-    <plurals name="guru_saved">
-        <item quantity="one">saved to Download/Guru</item>
-        <item quantity="other">%d reports in Download/Guru</item>
-    </plurals>
 </resources>

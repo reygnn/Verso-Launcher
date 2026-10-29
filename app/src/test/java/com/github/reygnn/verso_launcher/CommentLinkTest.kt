@@ -11,16 +11,14 @@ import java.io.File
  * that outlived its declaration misleads it (CLAUDE.md, "Comments and KDoc").
  *
  * Checked: every name in brackets in a comment of Verso's Kotlin sources, KDoc or not, and in the
- * Markdown files every name in backticks that has the form `Owner.member` (Owner one of Verso's or
- * Guru's types) or `Name.kt`. A link resolves when each of its segments is declared somewhere in
- * Verso's or Guru's code, or imported there; a link in code that ships resolves only against code
- * that ships.
+ * Markdown files every name in backticks that has the form `Owner.member` (Owner one of Verso's
+ * types) or `Name.kt`. A link resolves when each of its segments is declared somewhere in Verso's
+ * code, or imported there; a link in code that ships resolves only against code that ships.
  *
  * Why: the IDE does not resolve a test from main code, so such a link would be dead there.
  * Why: a resolver this loose catches what drifts in practice, a name that is gone everywhere. It
  *   does not see a link to the wrong member of the right name. Names written as plain prose are
  *   not seen at all; the convention says to write them as links.
- * Why: Guru's own comments are left out. Guru is a subtree, fixed upstream (CLAUDE.md, "Guru").
  */
 class CommentLinkTest {
 
@@ -34,16 +32,13 @@ class CommentLinkTest {
     /** Verso's sources, whose comments are checked. */
     private val verso = kotlinFiles("app/src")
 
-    /** Guru's sources: a name may be declared there, its comments are not checked. */
-    private val guru = kotlinFiles("guru/library/src", "guru/sample/src")
+    /** Every name declared in Verso, tests included: for a test's comments and the Markdown files. */
+    private val everywhere by lazy { Names(verso) }
 
-    /** Every name declared in Verso and Guru, tests included: for a test's comments and the Markdown files. */
-    private val everywhere by lazy { Names(verso + guru) }
+    /** The names of the code that ships: Verso's without its tests. */
+    private val shipped by lazy { Names(verso.filterNot(::isTest)) }
 
-    /** The names of the code that ships: Verso's without its tests, and Guru's library. */
-    private val shipped by lazy { Names(verso.filterNot(::isTest) + kotlinFiles("guru/library/src/main")) }
-
-    private val kotlinFileNames: Set<String> by lazy { (verso + guru).mapTo(HashSet()) { it.name } }
+    private val kotlinFileNames: Set<String> by lazy { verso.mapTo(HashSet()) { it.name } }
 
     @Test fun `every link in a comment names code that exists`() {
         val broken = verso.flatMap { file ->
@@ -100,7 +95,7 @@ class CommentLinkTest {
 
     @Test fun `a source under a test directory is a test`() {
         assertTrue(isTest(File("app/src/test/java/A.kt")))
-        assertTrue(isTest(File("guru/library/src/androidTest/kotlin/A.kt")))
+        assertTrue(isTest(File("app/src/androidTest/kotlin/A.kt")))
         assertFalse(isTest(File("app/src/main/kotlin/A.kt")))
         assertFalse(isTest(File("app/src/dailyDriver/kotlin/test/A.kt")))
     }
@@ -112,7 +107,7 @@ class CommentLinkTest {
 
     // ---- what is checked -----------------------------------------------------------------------
 
-    /** `Name.kt` is a Kotlin file; `Owner.member` has Verso's or Guru's type as owner, and its members declared. */
+    /** `Name.kt` is a Kotlin file; `Owner.member` has one of Verso's types as owner, and its members declared. */
     private fun exists(name: String): Boolean = when {
         name.endsWith(".kt") -> name in kotlinFileNames
         name.substringBefore('.') !in everywhere.types -> true // a platform type ("Intent.ACTION_…") or R
@@ -140,7 +135,7 @@ class CommentLinkTest {
 
     private companion object {
 
-        /** A source in a test source set of Verso or Guru: its directory right under src is test or androidTest. */
+        /** A source in a test source set: its directory right under src is test or androidTest. */
         fun isTest(file: File): Boolean =
             Regex("""(^|/)src/(test|androidTest)/""").containsMatchIn(file.invariantSeparatorsPath)
 

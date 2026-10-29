@@ -92,7 +92,7 @@ keyboard, no prompt:
     - `~restart` — read your config file and everything else again and rebuild the list: the
       way to make a changed config file count
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
-      on purpose, to see Guru's report. Never abbreviated
+      on purpose, to see the crash-only paths. Never abbreviated
 - Tap a row or press **Enter** to launch the row nearest the command line. On an empty line
   **Enter** only drops the keyboard. The `×` at the end of the line clears it.
 - Long-press any row for its *App info*.
@@ -162,38 +162,18 @@ Inherited from Sigil, which drops **all** of Kolibri Launcher's stack:
 - no Navigation / Fragments — one `Activity`, no dialogs
 - no DataStore / Room / SharedPreferences — the config is your own text file, which Verso only
   reads; in `filesDir` it keeps only throwaway files: `order.txt` behind `%`, `home-cache.txt`,
-  a copy of the favorites as shown, `usage.txt` and `recents.txt` behind `%` and `?`, and
-  Guru's crash reports in `guru/` until the next start saves them (see "Crash reports")
-- no ACRA / Timber — `android.util.Log`; crash reports come from Guru, vendored as source
-  (no library, no permission, no network — see "Crash reports")
+  a copy of the favorites as shown, `usage.txt` and `recents.txt` behind `%` and `?`
+- no ACRA / Timber / crash reporter — `android.util.Log`; a crash is in logcat and nowhere else
 - no ViewBinding / XML layouts — UI built in code
 
 The launcher is one package of small files: `MainActivity.kt` is the window's framework wiring,
 the rest is pure and unit-tested on the JVM, a thin view class, or the process's own parts that
 outlive an activity. Each file's KDoc says what it is for.
 
-## Crash reports
-
-Verso carries [Guru](https://github.com/reygnn/guru), a crash reporter vendored as source in
-`guru/` (a `git subtree`, never edited here). A crash is written to disk while the process
-dies; at the next start, before the alert, Guru saves it without asking as a `.json` file in
-`Download/Guru/` (MediaStore, no permission; Guru keeps its newest 32 there) and Verso shows
-the Amiga alert saying so, a black strip at the top with Verso slid down beneath it until the
-alert closes — unless the alert itself was what crashed: then the file is saved and the alert
-left out. **Hold** hands the saved files to an app you pick (mail, a messenger,
-guru2acra), **double-tap** or **Back** closes the alert; once seen it does not come again. To be
-rid of a report, delete its file. Guru itself sends nothing; the files are readable by anything
-that reads `Download` — see `CAVEATS.md`.
-
-<p>
-  <img src="docs/screenshots/guru-alert.gif" alt="Guru's alert after a crash: a black strip at the top with the blinking red box — Software Failure, the Guru Meditation number, saved to Download/Guru — and the hint, the home page slid down beneath it" width="270">
-</p>
-
-Guru adds about 30 KB of code and keeping class names (`-dontobfuscate`, for readable crash
-traces) about 18 KB: the release APK went from about 180 to 231 KB. The only
-*shipped* dependencies are the Kotlin stdlib (added automatically by AGP's
-built-in Kotlin); JUnit and Robolectric are `testImplementation`, so the release stays
-dependency-free.
+The release APK keeps class names and line numbers (`-dontobfuscate`) so a crash trace in
+logcat reads as it stands. The only *shipped* dependencies are the Kotlin stdlib (added
+automatically by AGP's built-in Kotlin); JUnit and Robolectric are `testImplementation`, so the
+release stays dependency-free.
 
 ## Build
 

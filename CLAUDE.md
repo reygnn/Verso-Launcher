@@ -39,11 +39,10 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
 - **Persistence:** the config is the user's file, `config.txt` in the app's external files folder
   (hard rules 4 and 6). The app keeps only small files of its own, each rewritten whole through a
   temp file and a rename, none of them precious: `order.txt` (`%`, `DrawerOrder`),
-  `home-cache.txt`, `usage.txt`, `recents.txt`, and Guru's `filesDir/guru/`. Neither the JSON of
+  `home-cache.txt`, `usage.txt`, `recents.txt`. Neither the JSON of
   earlier versions (`verso.json` and its backups) nor the `config-link.txt` and
-  `config-cache.txt` of 0.6.x are read any more. No cloud backup; a device transfer leaves out
-  the home-cache and Guru's files (`data_extraction_rules.xml`). Guru's reports go to
-  `Download/Guru/` through MediaStore.
+  `config-cache.txt` of 0.6.x, nor the `filesDir/guru/` of 0.6.7 and before, are read any more.
+  No cloud backup; a device transfer leaves out the home-cache (`data_extraction_rules.xml`).
 - **Tests:** JUnit 4 on the JVM, Robolectric only where a real widget is needed, no mocks (fakes
   and manual queues), no instrumented tests.
 - **Warnings are errors** — Kotlin, lint and detekt (`config/detekt/detekt.yml`, part of
@@ -75,11 +74,8 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
     `OutdatedDocumentation` checks `@param`/`@property` names against the declaration, not their
     content. Older KDoc moves to this form when its file is touched; there is no sweep.
 - **Debug build:** `applicationIdSuffix = ".debug"`, so a debug build installs beside the release.
-- **Guru (`guru/`)**, the crash reporter, is a `git subtree` of reygnn/guru, compiled into `:app`
-  and checked by detekt. **Never edit it here**: fix it upstream, tag it, then
-  `git subtree pull --prefix=guru https://github.com/reygnn/guru <tag> --squash`; the commit names
-  the tag. Its rules are in `guru/CLAUDE.md`, its tests run in its repo. Release builds keep names
-  and line numbers (`-dontobfuscate`) for readable traces and a stable Guru number.
+- **No crash reporter** (Guru was removed after 0.6.7): a crash is in logcat only. Release builds
+  keep names and line numbers (`-dontobfuscate`) so such a trace reads as it stands.
 - **Daily-driver build:** `./gradlew bundleRelease -PdailyDriver` (and every debug build)
   compiles in `~crash`. `DailyDriver.ENABLED` comes from twin files in `src/dailyDriver` and
   `src/public`, not from BuildConfig: every buildFeature stays off. The public build has an even
@@ -148,8 +144,7 @@ The user's file: the first `MainActivity` or `~restart` (`Core.reset`) → `Conf
    own work, never shut down; main-thread state only on main. Hand-backs: the process's through `VersoApp.onMain` (never
    dropped), one window's through `MainActivity.onUi` (dropped once it is destroyed). Deliberate
    exceptions, not breaches to fix: the app's own small files and the user's config file read on
-   main before the state exists (hard rule 5), Guru's disk work on a thread of its own (`VersoApp.guruIo`: a MediaStore that hangs must not hold the
-   first app list), its report on the dying thread and its alert via `runOnUiThread`.
+   main before the state exists (hard rule 5).
 4. **Verso never writes the config.** The user's file is read, never written, and no document
    is ever opened for writing (`SourceGuardTest`); the user makes the file in an editor. A file
    that cannot be read is no file: the default favorites and a log line, nothing on screen; a line

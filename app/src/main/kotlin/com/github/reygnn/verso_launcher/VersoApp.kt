@@ -4,7 +4,6 @@ import android.app.Application
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.github.reygnn.guru.Guru
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -18,12 +17,6 @@ class VersoApp : Application() {
 
     /** Verso's disk and PackageManager work, in submission order. Never shut down (hard rule 3). */
     val io: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "verso-io") }
-
-    /**
-     * Guru's disk work: its store and the MediaStore save of a report. A thread of its own, so a
-     * MediaStore that hangs holds back a crash report, never Verso's first app list.
-     */
-    internal val guruIo: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "verso-guru") }
 
     /** Badged labels ("Gmail (Work)"), a binder call each. [io] only. */
     internal val badgedLabels = HashMap<BadgeKey, String>()
@@ -69,21 +62,6 @@ class VersoApp : Application() {
         }
 
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
-
-    // Guru (guru/): writes a crash report while the process dies; at the next start it saves
-    // the report to Download/Guru (MediaStore, no permission, without asking) and the alert
-    // says so (MainActivity.onCreate) — a hold shares the files with an app the user picks.
-    // Its disk work runs on [guruIo], each task behind Guard (hard rule 2). Only Verso's own
-    // version and label are asked here, on main, once (both caught): the dying thread must not ask
-    // the PackageManager.
-    override fun onCreate() {
-        super.onCreate()
-        Guru.install(
-            this,
-            io = { task -> guruIo.execute(Guard.wrap("Guru", ::logWarning, task)) },
-            texts = VersoGuruTexts(this),
-        )
-    }
 
     companion object {
         fun from(activity: android.app.Activity) = activity.application as VersoApp

@@ -3,8 +3,8 @@
 # already retain (MainActivity is referenced from the manifest). R8 full mode
 # is free to strip everything else.
 
-# Guru (guru/README.md, "Release builds"): no renaming and line numbers kept, so a crash
-# report's trace is readable and its Guru number — the backend's grouping key — stays the
-# same from release to release. Shrinking and optimisation stay on.
+# No renaming and line numbers kept, so a crash trace in logcat is readable as it stands;
+# R8 still inlines, so an exact retrace needs the release mapping. Shrinking and optimisation
+# stay on.
 -dontobfuscate
 -keepattributes SourceFile,LineNumberTable

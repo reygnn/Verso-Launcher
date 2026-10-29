@@ -6,7 +6,7 @@ the project scope, not by a freeze.
 
 Release triage, 2026-10-25: every open point of the reviews and audits (`docs/audits/`, removed
 2026-10-26, in the git history) was implemented, written into `CAVEATS.md`, or discarded below
-with its reason — the performance points after measuring; Guru's own points belong in Guru's repo.
+with its reason — the performance points after measuring.
 
 ## Discarded, with the reason (2026-10-25)
 
@@ -26,10 +26,6 @@ with its reason — the performance points after measuring; Guru's own points be
   - A profile that never reads makes every return home enumerate again (`needsRefresh`). Not seen:
     no "skipping profile" or "skipping app" in the A17's or the Pixel's log, and neither has a
     second profile. Throttle the retry only once a device shows it.
-  - Guru's alert does not block the page turn (no dialog does any more, hard rule 11). It
-    cannot meet a running drag: it comes with a new window, already in that window's first frame
-    (A17, release, `am crash` and the relaunch filmed at 20 fps), so no touch on the window can
-    start before it; a drag started after it goes to the alert (tried: the drawer stays shut).
 - Test gaps that would need what the JVM tests lack (audits 2026-10-21 (2) #14, 2026-10-22 #14
   and #15, 2026-10-22 (3) #4): `onResume` asking for a refresh on `needsRefresh` (Robolectric's
   `LauncherApps` is too thin; reflection only), `modeChanged` while a drag runs (real

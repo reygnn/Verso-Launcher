@@ -12,11 +12,7 @@ plugins {
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.file("config/detekt/detekt.yml"))
-    // guru/: Guru's sources (git subtree), checked with Verso's rules like Verso's own.
-    source.setFrom(
-        "src/main/kotlin", "src/dailyDriver/kotlin", "src/public/kotlin",
-        "src/test/java", "../guru/library/src/main/kotlin",
-    )
+    source.setFrom("src/main/kotlin", "src/dailyDriver/kotlin", "src/public/kotlin", "src/test/java")
     baseline = file("detekt-baseline.xml")
 }
 
@@ -47,15 +43,6 @@ android {
     sourceSets {
         named("debug") { kotlin.directories += "src/dailyDriver/kotlin" }
         named("release") { kotlin.directories += if (dailyDriver) "src/dailyDriver/kotlin" else "src/public/kotlin" }
-    }
-
-    // Guru, the crash reporter, is vendored as source (git subtree in guru/, never edited
-    // here) and compiled into this module: still no dependency in the APK (hard rule 1),
-    // and its `internal` stays internal. Its tests run in its own repo.
-    sourceSets {
-        named("main") {
-            kotlin.directories += "../guru/library/src/main/kotlin"
-        }
     }
 
     buildTypes {
@@ -165,7 +152,6 @@ val sourceScanTest = tasks.register<Test>("sourceScanTest") {
     inputs.files(
         fileTree("src"),
         file("proguard-rules.pro"),
-        fileTree("../guru") { include("library/src/**/*.kt", "sample/src/**/*.kt") },
         rootProject.files("CLAUDE.md", "CAVEATS.md", "README.md"),
     ).withPropertyName("scannedSources").withPathSensitivity(PathSensitivity.RELATIVE)
 }

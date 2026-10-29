@@ -143,23 +143,6 @@ class SourceGuardTest {
     }
 
     /**
-     * Guru (guru/): installed once, from the Application, with Verso's words; its disk work
-     * (its store and the MediaStore save) on a thread of its own (hard rule 3), behind Guard (hard
-     * rule 2). A second install elsewhere would replace this setup.
-     */
-    @Test fun `Guru is installed once, from VersoApp, on its own thread behind Guard`() {
-        val app = code("src/main/kotlin/com/github/reygnn/verso_launcher/VersoApp.kt")
-        assertTrue(has(app, "Guru.install(this, io ="))
-        assertTrue(has(app, "guruIo.execute(Guard.wrap("))
-        assertTrue(has(app, "texts = VersoGuruTexts(this)"))
-        val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
-        val sites = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
-            Regex("""\bGuru\s*\.\s*install\s*\(""").findAll(f.readText()).map { f.name }
-        }.toList()
-        assertEquals(listOf("VersoApp.kt"), sites)
-    }
-
-    /**
      * Hard rule 16: the process's code reaches the window only as a LauncherWindow — no Activity,
      * no MainActivity, so nothing of it can hold an instance or call one that is gone. A type keeps
      * Core on the Application (its constructor takes VersoApp); this keeps an Activity from coming
@@ -191,35 +174,8 @@ class SourceGuardTest {
         assertTrue(has(onCreate, "if (state.appsLoaded) appDrawer.refilter()"))
     }
 
-    /**
-     * The alert on the next start: asked for in every onCreate, unconditionally — an alert a
-     * recreation took away comes back only with the next call. Handed back with a plain
-     * runOnUiThread, never onUi: Guru puts its list back only when its own check sees the
-     * destroyed activity, and onUi would drop the hand-back first. Robolectric cannot open that
-     * window (a recreate runs the queued hand-back first), so this pin is the guard.
-     */
-    @Test fun `MainActivity asks for pending Guru reports in onCreate, not through onUi`() {
-        val activity = code("src/main/kotlin/com/github/reygnn/verso_launcher/MainActivity.kt")
-        val onCreate = activity.substringAfter("override fun onCreate(").substringBefore("\n    override fun ")
-        val call = pattern("Guru.showPending(this) { show -> runOnUiThread(show) }").find(onCreate)
-        assertTrue("not in onCreate", call != null)
-        // Unconditional: at the body's own level, inside no block (an if, a lambda) of onCreate.
-        val before = onCreate.substring(onCreate.indexOf('{') + 1, call!!.range.first)
-        assertEquals(0, before.count { it == '{' } - before.count { it == '}' })
-        assertEquals(1, Regex("""\bGuru\s*\.\s*showPending\s*\(""").findAll(activity).count())
-    }
-
-    /** Guru's store (crash reports, the installation id) never goes to the cloud nor to a new device. */
-    @Test fun `Guru's files stay out of cloud backup and device transfer`() {
-        val rules = code("src/main/res/xml/data_extraction_rules.xml")
-        val cloud = rules.substringAfter("<cloud-backup>").substringBefore("</cloud-backup>")
-        val transfer = rules.substringAfter("<device-transfer>").substringBefore("</device-transfer>")
-        assertTrue(has(cloud, """<exclude domain="file" path="." />"""))
-        assertTrue(has(transfer, """<exclude domain="file" path="guru/" />"""))
-    }
-
-    /** Renamed classes or lost line numbers would change a crash's Guru number with every release. */
-    @Test fun `R8 keeps names and line numbers for Guru's reports`() {
+    /** Renamed classes or lost line numbers would leave a logcat crash trace unreadable without its mapping. */
+    @Test fun `R8 keeps names and line numbers for crash traces`() {
         val rules = code("proguard-rules.pro")
         assertTrue(has(rules, "-dontobfuscate"))
         assertTrue(has(rules, "-keepattributes SourceFile,LineNumberTable"))

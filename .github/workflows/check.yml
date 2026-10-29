@@ -1,8 +1,7 @@
 name: check
 
 # Every push and pull request: the same gate as locally — unit tests (JVM and Robolectric), lint
-# and detekt, warnings as errors (CLAUDE.md, "Stack particulars") — and Guru's own suite from the
-# subtree, whose code is compiled into the APK but whose tests otherwise run only in its repo.
+# and detekt, warnings as errors (CLAUDE.md, "Stack particulars").
 on:
   push:
   pull_request:
@@ -24,11 +23,6 @@ jobs:
       - name: ./gradlew check
         run: ./gradlew check --stacktrace
 
-      # guru/ is a self-contained Gradle build (git subtree); its check is its tag gate.
-      - name: guru — ./gradlew check
-        working-directory: guru
-        run: ./gradlew check --stacktrace
-
       # On failure: the test, lint and detekt reports.
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -37,6 +31,3 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/
-            guru/library/build/reports/
-            guru/sample/build/reports/
-            guru/library/build/test-results/

@@ -16,7 +16,6 @@ import android.view.KeyEvent
 import android.view.WindowInsetsController
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
-import com.github.reygnn.guru.Guru
 
 /**
  * The launcher's single window: the home page (recto) in front, the drawer with Sigil's command
@@ -121,8 +120,7 @@ class MainActivity : Activity() {
 
         watchApps()
 
-        // First on the IO thread (Guru's save after a crash has a thread of its own, VersoApp), so
-        // the cached favorites land long before the full enumeration does.
+        // First on the IO thread, so the cached favorites land long before the full enumeration does.
         submitIo {
             val cached = HomeCache.read(filesDir, ::logWarning)
             onUi {
@@ -136,12 +134,6 @@ class MainActivity : Activity() {
         applyPalette(wallpaper.current)
         wallpaper.ask()
         unwatchWallpaper = WallpaperSystem.watch(this, wallpaper)
-
-        // Crash reports from an earlier run: Guru's alert, once the window is up. Queued on
-        // Guru's own thread (VersoApp.guruIo) behind its look at the exit records and its save.
-        // Not through onUi: Guru wants every block run (its README) — a destroyed activity is
-        // Guru's own check, which keeps the alert for the next call; onUi would drop it.
-        Guru.showPending(this) { show -> runOnUiThread(show) }
     }
 
     override fun onStart() {
@@ -251,7 +243,7 @@ class MainActivity : Activity() {
 
     /** Run a "~" command. */
     private fun runCommand(command: Command) {
-        // A deliberate crash, for Guru and the crash-only paths, at any time. The constant compiles
+        // A deliberate crash, for the crash-only paths, at any time. The constant compiles
         // it out of a public release, where nothing parses to CRASH anyway.
         if (command == Command.CRASH) {
             if (DailyDriver.ENABLED) error("~crash: deliberate crash (daily-driver build)")

@@ -51,11 +51,10 @@ The window (R)
                            and keys, the clear button, insets
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
-  VersoGuruTextsTest, GuruWiringTest   Guru's words and its wiring into Verso
 
 Source scans
   SourceGuardTest          only what neither a type nor a test reaches (hard rules 5, 7, 16,
-                           configChanges, Guru's wiring, R8 keeping names)
+                           configChanges, R8 keeping names)
   CommentLinkTest          links in comments, KDoc or not, and code names in the Markdown
                            files that name code which is gone, or a test from code that ships
 ```
@@ -80,9 +79,8 @@ No instrumented tests: everything runs on the JVM.
   make every interleaving deterministic.
 - **Few Activity tests.** `MainActivity` is glue; its decisions live in `LauncherLogic` and
   `LauncherState`; the config file's format is `ConfigText`'s, pure.
-- **No MediaStore model.** The config file is a plain file at a fixed place. Guru's reports still
-  use MediaStore, tested in Guru's repo; `GuruWiringTest.Downloads` only takes a save and keeps
-  its name.
+- **No MediaStore model.** The config file is a plain file at a fixed place; nothing of Verso
+  uses MediaStore.
 
 ---
 
