@@ -59,5 +59,7 @@ When the repo cannot be pushed:
 - **A branch even so** (hard rule 17).
 - **A patch in `git format-patch` form**, with a message the commit can keep: a plain diff cannot
   go through `git am`. It names the base it applies to, and the patch before it if it needs one.
-- **More than one patch:** the order is in the file names (`1-…`, `2-…`), and every patch is
-  applied in that order to a clean checkout of the base before it is handed over.
+- **More than one patch:** the order is in the file names, numbered with as many digits as the
+  last one needs (`01-…` to `12-…`). A shell glob sorts `10-` before `2-`, and `git am *.patch`
+  would apply them out of order. Every patch goes through that glob onto a clean checkout of the
+  base before it is handed over.
