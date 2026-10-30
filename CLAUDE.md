@@ -3,8 +3,10 @@
 Project rules for **Verso Launcher**, a plain-text Android launcher. What it is and how it is
 used: `README.md`; deliberate oddities: `CAVEATS.md`; tests: `app/src/test/CLAUDE.md` and
 `TESTING_CONVENTIONS.kt`; the working agreement: `WHY_CLAUDE.md`. Family-wide conventions come
-from `~/.claude/CLAUDE.md`. This file holds only the rules and where they are enforced; the why
-is in the KDoc of the classes named.
+from `~/.claude/CLAUDE.md`, which is not in the repo: a session without it (a cloud checkout) has
+only the files named here. Where the two disagree, this repo wins (Stack particulars,
+`app/src/test/CLAUDE.md`). This file holds only the rules and where they are enforced; the why is
+in the KDoc of the classes named.
 
 ---
 
@@ -27,6 +29,18 @@ ones stay listed, dimmed (`AppStatus`).
 New features are allowed (the freeze ended 2026-10-25), bounded by this scope, hard rule 1 and
 the bar that nothing regresses. Verso succeeds Sigil and Kolibri, both discontinued: never port
 anything back, no compatibility to keep.
+
+---
+
+## Done means
+
+- **`./gradlew check` is green.** It is what CI runs (`.github/workflows/check.yml`): the unit
+  tests, lint, detekt and `sourceScanTest`. A change to a Markdown file alone needs only
+  `./gradlew sourceScanTest`; a comment in code needs `check`, since detekt reads comments too
+  (`MaxLineLength`, `OutdatedDocumentation`).
+- **A feature or a non-trivial change on its own branch** (hard rule 17).
+- **A fix comes with a test that fails without it** (`app/src/test/CLAUDE.md`, "Paid for
+  already"), and a change of behaviour with its comment (Comments and KDoc).
 
 ---
 
@@ -76,7 +90,8 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
 - **Debug build:** `applicationIdSuffix = ".debug"`, so a debug build installs beside the release.
 - **No crash reporter** (Guru was removed after 0.6.7): a crash is in logcat only. Release builds
   are obfuscated and keep source file and line numbers, so each frame names its mapping
-  (`r8-map-id-<hash>`) for retrace (`~/AndroidStudio_Projects/retrace`, `./crash.sh`).
+  (`r8-map-id-<hash>`) for retrace: `./crash.sh` in `~/AndroidStudio_Projects/retrace`, not in
+  this repo.
 - **Daily-driver build:** `./gradlew bundleRelease -PdailyDriver` (and every debug build)
   compiles in `~crash`. `DailyDriver.ENABLED` comes from twin files in `src/dailyDriver` and
   `src/public`, not from BuildConfig: every buildFeature stays off. The public build has an even
@@ -133,6 +148,9 @@ The user's file: the first `MainActivity` or `~restart` (`Core.reset`) → `Conf
 
 ## Hard rules
 
+Code and KDoc cite these by number, so a rule is never renumbered: a new one goes at the end, a
+dropped one keeps its number as "(removed)".
+
 1. **No production dependencies.** `dependencies {}` holds only `testImplementation`. New deps
    and build plugins need the user's OK.
 2. **A HOME app must never throw.** Every IO-thread task runs behind `Guard` and degrades. Beyond
@@ -141,10 +159,10 @@ The user's file: the first `MainActivity` or `~restart` (`Core.reset`) → `Conf
    Main-thread catches always log and say what failed where the user acted — never a silent
    catch-all; the config file's read alone only logs (hard rule 4).
 3. **One IO thread for Verso, process-wide** (`VersoApp.io`): never another executor for Verso's
-   own work, never shut down; main-thread state only on main. Hand-backs: the process's through `VersoApp.onMain` (never
-   dropped), one window's through `MainActivity.onUi` (dropped once it is destroyed). Deliberate
-   exceptions, not breaches to fix: the app's own small files and the user's config file read on
-   main before the state exists (hard rule 5).
+   own work, never shut down; main-thread state only on main. Hand-backs: the process's through
+   `VersoApp.onMain` (never dropped), one window's through `MainActivity.onUi` (dropped once it
+   is destroyed). Deliberate exceptions, not breaches to fix: the app's own small files and the
+   user's config file read on main before the state exists (hard rule 5).
 4. **Verso never writes the config.** The user's file is read, never written, and no document
    is ever opened for writing (`SourceGuardTest`); the user makes the file in an editor. A file
    that cannot be read is no file: the default favorites and a log line, nothing on screen; a line
@@ -192,6 +210,9 @@ The user's file: the first `MainActivity` or `~restart` (`Core.reset`) → `Conf
 16. **The process owns the data; an activity is a window.** `Core` lives in `VersoApp`, sees the
     window only as a `LauncherWindow` (never an Activity, `SourceGuardTest`) and keeps none past a
     call. A recreation shares the loaded state; only `~restart` resets it (`Core.reset`).
+17. **Every feature and every non-trivial change on its own branch**, never straight on `main`;
+    when it is merged is the user's call (`WHY_CLAUDE.md`). No tool enforces it: it is the
+    working agreement. Why: a branch can be dropped whole and reviewed alone.
 
 ---
 
