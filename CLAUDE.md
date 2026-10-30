@@ -60,10 +60,13 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
 - **Tests:** JUnit 4 on the JVM, Robolectric only where a real widget is needed, no mocks (fakes
   and manual queues), no instrumented tests.
 - **Warnings are errors** — Kotlin, lint and detekt (`config/detekt/detekt.yml`, part of
-  `check`). A deliberate finding gets a `@Suppress` at the narrowest scope — on the `try` itself
-  where the function does more (`val x = @Suppress(…) try`) — with its reason as a comment on the
-  line above (one behind the annotation enters detekt's baseline IDs). A deliberate setting is
-  configured, not baselined. `lint-baseline.xml` and `detekt-baseline.xml` only ever shrink.
+  `check`).
+  - A deliberate finding gets a `@Suppress` at the narrowest scope. When the function does more
+    than the `try`, that is the `try` itself: `val x = @Suppress(…) try`.
+  - Its reason is a comment on the line above. A comment behind the annotation would enter
+    detekt's baseline IDs.
+  - A deliberate setting is configured, not baselined. `lint-baseline.xml` and
+    `detekt-baseline.xml` only ever shrink.
 - **Comments and KDoc** are written for the next session, which trusts them. English, like the
   code. `ConfigFile.kt` and `DisposableFile.kt` are the model.
   - **Only a non-obvious why:** a thread or ordering contract, a platform fact (with the version
@@ -75,13 +78,15 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
     them: `Thread:` (which thread may call, where a hand-back runs), `Invariant:` (what always
     holds, and what keeps it so), `Why:` (a reason the sentences before do not give). A
     continuation line is indented two spaces.
-  - **In KDoc a name of code is a link**, `[ConfigFile.read]`, never plain prose: the IDE follows
-    and renames a link, `CommentLinkTest` fails on one whose name is gone, and a plain name
-    outlives its declaration unseen. Code that ships links only to code that ships: the IDE does
-    not resolve a test from it, so a test is named in prose there. Files, commands and other text
-    in backticks or quotes. A name in brackets in a line or block comment is checked the same
-    way, though the IDE does not follow it there. In Markdown, `Owner.member` and a Kotlin file's
-    name in backticks are checked too.
+  - **In KDoc a name of code is a link**, `[ConfigFile.read]`, never plain prose. Why: the IDE
+    follows and renames a link, `CommentLinkTest` fails on one whose name is gone, and a plain
+    name outlives its declaration unseen.
+  - **Code that ships links only to code that ships.** The IDE does not resolve a test from it,
+    so a test is named in prose there.
+  - **Files, commands and other text** go in backticks or quotes.
+  - **`CommentLinkTest` checks more than KDoc:** a name in brackets in a line or block comment
+    (the IDE does not follow it there), and in Markdown `Owner.member` and a Kotlin file's name
+    in backticks.
   - **Each fact in one place:** a rule is its hard rule here or one KDoc, and everything else
     points to it ("hard rule 15", `[ConfigFile.read]`). `CAVEATS.md` tells users in their words.
   - **A change of behaviour changes its comment in the same commit.** detekt's
@@ -136,13 +141,21 @@ One module, one package. The process owns the data, an activity is a window (har
   `HomeCache`, `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it
   `logWarning`).
 
-The rest are small helpers named for what they do. Data flow: a `LauncherApps` callback or a
-profile broadcast → `MainActivity.appsMaybeChanged` → now if in front, else at `onResume` →
-`LauncherState.refresh()` → IO thread (the apps of every profile, system labels only) → main
-thread, the newest load generation wins; the file's text is resolved against the list
-(`ConfigText.resolve`) and the custom names applied (`LauncherLogic.named`) → `AppDrawer.refilter`.
-The user's file: the first `MainActivity` or `~restart` (`Core.reset`) → `ConfigFile.read` on main
-→ a new `LauncherState` built with that text, which it keeps for its life.
+The rest are small helpers named for what they do.
+
+Data flow of the app list:
+
+1. A `LauncherApps` callback or a profile broadcast reaches `MainActivity.appsMaybeChanged`.
+2. `LauncherState.refresh()` runs `CHANGE_SETTLE_MS` later if the window is in front, so a burst
+   of changes is one refresh, else at the next `onResume`.
+3. The IO thread reads the apps of every profile, system labels only.
+4. On main the newest load generation wins. The file's text is resolved against the list
+   (`ConfigText.resolve`) and the custom names are applied (`LauncherLogic.named`).
+5. `AppDrawer.refilter` draws it.
+
+Data flow of the user's file: the first `MainActivity` or a `~restart` (`Core.reset`) calls
+`ConfigFile.read` on main, and a new `LauncherState` is built with that text, which it keeps for
+its life.
 
 ---
 
@@ -153,22 +166,33 @@ dropped one keeps its number as "(removed)".
 
 1. **No production dependencies.** `dependencies {}` holds only `testImplementation`. New deps
    and build plugins need the user's OK.
-2. **A HOME app must never throw.** Every IO-thread task runs behind `Guard` and degrades. Beyond
-   that, crash-only: a catch only where it breaks a crash loop or keeps the config file's read a
-   log line (`ConfigFile.read`, on main as a state is built); disposable work may crash.
-   Main-thread catches always log and say what failed where the user acted — never a silent
-   catch-all; the config file's read alone only logs (hard rule 4).
-3. **One IO thread for Verso, process-wide** (`VersoApp.io`): never another executor for Verso's
-   own work, never shut down; main-thread state only on main. Hand-backs: the process's through
-   `VersoApp.onMain` (never dropped), one window's through `MainActivity.onUi` (dropped once it
-   is destroyed). Deliberate exceptions, not breaches to fix: the app's own small files and the
-   user's config file read on main before the state exists (hard rule 5).
-4. **Verso never writes the config.** The user's file is read, never written, and no document
-   is ever opened for writing (`SourceGuardTest`); the user makes the file in an editor. A file
-   that cannot be read is no file: the default favorites and a log line, nothing on screen; a line
-   that is no entry is logged and skipped, the rest counts. In-app editing stays out: anything
-   that changed the config here would bring back the saves, backups and undo points this rule
-   removed.
+2. **A HOME app must never throw.**
+   - On the IO thread, every task runs behind `Guard` and degrades.
+   - Everywhere else the code is crash-only. A catch belongs in three places alone: where it
+     breaks a crash loop; around the config file's read (`ConfigFile.read`, on main as a state is
+     built), so that a file that fails to read is a log line; and where another app or the system
+     refuses what the user asked for (a start, App info, a profile turned on). Disposable work may
+     crash.
+   - A catch on main always logs, and when the user's action failed it tells the user what
+     failed. Never a silent catch-all. The one catch that only logs is the config file's read
+     (hard rule 4).
+3. **One IO thread for Verso, process-wide** (`VersoApp.io`).
+   - Never another executor for Verso's own work, and never shut down.
+   - Main-thread state is touched only on main.
+   - A hand-back for the process goes through `VersoApp.onMain` and is never dropped. A hand-back
+     for one window goes through `MainActivity.onUi` and is dropped once that window is
+     destroyed.
+   - Deliberate exceptions, not breaches to fix: what is read on main before the state exists
+     (hard rule 5). That is the user's config file and the app's own small files the state needs
+     from the start (`order.txt`, `DrawerOrder`).
+4. **Verso never writes the config.**
+   - The user's file is read, never written, and no document is ever opened for writing
+     (`SourceGuardTest`). The user makes the file in an editor.
+   - A file that cannot be read counts as no file: the default favorites show, a log line is
+     written, nothing appears on screen.
+   - A line that is no entry is logged and skipped; the rest of the file still counts.
+   - In-app editing stays out. Anything that changed the config here would bring back the saves,
+     backups and undo points this rule removed.
 5. **The config is there before the state exists** (`Core.newState`, on main: the user's file at
    its fixed place, a few KB on local storage), so there is no "not loaded yet" to guard. Home and
    its cache are drawn only once the first app list is in (`appsLoaded`).
@@ -184,16 +208,19 @@ dropped one keeps its number as "(removed)".
    (`AppEntry.keyOf`); launch and app info go through `LauncherApps` with the entry's profile. The
    file may name an app by key, package or system label (`ConfigText`). No change to the key or
    the file's format without the old files still reading.
-9. **`LauncherLogic.foldLabel` is the only fold** for labels, needles and tags; matching alone
-   also drops Latin, Greek and Cyrillic accents (`matchForm`), never what is stored. Lists sort
-   with the device locale's `Collator`, never by code point.
+9. **`LauncherLogic.foldLabel` is the only fold** for labels, search text (needles) and tags.
+   - Matching alone also drops Latin, Greek and Cyrillic accents (`matchForm`). What is stored
+     keeps them.
+   - Lists sort with the device locale's `Collator`, never by code point.
 10. **Default favorites only with no config file** (`LauncherState.useDefaults`): picked from
     every list anew, never written. An empty file is a config: no defaults over it.
-11. **Page turn = Unity-Kolibri's** (`PageTurn`, `SwipeFrame`, `SwipeGesture`): the drawer follows
-    the finger both ways, `?` is the same drawer from the top and closes toward it, the flick is
-    the fallback; only in `SwipeFrame.dispatchTouchEvent`, never `onInterceptTouchEvent`. Easy to
-    break: a second finger cancels a drag; a drag grabs a page still moving; a page turned some
-    other way aborts a running drag (`abortDrag`).
+11. **Page turn = Unity-Kolibri's** (`PageTurn`, `SwipeFrame`, `SwipeGesture`).
+    - The drawer follows the finger both ways. `?` is the same drawer, coming from the top and
+      closing toward it. The flick is the fallback.
+    - Touch is handled only in `SwipeFrame.dispatchTouchEvent`, never in `onInterceptTouchEvent`.
+    - Easy to break, each of these must keep holding: a second finger cancels a drag; a drag
+      grabs a page that is still moving; a page turned some other way aborts a running drag
+      (`abortDrag`).
 12. **Status bar hidden on the home page only**; home pads for it regardless
     (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate the activity.
@@ -202,11 +229,13 @@ dropped one keeps its number as "(removed)".
     and a key of one keeps naming it until it is back (`ConfigText.resolve`). Telling "gone" from
     "not readable right now" (a paused or unlisted profile, an unmounted card) is what made
     `~cleanup` (up to 0.5.9) the riskiest command.
-15. **The config is read once per state** (`ConfigFile.read`): when the first activity builds it
-    and at every `~restart` (`Core.reset`), on main, never at a return to the launcher. A state
-    keeps its text for its life (`LauncherState`); a changed file counts from the next
-    `~restart`. No thread, copy or read numbers of its own: a fixed local file cannot hang the way
-    a document provider can, and that is the point of the fixed place.
+15. **The config is read once per state** (`ConfigFile.read`), on main.
+    - It is read when the first activity builds the state and at every `~restart`
+      (`Core.reset`), never at a return to the launcher.
+    - A state keeps its text for its life (`LauncherState`). A changed file counts from the next
+      `~restart`.
+    - The read has no thread, no copy and no read numbers of its own. Why: a fixed local file
+      cannot hang the way a document provider can, and that is the point of the fixed place.
 16. **The process owns the data; an activity is a window.** `Core` lives in `VersoApp`, sees the
     window only as a `LauncherWindow` (never an Activity, `SourceGuardTest`) and keeps none past a
     call. A recreation shares the loaded state; only `~restart` resets it (`Core.reset`).
