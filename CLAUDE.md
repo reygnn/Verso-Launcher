@@ -110,6 +110,11 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
 - **Release mapping:** kept in `~/apk/mappings/verso/<versionName>-<versionCode>/` (Gradle
   property `verso.mappingArchive`) by `archiveProguardMapping`, not in the repo; without it a
   release's crash cannot be read back.
+- **Pinned by checksum:** the Gradle distribution (`distributionSha256Sum` in
+  `gradle-wrapper.properties`) and every action in CI (a commit, its version in a comment). A
+  Gradle bump takes the new sum along: `./gradlew wrapper --gradle-version <v>
+  --gradle-distribution-sha256-sum <sum>`, the sum from `services.gradle.org/distributions/`. CI
+  checks `gradle-wrapper.jar` against Gradle's published ones (`wrapper-validation`).
 
 ---
 

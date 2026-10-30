@@ -3,6 +3,9 @@ name: check
 # Every push and pull request: the same gate as locally — unit tests (JVM and Robolectric), lint
 # and detekt, warnings as errors (CLAUDE.md, "Stack particulars") — and then the public release
 # build, so R8 and the resource shrink run before a release does.
+#
+# Every action is pinned to a commit, its version in the comment beside it: a tag can be moved,
+# a commit cannot. A bump changes both.
 
 on:
   push:
@@ -13,10 +16,13 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # gradle-wrapper.jar must be one Gradle published: it runs before anything else is checked.
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       # JDK 21 end to end; Robolectric needs it for SDK 36.
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -32,7 +38,7 @@ jobs:
         run: ./gradlew assembleRelease --stacktrace
 
       # On failure: the test, lint and detekt reports, and R8's output.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: reports
