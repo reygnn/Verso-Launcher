@@ -27,6 +27,10 @@ Pure logic
   ConfigTextTest           the config file the user writes: its lines, the apps they name
                            (key, package, folded label), readCapped (the file's
                            bounded read)
+  ConfigFuzzTest           the file and the app labels at random, 500 seeds in six locales,
+                           through what runs on main without a catch: no throw from the
+                           parse to the rows, every line an entry or reported, every tag
+                           drills in, every app found by its name, the home cache whole
   AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
@@ -91,6 +95,7 @@ No instrumented tests: everything runs on the JVM.
 - A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
 - Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
 - The config file's format: `ConfigTextTest`, and the files users already have must still read.
+  A character that broke a fold, a cut or a key goes into the pieces of `ConfigFuzzTest` too.
 - When the config file is read: `ConfigFileTest` for the read itself, `MainActivityFlowsTest` for
   when (the first state, `~restart`).
 
