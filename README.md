@@ -177,9 +177,10 @@ outlive an activity. Each file's KDoc says what it is for.
 
 A release build renames classes (R8) and keeps line numbers; its mapping goes to
 `~/apk/mappings/verso/<versionName>-<versionCode>/`, where
-[retrace](https://github.com/reygnn/retrace) reads a crash in logcat back with it. The only *shipped* dependencies are the Kotlin stdlib (added
-automatically by AGP's built-in Kotlin); JUnit and Robolectric are `testImplementation`, so the
-release stays dependency-free.
+[retrace](https://github.com/reygnn/retrace) reads a crash in logcat back with it. That folder is
+a clone of a private repository, so a release's mapping outlives the machine that built it. The
+only *shipped* dependencies are the Kotlin stdlib (added automatically by AGP's built-in Kotlin);
+JUnit and Robolectric are `testImplementation`, so the release stays dependency-free.
 
 ## Build
 

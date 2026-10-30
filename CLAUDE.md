@@ -109,7 +109,10 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   `0.4.2-daily` = 25). **A release bump is versionName +0.0.1, versionCode +2.**
 - **Release mapping:** kept in `~/apk/mappings/verso/<versionName>-<versionCode>/` (Gradle
   property `verso.mappingArchive`) by `archiveProguardMapping`, not in the repo; without it a
-  release's crash cannot be read back.
+  release's crash cannot be read back. `~/apk/mappings` is a clone of a private repo of its own,
+  so a mapping outlives this machine: after a release its folder is committed and pushed there by
+  hand, never by the build (a build must not need the network to finish). What it keeps and when
+  a mapping goes is in that repo's README.
 - **Pinned by checksum:** the Gradle distribution (`distributionSha256Sum` in
   `gradle-wrapper.properties`) and every action in CI (a commit, its version in a comment). A
   Gradle bump takes the new sum along: `./gradlew wrapper --gradle-version <v>
