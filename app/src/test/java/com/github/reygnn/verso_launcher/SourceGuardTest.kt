@@ -35,30 +35,7 @@ class SourceGuardTest {
             else -> text
         }
 
-    /** A block comment leaves its line breaks, so a line in the result is the same line of [text]. */
-    private fun withoutKotlinComments(text: String): String {
-        val out = StringBuilder()
-        var i = 0
-        while (i < text.length) {
-            // A string is copied whole: a slash pair or a star inside it opens no comment.
-            val stringEnd = when {
-                text.startsWith("\"\"\"", i) -> after(text, "\"\"\"", i + 3)
-                text[i] == '"' || text[i] == '\'' -> quoteEnd(text, i)
-                else -> -1
-            }
-            when {
-                stringEnd >= 0 -> out.append(text, i, stringEnd).also { i = stringEnd }
-                text.startsWith("//", i) -> i = text.indexOf('\n', i).let { if (it < 0) text.length else it }
-                text.startsWith("/*", i) -> {
-                    val end = after(text, "*/", i + 2)
-                    out.append(' ').append("\n".repeat(text.substring(i, end).count { it == '\n' }))
-                    i = end
-                }
-                else -> out.append(text[i++])
-            }
-        }
-        return out.toString()
-    }
+    private fun withoutKotlinComments(text: String): String = layers(text).withStrings
 
     /** Just past the next [marker] from [from], or the end of [text]. */
     private fun after(text: String, marker: String, from: Int): Int =
@@ -207,14 +184,56 @@ class SourceGuardTest {
     private fun lineOf(text: String, index: Int): Int = text.substring(0, index).count { it == '\n' } + 1
 
     /**
-     * An annotation whose line above is no line comment, or with a comment behind it (CLAUDE.md,
-     * "Warnings are errors": the reason goes above, where it stays out of detekt's baseline IDs).
+     * [text] in layers of the same lines, each blanking what it leaves out: the code with its
+     * strings, the code alone (string and char literals blanked) and the comments alone. A string
+     * is read whole, so a slash pair or a star in it opens no comment; a quote in a char literal
+     * or after a backslash closes no string. A detector reads the layer it means.
+     */
+    private fun layers(text: String): Layers {
+        val withStrings = StringBuilder()
+        val code = StringBuilder()
+        val comments = StringBuilder()
+        var i = 0
+        while (i < text.length) {
+            val inComment = text.startsWith("//", i) || text.startsWith("/*", i)
+            val inString = text[i] == '"' || text[i] == '\''
+            val end = tokenEnd(text, i)
+            val part = text.substring(i, end)
+            withStrings.append(if (inComment) blanked(part) else part)
+            code.append(if (inComment || inString) blanked(part) else part)
+            comments.append(if (inComment) part else blanked(part))
+            i = end
+        }
+        return Layers(withStrings.toString(), code.toString(), comments.toString())
+    }
+
+    private class Layers(val withStrings: String, val code: String, val comments: String)
+
+    /** Just past the token at [i]: a string, a char, a name in backticks, a comment, or one character. */
+    private fun tokenEnd(text: String, i: Int): Int = when {
+        text.startsWith("\"\"\"", i) -> after(text, "\"\"\"", i + 3)
+        text[i] == '"' || text[i] == '\'' -> quoteEnd(text, i)
+        // A name in backticks is code; its apostrophe ("LauncherState's") opens no char.
+        text[i] == '`' -> after(text, "`", i + 1)
+        text.startsWith("//", i) -> text.indexOf('\n', i).let { if (it < 0) text.length else it }
+        text.startsWith("/*", i) -> after(text, "*/", i + 2)
+        else -> i + 1
+    }
+
+    private fun blanked(part: String): String = part.map { if (it == '\n') '\n' else ' ' }.joinToString("")
+
+    /**
+     * An annotation in code whose line above is no line comment, or with a comment behind it
+     * (CLAUDE.md, "Warnings are errors": the reason goes above, where it stays out of detekt's
+     * baseline IDs).
      */
     private fun suppressWithoutReason(text: String): List<Int> {
-        val lines = text.lines()
-        return lines.indices.filter { i ->
-            SUPPRESS.containsMatchIn(lines[i]) &&
-                (!lines.getOrElse(i - 1) { "" }.trim().startsWith("//") || "//" in lines[i].substringAfter("@Suppress("))
+        val (lines, layered) = text.lines() to layers(text)
+        val code = layered.code.lines()
+        val comments = layered.comments.lines()
+        return code.indices.filter { i ->
+            val at = SUPPRESS.find(code[i])?.range?.first ?: return@filter false
+            !lines.getOrElse(i - 1) { "" }.trim().startsWith("//") || comments[i].substring(at).isNotBlank()
         }.map { it + 1 }
     }
 
@@ -232,15 +251,24 @@ class SourceGuardTest {
             // a reason
             @Suppress("E") // and one behind it
             /* @Suppress("F") in a comment */ val s = "@Suppress(\"G\")"
+            // a reason
+            @Suppress("H") val u = "content://x"
+            fun f(): Int {
+                return (@Suppress("I") try { 1 } catch (e: Exception) { 2 })
+            }
+            val c = '"'; val d = "@Suppress(\"J\") // no"
         """.trimIndent()
-        assertEquals(listOf(5, 9, 11), suppressWithoutReason(text))
+        assertEquals(listOf(5, 9, 11, 16), suppressWithoutReason(text))
     }
 
     @Test fun `every Suppress has its reason on the line above`() {
         assertEquals(emptyList<String>(), findings(everySource(), ::suppressWithoutReason))
     }
 
-    /** A catch whose block names no log call. [code] is without comments, so a commented call counts for nothing. */
+    /**
+     * A catch whose block names no log call. [code] is a [layers] code layer: a commented call counts
+     * for nothing, and a brace in a string opens no block.
+     */
     private fun catchWithoutLog(code: String): List<Int> = CATCH.findAll(code)
         .filterNot { LOG.containsMatchIn(blockAt(code, it.range.last)) }
         .map { lineOf(code, it.range.first) }
@@ -257,8 +285,7 @@ class SourceGuardTest {
     }
 
     @Test fun `the log detector flags a catch that says nothing`() {
-        val text = withoutComments(
-            """
+        val text = """
             try { a() } catch (e: Exception) { log("a failed", e) }
             try { b() } catch (e: SecurityException) {
                 if (loud) { Log.w("Verso", "b denied", e) }
@@ -268,15 +295,15 @@ class SourceGuardTest {
                 // Log.w("Verso", "d", e)
                 fallback()
             }
-            """.trimIndent(),
-            "kt",
-        )
-        assertEquals(listOf(5, 6), catchWithoutLog(text))
+            try { e() } catch (e: Exception) { say("}") ; Log.w("Verso", "e", e) }
+            try { f() } catch (e: Exception) { say("log(") }
+        """.trimIndent()
+        assertEquals(listOf(5, 6, 11), catchWithoutLog(layers(text).code))
     }
 
     /** Hard rule 2: a catch on main always logs, and the IO thread's degrade too. */
     @Test fun `every catch logs`() {
-        assertEquals(emptyList<String>(), findings(shipped()) { catchWithoutLog(withoutComments(it, "kt")) })
+        assertEquals(emptyList<String>(), findings(shipped()) { catchWithoutLog(layers(it).code) })
     }
 
     private fun threadsMade(code: String): List<Int> = THREADS.findAll(code).map { lineOf(code, it.range.first) }.distinct().toList()
@@ -290,15 +317,17 @@ class SourceGuardTest {
             Timer().schedule(task, 1)
             runOnUiThread { draw() }
             mainHandler.post { draw() }
+            log("no Thread(task) here")
         """.trimIndent()
-        assertEquals(listOf(1, 2, 3, 4, 5), threadsMade(text))
+        assertEquals(listOf(1, 2, 3, 4, 5), threadsMade(layers(text).code))
     }
 
     /** Hard rule 3: one IO thread, made in VersoApp, and no other executor anywhere. */
     @Test fun `no thread is made outside VersoApp`() {
         val files = shipped().filter { it.name != "VersoApp.kt" }
-        assertEquals(emptyList<String>(), findings(files) { threadsMade(withoutComments(it, "kt")) })
-        assertEquals("the IO thread itself", 1, threadsMade(code("src/main/kotlin/com/github/reygnn/verso_launcher/VersoApp.kt")).size)
+        assertEquals(emptyList<String>(), findings(files) { threadsMade(layers(it).code) })
+        val app = layers(source("src/main/kotlin/com/github/reygnn/verso_launcher/VersoApp.kt")).code
+        assertEquals("the IO thread itself", 1, threadsMade(app).size)
     }
 
     private fun errorsCaught(code: String): List<Int> = ERROR_CAUGHT.findAll(code).map { lineOf(code, it.range.first) }.toList()
@@ -311,13 +340,14 @@ class SourceGuardTest {
             val r = runCatching { a() }
             try { a() } catch (e: Exception) { log(e) }
             try { a() } catch (e: IllegalStateException) { log(e) }
+            log("never runCatching")
         """.trimIndent()
-        assertEquals(listOf(1, 2, 3, 4), errorsCaught(text))
+        assertEquals(listOf(1, 2, 3, 4), errorsCaught(layers(text).code))
     }
 
     /** Hard rule 2: Guard catches every Exception and lets an Error crash; nothing else catches one. */
     @Test fun `no Error is caught`() {
-        assertEquals(emptyList<String>(), findings(shipped()) { errorsCaught(withoutComments(it, "kt")) })
+        assertEquals(emptyList<String>(), findings(shipped()) { errorsCaught(layers(it).code) })
     }
 
     /**
@@ -339,21 +369,9 @@ class SourceGuardTest {
      * Lines whose comment holds two different German function words. A word alone or an umlaut is
      * no finding: comments name "Über", "Ä under A" and "ß" as examples of what Verso handles.
      */
-    private fun germanComments(text: String): List<Int> = text.lines().mapIndexedNotNull { i, line ->
-        val words = GERMAN.findAll(commentOf(line)).map { it.value.lowercase() }.toSet()
+    private fun germanComments(text: String): List<Int> = layers(text).comments.lines().mapIndexedNotNull { i, comment ->
+        val words = GERMAN.findAll(comment).map { it.value.lowercase() }.toSet()
         (i + 1).takeIf { words.size >= 2 }
-    }
-
-    /** The comment in [line]: a KDoc or block line whole, else what follows a slash pair outside a string. */
-    private fun commentOf(line: String): String {
-        val trimmed = line.trim()
-        if (trimmed.startsWith("*") || trimmed.startsWith("/*")) return trimmed
-        var quotes = 0
-        for (i in 0 until line.length - 1) {
-            if (line[i] == '"') quotes++
-            if (line[i] == '/' && line[i + 1] == '/' && quotes % 2 == 0) return line.substring(i + 2)
-        }
-        return ""
     }
 
     @Test fun `the German detector wants two function words in a comment`() {
@@ -364,8 +382,15 @@ class SourceGuardTest {
             // Über allein
             val s = "und oder nicht" // English here
             val u = "content://x" // und dann nichts
+            val q = '"' // und dann nichts
+            val e = "a \" b" // und dann nichts
+            val f = "\" und oder nicht"
+            /*
+               Hier steht nur Deutsch
+            */
+            @Test fun `it's here`() = Unit // und dann nichts
         """.trimIndent()
-        assertEquals(listOf(1, 2, 6), germanComments(text))
+        assertEquals(listOf(1, 2, 6, 7, 8, 11, 13), germanComments(text))
     }
 
     /** Comments are English, like the code (CLAUDE.md, "Comments and KDoc"); commit messages may be German. */
@@ -377,9 +402,8 @@ class SourceGuardTest {
         /** detekt-baseline.xml's entries; lowered with every one fixed, never raised. */
         const val DETEKT_BASELINE = 28
 
-        // At the line's start, or after "=" as in "val x = @Suppress(…) try"; a quote, slash or star
-        // before it is a string or a comment.
-        val SUPPRESS = Regex("""^\s*(?:[^"/*]*=\s*)?@Suppress\(""")
+        // Read on a code layer: wherever it stands there, it is code.
+        val SUPPRESS = Regex("""@Suppress\s*\(""")
         val CATCH = Regex("""\bcatch\s*\([^)]*\)\s*\{""")
         val LOG = Regex("""\b(?:log|logWarning)\s*\(|\bLog\s*\.\s*[ewi]\s*\(""")
 
