@@ -17,7 +17,7 @@ Robolectric classes are marked (R).
 ```
 Pure logic
   LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
-                           (Turkish, İ, NFC, accents, other scripts' marks), the ranking,
+                           (Turkish, İ, NFC, accents, đ ł ø ß, other scripts' marks), the ranking,
                            Collator sort, tags, recents, default favorites
   LauncherRowsTest         rowsFor per mode
   LauncherActionsTest      Enter and tap decisions

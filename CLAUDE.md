@@ -214,8 +214,8 @@ dropped one keeps its number as "(removed)".
    file may name an app by key, package or system label (`ConfigText`). No change to the key or
    the file's format without the old files still reading.
 9. **`LauncherLogic.foldLabel` is the only fold** for labels, search text (needles) and tags.
-   - Matching alone also drops Latin, Greek and Cyrillic accents (`LauncherLogic.matchForm`).
-     What is stored keeps them.
+   - Matching alone also drops Latin, Greek and Cyrillic accents and spells đ, ł, ø, ß and kin
+     plainly (`LauncherLogic.matchForm`). What is stored keeps them.
    - Lists sort with the device locale's `Collator`, never by code point.
 10. **Default favorites only with no config file** (`LauncherState.useDefaults`): picked from
     every list anew, never written. An empty file is a config: no defaults over it.

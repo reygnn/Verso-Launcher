@@ -188,10 +188,27 @@ internal object LauncherLogic {
      * A folded label or needle without Latin, Greek and Cyrillic accents (U+0300–U+036F after
      * NFD), so "uber" finds "Über". Only for matching: tags and names keep [foldLabel]'s form.
      * Other scripts' marks stay — a Japanese dakuten or a Devanagari vowel sign makes another word.
+     * Latin letters that NFD does not take apart are spelled as on a plain keyboard
+     * ([PLAIN_LETTERS]), so "dien" finds "Điện" and "lodz" finds "Łódź".
      */
-    private fun matchForm(folded: String): String =
+    private fun matchForm(folded: String): String {
         // Composed again: decomposed, "\u304B" would be a substring of "\u304C" (+ U+3099).
-        nfc(Normalizer.normalize(folded, Normalizer.Form.NFD).filterNot { it in '\u0300'..'\u036F' })
+        val bare = nfc(Normalizer.normalize(folded, Normalizer.Form.NFD).filterNot { it in '\u0300'..'\u036F' })
+        return if (bare.none { it in PLAIN_LETTERS }) bare else buildString {
+            for (ch in bare) append(PLAIN_LETTERS[ch] ?: ch)
+        }
+    }
+
+    /**
+     * Lower-case only: [matchForm] gets [foldLabel]'s form. đ ð ħ ı ł ø ŧ ß æ œ þ.
+     * Why: they are letters of their own to NFD, not a letter with a mark, so the accent filter
+     *   leaves them and a plain keyboard cannot type them.
+     */
+    private val PLAIN_LETTERS = mapOf(
+        '\u0111' to "d", '\u00F0' to "d", '\u0127' to "h", '\u0131' to "i", '\u0142' to "l",
+        '\u00F8' to "o", '\u0167' to "t", '\u00DF' to "ss", '\u00E6' to "ae", '\u0153' to "oe",
+        '\u00FE' to "th",
+    )
 
     /** A letter or digit after anything else: where a later word starts. */
     private val WORD_START = Regex("""(?<=[^\p{L}\p{N}])[\p{L}\p{N}]""")

@@ -509,6 +509,27 @@ class LauncherLogicTest {
         assertEquals("a typed accent finds the plain name too", listOf("p/uber"), LauncherLogic.search(plain, "über").keys())
     }
 
+    /** đ, ł, ø, ß and kin are no letter plus a mark to NFD: they are spelled plainly instead. */
+    @Test fun `search spells letters NFD keeps whole as a plain keyboard does, both ways`() {
+        val all = listOf(
+            orderedFake("p/phone", "Điện thoại"), orderedFake("p/lodz", "Łódź"), orderedFake("p/oslo", "Øst"),
+            orderedFake("p/street", "Straße"), orderedFake("p/aero", "Ærø"), orderedFake("p/kapi", "Kapı"),
+        )
+        assertEquals(listOf("p/phone"), LauncherLogic.search(all, "dien").keys())
+        assertEquals(listOf("p/lodz"), LauncherLogic.search(all, "LODZ").keys())
+        assertEquals(listOf("p/oslo"), LauncherLogic.search(all, "ost").keys())
+        assertEquals(listOf("p/street"), LauncherLogic.search(all, "strasse").keys())
+        assertEquals(listOf("p/aero"), LauncherLogic.search(all, "aero").keys())
+        assertEquals(listOf("p/kapi"), LauncherLogic.search(all, "kapi").keys())
+        val plain = listOf(orderedFake("p/street", "Strasse"))
+        assertEquals("a typed ß finds the plain name too", listOf("p/street"), LauncherLogic.search(plain, "straße").keys())
+    }
+
+    /** The plain spelling is for matching only: a stored tag keeps its letter. */
+    @Test fun `letters NFD keeps whole stay in tags`() {
+        assertEquals("łódź", LauncherLogic.canonicalTag("Łódź"))
+    }
+
     /** A dakuten or a Devanagari vowel sign makes another word: those marks must still count. */
     @Test fun `search keeps the marks of other scripts`() {
         val all = listOf(orderedFake("p/ga", "\u304C"), orderedFake("p/ku", "\u0915\u0941"))

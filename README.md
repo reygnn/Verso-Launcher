@@ -76,8 +76,8 @@ keyboard, no prompt:
   - *(empty)* — the full drawer, A to Z, without hidden apps (**a favorite always shows, even
     when hidden**)
   - `text` — substring search across **all** apps, hidden included, accents ignored (`uber`
-    finds Über). Names that start with `text` sit nearest the command line, where **Enter**
-    launches, then names with a word starting with it, then the rest
+    finds Über, `lodz` finds Łódź). Names that start with `text` sit nearest the command line,
+    where **Enter** launches, then names with a word starting with it, then the rest
   - `*` — the drawer with your favorites nearest the command line; `*text` or `text*` — only
     names that **start with** `text`
   - `#` — the tags in use; tap one (or **Enter** on the nearest) for its apps. `#text` — the
