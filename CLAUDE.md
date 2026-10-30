@@ -245,8 +245,10 @@ dropped one keeps its number as "(removed)".
     window only as a `LauncherWindow` (never an Activity, `SourceGuardTest`) and keeps none past a
     call. A recreation shares the loaded state; only `~restart` resets it (`Core.reset`).
 17. **Every feature and every non-trivial change on its own branch**, never straight on `main`;
-    when it is merged is the user's call (`WHY_CLAUDE.md`). No tool enforces it: it is the
-    working agreement. Why: a branch can be dropped whole and reviewed alone.
+    when it is merged is the user's call (`WHY_CLAUDE.md`). A trivial edit (a typo, a one-line
+    tweak, a doc nit) may stay on the current branch: the family rule in `~/.claude/CLAUDE.md`,
+    which a cloud session lacks. No tool enforces it: it is the working agreement. Why: a branch
+    can be dropped whole and reviewed alone.
 
 ---
 
