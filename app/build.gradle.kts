@@ -151,7 +151,7 @@ val sourceScanTest = tasks.register<Test>("sourceScanTest") {
     filter { sourceScans.forEach { scan -> includeTestsMatching(scan) } }
     inputs.files(
         fileTree("src"),
-        file("proguard-rules.pro"),
+        files("proguard-rules.pro", "lint-baseline.xml", "detekt-baseline.xml"),
         rootProject.files("CLAUDE.md", "CLAUDE-CLOUD.md", "CAVEATS.md", "README.md"),
     ).withPropertyName("scannedSources").withPathSensitivity(PathSensitivity.RELATIVE)
 }

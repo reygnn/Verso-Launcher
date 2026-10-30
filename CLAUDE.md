@@ -65,11 +65,13 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   - A deliberate finding gets a `@Suppress` at the narrowest scope. When the function does more
     than the `try`, that is the `try` itself: `val x = @Suppress(…) try`.
   - Its reason is a comment on the line above. A comment behind the annotation would enter
-    detekt's baseline IDs.
+    detekt's baseline IDs. `SourceGuardTest` checks both.
   - A deliberate setting is configured, not baselined. `lint-baseline.xml` and
-    `detekt-baseline.xml` only ever shrink.
+    `detekt-baseline.xml` only ever shrink: `SourceGuardTest` pins their counts, and a fixed
+    finding lowers its pin in the same commit.
 - **Comments and KDoc** are written for the next session, which trusts them. English, like the
-  code. `ConfigFile.kt` and `DisposableFile.kt` are the model.
+  code; commit messages may be German. A comment with two German function words fails
+  `SourceGuardTest`. `ConfigFile.kt` and `DisposableFile.kt` are the model.
   - **Only a non-obvious why:** a thread or ordering contract, a platform fact (with the version
     or device it holds for), why the obvious fix is wrong, a hard-rule anchor. Never a list of
     call sites, the story of a change, or what the code already says.
@@ -168,7 +170,8 @@ dropped one keeps its number as "(removed)".
 1. **No production dependencies.** `dependencies {}` holds only `testImplementation`. New deps
    and build plugins need the user's OK.
 2. **A HOME app must never throw.**
-   - On the IO thread, every task runs behind `Guard` and degrades.
+   - On the IO thread, every task runs behind `Guard` and degrades. An `Error` is caught nowhere,
+     `Guard` included: it crashes (`SourceGuardTest`, `runCatching` too).
    - Everywhere else the code is crash-only. Disposable work may crash. A catch belongs in three
      places alone:
      - Where it breaks a crash loop.
@@ -177,12 +180,14 @@ dropped one keeps its number as "(removed)".
      - Where another app or the system refuses what the user asked for (a start, App info, a
        profile turned on).
    - A catch on main always logs, and when the user's action failed it tells the user what
-     failed. Never a silent catch-all. The catches that only log are the reads on main before the
-     state exists (hard rule 3). At the first start nothing is on screen yet to say it on. At
-     `~restart` the user acted, and they still only log: a config file that cannot be read is no
-     file (hard rule 4), and `order.txt` is disposable (`DrawerOrder`).
+     failed. Never a silent catch-all: every catch logs (`SourceGuardTest`). The catches that
+     only log are the reads on main before the state exists (hard rule 3). At the first start
+     nothing is on screen yet to say it on. At `~restart` the user acted, and they still only
+     log: a config file that cannot be read is no file (hard rule 4), and `order.txt` is
+     disposable (`DrawerOrder`).
 3. **One IO thread for Verso, process-wide** (`VersoApp.io`).
-   - Never another executor for Verso's own work, and never shut down.
+   - Never another executor for Verso's own work, and never shut down. No thread is made outside
+     `VersoApp` (`SourceGuardTest`).
    - Main-thread state is touched only on main.
    - A hand-back for the process goes through `VersoApp.onMain` and is never dropped. A hand-back
      for one window goes through `MainActivity.onUi` and is dropped once that window is

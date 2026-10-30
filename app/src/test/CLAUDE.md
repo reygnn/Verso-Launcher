@@ -58,7 +58,12 @@ The window (R)
 
 Source scans
   SourceGuardTest          only what neither a type nor a test reaches (hard rules 5, 7, 16,
-                           configChanges, R8 keeping names)
+                           configChanges, R8 keeping names), and the conventions: a reason
+                           above every @Suppress, a log in every catch, no thread outside
+                           VersoApp, no Error caught, the baselines' counts, English
+                           comments. Each convention is a detector with a test of its own
+                           on fixtures; this file is left out of the scans that would see
+                           its fixtures
   CommentLinkTest          links in comments, KDoc or not, and code names in the Markdown
                            files that name code which is gone, or a test from code that ships
 ```
