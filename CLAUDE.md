@@ -169,11 +169,13 @@ dropped one keeps its number as "(removed)".
    and build plugins need the user's OK.
 2. **A HOME app must never throw.**
    - On the IO thread, every task runs behind `Guard` and degrades.
-   - Everywhere else the code is crash-only. A catch belongs in three places alone: where it
-     breaks a crash loop; around the config file's read (`ConfigFile.read`, on main as a state is
-     built), so that a file that fails to read is a log line; and where another app or the system
-     refuses what the user asked for (a start, App info, a profile turned on). Disposable work may
-     crash.
+   - Everywhere else the code is crash-only. Disposable work may crash. A catch belongs in three
+     places alone:
+     - Where it breaks a crash loop.
+     - Around the config file's read (`ConfigFile.read`, on main as a state is built), so that a
+       file that fails to read is a log line.
+     - Where another app or the system refuses what the user asked for (a start, App info, a
+       profile turned on).
    - A catch on main always logs, and when the user's action failed it tells the user what
      failed. Never a silent catch-all. The one catch that only logs is the config file's read
      (hard rule 4).
