@@ -548,4 +548,16 @@ class LauncherStateTest {
         assertEquals("a plain copy cannot leave it stale", "inbox", e.copy(label = "Inbox").labelLower)
         assertEquals(e.key, e.withLabel("Inbox").key)
     }
+
+    /** A default app changed in the settings changes no package: the same list picks anew. */
+    @Test fun `the defaults follow a new default app on the same list`() {
+        fresh = true
+        started()
+        assertEquals(listOf(key("Charlie"), key("Alpha")), state.config.favorites)
+        candidates = listOf(listOf(key("Bravo")), listOf(key("Alpha")))
+        state.refresh()
+        runAll()
+        assertEquals(listOf(key("Bravo"), key("Alpha")), state.config.favorites)
+        assertEquals("home is told", listOf(true), listChanges)
+    }
 }

@@ -110,4 +110,10 @@ class EnumerationTest {
         lists["me"] = { listOf(app("com.a", "\u200B\u202E")) }
         assertEquals("com.a", run()!!.apps.first().label)
     }
+
+    /** As never real as an empty list: every read failed, so not one personal app is known. */
+    @Test fun `a personal profile whose every app fails to read is never real`() {
+        lists["me"] = { listOf(failing, failing) }
+        assertNull(run())
+    }
 }

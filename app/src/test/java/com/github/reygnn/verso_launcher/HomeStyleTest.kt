@@ -154,4 +154,26 @@ class HomeStyleTest {
         assertTrue(gate.tap(100))
         assertFalse(gate.tap(200))
     }
+
+    /** The other tests build their expected colours with [HomeStyle.argb] itself: only this pins its layout. */
+    @Test fun `argb packs alpha, red, green and blue into their bytes`() {
+        assertEquals(0x12345678, HomeStyle.argb(0x12, 0x34, 0x56, 0x78))
+        assertEquals(0xFF000000.toInt(), HomeStyle.argb(0xFF, 0, 0, 0))
+    }
+
+    /** -1 is no reading; 0 is one. */
+    @Test fun `an empty battery is zero percent, not unknown`() {
+        assertEquals(0, BatteryInfo.percent(0, 100))
+        assertEquals(100, BatteryInfo.percent(1, 1))
+    }
+
+    /** A scale that does not divide evenly: the percentage is cut, never rounded up. */
+    @Test fun `a scale other than 100 truncates the percentage`() {
+        assertEquals(87, BatteryInfo.percent(7, 8))
+    }
+
+    /** A test against [HomeStyle.UNAVAILABLE_ALPHA] itself passes for any value, 1 included. */
+    @Test fun `a dimmed row is visibly dimmed`() {
+        assertTrue(HomeStyle.rowAlpha(AppStatus.PAUSED) <= 0.5f)
+    }
 }

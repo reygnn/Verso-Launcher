@@ -941,4 +941,30 @@ class LauncherLogicTest {
         val typed = (1..LauncherLogic.MAX_TAGS_PER_APP + 5).joinToString(",") { "t$it" }
         assertEquals(LauncherLogic.MAX_TAGS_PER_APP, LauncherLogic.parseTags(typed).size)
     }
+
+    /** Every mark [LauncherLogic.isSpoofChar] names, each on its own. */
+    @Test fun `cleanName drops each spoof character on its own`() {
+        val spoof = ('\u202A'..'\u202E') + ('\u2066'..'\u2069') +
+            listOf('\u200E', '\u200F', '\u061C', '\u200B', '\uFEFF', '\u2060')
+        for (c in spoof) assertEquals("U+%04X".format(c.code), "ab", LauncherLogic.cleanName("a${c}b"))
+    }
+
+    /** "C#" and "a~b" are searches: a sigil counts only as the first character. */
+    @Test fun `a sigil inside the text is no mode`() {
+        assertEquals(Mode.NORMAL, LauncherLogic.parseMode("c#"))
+        assertEquals(Mode.NORMAL, LauncherLogic.parseMode("a~b"))
+        assertEquals(Mode.NORMAL, LauncherLogic.parseMode("x?"))
+        assertEquals(Mode.NORMAL, LauncherLogic.parseMode("50%"))
+    }
+
+    @Test fun `tagsInUse lists a tag two apps share once`() {
+        val tags = mapOf("a" to listOf("work"), "b" to listOf("work", "fun"))
+        assertEquals(listOf("fun", "work"), LauncherLogic.tagsInUse(rows("a", "b"), tags))
+    }
+
+    /** "#eis" is no "reise", "oogle" no package segment "google". */
+    @Test fun `a tag and a package segment match only from their start`() {
+        assertEquals(emptyList<String>(), LauncherLogic.tagged(rows("a"), mapOf("a" to listOf("reise")), "eis").keys())
+        assertEquals(false, LauncherLogic.packageMatches("com.google.android.gm", "oogle"))
+    }
 }

@@ -177,4 +177,11 @@ class ConfigTextTest {
         }
         assertNull(ConfigText.readCapped(chunky, maxBytes = 8))
     }
+
+    /** The default cap of [ConfigText.readCapped] (1 MB in `CAVEATS.md`), from both sides. */
+    @Test fun `a file of exactly 1 MiB is read, one byte more is refused`() {
+        val cap = 1024 * 1024
+        assertEquals(cap, ConfigText.readCapped(ByteArrayInputStream(ByteArray(cap) { 'a'.code.toByte() }))?.length)
+        assertNull(ConfigText.readCapped(ByteArrayInputStream(ByteArray(cap + 1) { 'a'.code.toByte() })))
+    }
 }

@@ -39,4 +39,12 @@ class DrawerOrderTest {
         assertNull(DrawerOrder.read(dir, log))
         assertEquals(emptyList<String>(), logs)  // isFile: a directory is no file, nothing to say
     }
+
+    /** The other half of [writeDisposable]: the test above only sees a rename that works. */
+    @Test fun `a rename that fails leaves no temp file behind`() {
+        // A non-empty directory where the file goes: no rename can replace it.
+        File(dir, DrawerOrder.FILE).apply { mkdir() }.resolve("keep").writeText("x")
+        DrawerOrder.write(dir, byUsage = true)
+        assertEquals("only what was there", setOf(DrawerOrder.FILE), dir.list()!!.toSet())
+    }
 }
