@@ -135,8 +135,8 @@ One module, one package. The process owns the data, an activity is a window (har
   paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
   default favorites), `LauncherState`, `ConfigText` (the file's lines, the apps they name,
-  `readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data `AppEntry` and
-  `VersoConfig` (immutable, resolved anew from the text).
+  `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
+  `AppEntry` and `VersoConfig` (immutable, resolved anew from the text).
 - **IO:** `ConfigFile`, `DrawerOrder`, `Apps` (enumeration, default favorites),
   `HomeCache`, `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it
   `logWarning`).
@@ -146,8 +146,8 @@ The rest are small helpers named for what they do.
 Data flow of the app list:
 
 1. A `LauncherApps` callback or a profile broadcast reaches `MainActivity.appsMaybeChanged`.
-2. `LauncherState.refresh()` runs `CHANGE_SETTLE_MS` later if the window is in front, so a burst
-   of changes is one refresh, else at the next `onResume`.
+2. `LauncherState.refresh()` runs `MainActivity.CHANGE_SETTLE_MS` later if the window is in
+   front, so a burst of changes is one refresh, else at the next `onResume`.
 3. The IO thread reads the apps of every profile, system labels only.
 4. On main the newest load generation wins. The file's text is resolved against the list
    (`ConfigText.resolve`) and the custom names are applied (`LauncherLogic.named`).
@@ -195,7 +195,7 @@ dropped one keeps its number as "(removed)".
      backups and undo points this rule removed.
 5. **The config is there before the state exists** (`Core.newState`, on main: the user's file at
    its fixed place, a few KB on local storage), so there is no "not loaded yet" to guard. Home and
-   its cache are drawn only once the first app list is in (`appsLoaded`).
+   its cache are drawn only once the first app list is in (`LauncherState.appsLoaded`).
 6. **The config file is the user's** (`ConfigFile`): `config.txt` in the app's external files
    folder (`Android/data/<package>/files/`), put there from a PC or with `adb push`; Verso lists,
    renames or deletes nothing of theirs and needs no storage permission. Since Android 11 no app
@@ -209,8 +209,8 @@ dropped one keeps its number as "(removed)".
    file may name an app by key, package or system label (`ConfigText`). No change to the key or
    the file's format without the old files still reading.
 9. **`LauncherLogic.foldLabel` is the only fold** for labels, search text (needles) and tags.
-   - Matching alone also drops Latin, Greek and Cyrillic accents (`matchForm`). What is stored
-     keeps them.
+   - Matching alone also drops Latin, Greek and Cyrillic accents (`LauncherLogic.matchForm`).
+     What is stored keeps them.
    - Lists sort with the device locale's `Collator`, never by code point.
 10. **Default favorites only with no config file** (`LauncherState.useDefaults`): picked from
     every list anew, never written. An empty file is a config: no defaults over it.
@@ -220,7 +220,7 @@ dropped one keeps its number as "(removed)".
     - Touch is handled only in `SwipeFrame.dispatchTouchEvent`, never in `onInterceptTouchEvent`.
     - Easy to break, each of these must keep holding: a second finger cancels a drag; a drag
       grabs a page that is still moving; a page turned some other way aborts a running drag
-      (`abortDrag`).
+      (`SwipeFrame.abortDrag`).
 12. **Status bar hidden on the home page only**; home pads for it regardless
     (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate the activity.
