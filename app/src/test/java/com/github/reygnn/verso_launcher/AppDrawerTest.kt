@@ -39,7 +39,7 @@ class AppDrawerTest {
     private val installed = listOf(app("Alpha"), app("Bravo"), app("Charlie"))
 
     private val state = testLauncherState(
-        io = { task -> task.run(); true },
+        io = { task -> task.run() },
         main = { task -> task.run() },
         config = VersoConfig(favorites = listOf(installed[1].key)),
         enumerateApps = { Enumeration(installed, true) },
@@ -94,7 +94,7 @@ class AppDrawerTest {
     @Test fun `a paused app's row is dimmed, a ready one and a recycled command row are not`() {
         val paused = AppEntry("Delta", "com.delta", "com.delta.Main", "Delta", status = AppStatus.PAUSED)
         val withPaused = testLauncherState(
-            io = { task -> task.run(); true },
+            io = { task -> task.run() },
             main = { task -> task.run() },
             enumerateApps = { Enumeration(installed + paused, true) },
             onRefreshed = {},
@@ -298,7 +298,7 @@ class AppDrawerTest {
     /** A drawer over [apps] with [config]. If [loaded] is false, no app list has arrived yet. */
     private fun drawerOf(apps: List<AppEntry>, config: VersoConfig = VersoConfig(), loaded: Boolean = true): AppDrawer {
         val state = testLauncherState(
-            io = { task -> task.run(); true },
+            io = { task -> task.run() },
             main = { task -> task.run() },
             config = config,
             enumerateApps = { Enumeration(apps, true) },

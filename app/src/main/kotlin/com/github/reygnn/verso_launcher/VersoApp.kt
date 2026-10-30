@@ -3,10 +3,8 @@ package com.github.reygnn.verso_launcher
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.RejectedExecutionException
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
@@ -49,17 +47,16 @@ class VersoApp : Application() {
 
     /**
      * Queues [task] on [io] behind Guard (hard rule 2: an escape there kills the process on every
-     * start). A refused task is reported as false, never thrown — the executor is never shut down,
-     * but a HOME app must not crash.
+     * start). Not caught: [io] cannot refuse a task.
+     *
+     * Why: execute throws only once the executor is shut down, and nothing shuts it down (hard
+     *   rule 3). The finalizer of newSingleThreadExecutor's wrapper would (Android's libcore, seen
+     *   in Android 14), but this Application holds [io] for the life of the process. The queue is
+     *   unbounded, so a long one refuses nothing either.
      */
-    internal fun submitIo(task: Runnable): Boolean =
-        try {
-            io.execute(Guard.wrap("IO task", ::logWarning, task))
-            true
-        } catch (e: RejectedExecutionException) {
-            Log.w("Verso", "IO task rejected (executor shut down)", e)
-            false
-        }
+    internal fun submitIo(task: Runnable) {
+        io.execute(Guard.wrap("IO task", ::logWarning, task))
+    }
 
     internal data class BadgeKey(val serial: Long, val label: String, val locale: String)
 

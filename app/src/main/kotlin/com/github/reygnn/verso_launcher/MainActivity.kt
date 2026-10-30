@@ -214,8 +214,8 @@ class MainActivity : Activity() {
     /** Run [block] on the main thread for THIS instance — or not at all once it is destroyed. */
     private fun onUi(block: () -> Unit) = runOnUiThread { if (!isDestroyed) block() }
 
-    /** The process's IO thread, behind Guard (VersoApp.submitIo): false if refused, never a throw. */
-    private fun submitIo(task: Runnable): Boolean = app.submitIo(task)
+    /** The process's IO thread, behind Guard ([VersoApp.submitIo]). */
+    private fun submitIo(task: Runnable) = app.submitIo(task)
 
     /** A hardware keyboard on home: typing (or Search) opens the drawer with that character in the prompt. */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

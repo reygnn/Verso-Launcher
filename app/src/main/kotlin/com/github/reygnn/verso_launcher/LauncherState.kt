@@ -31,7 +31,7 @@ package com.github.reygnn.verso_launcher
  * @param onRefreshed listChanged false: nothing to re-render (a re-render would void a tap in flight).
  */
 internal class LauncherState(
-    private val io: (Runnable) -> Boolean,
+    private val io: (Runnable) -> Unit,
     private val main: (Runnable) -> Unit,
     private val text: ConfigText,
     private val useDefaults: Boolean,

@@ -36,7 +36,7 @@ class PageTurnTest {
     private val bravo = AppEntry("Bravo", "com.bravo", "com.bravo.Main", "Bravo")
 
     private val state = testLauncherState(
-        io = { task -> task.run(); true },
+        io = { task -> task.run() },
         main = { task -> task.run() },
         enumerateApps = { Enumeration(listOf(alpha, bravo), true) },
         onRefreshed = {},

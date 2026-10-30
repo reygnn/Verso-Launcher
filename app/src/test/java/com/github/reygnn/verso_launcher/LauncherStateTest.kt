@@ -44,7 +44,7 @@ class LauncherStateTest {
     /** Built on first use, so a test sets [file] and [fresh] first. */
     private val state by lazy {
         testLauncherState(
-            io = { task -> ioQueue.addLast(task); true },
+            io = { task -> ioQueue.addLast(task) },
             main = { task -> mainQueue.addLast(task) },
             text = ConfigText.parse(file),
             useDefaults = fresh,
@@ -93,7 +93,7 @@ class LauncherStateTest {
         loadUsage: () -> Map<String, Usage>? = { emptyMap() },
         writeUsage: (Map<String, Usage>) -> Unit = {},
     ) = testLauncherState(
-        io = { q.io.addLast(it); true }, main = { q.main.addLast(it) },
+        io = { q.io.addLast(it) }, main = { q.main.addLast(it) },
         enumerateApps = { Enumeration(emptyList(), true) },
         onRefreshed = { changed -> listChanged += changed },
         process = process,
@@ -413,7 +413,7 @@ class LauncherStateTest {
 
     @Test fun `the order comes in from order_txt and stays across a new list`() {
         val s = testLauncherState(
-            io = { task -> task.run(); true }, main = { task -> task.run() },
+            io = { task -> task.run() }, main = { task -> task.run() },
             enumerateApps = { Enumeration(installed, true) }, onRefreshed = {},
             byUsage = true,
         )

@@ -25,7 +25,7 @@ package com.github.reygnn.verso_launcher
  *
  *   private val ioQueue = ArrayDeque<Runnable>()
  *   private val mainQueue = ArrayDeque<Runnable>()
- *   io = { task -> ioQueue.addLast(task); true }
+ *   io = { task -> ioQueue.addLast(task) }
  *   main = { task -> mainQueue.addLast(task) }
  *
  *   state.refresh()

@@ -12,7 +12,7 @@ package com.github.reygnn.verso_launcher
 // one parameter per faked function, flat on purpose
 @Suppress("LongParameterList")
 internal fun testLauncherState(
-    io: (Runnable) -> Boolean,
+    io: (Runnable) -> Unit,
     main: (Runnable) -> Unit,
     enumerateApps: () -> Enumeration?,
     onRefreshed: (listChanged: Boolean) -> Unit,
