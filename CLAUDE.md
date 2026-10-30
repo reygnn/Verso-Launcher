@@ -215,7 +215,7 @@ dropped one keeps its number as "(removed)".
    - Lists sort with the device locale's `Collator`, never by code point.
 10. **Default favorites only with no config file** (`LauncherState.useDefaults`): picked from
     every list anew, never written. An empty file is a config: no defaults over it.
-11. **Page turn = Unity-Kolibri's** (`PageTurn`, `SwipeFrame`, `SwipeGesture`).
+11. **Page turn** (`PageTurn`, `SwipeFrame`, `SwipeGesture`).
     - The drawer follows the finger both ways. `?` is the same drawer, coming from the top and
       closing toward it. The flick is the fallback.
     - Touch is handled only in `SwipeFrame.dispatchTouchEvent`, never in `onInterceptTouchEvent`.
