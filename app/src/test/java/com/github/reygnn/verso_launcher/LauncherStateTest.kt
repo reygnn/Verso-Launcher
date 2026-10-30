@@ -560,4 +560,45 @@ class LauncherStateTest {
         assertEquals(listOf(key("Bravo"), key("Alpha")), state.config.favorites)
         assertEquals("home is told", listOf(true), listChanges)
     }
+
+    // ---- ~verify ---------------------------------------------------------------
+
+    /** Before the first list nothing can be called unresolved; after it, the typo shows. */
+    @Test fun `the report names the lines that name no app once the list is in`() {
+        file = "fav Alpha\nfav Alhpa\nfavourite Bravo"
+        assertEquals(
+            listOf(ConfigFinding.BadLine(ConfigLine(3, "favourite Bravo")), ConfigFinding.ListIncomplete),
+            state.report(),
+        )
+        state.refresh()
+        runAll()
+        assertEquals(
+            listOf(ConfigFinding.NoApp(ConfigLine(2, "fav Alhpa")), ConfigFinding.BadLine(ConfigLine(3, "favourite Bravo"))),
+            state.report(),
+        )
+    }
+
+    /** A rename by the app's own label still finds it: the report looks at system labels. */
+    @Test fun `an app named anew is found by its system label`() {
+        file = "name Alpha = Erste\nfav Alpha"
+        state.refresh()
+        runAll()
+        assertEquals(listOf(ConfigFinding.AllGood), state.report())
+    }
+
+    @Test fun `with no file the report says the defaults show`() {
+        fresh = true
+        state.refresh()
+        runAll()
+        assertEquals(listOf(ConfigFinding.NotRead(ConfigStatus.MISSING)), state.report())
+    }
+
+    /** A profile left out: an app missing may be in it, so the report says the list is not whole. */
+    @Test fun `an incomplete load says so in the report`() {
+        file = "fav Alpha"
+        enumerationComplete = false
+        state.refresh()
+        runAll()
+        assertEquals(listOf(ConfigFinding.ListIncomplete), state.report())
+    }
 }

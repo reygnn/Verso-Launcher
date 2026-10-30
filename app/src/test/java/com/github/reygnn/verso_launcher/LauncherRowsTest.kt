@@ -150,9 +150,12 @@ class LauncherRowsTest {
         val rows = rowsFor(Mode.COMMAND, "~")
         assertTrue(rows.all { it is CommandRow })
         assertEquals(LauncherLogic.COMMANDS.map { it.first }, rows.filterIsInstance<CommandRow>().map { it.name })
-        // "~crash", where it exists, farthest from the bottom-anchored prompt; then the harmless one.
+        // "~crash", where it exists, farthest from the bottom-anchored prompt; then the harmless ones.
         val names = rows.filterIsInstance<CommandRow>().map { it.name }
-        assertEquals(if (DailyDriver.ENABLED) listOf("~crash", "~restart") else listOf("~restart"), names.take(names.indexOf("~restart") + 1))
+        assertEquals(
+            listOfNotNull("~crash".takeIf { DailyDriver.ENABLED }, "~verify", "~restart"),
+            names.take(names.indexOf("~restart") + 1),
+        )
     }
 
     @Test fun `tilde prefix narrows the command overview`() {
@@ -234,5 +237,30 @@ class LauncherRowsTest {
         assertEquals(listOf("com.b/B"), appKeys(rowsFor(Mode.RECENTS, "?bra")))
         assertEquals(listOf("com.a/A", "com.b/B"), appKeys(rowsFor(Mode.RECENTS, "?a")))
         assertEquals(EmptyHint.NO_MATCH, LauncherLogic.emptyHint(Mode.RECENTS, "?zzz"))
+    }
+
+    // ---- ~verify ---------------------------------------------------------------
+
+    private val found = listOf(ConfigFinding.BadLine(ConfigLine(2, "favourite Zulu")), ConfigFinding.AllGood)
+
+    private fun verifyRows(trimmed: String) =
+        LauncherLogic.rowsFor(Mode.COMMAND, trimmed, apps, hidden, favorites, tags, recents, report = { found })
+
+    @Test fun `spelled out, ~verify is its report, a row per finding`() {
+        assertEquals(found.map { ReportRow(it) }, verifyRows("~verify"))
+        assertEquals("folded like every command", found.map { ReportRow(it) }, verifyRows("~VERIFY"))
+    }
+
+    @Test fun `abbreviated, ~verify is still the command, for Enter or a tap`() {
+        assertEquals(listOf<Row<OrderedFake>>(CommandRow("~verify", Command.VERIFY)), verifyRows("~v"))
+    }
+
+    /** The report is asked for only where it shows: every other prompt builds none. */
+    @Test fun `no other prompt asks for the report`() {
+        var asked = 0
+        for ((mode, prompt) in listOf(Mode.COMMAND to "~", Mode.COMMAND to "~ver", Mode.NORMAL to "", Mode.NORMAL to "verify")) {
+            LauncherLogic.rowsFor(mode, prompt, apps, hidden, favorites, tags, recents, report = { asked++; found })
+        }
+        assertEquals(0, asked)
     }
 }

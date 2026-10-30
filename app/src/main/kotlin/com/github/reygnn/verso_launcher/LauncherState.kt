@@ -23,6 +23,7 @@ package com.github.reygnn.verso_launcher
  *   file, or nothing.
  * @param useDefaults no config at all, not even an empty file: the favorites are the default ones
  *   (hard rule 10), picked from every list anew and never written.
+ * @param fileStatus how the read of [text] went, for [report].
  * @param byUsage "%" as order.txt has it.
  * @param enumerateApps null if the enumeration failed — the last good list is kept; an
  *   incomplete one is shown but retried on the next resume ([needsRefresh]).
@@ -35,6 +36,7 @@ internal class LauncherState(
     private val main: (Runnable) -> Unit,
     private val text: ConfigText,
     private val useDefaults: Boolean,
+    private val fileStatus: ConfigStatus,
     byUsage: Boolean,
     private val enumerateApps: () -> Enumeration?,
     private val defaultFavoriteCandidates: () -> List<List<String>>,
@@ -77,6 +79,10 @@ internal class LauncherState(
     val usage: Map<String, Usage> get() = process.usage.value
 
     @Volatile private var loadGeneration = 0
+
+    /** What "~verify" says about the user's file, against the last list ([ConfigReport.findings]). */
+    fun report(): List<ConfigFinding> =
+        ConfigReport.findings(fileStatus, text, enumerated.takeIf { appsLoaded }, complete = lastLoadCommitted)
 
     fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, config.favorites)
 

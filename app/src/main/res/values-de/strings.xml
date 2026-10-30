@@ -46,4 +46,13 @@
     <string name="order_to_name" formatted="false">% von A bis Z sortieren</string>
     <string name="toast_order_usage">Drawer: meistgenutzte zuerst</string>
     <string name="toast_order_name">Drawer: von A bis Z</string>
+
+    <!-- Was ~verify über die Config-Datei sagt, je eine Zeile (ConfigFinding). -->
+    <string name="report_missing">Keine config.txt in Android/data/%1$s/files/: die Standard-Favoriten werden gezeigt</string>
+    <string name="report_too_large">config.txt ist größer als 1 MB und wurde nicht gelesen: die Standard-Favoriten werden gezeigt</string>
+    <string name="report_unreadable">config.txt ließ sich nicht lesen: die Standard-Favoriten werden gezeigt</string>
+    <string name="report_bad_line">Zeile %1$d, kein Eintrag, übersprungen: %2$s</string>
+    <string name="report_no_app">Zeile %1$d, keine installierte App dieses Namens: %2$s</string>
+    <string name="report_list_incomplete">Nicht alle Apps ließen sich auflisten: eine oben fehlende kann darunter sein</string>
+    <string name="report_all_good">config.txt: jede Zeile ein Eintrag, jede App gefunden</string>
 </resources>

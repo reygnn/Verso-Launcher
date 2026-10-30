@@ -256,8 +256,15 @@ class MainActivity : Activity() {
         appDrawer.clearPrompt()
         when (command) {
             Command.RESTART -> restart()
+            Command.VERIFY -> showReport()
             Command.CRASH -> Unit // returned above
         }
+    }
+
+    /** "~verify": its prompt is its view (LauncherLogic.VERIFY), read with the keyboard down. */
+    private fun showReport() {
+        appDrawer.setPrompt(LauncherLogic.VERIFY)
+        appDrawer.hideKeyboard()
     }
 
     /** "~restart": the reload of the config file, and the repair by hand. */

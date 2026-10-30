@@ -14,8 +14,11 @@ internal enum class Mode {
 
 internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_RECENTS, NO_COMMAND }
 
-/** A one-shot "~" command: unlike a [Mode] it renders nothing, it acts once on Enter. */
-internal enum class Command { CRASH, RESTART }
+/**
+ * A one-shot "~" command: unlike a [Mode] it acts once, on Enter or a tap. [VERIFY]'s act is to
+ * set the prompt whose rows are its report ([LauncherLogic.VERIFY]).
+ */
+internal enum class Command { CRASH, RESTART, VERIFY }
 
 /** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
 internal interface Ordered {
@@ -29,6 +32,8 @@ internal sealed interface Row<out T : Ordered>
 internal data class AppRow<out T : Ordered>(val entry: T) : Row<T>
 internal data class TagRow(val name: String) : Row<Nothing>
 internal data class CommandRow(val name: String, val command: Command) : Row<Nothing>
+/** A row of "~verify": one thing it says about the user's file. A tap does nothing. */
+internal data class ReportRow(val finding: ConfigFinding) : Row<Nothing>
 /** The one "%" row: what Enter or a tap turns the plain drawer's order into. */
 internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
 
@@ -73,8 +78,15 @@ internal object LauncherLogic {
      */
     val COMMANDS: List<Pair<String, Command>> = listOfNotNull(
         ("~crash" to Command.CRASH).takeIf { DailyDriver.ENABLED },
+        VERIFY to Command.VERIFY,
         "~restart" to Command.RESTART,
     )
+
+    /**
+     * The prompt that shows what "~verify" found: running it sets this. Unlike the other commands
+     * it is also a view, so the report stays while the list reloads and goes with the prompt.
+     */
+    const val VERIFY = "~verify"
 
     /** The command spelled exactly by [trimmed] (folded), or null; a bare "~" is none. */
     fun parseCommand(trimmed: String): Command? {
@@ -94,8 +106,8 @@ internal object LauncherLogic {
      * ever prefix another. A bare "~" is no abbreviation and resolves to null, never a guess.
      * "~crash" is never abbreviated: "~c" means nothing in every build.
      *
-     * Why: a public build has one command left that may be abbreviated, so every prompt starting
-     *   with "~" would be "unambiguous". Enter on a bare "~" must still not rebuild the window.
+     * Why: should a build ever list one command alone that may be abbreviated, every prompt
+     *   starting with "~" would be "unambiguous". Enter on a bare "~" must still not run it.
      */
     fun resolveCommand(trimmed: String): Command? {
         // As in parseCommand: commandsMatching folds the U+0307 away.
@@ -337,7 +349,7 @@ internal object LauncherLogic {
         s.codePoints().forEach { if (Character.getType(it) != Character.SURROGATE.toInt()) appendCodePoint(it) }
     }
 
-    /** Which hint an empty list shows in [mode] (mirrors [rowsFor]). */
+    /** Which hint an empty list shows in [mode] (mirrors [rowsFor]; "~verify" is never empty). */
     fun emptyHint(mode: Mode, trimmed: String): EmptyHint = when (mode) {
         Mode.COMMAND -> EmptyHint.NO_COMMAND
         Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) EmptyHint.NO_TAGS else EmptyHint.NO_TAG_MATCH
@@ -390,7 +402,10 @@ internal object LauncherLogic {
         byUsage: Boolean = false,
         usage: Map<String, Usage> = emptyMap(),
         now: Long = 0L,
+        report: () -> List<ConfigFinding> = { emptyList() },
     ): List<Row<T>> {
+        // Spelled out, "~verify" is its report; "~v" still lists the command, for Enter or a tap.
+        if (mode == Mode.COMMAND && parseCommand(trimmed) == Command.VERIFY) return report().map { ReportRow(it) }
         if (mode == Mode.COMMAND) {
             return commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
         }
@@ -472,6 +487,7 @@ internal object LauncherLogic {
         is TagRow -> DrawerAction.SetPrompt("#${row.name}")
         is CommandRow -> DrawerAction.Run(row.command)
         is OrderRow -> DrawerAction.ToggleOrder
+        is ReportRow -> DrawerAction.None
         is AppRow -> when (mode) {
             Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER -> DrawerAction.Launch(row.entry)
             Mode.COMMAND, Mode.ORDER -> DrawerAction.None

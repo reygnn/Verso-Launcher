@@ -234,7 +234,7 @@ internal class PageTurn(
      */
     fun resumed() {
         showStatusBar(isOpen)
-        if (isOpen && appDrawer.promptText != RECENTS_PROMPT) appDrawer.showKeyboard()
+        if (isOpen && appDrawer.promptText !in KEYBOARDLESS) appDrawer.showKeyboard()
     }
 
     /**
@@ -381,5 +381,8 @@ internal class PageTurn(
         const val BACK_PREVIEW_FRACTION = 0.25f
         const val BACK_PREVIEW_HOME_ALPHA = 0.5f
         const val RECENTS_PROMPT = "?"
+
+        /** The prompts a resume leaves without the keyboard: the recents, and "~verify"'s report. */
+        val KEYBOARDLESS = setOf(RECENTS_PROMPT, LauncherLogic.VERIFY)
     }
 }

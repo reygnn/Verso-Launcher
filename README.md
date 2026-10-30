@@ -88,9 +88,13 @@ keyboard, no prompt:
   - `%` — **Enter** switches the plain drawer between A to Z and **most used first** (each
     launch counts, fading with time: a week old about half), and keeps it
   - `~[text]` — commands. `~` lists them, typing narrows the list; tap one, or **Enter** once
-    what you typed can only mean one (`~r` is `~restart`; a bare `~` is none):
+    what you typed can only mean one (`~r` is `~restart`, `~v` is `~verify`; a bare `~` is none):
     - `~restart` — read your config file and everything else again and rebuild the list: the
-      way to make a changed config file count
+      way to make a changed config file count; `~verify` then says what the read found
+    - `~verify` — what the last read of your config file found, a line each: a file that is not
+      there, too big or unreadable (and where it is looked for), each line that is no entry, and
+      each line that names no installed app, with its number and text. It changes nothing; fix
+      the file on the PC and `~restart`
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
       on purpose, to see the crash-only paths. Never abbreviated
 - Tap a row or press **Enter** to launch the row nearest the command line. On an empty line
@@ -131,8 +135,9 @@ An app is its name as the system shows it (`Gmail`, `Gmail (Work)` for a work co
 (`package/class`, `#serial` for another profile). A name is matched ignoring case, never your own
 names; it changes with the device language, a package does not, so a package outlasts a
 language switch. Long-press an app for its *App info* if you need the package. A line Verso does
-not understand is skipped (and named in the system log, tag `Verso`); the rest still counts. An
-app that is not installed is simply left out until it is.
+not understand is skipped (named in the system log, tag `Verso`, and by `~verify`); the rest
+still counts. An app that is not installed is simply left out until it is; `~verify` names such
+lines too, since a typo looks the same.
 
 What can go wrong around the config file, a result that comes later and moving to a new phone:
 `CAVEATS.md`.

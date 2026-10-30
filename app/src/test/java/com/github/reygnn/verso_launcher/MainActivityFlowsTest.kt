@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.ListView
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -209,5 +210,20 @@ class MainActivityFlowsTest {
         assertTrue("the drag has started", root.isDragging)
         controller.newIntent(home)
         assertFalse(root.isDragging)
+    }
+
+    // ---- ~verify -------------------------------------------------------------------------
+
+    private fun shownRows(): List<Any> {
+        val list = activity.window.decorView.collect<ListView>().single()
+        return (0 until list.adapter.count).map { list.adapter.getItem(it) }
+    }
+
+    @Test fun `~verify lists what the read found, the keyboard down`() {
+        configFile("fav ${someApp.key}\nfavourite Zulu")
+        started()
+        enter("~v")
+        assertEquals(LauncherLogic.VERIFY, prompt.text.toString())
+        assertTrue(ConfigFinding.BadLine(ConfigLine(2, "favourite Zulu")).let(::ReportRow) in shownRows())
     }
 }

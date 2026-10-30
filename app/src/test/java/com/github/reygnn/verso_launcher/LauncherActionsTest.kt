@@ -175,4 +175,24 @@ class LauncherActionsTest {
         // "%abc" shows no row: Enter does nothing.
         assertEquals(DrawerAction.None, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = null))
     }
+
+    // ---- ~verify ---------------------------------------------------------------
+
+    private val report: Row<OrderedFake> = ReportRow(ConfigFinding.AllGood)
+
+    @Test fun `a tap on a finding of ~verify does nothing`() {
+        assertEquals(DrawerAction.None, LauncherLogic.tapAction(Mode.COMMAND, report))
+    }
+
+    /** Enter on its own report runs it again: it only sets the prompt it already shows. */
+    @Test fun `Enter on ~verify or its abbreviation runs it`() {
+        for (prompt in listOf("~verify", "~v", "~ve")) {
+            val command = LauncherLogic.resolveCommand(prompt)
+            assertEquals(prompt, Command.VERIFY, command)
+            assertEquals(
+                DrawerAction.Run(Command.VERIFY),
+                LauncherLogic.enterAction(Mode.COMMAND, command, promptBlank = false, lastRow = report),
+            )
+        }
+    }
 }

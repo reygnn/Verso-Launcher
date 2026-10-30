@@ -20,15 +20,16 @@ import java.util.Locale
  * matched folded (hard rule 9) and never by a custom name. A name or tag list given twice: the last
  * name wins, the tags add up.
  *
- * @property badLines the 1-based numbers of the lines that are no entry; the rest of the file
- *   still counts.
+ * @property badLines the lines that are no entry; the rest of the file still counts.
+ * @property refs every entry's line and the app it names, in file order, for [unresolved].
  */
 internal data class ConfigText(
     val favorites: List<String> = emptyList(),
     val hidden: List<String> = emptyList(),
     val names: List<Pair<String, String>> = emptyList(),
     val tags: List<Pair<String, List<String>>> = emptyList(),
-    val badLines: List<Int> = emptyList(),
+    val badLines: List<ConfigLine> = emptyList(),
+    val refs: List<ConfigRef> = emptyList(),
 ) {
     companion object {
 
@@ -36,9 +37,12 @@ internal data class ConfigText(
             val lines = Lines()
             text.removePrefix(BOM).lineSequence().forEachIndexed { i, raw ->
                 val line = raw.trim()
-                if (line.isNotEmpty() && !line.startsWith('#') && !lines.add(line)) lines.bad += i + 1
+                if (line.isEmpty() || line.startsWith('#')) return@forEachIndexed
+                val numbered = ConfigLine(i + 1, line)
+                val ref = lines.add(line)
+                if (ref == null) lines.bad += numbered else lines.refs += ConfigRef(numbered, ref)
             }
-            return ConfigText(lines.favorites, lines.hidden, lines.names, lines.tags, lines.bad)
+            return ConfigText(lines.favorites, lines.hidden, lines.names, lines.tags, lines.bad, lines.refs)
         }
 
         /**
@@ -83,6 +87,15 @@ internal data class ConfigText(
             return VersoConfig(hidden = hidden, favorites = favorites.toList(), names = names, tags = tags)
         }
 
+        /**
+         * The lines of [text] that name no app of [apps]: a typo, an app that is gone, or one of a
+         * profile that was not read. Their entries stay (hard rule 14); this only says so.
+         */
+        fun unresolved(text: ConfigText, apps: List<AppEntry>): List<ConfigLine> {
+            val index = Index(apps)
+            return text.refs.filter { ref -> index.keys(ref.ref).none(index::installed) }.map { it.line }
+        }
+
         private const val FAV = "fav"
         private const val HIDE = "hide"
         private const val NAME = "name"
@@ -98,22 +111,23 @@ internal data class ConfigText(
         val hidden = ArrayList<String>()
         val names = ArrayList<Pair<String, String>>()
         val tags = ArrayList<Pair<String, List<String>>>()
-        val bad = ArrayList<Int>()
+        val bad = ArrayList<ConfigLine>()
+        val refs = ArrayList<ConfigRef>()
 
-        /** False when [line] is no entry. */
-        fun add(line: String): Boolean {
+        /** The app [line] names, or null when it is no entry. */
+        fun add(line: String): String? {
             val parts = line.split(WHITESPACE, limit = 2)
             val rest = parts.getOrElse(1) { "" }
             return when (parts[0].lowercase(Locale.ROOT)) {
-                FAV -> rest.isNotEmpty() && favorites.add(rest)
-                HIDE -> rest.isNotEmpty() && hidden.add(rest)
+                FAV -> rest.takeIf { it.isNotEmpty() }?.also { favorites += it }
+                HIDE -> rest.takeIf { it.isNotEmpty() }?.also { hidden += it }
                 NAME -> split(rest)?.let { (ref, value) ->
-                    LauncherLogic.cleanName(value).takeIf { it.isNotEmpty() }?.let { names += ref to it }
-                } != null
+                    LauncherLogic.cleanName(value).takeIf { it.isNotEmpty() }?.let { names += ref to it; ref }
+                }
                 TAG -> split(rest)?.let { (ref, value) ->
-                    LauncherLogic.parseTags(value).takeIf { it.isNotEmpty() }?.let { tags += ref to it }
-                } != null
-                else -> false
+                    LauncherLogic.parseTags(value).takeIf { it.isNotEmpty() }?.let { tags += ref to it; ref }
+                }
+                else -> null
             }
         }
     }
@@ -124,6 +138,9 @@ internal data class ConfigText(
         private val byPackage = apps.filter { it.profile == null }.groupBy { it.packageName }
         private val byLabel = apps.groupBy { LauncherLogic.foldLabel(it.systemLabel) }
 
+        /** Whether [key] is an app of the list, not a key of one that is gone. */
+        fun installed(key: String): Boolean = key in byKey
+
         /** An app's key first, then a package, then a label; a key of an app that is gone last. */
         fun keys(ref: String): List<String> {
             if (ref in byKey) return listOf(ref)
@@ -132,3 +149,9 @@ internal data class ConfigText(
         }
     }
 }
+
+/** A line of the user's file: its 1-based [number] and its [text], trimmed. */
+internal data class ConfigLine(val number: Int, val text: String)
+
+/** An entry's [line] and the app it names ([ref]: a key, a package or a label). */
+internal data class ConfigRef(val line: ConfigLine, val ref: String)

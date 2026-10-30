@@ -8,7 +8,7 @@ package com.github.reygnn.verso_launcher
  *
  * Android-bound collaborators come in as functions, so a test passes a lambda or a fake:
  *
- *   LauncherState(io, main, initial, useDefaults, byUsage, enumerateApps,
+ *   LauncherState(io, main, text, useDefaults, fileStatus, byUsage, enumerateApps,
  *                 defaultFavoriteCandidates, recentsFile, usageFile, writeOrder, process, now,
  *                 onRefreshed)
  *     — built through testLauncherState (TestLauncherState.kt): flat parameters with inert

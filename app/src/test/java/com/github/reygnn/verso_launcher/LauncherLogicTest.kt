@@ -204,6 +204,11 @@ class LauncherLogicTest {
         assertEquals(Command.RESTART, LauncherLogic.resolveCommand("~r"))
     }
 
+    @Test fun `~verify resolves from its first letter`() {
+        assertEquals(Command.VERIFY, LauncherLogic.resolveCommand("~v"))
+        assertEquals(listOf("~verify"), LauncherLogic.commandsMatching("~v").map { it.first })
+    }
+
     /** The overview is bottom-anchored: the reload of the config file sits right above the prompt. */
     @Test fun `~restart is the command nearest the prompt`() {
         assertEquals("~restart", LauncherLogic.COMMANDS.last().first)
@@ -225,10 +230,7 @@ class LauncherLogicTest {
         }
     }
 
-    /**
-     * A public build lists "~restart" alone, so "~" is a prefix of exactly one command that may be
-     * abbreviated: Enter on it must still rebuild nothing.
-     */
+    /** "~" is a prefix of every command: Enter on it alone must still run none. */
     @Test fun `a bare tilde resolves to nothing, also folded`() {
         assertNull(LauncherLogic.resolveCommand("~"))
         assertNull(LauncherLogic.resolveCommand("~\u0307"))

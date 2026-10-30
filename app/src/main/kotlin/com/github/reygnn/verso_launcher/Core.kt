@@ -47,15 +47,16 @@ internal class Core(private val app: VersoApp) {
     private fun newState(): LauncherState {
         val dir = app.filesDir
         // No file there, or none readable: the defaults (hard rule 10). An empty file is a config.
-        val file = ConfigFile.read(app.getExternalFilesDir(null), ::logWarning)
+        val read = ConfigFile.read(app.getExternalFilesDir(null), ::logWarning)
         val byUsage = DrawerOrder.read(dir, ::logWarning) ?: false
         lateinit var built: LauncherState
         built = LauncherState(
             io = app::submitIo,
             // Never dropped for a recreation — only once a reset replaced this state.
             main = { task -> app.onMain { if (state === built) task.run() } },
-            text = file ?: ConfigText(),
-            useDefaults = file == null,
+            text = read.text,
+            useDefaults = read.status != ConfigStatus.READ,
+            fileStatus = read.status,
             byUsage = byUsage,
             enumerateApps = { apps.enumerate() },
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },

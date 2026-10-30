@@ -47,4 +47,14 @@
     <string name="order_to_name" formatted="false">% sort A to Z</string>
     <string name="toast_order_usage">Drawer: most used first</string>
     <string name="toast_order_name">Drawer: A to Z</string>
+
+    <!-- What ~verify says about the config file, a row each (ConfigFinding). %1$s of
+         report_missing is the app's package, so a debug build names its own folder. -->
+    <string name="report_missing">No config.txt in Android/data/%1$s/files/: the default favorites show</string>
+    <string name="report_too_large">config.txt is over 1 MB and was not read: the default favorites show</string>
+    <string name="report_unreadable">config.txt could not be read: the default favorites show</string>
+    <string name="report_bad_line">Line %1$d, no entry, skipped: %2$s</string>
+    <string name="report_no_app">Line %1$d, no installed app by that name: %2$s</string>
+    <string name="report_list_incomplete">Not every app could be listed: an app missing above may be one of them</string>
+    <string name="report_all_good">config.txt: every line is an entry, every app found</string>
 </resources>

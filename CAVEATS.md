@@ -25,9 +25,11 @@ the PC is the one that counts.
 
 Verso reads the file when it starts and at every `~restart`, never at a return to the launcher:
 a file you changed counts from the next `~restart`. When it cannot read it — it is not there, is
-bigger than 1 MB, or cannot be opened — Verso shows the default favorites, and says so only in the
-system log (tag `Verso`), not on screen. A line Verso does not understand is skipped and named in
-the log the same way; the rest of the file still counts.
+bigger than 1 MB, or cannot be opened — Verso shows the default favorites and says so in the
+system log (tag `Verso`). A line Verso does not understand is skipped and named in the log the same
+way; the rest of the file still counts. On the phone, `~verify` lists all of it, and also the
+lines that name no installed app (a typo, an app that is gone, or one of a work profile that could
+not be read). Nothing says it unasked: no dialog, no notice on home.
 
 Neither the JSON of earlier versions (`verso.json`, a JSON backup) nor the file you linked with
 `~open` up to 0.6.4 is read any more; put a copy of that file in the folder above. A JSON file put

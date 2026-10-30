@@ -350,6 +350,7 @@ internal class AppDrawer(
             byUsage = state.config.byUsage,
             usage = state.usage,
             now = System.currentTimeMillis(),
+            report = state::report,
         )
         // The one place shown is assigned.
         shownGeneration++
@@ -439,13 +440,21 @@ internal class AppDrawer(
                     activity.getString(if (row.toUsage) R.string.order_to_usage else R.string.order_to_name),
                 )
                 is CommandRow -> bindPlainRow(tv, Typeface.MONOSPACE, row.name)
+                is ReportRow -> bindPlainRow(tv, listTypeface, findingText(row.finding), wrap = true)
                 is AppRow -> bindAppRow(tv, row.entry)
             }
             return tv
         }
 
-        /** A row without an app; clears what a recycled app row set (its state, dimming). */
-        private fun bindPlainRow(tv: TextView, face: Typeface, text: String) {
+        /**
+         * A row without an app; clears what a recycled app row set (its state, dimming). [wrap]: a
+         * finding of "~verify" is read whole, every other row is one line.
+         */
+        private fun bindPlainRow(tv: TextView, face: Typeface, text: String, wrap: Boolean = false) {
+            if (tv.isSingleLine == wrap) {
+                tv.isSingleLine = !wrap
+                tv.ellipsize = if (wrap) null else TextUtils.TruncateAt.END
+            }
             tv.typeface = face
             tv.text = text
             tv.contentDescription = null
@@ -454,6 +463,10 @@ internal class AppDrawer(
         }
 
         private fun bindAppRow(tv: TextView, entry: AppEntry) {
+            if (!tv.isSingleLine) {
+                tv.isSingleLine = true
+                tv.ellipsize = TextUtils.TruncateAt.END
+            }
             tv.typeface = listTypeface
             tv.text = entry.label
             tv.alpha = HomeStyle.rowAlpha(entry.status)
@@ -461,6 +474,19 @@ internal class AppDrawer(
             tv.contentDescription = null
             tv.stateDescription = rowA11y(entry).first
         }
+    }
+
+    /** A finding of "~verify" in the user's words; the folder is this build's own (".debug"). */
+    private fun findingText(finding: ConfigFinding): String = when (finding) {
+        is ConfigFinding.NotRead -> when (finding.status) {
+            ConfigStatus.TOO_LARGE -> activity.getString(R.string.report_too_large)
+            ConfigStatus.UNREADABLE -> activity.getString(R.string.report_unreadable)
+            ConfigStatus.MISSING, ConfigStatus.READ -> activity.getString(R.string.report_missing, activity.packageName)
+        }
+        is ConfigFinding.BadLine -> activity.getString(R.string.report_bad_line, finding.line.number, finding.line.text)
+        is ConfigFinding.NoApp -> activity.getString(R.string.report_no_app, finding.line.number, finding.line.text)
+        ConfigFinding.ListIncomplete -> activity.getString(R.string.report_list_incomplete)
+        ConfigFinding.AllGood -> activity.getString(R.string.report_all_good)
     }
 
     /**

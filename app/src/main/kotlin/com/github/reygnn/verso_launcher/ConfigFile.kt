@@ -18,28 +18,35 @@ internal object ConfigFile {
     const val NAME = "config.txt"
 
     /**
-     * The config [dir] holds, or null if there is none to read: no folder (shared storage not
-     * mounted), no file, a file that cannot be read or is past [ConfigText.readCapped]'s cap. Null
-     * means the default favorites (hard rule 10); an empty file is a config. A line that is no entry
-     * is skipped and logged, the rest counts. Every failure is logged, none is said on screen.
+     * The config [dir] holds and how its read went. Anything but [ConfigStatus.READ] means the
+     * default favorites (hard rule 10): no folder (shared storage not mounted) or no file, a file
+     * past [ConfigText.readCapped]'s cap, or one that cannot be read. An empty file is a config. A
+     * line that is no entry is skipped and logged, the rest counts. Every failure is logged; on
+     * screen only "~verify" says it ([ConfigReport]).
      *
      * Why: the read runs on main as the state is built, at every start; a throw here would kill
      *   every start (hard rule 2), so the parse is inside the catch too.
      */
-    fun read(dir: File?, log: (String, Exception?) -> Unit): ConfigText? {
-        val file = dir?.let { File(it, NAME) }?.takeIf { it.isFile } ?: return null
+    fun read(dir: File?, log: (String, Exception?) -> Unit): ConfigRead {
+        val file = dir?.let { File(it, NAME) }?.takeIf { it.isFile } ?: return ConfigRead(ConfigStatus.MISSING)
         // hard rule 2: an unreadable file is the defaults and a log line, never a throw on main
-        val parsed = @Suppress("TooGenericExceptionCaught") try {
+        val read = @Suppress("TooGenericExceptionCaught") try {
             val text = file.inputStream().use { ConfigText.readCapped(it) }
             if (text == null) log("$NAME is larger than any config, not read", null)
-            text?.let(ConfigText::parse)
+            text?.let { ConfigRead(ConfigStatus.READ, ConfigText.parse(it)) } ?: ConfigRead(ConfigStatus.TOO_LARGE)
         } catch (e: Exception) {
             log("$NAME unreadable", e)
-            null
+            ConfigRead(ConfigStatus.UNREADABLE)
         }
-        if (parsed != null && parsed.badLines.isNotEmpty()) {
-            log("$NAME: lines that are no entry, skipped: ${parsed.badLines.joinToString(", ")}", null)
+        if (read.text.badLines.isNotEmpty()) {
+            log("$NAME: lines that are no entry, skipped: ${read.text.badLines.joinToString(", ") { "${it.number}" }}", null)
         }
-        return parsed
+        return read
     }
 }
+
+/** How the read of the user's file went; only [READ] is a config of theirs. */
+internal enum class ConfigStatus { READ, MISSING, TOO_LARGE, UNREADABLE }
+
+/** A read of the user's file: [text] is empty unless [status] is [ConfigStatus.READ]. */
+internal data class ConfigRead(val status: ConfigStatus, val text: ConfigText = ConfigText())

@@ -98,7 +98,7 @@ class ConfigTextTest {
         val text = ConfigText.parse("\uFEFF# mine\r\n\r\n  FAV   Maps  \r\nHide\tFirefox\r\n")
         assertEquals(listOf("Maps"), text.favorites)
         assertEquals(listOf("Firefox"), text.hidden)
-        assertEquals(emptyList<Int>(), text.badLines)
+        assertEquals(emptyList<ConfigLine>(), text.badLines)
     }
 
     @Test fun `a line that is no entry is counted by number, and the rest still counts`() {
@@ -114,7 +114,7 @@ class ConfigTextTest {
             hide Firefox
             """.trimIndent(),
         )
-        assertEquals(listOf(2, 3, 4, 5, 6, 7), text.badLines)
+        assertEquals(listOf(2, 3, 4, 5, 6, 7), text.badLines.map { it.number })
         assertEquals(listOf("Maps"), text.favorites)
         assertEquals(listOf("Firefox"), text.hidden)
     }
@@ -122,8 +122,8 @@ class ConfigTextTest {
     /** An old JSON backup put where the config goes: every line skipped, nothing set, no throw. */
     @Test fun `a file of no entries sets nothing, an empty or comment-only one skips nothing`() {
         val json = ConfigText.parse("{\n  \"favorites\": []\n}")
-        assertEquals(listOf(1, 2, 3), json.badLines)
-        assertEquals(ConfigText(badLines = listOf(1, 2, 3)), json)
+        assertEquals(listOf(1, 2, 3), json.badLines.map { it.number })
+        assertEquals(ConfigText(badLines = json.badLines), json)
         assertEquals(ConfigText(), ConfigText.parse(""))
         assertEquals(ConfigText(), ConfigText.parse("# nothing yet\n\n"))
     }
@@ -183,5 +183,43 @@ class ConfigTextTest {
         val cap = 1024 * 1024
         assertEquals(cap, ConfigText.readCapped(ByteArrayInputStream(ByteArray(cap) { 'a'.code.toByte() }))?.length)
         assertNull(ConfigText.readCapped(ByteArrayInputStream(ByteArray(cap + 1) { 'a'.code.toByte() })))
+    }
+
+    // ---- what ~verify reads: the lines and the apps they name ------------------------------
+
+    @Test fun `every entry keeps its line and the app it names`() {
+        val text = ConfigText.parse("# mine\n\nfav Gmail\nhide  Maps \nname Firefox = Web\ntag Maps = travel")
+        assertEquals(
+            listOf(
+                ConfigRef(ConfigLine(3, "fav Gmail"), "Gmail"),
+                ConfigRef(ConfigLine(4, "hide  Maps"), "Maps"),
+                ConfigRef(ConfigLine(5, "name Firefox = Web"), "Firefox"),
+                ConfigRef(ConfigLine(6, "tag Maps = travel"), "Maps"),
+            ),
+            text.refs,
+        )
+    }
+
+    @Test fun `a bad line keeps its text, trimmed`() {
+        assertEquals(listOf(ConfigLine(2, "favourite Zulu")), ConfigText.parse("fav Gmail\n  favourite Zulu  ").badLines)
+    }
+
+    /** By key, package, label or a profile's badged label, each names an app; nothing else does. */
+    @Test fun `unresolved are the lines that name no app of the list`() {
+        val text = ConfigText.parse(
+            """
+            fav ${whatsApp.key}
+            fav org.mozilla.firefox
+            fav gmail (work)
+            fav Whatsap
+            hide com.gone/com.gone.Main
+            name Mpas = Karte
+            """.trimIndent(),
+        )
+        assertEquals(listOf(4, 5, 6), ConfigText.unresolved(text, apps).map { it.number })
+    }
+
+    @Test fun `with no list every entry is unresolved`() {
+        assertEquals(listOf(1), ConfigText.unresolved(ConfigText.parse("fav Gmail"), emptyList()).map { it.number })
     }
 }

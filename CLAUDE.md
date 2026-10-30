@@ -15,11 +15,11 @@ in the KDoc of the classes named.
 Home page ("recto"): clock, date and battery (double-tap targets), the favorites as large text;
 swipe up for the drawer, pull down for the recent apps. Drawer ("verso"): Sigil's list and
 command line — search, the sigils (`#` tags, `?` recents, `%` A–Z ↔ most used) and the `~`
-commands (`~restart`, which also reads the config again; `~crash` only in a daily-driver build,
-never abbreviated). The config — favorites, hidden apps, custom names, tags — is a text file of
-the user's at one fixed place that Verso reads and never writes (`ConfigFile`, hard rules 4 and
-6); it is written in any editor on a PC and put there, never edited in the app. With no file
-there the default favorites show.
+commands (`~restart`, which also reads the config again; `~verify`, what that read found
+(`ConfigReport`); `~crash` only in a daily-driver build, never abbreviated). The config —
+favorites, hidden apps, custom names, tags — is a text file of the user's at one fixed place that
+Verso reads and never writes (`ConfigFile`, hard rules 4 and 6); it is written in any editor on a
+PC and put there, never edited in the app. With no file there the default favorites show.
 
 Deliberately NOT: icons, widgets, notification badges, a settings screen (the look is constants
 in `HomeStyle.kt`), left/right swipes, any runtime permission, private space (no
@@ -139,7 +139,8 @@ One module, one package. The process owns the data, an activity is a window (har
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
   default favorites), `LauncherState`, `ConfigText` (the file's lines, the apps they name,
   `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
-  `AppEntry` and `VersoConfig` (immutable, resolved anew from the text).
+  `AppEntry` and `VersoConfig` (immutable, resolved anew from the text), `ConfigReport` (what
+  `~verify` says about the text).
 - **IO:** `ConfigFile`, `DrawerOrder`, `Apps` (enumeration, default favorites),
   `HomeCache`, `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it
   `logWarning`).
@@ -184,7 +185,8 @@ dropped one keeps its number as "(removed)".
      only log are the reads on main before the state exists (hard rule 3). At the first start
      nothing is on screen yet to say it on. At `~restart` the user acted, and they still only
      log: a config file that cannot be read is no file (hard rule 4), and `order.txt` is
-     disposable (`DrawerOrder`).
+     disposable (`DrawerOrder`). What the config's read found is said on request, never by the
+     catch: `~verify` lists it (hard rule 4).
 3. **One IO thread for Verso, process-wide** (`VersoApp.io`).
    - Never another executor for Verso's own work, and never shut down. No thread is made outside
      `VersoApp` (`SourceGuardTest`).
@@ -199,8 +201,10 @@ dropped one keeps its number as "(removed)".
    - The user's file is read, never written, and no document is ever opened for writing
      (`SourceGuardTest`). The user makes the file in an editor.
    - A file that cannot be read counts as no file: the default favorites show, a log line is
-     written, nothing appears on screen.
+     written, nothing appears on screen unasked.
    - A line that is no entry is logged and skipped; the rest of the file still counts.
+   - What the read found is shown only as `~verify`'s rows (`ConfigReport`), when asked for. Never
+     a dialog or a notice: a home app must not nag about a file the user can only fix on a PC.
    - In-app editing stays out. Anything that changed the config here would bring back the saves,
      backups and undo points this rule removed.
 5. **The config is there before the state exists** (`Core.newState`, on main: the user's file at
