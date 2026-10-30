@@ -1,7 +1,9 @@
 name: check
 
 # Every push and pull request: the same gate as locally — unit tests (JVM and Robolectric), lint
-# and detekt, warnings as errors (CLAUDE.md, "Stack particulars").
+# and detekt, warnings as errors (CLAUDE.md, "Stack particulars") — and then the public release
+# build, so R8 and the resource shrink run before a release does.
+
 on:
   push:
   pull_request:
@@ -23,7 +25,13 @@ jobs:
       - name: ./gradlew check
         run: ./gradlew check --stacktrace
 
-      # On failure: the test, lint and detekt reports.
+      # The public release, unsigned: R8 full mode, the resource shrink and lint's release checks,
+      # none of which check runs. Its APK and mapping are not kept: the release that ships is
+      # built and signed locally.
+      - name: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --stacktrace
+
+      # On failure: the test, lint and detekt reports, and R8's output.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -31,3 +39,4 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/
+            app/build/outputs/mapping/

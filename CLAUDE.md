@@ -37,7 +37,9 @@ anything back, no compatibility to keep.
 - **`./gradlew check` is green.** It is what CI runs (`.github/workflows/check.yml`): the unit
   tests, lint, detekt and `sourceScanTest`. A change to a Markdown file alone needs only
   `./gradlew sourceScanTest`; a comment in code needs `check`, since detekt reads comments too
-  (`MaxLineLength`, `OutdatedDocumentation`).
+  (`MaxLineLength`, `OutdatedDocumentation`). CI then builds the public release, unsigned
+  (`./gradlew assembleRelease`), so a change R8 or the resource shrink cannot take fails there
+  rather than at release time.
 - **A feature or a non-trivial change on its own branch** (hard rule 17).
 - **A fix comes with a test that fails without it** (`app/src/test/CLAUDE.md`, "Paid for
   already"), and a change of behaviour with its comment (Comments and KDoc).
