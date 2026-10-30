@@ -41,11 +41,36 @@ class SourceGuardTest {
     private fun after(text: String, marker: String, from: Int): Int =
         text.indexOf(marker, from).let { if (it < 0) text.length else it + marker.length }
 
-    /** Just past the quote that closes the one at [start] on its line; a backslash escapes. */
+    /**
+     * Just past the quote that closes the one at [start] on its line; a backslash escapes. In a
+     * string a template's braces are read whole ([templateEnd]): a quote in them closes nothing.
+     */
     private fun quoteEnd(text: String, start: Int): Int {
         var j = start + 1
-        while (j < text.length && text[j] != text[start] && text[j] != '\n') j += if (text[j] == '\\') 2 else 1
+        while (j < text.length && text[j] != text[start] && text[j] != '\n') {
+            j = when {
+                text[j] == '\\' -> j + 2
+                text[start] == '"' && text.startsWith("\${", j) -> templateEnd(text, j + 2)
+                else -> j + 1
+            }
+        }
         return minOf(j + 1, text.length)
+    }
+
+    /**
+     * Just past the brace that closes a template whose code starts at [from]. A string or char in
+     * that code is read whole by [tokenEnd], templates of its own included, so its braces and
+     * quotes count for nothing.
+     */
+    private fun templateEnd(text: String, from: Int): Int {
+        var depth = 1
+        var j = from
+        while (j < text.length && depth > 0) {
+            if (text[j] == '{') depth++
+            if (text[j] == '}') depth--
+            j = if (text[j] == '"' || text[j] == '\'') tokenEnd(text, j) else j + 1
+        }
+        return j
     }
 
     /** [snippet] in [text], whatever whitespace stands between its tokens (a word, or one sign). */
@@ -73,6 +98,22 @@ class SourceGuardTest {
         assertFalse(has(stripped, "idle = { gate.idle() }"))
         assertTrue(has(stripped, "val x = \"content://a\""))
         assertTrue("a \"/*\" in a string opens no comment", has(stripped, "writeConfig = w"))
+    }
+
+    /**
+     * A template's strings are part of its string, as in the log line of [ConfigFile.read]: their
+     * content is no code and no comment. The fixture is plain strings, not a raw one, which would
+     * read its own "${" as a template.
+     */
+    @Test fun `the lexer reads a template's strings as part of its string`() {
+        val text = listOf(
+            "log(\"\${xs.joinToString(\"// und oder nicht\")}\")",
+            "val s = \"\${xs.joinToString(\"catch (e: Throwable) {\")}\"",
+            "val n = \"\${if (a) \"}\" else \"\${b.map { \"{\" }}\"} done\" // und dann nichts",
+            "val t = \"\\\${plain}\" // und dann nichts",
+        ).joinToString("\n")
+        assertEquals(listOf(3, 4), germanComments(text))
+        assertEquals(emptyList<Int>(), errorsCaught(layers(text).code))
     }
 
     // Rule 7: the config file is read through readCapped, so one too large is refused whole.
