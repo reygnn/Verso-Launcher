@@ -13,8 +13,9 @@ the report names the host and says that `check` still has to pass on the user's 
 
 ## The SDK
 
-1. The command-line tools from `dl.google.com/android/repository/` (the file name is in
-   `repository2-3.xml` there), unzipped to `<sdk>/cmdline-tools/latest`.
+1. The command-line tools from `dl.google.com/android/repository/`. `repository2-3.xml` there
+   lists every `commandlinetools-linux-<n>_latest.zip`; the one with the highest `<n>` is current.
+   The zip holds one folder, `cmdline-tools/`: it becomes `<sdk>/cmdline-tools/latest`.
 2. `sdk.dir=<sdk>` in `local.properties`, which git ignores.
 3. `./gradlew check` names the packages it misses; `<sdk>/cmdline-tools/latest/bin/android
    --sdk=<sdk> sdk install` with exactly those installs them and writes the licence file.
