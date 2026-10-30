@@ -177,8 +177,8 @@ dropped one keeps its number as "(removed)".
      - Where another app or the system refuses what the user asked for (a start, App info, a
        profile turned on).
    - A catch on main always logs, and when the user's action failed it tells the user what
-     failed. Never a silent catch-all. The one catch that only logs is the config file's read
-     (hard rule 4).
+     failed. Never a silent catch-all. The catches that only log are the reads on main before the
+     state exists (hard rule 3): nothing is on screen yet to say it on.
 3. **One IO thread for Verso, process-wide** (`VersoApp.io`).
    - Never another executor for Verso's own work, and never shut down.
    - Main-thread state is touched only on main.
