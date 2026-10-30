@@ -11,7 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
-import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowInsetsController
 import android.widget.Toast
@@ -352,14 +351,11 @@ class MainActivity : Activity() {
         )
     }
 
+    // Not caught (hard rule 2): this instance registered both in its onCreate, so neither can miss.
+    // Why: a catch here would only hide a registration that went wrong.
     private fun unwatchApps() {
         launcherApps.unregisterCallback(appsChanged)
-        // Registered in onCreate, so this never throws today; if it ever does, say so (hard rule 2).
-        try {
-            unregisterReceiver(profilesChanged)
-        } catch (e: IllegalArgumentException) {
-            Log.w("Verso", "profile receiver was not registered", e)
-        }
+        unregisterReceiver(profilesChanged)
     }
 
     /** The favorites the cache file holds, as last written or read (see HomeCache). */
