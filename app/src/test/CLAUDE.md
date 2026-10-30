@@ -27,7 +27,7 @@ Pure logic
   ConfigTextTest           the config file the user writes: its lines, the apps they name
                            (key, package, folded label), readCapped (the file's
                            bounded read)
-  ConfigFuzzTest           the file and the app labels at random, 500 seeds in six locales,
+  ConfigFuzzTest           the file and the app labels at random, 500 seeds in eleven locales,
                            through what runs on main without a catch: no throw from the
                            parse to the rows, every line an entry or reported, every tag
                            drills in, every app found by its name, the home cache whole

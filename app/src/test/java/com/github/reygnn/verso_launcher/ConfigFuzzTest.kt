@@ -208,7 +208,8 @@ class ConfigFuzzTest {
         // Enough to pass the name's cap now and then (the 60-character piece).
         const val NAME_PIECES = 40
 
-        val LOCALES: List<Locale> = listOf("en", "tr", "de", "sv", "ja", "ar").map(Locale::forLanguageTag)
+        val LOCALES: List<Locale> =
+            listOf("en", "tr", "de", "sv", "ja", "ar", "th", "vi", "zh", "he", "ko").map(Locale::forLanguageTag)
         val PACKAGES = listOf("com.whatsapp", "org.mozilla.firefox", "com.google.android.gm", "de.post", "com.a", "x.y")
         val KEYWORDS = listOf("fav", "hide", "name", "tag", "FAV", "Tag", "favorite", "nam", "#", "")
         val GAPS = listOf("", " ", "  ", "\t", "\u00A0", "\u3000")
@@ -220,10 +221,14 @@ class ConfigFuzzTest {
         // Pieces that broke or nearly broke a fold, a cut or a key somewhere: Turkish and Greek
         // case, combining marks with and without a base, lone and paired surrogates, ZWJ
         // sequences, bidi and zero-width controls, the line separators the parse does not split
-        // on, and the characters the file's syntax and the prompt's sigils give a meaning.
+        // on, and the characters the file's syntax and the prompt's sigils give a meaning. Beside
+        // them: marks the accent filter keeps (Thai vowels and tones, Hebrew points), Vietnamese
+        // stacked marks and the "đ" that NFD does not take apart, Hangul as jamo that NFC joins.
         val PIECES = listOf(
             "a", "Z", "Gmail", "Maps", " ", "0", "Ä", "ß", "İ", "ı", "I", "Σ", "ς", "é", "e\u0301",
-            "\u0307", "\u3099", "か", "漢", "مرحبا", "हिन्दी",
+            "\u0307", "\u3099", "か", "漢", "微信", "مرحبا", "हिन्दी",
+            "เก\u0E49า", "\u0E48", "ệ", "e\u0323\u0302", "đ", "Đ",
+            "ש\u05B8\u05C1ל\u05D5\u05B9ם", "\u05B8", "한", "\u1112\u1161\u11AB",
             "😀", "👨\u200D👩\u200D👧", "\uD83D", "\uDE00",
             "\u202E", "\u2066", "\u200B", "\uFEFF", "\u200D", "\u200C", "\u0000", "\u0085", "\u2028", "\t", "\r", "\n",
             "=", ",", "#", "/", ".", "*", "?", "%", "~", "(Work)", "x".repeat(60),
