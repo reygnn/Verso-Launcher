@@ -525,6 +525,19 @@ class LauncherLogicTest {
         assertEquals("a typed ß finds the plain name too", listOf("p/street"), LauncherLogic.search(plain, "straße").keys())
     }
 
+    /**
+     * [LauncherLogic.foldLabel] lowers with ROOT, so an upper-case Turkish label holds a dotted i
+     * where the word has a dotless ı: "IŞIK" folds to "işik". Typed correctly, "ışık" must still
+     * find it, and the other way round.
+     */
+    @Test fun `search finds an upper-case Turkish label by its dotless spelling, both ways`() {
+        Locale.setDefault(Locale.of("tr", "TR"))
+        val upper = listOf(OrderedFake("p/isik", LauncherLogic.foldLabel("IŞIK")))
+        assertEquals(listOf("p/isik"), LauncherLogic.search(upper, "ışık").keys())
+        val lower = listOf(OrderedFake("p/isik", LauncherLogic.foldLabel("ışık")))
+        assertEquals(listOf("p/isik"), LauncherLogic.search(lower, "IŞIK").keys())
+    }
+
     /** The plain spelling is for matching only: a stored tag keeps its letter. */
     @Test fun `letters NFD keeps whole stay in tags`() {
         assertEquals("łódź", LauncherLogic.canonicalTag("Łódź"))
