@@ -51,7 +51,7 @@ class CommentLinkTest {
     }
 
     @Test fun `every code name in the Markdown files exists`() {
-        val docs = listOf("CLAUDE.md", "CAVEATS.md", "README.md", "app/src/test/CLAUDE.md")
+        val docs = listOf("CLAUDE.md", "CLAUDE-CLOUD.md", "CAVEATS.md", "README.md", "app/src/test/CLAUDE.md")
         val broken = docs.filter { File(root, it).isFile }.flatMap { doc ->
             File(root, doc).readLines().flatMapIndexed { i, text ->
                 codeNames(text).filterNot(::exists).map { name -> "$doc:${i + 1}: $name" }

@@ -152,7 +152,7 @@ val sourceScanTest = tasks.register<Test>("sourceScanTest") {
     inputs.files(
         fileTree("src"),
         file("proguard-rules.pro"),
-        rootProject.files("CLAUDE.md", "CAVEATS.md", "README.md"),
+        rootProject.files("CLAUDE.md", "CLAUDE-CLOUD.md", "CAVEATS.md", "README.md"),
     ).withPropertyName("scannedSources").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 tasks.named("check") { dependsOn(sourceScanTest) }

@@ -41,6 +41,7 @@ anything back, no compatibility to keep.
 - **A feature or a non-trivial change on its own branch** (hard rule 17).
 - **A fix comes with a test that fails without it** (`app/src/test/CLAUDE.md`, "Paid for
   already"), and a change of behaviour with its comment (Comments and KDoc).
+- **In a cloud session,** `CLAUDE-CLOUD.md` first.
 
 ---
 
