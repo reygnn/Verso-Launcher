@@ -41,7 +41,9 @@ package com.github.reygnn.verso_launcher
  * latch to keep the first load waiting. recreate() is posted, as on a device: controller.get()
  * switches only once the main looper idles. The user's config file is a real file in the
  * application's getExternalFilesDir(null), written before the state is built (the first
- * MainActivity) or before a "~restart".
+ * MainActivity) or before a "~restart". Apps are listed through Robolectric's LauncherApps
+ * (MainActivityAppsTest builds them by reflection), under native graphics: without it
+ * LauncherActivityInfo finds no glyphs for a label and lists the app under its package.
  *
  * FILES AND LOCALES
  *

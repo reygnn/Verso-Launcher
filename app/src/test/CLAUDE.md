@@ -51,6 +51,8 @@ Files (real temp files)
 The window (R)
   MainActivityFlowsTest    the real Activity: the config file from the first frame and read
                            again by ~restart only, "%", ~restart and recreation
+  MainActivityAppsTest     the real Activity with apps listed: home and its cache from the first
+                           list, package changes collected in front, behind and across a pause
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, empty hints, TalkBack, the tap guard, Enter

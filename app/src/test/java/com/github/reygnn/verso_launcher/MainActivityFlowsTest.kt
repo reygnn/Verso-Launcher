@@ -3,6 +3,7 @@ package com.github.reygnn.verso_launcher
 import android.content.Intent
 import android.os.Looper
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -25,8 +26,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * Only flows that need no LauncherApps fake (Robolectric models it too thinly: it lists no apps, so
- * the files here name apps by key). The process's IO thread is real: the tests drain it, or hold
+ * Only flows that need no app listed, so the files here name apps by key; the flows with apps are
+ * MainActivityAppsTest's. The process's IO thread is real: the tests drain it, or hold
  * it with a latch to keep the first load waiting. The user's config file is a real file in the
  * application's external files folder, written before the state is built or before a "~restart".
  */
@@ -72,7 +73,7 @@ class MainActivityFlowsTest {
         prompt.onEditorAction(EditorInfo.IME_ACTION_GO)
     }
 
-    /** No LauncherApps, so no rows to tap: the tap as AppDrawer hands it on. */
+    /** No app listed, so no rows to tap: the tap as AppDrawer hands it on. */
     private fun tap(action: DrawerAction<AppEntry>) = activity.onDrawerAction(action)
 
     private fun favorites() = app.core.state.config.favorites
@@ -162,7 +163,7 @@ class MainActivityFlowsTest {
 
     /**
      * The state's hand-backs are the process's too: a refresh landing while no window exists still
-     * lands (Robolectric lists no apps, so its usage.txt read is what shows it).
+     * lands (no app is listed here, so its usage.txt read is what shows it).
      */
     @Test fun `a refresh lands while no window exists`() {
         holdIo()                                // the first refresh queues behind the hold
@@ -211,6 +212,16 @@ class MainActivityFlowsTest {
         controller.newIntent(home)
         assertFalse(root.isDragging)
     }
+
+    /** A hardware keyboard on home: the first key opens the drawer with its character typed. */
+    @Test fun `typing on home opens the drawer with what was typed`() {
+        started()
+        assertTrue(activity.onKeyDown(KeyEvent.KEYCODE_G, keyDown(KeyEvent.KEYCODE_G)))
+        assertEquals("g", prompt.text.toString())
+        assertFalse("the drawer takes the next key itself", activity.onKeyDown(KeyEvent.KEYCODE_M, keyDown(KeyEvent.KEYCODE_M)))
+    }
+
+    private fun keyDown(code: Int) = KeyEvent(KeyEvent.ACTION_DOWN, code)
 
     // ---- ~verify -------------------------------------------------------------------------
 

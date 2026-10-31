@@ -36,11 +36,13 @@ with its reason — the performance points after measuring.
     no "skipping profile" or "skipping app" in the A17's or the Pixel's log, and neither has a
     second profile. Throttle the retry only once a device shows it.
 - Test gaps that would need what the JVM tests lack (audits 2026-10-21 (2) #14, 2026-10-22 #14
-  and #15, 2026-10-22 (3) #4): `onResume` asking for a refresh on `needsRefresh` (Robolectric's
-  `LauncherApps` is too thin; reflection only), `modeChanged` while a drag runs (real
-  MotionEvents through the page turn), the list's top and end and scrolling it to the top (a
-  laid-out list longer than the screen, or apps in `MainActivityFlowsTest`). The rules beneath are pinned (`LauncherStateTest`, `SwipeGestureTest`,
-  `LauncherActionsTest`); the wiring is used on the devices every day.
+  and #15, 2026-10-22 (3) #4): `onResume` asking for a refresh on `needsRefresh` (it takes an
+  enumeration that comes back incomplete), `modeChanged` while a drag runs (real MotionEvents
+  through the page turn), the list's top and end and scrolling it to the top (a laid-out list
+  longer than the screen). Apps can be listed since 2026-10-31 (`MainActivityAppsTest`), which
+  covers the window's package changes and the home cache. The rules beneath are pinned
+  (`LauncherStateTest`, `SwipeGestureTest`, `LauncherActionsTest`); the wiring is used on the
+  devices every day.
 - "First swipe after returning from an app does nothing" (A17): seen once, never reproduced. A
   late HOME intent (seen 495 ms after onStart) aborting the swipe is a candidate; a time-window
   workaround was tried and removed again. Discarded until a real reproduction.
