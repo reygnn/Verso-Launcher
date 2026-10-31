@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     // Static analysis only: a build plugin, nothing of it reaches the APK.
     alias(libs.plugins.detekt)
+    // Test coverage reports only: a build plugin, nothing of it reaches the APK.
+    alias(libs.plugins.kover)
     // No Kotlin plugin: AGP 9 built-in Kotlin compiles the sources.
     // No Compose, no serialization, no KSP, no Hilt — by design.
 }

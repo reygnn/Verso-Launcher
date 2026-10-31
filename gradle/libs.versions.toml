@@ -20,6 +20,8 @@ robolectric = "4.16.1"
 # Still alpha: pinned exactly, and an upgrade is its own commit — the rule names and their
 # config keys may change between alphas (see config/detekt/detekt.yml).
 detekt = "2.0.0-alpha.6"
+# Build-only — test coverage reports (./gradlew koverHtmlReport); a Gradle plugin, never in the APK.
+kover = "0.9.11"
 
 [libraries]
 # Test-only — JVM unit tests for the pure logic in LauncherLogic.kt.
@@ -33,3 +35,5 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 android-application = { id = "com.android.application", version.ref = "agp" }
 # Build-only — never in the APK.
 detekt = { id = "dev.detekt", version.ref = "detekt" }
+# Build-only — never in the APK.
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
