@@ -17,8 +17,8 @@ comments:
 
 complexity:
   TooManyFunctions:
-    # Commands holds one entry per config-file step ("~open", the read at every start)
-    # plus what they share: each is a feature, not a split waiting to happen.
+    # LauncherState has 12: its public calls plus a refresh's steps (load, commit, the files
+    # merged and written back). If it were split, its thread contract would span two classes.
     allowedFunctionsPerClass: 13
 
 style:
@@ -34,8 +34,8 @@ style:
     # would gain from it.
     maxLineLength: 150
   ReturnCount:
-    # The hard rules are guard clauses ("no app list yet: return", "not linked: return"); a function
-    # that checks them first is the point, not a smell.
+    # The hard rules are guard clauses ("superseded while queued: return", "no profile waiting:
+    # return"); a function that checks them first is the point, not a smell.
     excludeGuardClauses: true
 
 naming:

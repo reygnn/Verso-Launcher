@@ -2,7 +2,7 @@ package com.github.reygnn.verso_launcher
 
 /**
  * One launchable app row. Plain Kotlin (no ComponentName) so the state layer stays JVM-testable;
- * the Activity builds the ComponentName only when it launches.
+ * [AppLauncher] builds the ComponentName only for a start or "App info".
  */
 internal data class AppEntry(
     /** The custom name if one is set, else [systemLabel]. */
