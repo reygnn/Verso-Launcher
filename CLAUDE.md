@@ -62,6 +62,9 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   No cloud backup; a device transfer leaves out the home-cache (`data_extraction_rules.xml`).
 - **Tests:** JUnit 4 on the JVM, Robolectric only where a real widget is needed, no mocks (fakes
   and manual queues), no instrumented tests.
+  - **Coverage** is a report, `./gradlew koverHtmlReportDebug` (Kover, a build plugin like
+    detekt), never a minimum in `check`. Why: a percentage as a goal rewards tests that tick
+    lines; the report is for finding what never runs.
 - **Warnings are errors** — Kotlin, lint and detekt (`config/detekt/detekt.yml`, part of
   `check`).
   - A deliberate finding gets a `@Suppress` at the narrowest scope. When the function does more
