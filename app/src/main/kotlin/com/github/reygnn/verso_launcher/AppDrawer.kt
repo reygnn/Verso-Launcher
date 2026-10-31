@@ -356,21 +356,11 @@ internal class AppDrawer(
         shownGeneration++
         // Not before the apps load ("no apps" would be false). Only on change: a live region
         // would make TalkBack repeat it on every keystroke.
-        val hint = if (!state.appsLoaded) "" else activity.getString(
-            when (LauncherLogic.emptyHint(mode, q)) {
-                EmptyHint.NO_MATCH -> R.string.empty_no_match
-                EmptyHint.NO_APPS -> R.string.empty_no_apps
-                EmptyHint.NO_TAGS -> R.string.empty_no_tags
-                EmptyHint.NO_TAG_MATCH -> R.string.empty_no_tag_match
-                EmptyHint.NO_RECENTS -> R.string.empty_no_recents
-                EmptyHint.NO_COMMAND -> R.string.empty_no_command
-            }
-        )
+        val hint = if (!state.appsLoaded) "" else activity.getString(LauncherLogic.emptyHint(mode, q).text())
         if (emptyView.text.toString() != hint) emptyView.text = hint
         adapter.notifyDataSetChanged()
         // On an anchor flip the ListView keeps the old position: pin it to the right end.
-        if (anchorFlipped && topAnchored && shown.isNotEmpty()) listView.setSelection(0)
-        if (anchorFlipped && !topAnchored && shown.isNotEmpty()) listView.setSelection(shown.lastIndex)
+        if (anchorFlipped && shown.isNotEmpty()) listView.setSelection(if (topAnchored) 0 else shown.lastIndex)
         if (mode != previous) onModeChanged(mode)
     }
 
@@ -508,3 +498,13 @@ internal fun printable(event: KeyEvent): String? = LauncherLogic.typedChar(
     chord = event.isCtrlPressed || event.isMetaPressed ||
         event.metaState and KeyEvent.META_ALT_LEFT_ON != 0,
 )
+
+/** The empty list's words for this hint. */
+private fun EmptyHint.text(): Int = when (this) {
+    EmptyHint.NO_MATCH -> R.string.empty_no_match
+    EmptyHint.NO_APPS -> R.string.empty_no_apps
+    EmptyHint.NO_TAGS -> R.string.empty_no_tags
+    EmptyHint.NO_TAG_MATCH -> R.string.empty_no_tag_match
+    EmptyHint.NO_RECENTS -> R.string.empty_no_recents
+    EmptyHint.NO_COMMAND -> R.string.empty_no_command
+}

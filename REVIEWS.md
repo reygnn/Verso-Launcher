@@ -18,7 +18,7 @@
 - Free from legacy code burden
 
 **Cons:**
-- 17 entries in detekt-baseline.xml. I have been instructed not to discuss them.
+- 16 entries in detekt-baseline.xml. I have been instructed not to discuss them.
 
 **Verdict:** "I can't lie about your chances using bloated launchers. But you have my sympathies."
 

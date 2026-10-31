@@ -2,7 +2,6 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>CyclomaticComplexMethod:AppDrawer.kt:AppDrawer$private fun applyFilter</ID>
     <ID>CyclomaticComplexMethod:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; enterAction: DrawerAction&lt;T&gt;</ID>
     <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; rowsFor: List&lt;Row&lt;T&gt;&gt;</ID>
