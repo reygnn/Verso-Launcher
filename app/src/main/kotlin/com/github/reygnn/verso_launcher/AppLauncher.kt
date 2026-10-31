@@ -85,15 +85,20 @@ internal class AppLauncher(
     }
 
     private fun unpause(user: UserHandle, entry: AppEntry) {
-        try {
+        // the system may refuse to turn the profile on: say so, never crash
+        @Suppress("TooGenericExceptionCaught") try {
             system.unpause(user)
         } catch (e: SecurityException) {
             Log.w("Verso", "quiet mode denied: ${entry.key}", e)
             say(context.getString(R.string.toast_not_default_home), true)
             return
+        } catch (e: RuntimeException) {
+            // Not launch's "not found": the app is there, its profile stayed off.
+            Log.w("Verso", "quiet mode failed: ${entry.key}", e)
+            say(context.getString(R.string.toast_work_apps_failed), false)
+            return
         }
-        // Only once the request went through: a throw of any other kind (launch's catch) must
-        // leave nothing waiting.
+        // Only once the request went through: a refusal must leave nothing waiting.
         // Thread: main, like the ACTION_PROFILE_AVAILABLE receiver, so the answer cannot come
         //   before this line.
         waitingFor = user to entry.label

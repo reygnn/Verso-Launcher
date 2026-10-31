@@ -28,6 +28,7 @@
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
     <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
+    <string name="toast_work_apps_failed">work apps could not be turned on</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
          (stateDescription), and what a double-tap does (the click's label; TalkBack adds
          "double-tap to"). -->

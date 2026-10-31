@@ -27,6 +27,7 @@
     <string name="toast_not_found">Nicht gefunden: %1$s</string>
     <string name="toast_denied">Verweigert: %1$s</string>
     <string name="toast_not_default_home">Für Arbeits-Apps Verso als Standard-Startseite festlegen</string>
+    <string name="toast_work_apps_failed">Arbeits-Apps ließen sich nicht einschalten</string>
     <!-- Eine Zeile oder ein Favorit, wie ein Screenreader sie nimmt: der App-Name, daneben der
          Zustand (stateDescription), und was Doppeltippen tut (die Beschriftung des Klicks;
          TalkBack setzt "Doppeltippen zum" davor). -->
