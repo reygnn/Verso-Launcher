@@ -1,6 +1,7 @@
 package com.github.reygnn.verso_launcher
 
 import android.content.pm.LauncherApps
+import android.os.StrictMode
 import android.os.UserManager
 import android.provider.Telephony
 
@@ -45,10 +46,10 @@ internal class Core(private val app: VersoApp) {
     }
 
     private fun newState(): LauncherState {
-        val dir = app.filesDir
+        val dir = beforeState { app.filesDir }
         // No file there, or none readable: the defaults (hard rule 10). An empty file is a config.
-        val read = ConfigFile.read(app.getExternalFilesDir(null), ::logWarning)
-        val byUsage = DrawerOrder.read(dir, ::logWarning) ?: false
+        val read = beforeState { ConfigFile.read(app.getExternalFilesDir(null), ::logWarning) }
+        val byUsage = beforeState { DrawerOrder.read(dir, ::logWarning) } ?: false
         lateinit var built: LauncherState
         built = LauncherState(
             io = app::submitIo,
@@ -75,5 +76,21 @@ internal class Core(private val app: VersoApp) {
             onRefreshed = { listChanged -> app.instance?.refreshed(built, listChanged) },
         )
         return built
+    }
+
+    /**
+     * [block], one of hard rule 5's accesses on main, let through the daily driver's StrictMode
+     * ([VersoApp]), which then reports only what is not meant to be there.
+     *
+     * Why: writes too, not only reads: getFilesDir and getExternalFilesDir create their folder
+     *   when it is missing.
+     */
+    private inline fun <T> beforeState(block: () -> T): T {
+        val policy = StrictMode.allowThreadDiskWrites()
+        try {
+            return block()
+        } finally {
+            StrictMode.setThreadPolicy(policy)
+        }
     }
 }

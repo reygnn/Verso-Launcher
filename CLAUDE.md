@@ -103,7 +103,8 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   (`r8-map-id-<hash>`) for retrace: `./crash.sh` in `~/AndroidStudio_Projects/retrace`, not in
   this repo.
 - **Daily-driver build:** `./gradlew bundleRelease -PdailyDriver` (and every debug build)
-  compiles in `~crash`. `DailyDriver.ENABLED` comes from twin files in `src/dailyDriver` and
+  compiles in `~crash` and turns on StrictMode, log only (`VersoApp`): every line tagged
+  "StrictMode" in logcat is a finding. `DailyDriver.ENABLED` comes from twin files in `src/dailyDriver` and
   `src/public`, not from BuildConfig: every buildFeature stays off. The public build has an even
   versionCode, the daily-driver build the odd one above it and `-daily` in its name (`0.4.2` = 24,
   `0.4.2-daily` = 25). **A release bump is versionName +0.0.1, versionCode +2.**

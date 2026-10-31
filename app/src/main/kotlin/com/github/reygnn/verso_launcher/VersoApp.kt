@@ -3,6 +3,7 @@ package com.github.reygnn.verso_launcher
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
+import android.os.StrictMode
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -37,6 +38,22 @@ class VersoApp : Application() {
      * "~restart" resets it. Built on first use (the first activity), from this Application alone.
      */
     internal val core by lazy { Core(this) }
+
+    /**
+     * In the daily-driver build, StrictMode reports to logcat (tag "StrictMode") every disk or
+     * network access on main and every leaked closable or registration: slips no JVM test sees.
+     * A log only, never a penalty that throws (hard rule 2). The public build sets nothing.
+     *
+     * Why: the reads hard rule 5 puts on main are let through where they run ([Core]), so every
+     *   line in that log is a finding.
+     */
+    override fun onCreate() {
+        super.onCreate()
+        if (DailyDriver.ENABLED) {
+            StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
+            StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectAll().penaltyLog().build())
+        }
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
 

@@ -378,9 +378,10 @@ class MainActivity : Activity() {
             val pairs = favs.map { it.key to it.label }
             if (pairs != cachedFavorites) {
                 cachedFavorites = pairs
-                // The folder, not this window: the write may run after the window is destroyed.
-                val dir = filesDir
-                submitIo { HomeCache.write(dir, favs) }
+                // The Application, not this window: the write may run after the window is destroyed.
+                // Its folder is looked up there, off main: getFilesDir checks it on disk.
+                val process = app
+                submitIo { HomeCache.write(process.filesDir, favs) }
             }
         }
     }
