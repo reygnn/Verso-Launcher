@@ -30,6 +30,20 @@ with its reason — the performance points after measuring.
     helps, and only on the A17 when throttled with every row dimmed — while it lets the outline
     show through a dimmed row's fill, the reason the layer is there; a per-row hardware layer is
     redrawn as rows are rebound and saves nothing. A paused work profile dims some rows, not all.
+- Measured on the A17 (release build, R8, 58 apps, 2026-10-31), against a review that estimated
+  them from the code:
+  - As a list comes in, `LauncherState.resolve` takes 0.15 ms on main for the config and 0.01 ms
+    for the names, 0.1 ms when a name re-sorts the list (about 1 ms for 200 apps). It runs only
+    when the list changed: not worth moving to the IO thread.
+  - Measure and layout take 0.2 ms a frame (median) and 4.8 ms at most, the drawer's first frame
+    after `GONE` included. `AppDrawer.applyFilter` takes 0.1 to 0.6 ms.
+  - `PageTurn.open` at a swipe's release takes 7 to 15 ms on main: `PageTurn.showStatusBar` 5 to
+    7 ms (up to 10.6; 1.3 to 1.8 ms when a key opens the drawer), and the home fade's
+    `withLayer()`, which rebuilds the layer the drag already had, 0.3 to 4 ms. Keeping the drag's
+    layer and posting the status bar cut `open` to 0.5 ms, yet the janky frames stayed the same
+    (2.5 against 2.8 % of about 600): the work only moved. Not changed.
+  - About one frame per open and close is janky (2 to 3 %), with the keyboard and without it
+    (`?`). Where it comes from takes a frame trace; not chased.
 
 - Checked on the devices (audits 2026-10-21 (2) #4, 2026-10-23 #17):
   - A profile that never reads makes every return home enumerate again (`needsRefresh`). Not seen:
