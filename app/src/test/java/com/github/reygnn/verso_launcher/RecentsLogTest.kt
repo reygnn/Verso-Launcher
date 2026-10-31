@@ -31,6 +31,13 @@ class RecentsLogTest {
         assertEquals(false, File(dir, "${RecentsLog.FILE}.tmp").exists())
     }
 
+    @Test fun `a file of exactly the cap is read`() {
+        val dir = folder.root
+        val entry = "a/A\n"
+        File(dir, RecentsLog.FILE).writeText(entry + "\n".repeat(RecentsLog.MAX_BYTES.toInt() - entry.length))
+        assertEquals(listOf("a/A"), RecentsLog.read(dir, 8, noLog))
+    }
+
     @Test fun `no file, or one too large, is an empty list`() {
         val dir = folder.root
         assertEquals(emptyList<String>(), RecentsLog.read(dir, 8, noLog))

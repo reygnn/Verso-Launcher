@@ -88,6 +88,16 @@ class UsageLogTest {
         assertEquals(mapOf("a" to Usage(1.0, 5L)), UsageLog.parse(text))
     }
 
+    /** The boundaries of the junk above: a score must be above 0, a time may be 0. */
+    @Test fun `a score of 0 is junk, a time of 0 is not`() {
+        assertEquals(mapOf("b" to Usage(1.0, 0L)), UsageLog.parse("a\t0.0\t5\nb\t1.0\t0\n"))
+    }
+
+    @Test fun `an entry right at the forget line is kept, one below it is dropped`() {
+        val log = mapOf("kept" to Usage(UsageLog.FORGET_BELOW, t0), "gone" to Usage(UsageLog.FORGET_BELOW * 0.99, t0))
+        assertEquals(setOf("kept"), UsageLog.parse(UsageLog.format(log, t0)).keys)
+    }
+
     @Test fun `no file is an empty log, and a write lands whole`() {
         val dir = folder.newFolder()
         assertEquals(emptyMap<String, Usage>(), UsageLog.read(dir, noLog))
@@ -104,6 +114,13 @@ class UsageLogTest {
         // Root reads it all the same: then there is no unreadable file to test, a skip, not a failure.
         assumeFalse("running as root", file.canRead())
         assertNull(UsageLog.read(dir, noLog))
+    }
+
+    @Test fun `a file of exactly the cap is read`() {
+        val dir = folder.newFolder()
+        val entry = "a\t1.0\t5\n"
+        File(dir, UsageLog.FILE).writeText(entry + "\n".repeat(UsageLog.MAX_BYTES.toInt() - entry.length))
+        assertEquals(mapOf("a" to Usage(1.0, 5L)), UsageLog.read(dir, noLog))
     }
 
     @Test fun `a file too large is not read, only replaced`() {

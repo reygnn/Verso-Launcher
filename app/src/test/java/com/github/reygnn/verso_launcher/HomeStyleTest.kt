@@ -100,6 +100,12 @@ class HomeStyleTest {
         assertEquals(1.0, HomeStyle.luminance(0xFFFFFFFF.toInt()), 1e-9)
     }
 
+    /** 0x0A is the last channel on the linear segment (10 / 255 = 0.0392 < 0.03928), 0x0B the first on the curve. */
+    @Test fun `luminance takes the linear segment below 0_03928 and the curve above it`() {
+        assertEquals(0.0030353, HomeStyle.luminance(grey(0x0A)), 1e-7)
+        assertEquals(0.0033465, HomeStyle.luminance(grey(0x0B)), 1e-7)
+    }
+
     @Test fun `withAlpha replaces only the alpha`() {
         assertEquals(0xB4FFFFFF.toInt(), HomeStyle.withAlpha(0xFFFFFFFF.toInt(), 180))
         assertEquals(0x00123456, HomeStyle.withAlpha(0xFF123456.toInt(), -5))
@@ -139,6 +145,13 @@ class HomeStyleTest {
         val gate = DoubleTapGate(300)
         assertFalse(gate.tap(1_000))
         assertTrue(gate.tap(1_250))
+    }
+
+    @Test fun `the double-tap window is closed at both ends`() {
+        assertTrue("exactly the window", DoubleTapGate(300).run { tap(1_000); tap(1_300) })
+        assertFalse("one past it", DoubleTapGate(300).run { tap(1_000); tap(1_301) })
+        assertTrue("the same millisecond", DoubleTapGate(300).run { tap(1_000); tap(1_000) })
+        assertFalse("a clock set back", DoubleTapGate(300).run { tap(1_000); tap(999) })
     }
 
     @Test fun `taps further apart are two single taps`() {

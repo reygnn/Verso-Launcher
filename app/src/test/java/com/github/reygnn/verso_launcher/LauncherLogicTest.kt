@@ -985,6 +985,16 @@ class LauncherLogicTest {
         for (c in spoof) assertEquals("U+%04X".format(c.code), "ab", LauncherLogic.cleanName("a${c}b"))
     }
 
+    /**
+     * The other side of each spoof range: U+2029 and U+202F (the narrow no-break space of French
+     * typography) before and after the first, U+2065 and U+206A around the second, all kept.
+     */
+    @Test fun `cleanName keeps the neighbours of the spoof ranges`() {
+        for (c in listOf('\u2029', '\u202F', '\u2065', '\u206A')) {
+            assertEquals("U+%04X".format(c.code), "a${c}b", LauncherLogic.cleanName("a${c}b"))
+        }
+    }
+
     /** "C#" and "a~b" are searches: a sigil counts only as the first character. */
     @Test fun `a sigil inside the text is no mode`() {
         assertEquals(Mode.NORMAL, LauncherLogic.parseMode("c#"))
