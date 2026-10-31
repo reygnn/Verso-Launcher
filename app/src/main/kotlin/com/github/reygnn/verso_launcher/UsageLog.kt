@@ -58,16 +58,23 @@ internal object UsageLog {
     }
 
     fun parse(text: String): Map<String, Usage> {
+        // One line of [format], or null for a torn or foreign one: it is skipped.
+        fun entryOf(line: String): Pair<String, Usage>? {
+            val parts = line.split('\t').takeIf { it.size == FIELDS && it[0].isNotEmpty() } ?: return null
+            val score = parts[1].toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+            val at = parts[2].toLongOrNull()?.takeIf { it >= 0 }
+            return if (score != null && at != null) parts[0] to Usage(score, at) else null
+        }
         val out = HashMap<String, Usage>()
         for (line in text.lineSequence()) {
-            val parts = line.split('\t')
-            if (parts.size != 3 || parts[0].isEmpty()) continue
-            val score = parts[1].toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 } ?: continue
-            val at = parts[2].toLongOrNull()?.takeIf { it >= 0 } ?: continue
-            out[parts[0]] = Usage(score, at)
+            val (key, usage) = entryOf(line) ?: continue
+            out[key] = usage
         }
         return out
     }
+
+    /** key, score, at: what [format] writes on each line. */
+    private const val FIELDS = 3
 
     /** Ours stays far smaller; anything larger is not read into memory, just replaced. */
     const val MAX_BYTES = 1_000_000L

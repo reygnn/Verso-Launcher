@@ -29,6 +29,13 @@ internal object HomeStyle {
     /** Also the smallest a favorite can be. */
     const val INFO_DP = 18f
 
+    // ---- The drawer (Sigil's sizes, sp: they follow the system font size) -----
+    const val DRAWER_ROW_SP = 20f
+    const val DRAWER_PROMPT_SP = 20f
+    /** The hint of an empty list, a step below the rows. */
+    const val DRAWER_HINT_SP = 18f
+    const val DRAWER_CLEAR_SP = 24f
+
     // ---- Kolibri defaults -----------------------------------------------------
     /** Kolibri's size slider (0..2) at its default, baked in: Verso has no slider. */
     const val LAYOUT_SCALE = 0.6f

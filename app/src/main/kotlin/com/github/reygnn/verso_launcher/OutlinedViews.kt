@@ -200,7 +200,7 @@ internal class OutlinedImageView(context: Context) : ImageView(context) {
             for (i in 0 until fill) {
                 val layer = current.getDrawable(i)
                 if (outlineColor != Color.TRANSPARENT) {
-                    layer.alpha = 255
+                    layer.alpha = OPAQUE
                     layer.colorFilter = BlendModeColorFilter(outlineColor, BlendMode.SRC_IN)
                 } else {
                     layer.alpha = 0
@@ -212,3 +212,6 @@ internal class OutlinedImageView(context: Context) : ImageView(context) {
         invalidate()
     }
 }
+
+/** A Drawable's alpha at its full value (0 to 255). */
+private const val OPAQUE = 255

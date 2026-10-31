@@ -441,7 +441,7 @@ class SourceGuardTest {
 
     private companion object {
         /** detekt-baseline.xml's entries; lowered with every one fixed, never raised. */
-        const val DETEKT_BASELINE = 26
+        const val DETEKT_BASELINE = 18
 
         // Read on a code layer: wherever it stands there, it is code.
         val SUPPRESS = Regex("""@Suppress\s*\(""")

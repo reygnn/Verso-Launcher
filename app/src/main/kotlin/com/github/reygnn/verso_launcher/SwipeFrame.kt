@@ -126,7 +126,7 @@ internal class SwipeFrame(context: Context, val host: Host) : FrameLayout(contex
                     var toward = 0f
                     if (vt != null) {
                         vt.addMovement(ev)
-                        vt.computeCurrentVelocity(1000)
+                        vt.computeCurrentVelocity(PX_PER_SECOND)
                         toward = if (dir == SwipeDir.UP) -vt.yVelocity else vt.yVelocity
                     }
                     endDrag(SwipeGesture.dragEnd(dragOffset, host.pageHeight(), toward, dragFlingVelocity))
@@ -172,3 +172,11 @@ internal class SwipeFrame(context: Context, val host: Host) : FrameLayout(contex
         super.onDetachedFromWindow()
     }
 }
+
+/**
+ * [VelocityTracker.computeCurrentVelocity]'s units for pixels per second.
+ *
+ * Why: [ViewConfiguration]'s fling velocities, which the drag's end is compared with, are in
+ *   pixels per second; with 1 the tracker answers per millisecond and no flick would ever count.
+ */
+private const val PX_PER_SECOND = 1000

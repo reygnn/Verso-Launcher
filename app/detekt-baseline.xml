@@ -2,7 +2,6 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ComplexCondition:PageTurn.kt:PageTurn$isOpen &amp;&amp; drawerFromTop &amp;&amp; mode != Mode.RECENTS &amp;&amp; !root.isDragging</ID>
     <ID>CyclomaticComplexMethod:AppDrawer.kt:AppDrawer$private fun applyFilter</ID>
     <ID>CyclomaticComplexMethod:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>CyclomaticComplexMethod:LauncherLogic.kt:LauncherLogic$fun &lt;T : Ordered&gt; enterAction: DrawerAction&lt;T&gt;</ID>
@@ -13,13 +12,6 @@
     <ID>LongMethod:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>LongMethod:SwipeFrame.kt:SwipeFrame$override fun dispatchTouchEvent: Boolean</ID>
     <ID>LoopWithTooManyJumpStatements:Apps.kt:for</ID>
-    <ID>LoopWithTooManyJumpStatements:UsageLog.kt:UsageLog$for</ID>
-    <ID>MagicNumber:AppDrawer.kt:AppDrawer$18f</ID>
-    <ID>MagicNumber:AppDrawer.kt:AppDrawer$20f</ID>
-    <ID>MagicNumber:AppDrawer.kt:AppDrawer$24f</ID>
-    <ID>MagicNumber:OutlinedViews.kt:OutlinedImageView$255</ID>
-    <ID>MagicNumber:SwipeFrame.kt:SwipeFrame$1000</ID>
-    <ID>MagicNumber:UsageLog.kt:UsageLog$3</ID>
     <ID>ReturnCount:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
     <ID>ReturnCount:HomePage.kt:HomePage$fun render</ID>
     <ID>ReturnCount:SwipeFrame.kt:SwipeFrame$override fun dispatchTouchEvent: Boolean</ID>

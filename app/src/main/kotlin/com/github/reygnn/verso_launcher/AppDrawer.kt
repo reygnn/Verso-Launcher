@@ -151,7 +151,7 @@ internal class AppDrawer(
             }
         }
         emptyView = OutlinedTextView(activity).apply {
-            textSize = 18f
+            textSize = HomeStyle.DRAWER_HINT_SP
             // Italic like the prompt's hint: a hint, not an app row.
             setTypeface(listTypeface, Typeface.ITALIC)
             gravity = Gravity.BOTTOM or Gravity.START
@@ -168,7 +168,7 @@ internal class AppDrawer(
         clearButton = OutlinedTextView(activity).apply {
             text = "×"
             typeface = Typeface.MONOSPACE
-            textSize = 24f
+            textSize = HomeStyle.DRAWER_CLEAR_SP
             setTextColor(palette.text)
             gravity = Gravity.CENTER
             minWidth = 48.dp()
@@ -190,7 +190,7 @@ internal class AppDrawer(
             setTextColor(palette.text)
             textCursorDrawable = cursorDrawable.apply { setSize(2.dp(), 1) }
             typeface = Typeface.MONOSPACE
-            textSize = 20f
+            textSize = HomeStyle.DRAWER_PROMPT_SP
             background = null
             // Room for the outline's outer half: the view clips at its bounds.
             setPadding(2.dp(), 2.dp(), 2.dp(), 2.dp())
@@ -422,7 +422,7 @@ internal class AppDrawer(
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
             val tv = (convertView as? TextView) ?: OutlinedTextView(activity).apply {
-                textSize = 20f
+                textSize = HomeStyle.DRAWER_ROW_SP
                 gravity = Gravity.CENTER_VERTICAL
                 isSingleLine = true
                 ellipsize = TextUtils.TruncateAt.END
