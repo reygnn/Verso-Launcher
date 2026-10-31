@@ -40,10 +40,14 @@ with its reason — the performance points after measuring.
   - `PageTurn.open` at a swipe's release takes 7 to 15 ms on main: `PageTurn.showStatusBar` 5 to
     7 ms (up to 10.6; 1.3 to 1.8 ms when a key opens the drawer), and the home fade's
     `withLayer()`, which rebuilds the layer the drag already had, 0.3 to 4 ms. Keeping the drag's
-    layer and posting the status bar cut `open` to 0.5 ms, yet the janky frames stayed the same
-    (2.5 against 2.8 % of about 600): the work only moved. Not changed.
+    layer and posting the status bar cut `open` to 0.5 ms, yet showed no measurable gain in
+    janky frames (2.5 against 2.8 % of about 600, within the spread between runs): the work only
+    moved. Not changed.
   - About one frame per open and close is janky (2 to 3 %), with the keyboard and without it
     (`?`). Where it comes from takes a frame trace; not chased.
+  - Janky frames are `dumpsys gfxinfo`'s "Janky frames", counted against the real frame deadline
+    (about 11 ms at the A17's 90 Hz), not its "Janky frames (legacy)". 15 gestures a build show
+    no effect; one below a percentage point would take far more.
 
 - Checked on the devices (audits 2026-10-21 (2) #4, 2026-10-23 #17):
   - A profile that never reads makes every return home enumerate again (`needsRefresh`). Not seen:
