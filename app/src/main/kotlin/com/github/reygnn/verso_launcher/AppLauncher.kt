@@ -47,7 +47,7 @@ internal class AppLauncher(
 
     /** The profile a tap turned back on, and that app's label, for the "ready" toast. */
     private var waitingFor: Pair<UserHandle, String>? = null
-    // Only an answer within PROFILE_WAIT_MS gets the toast: work apps turned on hours later must
+    // Only an answer within PROFILE_WAIT_MS gets the toast: paused apps turned on hours later must
     // not announce an app nobody just asked for. Not cleared in onStop — the work challenge covers us.
     private var waitingSince = 0L
 
@@ -95,7 +95,7 @@ internal class AppLauncher(
         } catch (e: RuntimeException) {
             // Not launch's "not found": the app is there, its profile stayed off.
             Log.w("Verso", "quiet mode failed: ${entry.key}", e)
-            say(context.getString(R.string.toast_work_apps_failed), false)
+            say(context.getString(R.string.toast_paused_apps_failed), false)
             return
         }
         // Only once the request went through: a refusal must leave nothing waiting.

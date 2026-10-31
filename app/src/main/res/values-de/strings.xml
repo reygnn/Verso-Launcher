@@ -26,14 +26,14 @@
     <string name="toast_no_app">Keine passende App auf diesem Gerät</string>
     <string name="toast_not_found">Nicht gefunden: %1$s</string>
     <string name="toast_denied">Verweigert: %1$s</string>
-    <string name="toast_not_default_home">Für Arbeits-Apps Verso als Standard-Startseite festlegen</string>
-    <string name="toast_work_apps_failed">Arbeits-Apps ließen sich nicht einschalten</string>
+    <string name="toast_not_default_home">Für pausierte Apps Verso als Standard-Startseite festlegen</string>
+    <string name="toast_paused_apps_failed">Pausierte Apps ließen sich nicht einschalten</string>
     <!-- Eine Zeile oder ein Favorit, wie ein Screenreader sie nimmt: der App-Name, daneben der
          Zustand (stateDescription), und was Doppeltippen tut (die Beschriftung des Klicks;
          TalkBack setzt "Doppeltippen zum" davor). -->
     <string name="a11y_state_paused">pausiert</string>
     <string name="a11y_state_archived">archiviert</string>
-    <string name="a11y_do_turn_on_work">Arbeits-Apps wieder einschalten</string>
+    <string name="a11y_do_turn_on_paused">Pausierte Apps wieder einschalten</string>
     <string name="a11y_do_unarchive">App wiederherstellen</string>
 
     <!-- Was eine leere App-Liste sagt (LauncherLogic.emptyHint). -->

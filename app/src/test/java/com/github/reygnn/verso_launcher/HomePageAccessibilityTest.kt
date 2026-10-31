@@ -137,7 +137,7 @@ class HomePageAccessibilityTest {
         // Its name stays the label; the state beside it, and a double-tap that says what it does.
         assertNull(favorite("Gmail (Work)").contentDescription)
         assertEquals(activity.getString(R.string.a11y_state_paused), favorite("Gmail (Work)").stateDescription)
-        assertEquals(activity.getString(R.string.a11y_do_turn_on_work), clickLabel(favorite("Gmail (Work)")))
+        assertEquals(activity.getString(R.string.a11y_do_turn_on_paused), clickLabel(favorite("Gmail (Work)")))
 
         // Same key and label: the page must not skip the rebuild.
         page.render(favs = listOf(paused.copy(status = AppStatus.READY)), loaded = true)

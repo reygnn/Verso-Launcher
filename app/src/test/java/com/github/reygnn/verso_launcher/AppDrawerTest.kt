@@ -479,7 +479,7 @@ class AppDrawerTest {
         val info = AccessibilityNodeInfo()
         list.onInitializeAccessibilityNodeInfoForItem(row, 0, info)
         val click = info.actionList.single { it.id == AccessibilityNodeInfo.ACTION_CLICK }
-        assertEquals(activity.getString(R.string.a11y_do_turn_on_work), click.label)
+        assertEquals(activity.getString(R.string.a11y_do_turn_on_paused), click.label)
     }
 
     /** The "%" row names what it turns the order into, in the command font. A tag row reads like an app row. */

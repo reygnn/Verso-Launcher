@@ -102,7 +102,7 @@ class AppLauncherTest {
         assertEquals("once", listOf(word(R.string.toast_app_ready) to true), said)
     }
 
-    /** Work apps turned on hours later must not announce an app nobody just asked for. */
+    /** Paused apps turned on hours later must not announce an app nobody just asked for. */
     @Test fun `a profile back later than the wait says nothing`() {
         system.paused = true
         launcher.launch(zulu)
@@ -124,12 +124,12 @@ class AppLauncherTest {
      * A dying system is no unpause: nothing waits for the profile. The app is there, so the word is
      * that its profile stayed off, never "not found".
      */
-    @Test fun `a failing unpause says the work apps stayed off, and waits for nothing`() {
+    @Test fun `a failing unpause says the paused apps stayed off, and waits for nothing`() {
         system.paused = true
         system.unpauseRefusal = IllegalStateException("system_server died")
         launcher.launch(zulu)
         launcher.profileAvailable(work)
-        assertEquals(listOf(context.getString(R.string.toast_work_apps_failed) to false), said)
+        assertEquals(listOf(context.getString(R.string.toast_paused_apps_failed) to false), said)
     }
 
     @Test fun `app info opens in the profile, a refusal is a word`() {

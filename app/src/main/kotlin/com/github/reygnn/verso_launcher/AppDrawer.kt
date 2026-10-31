@@ -83,7 +83,7 @@ internal class AppDrawer(
             descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         }
 
-        // Labels the click of a row for screen readers ("double-tap to turn work apps back on"),
+        // Labels the click of a row for screen readers ("double-tap to turn paused apps back on"),
         // keeping the list's own item click: a delegate on the row would replace the one the list
         // sets there.
         listView = object : ListView(activity) {

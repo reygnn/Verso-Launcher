@@ -27,14 +27,14 @@
     <string name="toast_no_app">no app for that on this device</string>
     <string name="toast_not_found">not found: %1$s</string>
     <string name="toast_denied">denied: %1$s</string>
-    <string name="toast_not_default_home">make Verso the default home to turn work apps on</string>
-    <string name="toast_work_apps_failed">work apps could not be turned on</string>
+    <string name="toast_not_default_home">make Verso the default home to turn paused apps on</string>
+    <string name="toast_paused_apps_failed">paused apps could not be turned on</string>
     <!-- A row or favorite as a screen reader takes it: the app's name, its state beside it
          (stateDescription), and what a double-tap does (the click's label; TalkBack adds
          "double-tap to"). -->
     <string name="a11y_state_paused">paused</string>
     <string name="a11y_state_archived">archived</string>
-    <string name="a11y_do_turn_on_work">turn work apps back on</string>
+    <string name="a11y_do_turn_on_paused">turn paused apps back on</string>
     <string name="a11y_do_unarchive">restore the app</string>
 
     <!-- What an empty drawer list says (LauncherLogic.emptyHint). -->

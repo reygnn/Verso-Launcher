@@ -394,6 +394,6 @@ internal fun statusState(context: android.content.Context, status: AppStatus): S
 /** What a double-tap on a dimmed app does; null when it just opens it. */
 internal fun statusAction(context: android.content.Context, status: AppStatus): String? = when (status) {
     AppStatus.READY -> null
-    AppStatus.PAUSED -> context.getString(R.string.a11y_do_turn_on_work)
+    AppStatus.PAUSED -> context.getString(R.string.a11y_do_turn_on_paused)
     AppStatus.ARCHIVED -> context.getString(R.string.a11y_do_unarchive)
 }
