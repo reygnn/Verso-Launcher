@@ -37,12 +37,12 @@ with its reason — the performance points after measuring.
     when the list changed: not worth moving to the IO thread.
   - Measure and layout take 0.2 ms a frame (median) and 4.8 ms at most, the drawer's first frame
     after `GONE` included. `AppDrawer.applyFilter` takes 0.1 to 0.6 ms.
-  - `PageTurn.open` at a swipe's release takes 7 to 15 ms on main: `PageTurn.showStatusBar` 5 to
-    7 ms (up to 10.6; 1.3 to 1.8 ms when a key opens the drawer), and the home fade's
-    `withLayer()`, which rebuilds the layer the drag already had, 0.3 to 4 ms. Keeping the drag's
-    layer and posting the status bar cut `open` to 0.5 ms, yet showed no measurable gain in
-    janky frames (2.5 against 2.8 % of about 600, within the spread between runs): the work only
-    moved. Not changed.
+  - `PageTurn.open` at a swipe's release takes 1.5 to 15 ms on main (median 7 to 9 ms, over four
+    runs): `PageTurn.showStatusBar` 5 to 7 ms (up to 10.6; 1.3 to 1.8 ms when a key opens the
+    drawer), and the home fade's `withLayer()`, which rebuilds the layer the drag already had,
+    0.3 to 4 ms. Keeping the drag's layer and posting the status bar cut `open` to 0.5 ms, yet
+    showed no measurable gain in janky frames (2.5 against 2.8 % of about 600, within the spread
+    between runs): the work only moved. Not changed.
   - About one frame per open and close is janky (2 to 3 %), with the keyboard and without it
     (`?`). Where it comes from takes a frame trace; not chased.
   - Janky frames are `dumpsys gfxinfo`'s "Janky frames", counted against the real frame deadline

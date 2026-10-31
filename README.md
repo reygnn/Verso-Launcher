@@ -73,9 +73,9 @@ keyboard, no prompt:
   profile or cloned apps, which carry the system's badge ("Calculator (Work)") and start in
   their own profile — in the favorites' colour, right on the wallpaper. Installs, uninstalls and
   updates show up at once.
-- Apps that cannot start right away stay listed, **dimmed**: those of a paused work profile and
-  archived apps. The first tap on a paused one turns its work apps back on (a toast says when it
-  is ready); an archived one offers the system's restore.
+- Apps that cannot start right away stay listed, **dimmed**: those of a paused profile (a work
+  profile, say) and archived apps. The first tap on a paused one turns its profile back on (a
+  toast says when it is ready); an archived one offers the system's restore.
 - The bottom command line drives everything; the leading character picks a mode:
   - *(empty)* — the full drawer, A to Z, without hidden apps (**a favorite always shows, even
     when hidden**)

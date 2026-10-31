@@ -51,11 +51,11 @@ which Verso does not request: its apps never appear, and with Verso as home ther
 it. Supporting it would need that permission and hiding the apps while the space is locked —
 listing them dimmed would reveal they exist.
 
-Apps of a paused work profile and archived apps stay listed, dimmed; the first tap turns the
-profile back on (a toast says when the app is ready) or offers the system's restore. Turning a
-profile on needs Verso to be the default home app, else the system refuses and a toast asks you
-to make Verso the default home. The dimming is the only mark on screen; TalkBack says "paused"
-or "archived" with the name.
+Apps of a paused profile (a work profile, say) and archived apps stay listed, dimmed; the first
+tap turns the profile back on (a toast says when the app is ready) or offers the system's
+restore. Turning a profile on needs Verso to be the default home app, else the system refuses and
+a toast asks you to make Verso the default home. The dimming is the only mark on screen; TalkBack
+says "paused" or "archived" with the name.
 
 ## What the config file reveals, and moving to a new phone
 
