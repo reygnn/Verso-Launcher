@@ -13,7 +13,6 @@
     <ID>LongMethod:SwipeFrame.kt:SwipeFrame$override fun dispatchTouchEvent: Boolean</ID>
     <ID>LoopWithTooManyJumpStatements:Apps.kt:for</ID>
     <ID>ReturnCount:Apps.kt:internal fun &lt;P&gt; enumerate: Enumeration?</ID>
-    <ID>ReturnCount:HomePage.kt:HomePage$fun render</ID>
     <ID>ReturnCount:SwipeFrame.kt:SwipeFrame$override fun dispatchTouchEvent: Boolean</ID>
     <ID>TooManyFunctions:AppDrawer.kt:AppDrawer</ID>
     <ID>TooManyFunctions:HomePage.kt:HomePage</ID>

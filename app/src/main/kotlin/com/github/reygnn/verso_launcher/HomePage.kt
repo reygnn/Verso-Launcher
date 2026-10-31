@@ -186,9 +186,9 @@ internal class HomePage(
                 setPadding(pad, pad, pad, pad)
                 setOnClickListener { onOpenDrawer() }
             }, LinearLayout.LayoutParams(MATCH, WRAP))
-            return
         }
 
+        // With no favorites the loop below adds nothing: the hint is all there is.
         val dm = activity.resources.displayMetrics
         val textPx = HomeStyle.favoriteTextSizePx(
             minPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP, dm),
