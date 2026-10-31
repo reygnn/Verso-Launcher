@@ -60,6 +60,32 @@ class EnumerationTest {
         assertNull(run())
     }
 
+    /**
+     * The null alone does not show the stop: without it the last check (no personal app) gives
+     * null as well, after reading every other profile for nothing.
+     */
+    @Test fun `an empty personal list stops before another profile is read`() {
+        lists["me"] = { emptyList() }
+        val reads = countWorkReads()
+        assertNull(run())
+        assertEquals(0, reads())
+    }
+
+    @Test fun `a personal profile that cannot be read stops before another profile is read`() {
+        lists["me"] = { throw SecurityException("denied") }
+        val reads = countWorkReads()
+        assertNull(run())
+        assertEquals(0, reads())
+    }
+
+    /** How often the work profile's list was asked for, from now on. */
+    private fun countWorkReads(): () -> Int {
+        var count = 0
+        val list = lists.getValue("work")
+        lists["work"] = { count++; list() }
+        return { count }
+    }
+
     @Test fun `a list without the personal profile is never real`() {
         profiles = { listOf("work") }
         assertNull(run())
