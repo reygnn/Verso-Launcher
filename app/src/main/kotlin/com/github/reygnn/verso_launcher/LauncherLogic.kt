@@ -25,6 +25,14 @@ internal interface Ordered {
     val key: String
     val labelLower: String
     val packageName: String
+
+    /**
+     * [labelLower] as search compares it ([LauncherLogic.matchForm]).
+     *
+     * Invariant: always [LauncherLogic.matchForm] of [labelLower]. [AppEntry] keeps it as a body
+     *   val, so a keystroke does not normalize every label again; a fake may keep this getter.
+     */
+    val matchLabel: String get() = LauncherLogic.matchForm(labelLower)
 }
 
 /** A rendered list row. Rows without an app are `Row<Nothing>`, so they fit a `Row<T>` list for any T. */
@@ -175,7 +183,7 @@ internal object LauncherLogic {
 
     fun <T : Ordered> search(all: List<T>, needle: String): List<T> {
         val n = matchForm(foldLabel(needle))
-        return if (n.isEmpty()) all else all.filter { matchForm(it.labelLower).contains(n) }
+        return if (n.isEmpty()) all else all.filter { it.matchLabel.contains(n) }
     }
 
     /**
@@ -186,14 +194,15 @@ internal object LauncherLogic {
     fun <T : Ordered> ranked(found: List<T>, needle: String): List<T> {
         val n = matchForm(foldLabel(needle))
         if (n.isEmpty()) return found
-        return found.sortedBy { entry ->
-            val label = matchForm(entry.labelLower)
-            when {
+        // Ranked once per entry: sortedBy asks its selector again at every comparison, a regex each time.
+        return found.map { entry ->
+            val label = entry.matchLabel
+            entry to when {
                 label.startsWith(n) -> 2
                 WORD_START.findAll(label).any { label.startsWith(n, it.range.first) } -> 1
                 else -> 0
             }
-        }
+        }.sortedBy { it.second }.map { it.first }
     }
 
     /**
@@ -203,7 +212,7 @@ internal object LauncherLogic {
      * Latin letters that NFD does not take apart are spelled as on a plain keyboard
      * ([PLAIN_LETTERS]), so "dien" finds "Điện" and "lodz" finds "Łódź".
      */
-    private fun matchForm(folded: String): String {
+    fun matchForm(folded: String): String {
         // Composed again: decomposed, "\u304B" would be a substring of "\u304C" (+ U+3099).
         val bare = nfc(Normalizer.normalize(folded, Normalizer.Form.NFD).filterNot { it in '\u0300'..'\u036F' })
         return if (bare.none { it in PLAIN_LETTERS }) bare else buildString {
@@ -265,7 +274,7 @@ internal object LauncherLogic {
     ): List<T> {
         val p = matchForm(foldLabel(prefix))
         val base = drawer(all, hidden, favorites)
-        val narrowed = if (p.isEmpty()) base else base.filter { matchForm(it.labelLower).startsWith(p) }
+        val narrowed = if (p.isEmpty()) base else base.filter { it.matchLabel.startsWith(p) }
         return orderWithFavorites(narrowed, favorites)
     }
 

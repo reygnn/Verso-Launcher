@@ -21,6 +21,9 @@ internal data class AppEntry(
 
     override val labelLower: String = LauncherLogic.foldLabel(label)
 
+    /** A body val like [labelLower]: computed once per entry, not per keystroke. */
+    override val matchLabel: String = LauncherLogic.matchForm(labelLower)
+
     fun withLabel(newLabel: String): AppEntry =
         copy(label = newLabel)
 
