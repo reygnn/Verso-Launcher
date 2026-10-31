@@ -1,5 +1,9 @@
 # Verso Launcher
 
+[![check](https://github.com/reygnn/Verso-Launcher/actions/workflows/check.yml/badge.svg)](https://github.com/reygnn/Verso-Launcher/actions/workflows/check.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![API](https://img.shields.io/badge/API-36-brightgreen.svg?style=flat-square)](https://source.android.com/docs/setup/about/build-numbers)
+
 A **plain text launcher for Android with a hidden command line** — the child of Kolibri
 Launcher and Sigil Launcher. Neither is maintained any more; **Verso is the official
 successor of both.** Kolibri gives it the quiet home screen. Sigil was a terminal: one
