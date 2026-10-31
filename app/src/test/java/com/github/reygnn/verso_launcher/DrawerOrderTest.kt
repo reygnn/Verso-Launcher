@@ -3,6 +3,7 @@ package com.github.reygnn.verso_launcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -40,6 +41,15 @@ class DrawerOrderTest {
         File(File(dir, DrawerOrder.FILE), "child").writeText("x")
         assertNull(DrawerOrder.read(dir, log))
         assertEquals(emptyList<String>(), logs)  // isFile: a directory is no file, nothing to say
+    }
+
+    @Test fun `an unreadable order_txt is unset and logged`() {
+        val file = File(dir, DrawerOrder.FILE).apply { writeText("usage\n") }
+        file.setReadable(false)
+        // Root reads it all the same: then there is no unreadable file to test, a skip, not a failure.
+        assumeFalse("running as root", file.canRead())
+        assertNull(DrawerOrder.read(dir, log))
+        assertEquals(listOf("${DrawerOrder.FILE} unreadable"), logs)
     }
 
     /** The other half of [writeDisposable]: the test above only sees a rename that works. */

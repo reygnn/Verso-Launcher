@@ -33,6 +33,8 @@ Pure logic
                            drills in, every app found by its name, the home cache whole
   AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
+  AppsTest (R)             the default favorites' candidates against Robolectric's package
+                           manager: launcher keys, the default SMS app first, a slot that throws
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
 
 State and threads (manual queues)

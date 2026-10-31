@@ -1,9 +1,11 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 
 class HomeCacheTest {
 
@@ -41,5 +43,16 @@ class HomeCacheTest {
         assertEquals(emptyList<AppEntry>(), HomeCache.read(dir, noLog))
         HomeCache.write(dir, listOf(personal, work))
         assertEquals(listOf(personal.key, work.key), HomeCache.read(dir, noLog).map { it.key })
+    }
+
+    @Test fun `an unreadable cache is no cache, and logged`() {
+        val dir = tmp.newFolder()
+        HomeCache.write(dir, listOf(personal))
+        val file = File(dir, HomeCache.FILE).apply { setReadable(false) }
+        // Root reads it all the same: then there is no unreadable file to test, a skip, not a failure.
+        assumeFalse("running as root", file.canRead())
+        val logs = mutableListOf<String>()
+        assertEquals(emptyList<AppEntry>(), HomeCache.read(dir) { msg, _ -> logs += msg })
+        assertEquals(listOf("${HomeCache.FILE} unreadable"), logs)
     }
 }

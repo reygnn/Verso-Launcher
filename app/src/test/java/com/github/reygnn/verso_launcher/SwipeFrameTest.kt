@@ -3,6 +3,7 @@ package com.github.reygnn.verso_launcher
 import android.app.Activity
 import android.view.MotionEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,6 +68,14 @@ class SwipeFrameTest {
     @Test fun `an opening pull may follow the finger the whole page`() {
         stroke(from = 1900f, to = 100f, durationMs = 6000, lift = false)
         assertEquals(HEIGHT, drags.last().second, 0.001f)
+    }
+
+    /** The system takes the gesture over (a system gesture, the window losing focus) past the threshold. */
+    @Test fun `a cancel from the system ends the drag without a decision`() {
+        stroke(from = 900f, to = 300f, durationMs = 4000, lift = false)  // 60 % of the page
+        send(MotionEvent.ACTION_CANCEL, 300f, 5000)
+        assertEquals(listOf(SwipeDir.UP to DragEnd.CANCEL), ends)
+        assertFalse(frame.isDragging)
     }
 
     @Test fun `a slow short pull down settles back`() {
