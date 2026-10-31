@@ -112,70 +112,115 @@ internal fun <P> enumerate(
     ownPackage: String,
     log: (String, Exception) -> Unit,
 ): Enumeration? {
-    var complete = true
     // hard rule 2: unreadable profiles = no list, the last one stays
     val all = @Suppress("TooGenericExceptionCaught") try {
         profiles()
     } catch (e: RuntimeException) {
         log("app enumeration failed: profiles", e)
-        return null
-    }
+        null
+    } ?: return null
     if (personal !in all) {
         log("app enumeration failed", IllegalStateException("no personal profile"))
         return null
     }
+    val reader = ProfileReader(serialOf, paused, activities, badge, ownPackage, log)
     val entries = mutableListOf<AppEntry>()
     for (user in all) {
-        val isPersonal = user == personal
-        var serial: Long? = null
-        var isPaused = false
-        // an unreadable profile makes the list incomplete
+        val apps = if (user == personal) reader.personal(user) else reader.other(user)
+        entries += apps ?: return null
+    }
+    // Every personal read threw: an incomplete list without them would replace the last one.
+    return if (entries.none { it.profile == null }) {
+        log("app enumeration failed", IllegalStateException("no personal app readable"))
+        null
+    } else {
+        Enumeration(LauncherLogic.sortedForDrawer(entries), reader.complete)
+    }
+}
+
+/**
+ * [enumerate]'s reads of one profile and its apps, with what the system answers as fields.
+ *
+ * Thread: [VersoApp.io], like [enumerate].
+ */
+private class ProfileReader<P>(
+    private val serialOf: (P) -> Long,
+    private val paused: (P) -> Boolean,
+    private val activities: (P) -> List<() -> RawApp>,
+    private val badge: (raw: String, serial: Long, profile: P) -> String,
+    private val ownPackage: String,
+    private val log: (String, Exception) -> Unit,
+) {
+    /** False once a profile or an app was skipped: the list is incomplete, and the next resume tries again. */
+    var complete = true
+        private set
+
+    /** The personal profile's apps, or null: one that cannot be read, or is empty, is never real. */
+    fun personal(user: P): List<AppEntry>? {
+        // hard rule 2: an unreadable personal profile = no list, the last one stays
         val found = @Suppress("TooGenericExceptionCaught") try {
-            if (!isPersonal) {
-                serial = serialOf(user).takeIf { it >= 0 } ?: run { complete = false; continue }
-                isPaused = paused(user)
-            }
             activities(user)
         } catch (e: RuntimeException) {
-            if (isPersonal) {
-                log("app enumeration failed", e)
-                return null
-            }
-            log("skipping profile $serial", e)
-            complete = false
-            continue
-        }
-        if (found.isEmpty() && isPersonal) {
-            log("app enumeration failed", IllegalStateException("empty personal list"))
+            log("app enumeration failed", e)
             return null
         }
-        for (read in found) {
-            // an unreadable app makes the list incomplete
-            @Suppress("TooGenericExceptionCaught") try {
-                val app = read()
-                if (app.className.isNullOrEmpty()) continue
-                if (app.packageName == ownPackage) continue
+        return if (found.isEmpty()) {
+            log("app enumeration failed", IllegalStateException("empty personal list"))
+            null
+        } else {
+            entries(found, user, serial = null, isPaused = false)
+        }
+    }
+
+    /**
+     * Another profile's apps (work, clone), badged. One without a serial, or that cannot be read, is
+     * skipped; an empty one is complete (a profile being set up or torn down answers empty).
+     */
+    fun other(user: P): List<AppEntry> {
+        var serial: Long? = null
+        // an unreadable profile makes the list incomplete
+        val read = @Suppress("TooGenericExceptionCaught") try {
+            serial = serialOf(user).takeIf { it >= 0 }
+            serial?.let { paused(user) to activities(user) }
+        } catch (e: RuntimeException) {
+            log("skipping profile $serial", e)
+            null
+        }
+        val known = serial
+        if (read == null || known == null) {
+            complete = false
+            return emptyList()
+        }
+        return entries(read.second, user, known, isPaused = read.first)
+    }
+
+    private fun entries(found: List<() -> RawApp>, user: P, serial: Long?, isPaused: Boolean): List<AppEntry> =
+        found.mapNotNull { read -> entry(read, user, serial, isPaused) }
+
+    /** One app, or null: Verso itself, a row without a class, or one that cannot be read. */
+    private fun entry(read: () -> RawApp, user: P, serial: Long?, isPaused: Boolean): AppEntry? =
+        // an unreadable app makes the list incomplete
+        @Suppress("TooGenericExceptionCaught") try {
+            val app = read()
+            val className = app.className
+            if (className.isNullOrEmpty() || app.packageName == ownPackage) {
+                null
+            } else {
                 // Cleaned like a custom name: no bidi tricks to pass for another app.
                 val raw = LauncherLogic.cleanName(app.label).ifEmpty { app.packageName }
                 val systemLabel = if (serial == null) raw else badge(raw, serial, user)
-                entries += AppEntry(
+                AppEntry(
                     label = systemLabel,
                     packageName = app.packageName,
-                    className = app.className,
+                    className = className,
                     systemLabel = systemLabel,
                     profile = serial,
                     status = AppStatus.of(profilePaused = isPaused, archived = app.archived),
                 )
-            } catch (e: RuntimeException) {
-                log("skipping app", e)
-                complete = false
             }
+        } catch (e: RuntimeException) {
+            log("skipping app", e)
+            complete = false
+            null
         }
-    }
-    // Every personal read threw: an incomplete list without them would replace the last one.
-    if (entries.none { it.profile == null }) {
-        log("app enumeration failed", IllegalStateException("no personal app readable"))
-        return null
-    }
-    return Enumeration(LauncherLogic.sortedForDrawer(entries), complete)
 }
