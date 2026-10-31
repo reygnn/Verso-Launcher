@@ -412,34 +412,43 @@ internal object LauncherLogic {
         usage: Map<String, Usage> = emptyMap(),
         now: Long = 0L,
         report: () -> List<ConfigFinding> = { emptyList() },
-    ): List<Row<T>> {
+    ): List<Row<T>> = when (mode) {
         // Spelled out, "~verify" is its report; "~v" still lists the command, for Enter or a tap.
-        if (mode == Mode.COMMAND && parseCommand(trimmed) == Command.VERIFY) return report().map { ReportRow(it) }
-        if (mode == Mode.COMMAND) {
-            return commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
+        Mode.COMMAND -> if (parseCommand(trimmed) == Command.VERIFY) {
+            report().map { ReportRow(it) }
+        } else {
+            commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
         }
         // Only "%" itself: "%abc" is a typo, not a switch.
-        if (mode == Mode.ORDER) return if (trimmed == "%") listOf(OrderRow(toUsage = !byUsage)) else emptyList()
-        if (mode == Mode.TAG_FILTER && trimmed.substring(1).isBlank()) {
-            return tagsInUse(allApps, tags).map { TagRow(it) }
+        Mode.ORDER -> if (trimmed == "%") listOf(OrderRow(toUsage = !byUsage)) else emptyList()
+        Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) {
+            tagsInUse(allApps, tags).map { TagRow(it) }
+        } else {
+            tagged(allApps, tags, trimmed.substring(1).trim()).map { AppRow(it) }
         }
-        val apps: List<T> = when (mode) {
-            Mode.RECENTS -> search(recentsInDisplayOrder(allApps, recentKeys), trimmed.substring(1).trim())
-            Mode.TAG_FILTER -> tagged(allApps, tags, trimmed.substring(1).trim())
-            Mode.COMMAND, Mode.ORDER -> emptyList()
-            Mode.NORMAL -> {
-                val wildcard = starPrefix(trimmed)
-                when {
-                    // A to Z (or most used first, "%"), no favorites-last: the Activity anchors this view at the top.
-                    trimmed.isEmpty() -> drawer(allApps, hidden, favorites)
-                        .let { if (byUsage) UsageLog.byUsage(it, usage, now) else it }
-                    wildcard != null -> drawerStartingWith(allApps, hidden, favorites, wildcard)
-                    // Plain search spans ALL apps, so a hidden app stays reachable by name.
-                    else -> ranked(search(allApps, trimmed), trimmed)
-                }
-            }
+        Mode.RECENTS -> search(recentsInDisplayOrder(allApps, recentKeys), trimmed.substring(1).trim()).map { AppRow(it) }
+        Mode.NORMAL -> plainApps(trimmed, allApps, hidden, favorites, byUsage, usage, now).map { AppRow(it) }
+    }
+
+    /** [rowsFor]'s apps for a prompt with no sigil: the drawer, a star prefix or a search. */
+    private fun <T : Ordered> plainApps(
+        trimmed: String,
+        allApps: List<T>,
+        hidden: Set<String>,
+        favorites: Collection<String>,
+        byUsage: Boolean,
+        usage: Map<String, Usage>,
+        now: Long,
+    ): List<T> {
+        val wildcard = starPrefix(trimmed)
+        return when {
+            // A to Z (or most used first, "%"), no favorites-last: the Activity anchors this view at the top.
+            trimmed.isEmpty() -> drawer(allApps, hidden, favorites)
+                .let { if (byUsage) UsageLog.byUsage(it, usage, now) else it }
+            wildcard != null -> drawerStartingWith(allApps, hidden, favorites, wildcard)
+            // Plain search spans ALL apps, so a hidden app stays reachable by name.
+            else -> ranked(search(allApps, trimmed), trimmed)
         }
-        return apps.map { AppRow(it) }
     }
 
     /**
