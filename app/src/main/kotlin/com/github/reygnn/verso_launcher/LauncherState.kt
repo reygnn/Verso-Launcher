@@ -93,50 +93,91 @@ internal class LauncherState(
         val loadRecentsNow = !process.recents.loaded
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
-            val diskUsage = if (loadUsageNow) usageFile.read() else null
-            val diskRecents = if (loadRecentsNow) recentsFile.read() else null
-            val enumeration = enumerateApps()
-            val loaded = enumeration?.apps
-            // From any enumeration with a list, complete or not: one that never completes (a
-            // profile that stays unreadable) must not starve the defaults.
-            val picked = if (useDefaults && loaded != null) {
-                LauncherLogic.pickDefaultFavorites(loaded, defaultFavoriteCandidates())
-            } else null
+            val load = load(loadUsageNow, loadRecentsNow)
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile: the newer one brings the list
-                val kept = process.usage
-                if (diskUsage != null && !kept.loaded) {
-                    val counted = kept.value
-                    kept.value = UsageLog.merged(diskUsage, counted, now())
-                    kept.loaded = true
-                    if (counted.isNotEmpty()) persistUsage()
-                }
-                var recentsChanged = false
-                val recents = process.recents
-                if (diskRecents != null && !recents.loaded) {
-                    val launched = recents.value
-                    recents.value = RecentsLog.merged(diskRecents, launched, RECENTS_KEPT)
-                    recents.loaded = true
-                    recentsChanged = recents.value != launched
-                    if (launched.isNotEmpty()) persistRecents()
-                }
-                lastLoadCommitted = enumeration?.complete == true
-                var defaultsChanged = false
-                if (picked != null && picked != defaults) {
-                    defaults = picked
-                    defaultsChanged = true
-                }
-                // Most refreshes bring the same list; AppEntry ==, status included, sees any change.
-                val listChanged = loaded != null && (!appsLoaded || loaded != enumerated)
-                if (loaded != null) {
-                    enumerated = loaded
-                    appsLoaded = true
-                }
-                if (listChanged || defaultsChanged) resolve()
-                onRefreshed(listChanged || defaultsChanged || recentsChanged)
+                commit(load)
             })
         })
     }
+
+    /**
+     * [refresh]'s IO half: the files not read yet and the enumeration, nothing of this state touched.
+     *
+     * Thread: [io].
+     */
+    private fun load(usageNow: Boolean, recentsNow: Boolean): Load {
+        val usage = if (usageNow) usageFile.read() else null
+        val recents = if (recentsNow) recentsFile.read() else null
+        val enumeration = enumerateApps()
+        // From any enumeration with a list, complete or not: one that never completes (a profile
+        // that stays unreadable) must not starve the defaults.
+        val defaults = if (useDefaults && enumeration != null) {
+            LauncherLogic.pickDefaultFavorites(enumeration.apps, defaultFavoriteCandidates())
+        } else null
+        return Load(usage, recents, enumeration, defaults)
+    }
+
+    /**
+     * [refresh]'s main half, for the newest [Load] only: the files merged in, then the list and the
+     * defaults, and one [onRefreshed] for all of it.
+     *
+     * Thread: main.
+     */
+    private fun commit(load: Load) {
+        val recentsChanged = mergeFiles(load)
+        lastLoadCommitted = load.enumeration?.complete == true
+        val defaultsChanged = load.defaults != null && load.defaults != defaults
+        if (load.defaults != null) defaults = load.defaults
+        val loaded = load.enumeration?.apps
+        // Most refreshes bring the same list; AppEntry ==, status included, sees any change.
+        val listChanged = loaded != null && (!appsLoaded || loaded != enumerated)
+        if (loaded != null) {
+            enumerated = loaded
+            appsLoaded = true
+        }
+        if (listChanged || defaultsChanged) resolve()
+        onRefreshed(listChanged || defaultsChanged || recentsChanged)
+    }
+
+    /**
+     * usage.txt and recents.txt as [load] read them, each merged with this process's launches the
+     * first time only, and written back when there were any. True if that changed the "?" list.
+     *
+     * Invariant: a file is merged once per process ([Kept.loaded]); a later read of it is dropped,
+     *   since what the process holds already has the file in it.
+     */
+    private fun mergeFiles(load: Load): Boolean {
+        val kept = process.usage
+        if (load.usage != null && !kept.loaded) {
+            val counted = kept.value
+            kept.value = UsageLog.merged(load.usage, counted, now())
+            kept.loaded = true
+            if (counted.isNotEmpty()) persistUsage()
+        }
+        val recents = process.recents
+        if (load.recents == null || recents.loaded) return false
+        val launched = recents.value
+        recents.value = RecentsLog.merged(load.recents, launched, RECENTS_KEPT)
+        recents.loaded = true
+        if (launched.isNotEmpty()) persistRecents()
+        return recents.value != launched
+    }
+
+    /**
+     * What one refresh read on [io], handed to main as it is.
+     *
+     * @property usage usage.txt, null if it was not asked for or is unreadable.
+     * @property recents recents.txt, the same.
+     * @property enumeration null if the enumeration failed: the last good list stays.
+     * @property defaults the default favorites this list offers, null unless [useDefaults].
+     */
+    private class Load(
+        val usage: Map<String, Usage>?,
+        val recents: List<String>?,
+        val enumeration: Enumeration?,
+        val defaults: List<String>?,
+    )
 
     fun recordLaunch(key: String) {
         process.recents.value = LauncherLogic.pushRecent(recentKeys, key, RECENTS_KEPT)
