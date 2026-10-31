@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.detekt)
     // Test coverage reports only: a build plugin, nothing of it reaches the APK.
     alias(libs.plugins.kover)
+    // Mutation testing only: a build plugin, nothing of it reaches the APK.
+    alias(libs.plugins.pitest)
     // No Kotlin plugin: AGP 9 built-in Kotlin compiles the sources.
     // No Compose, no serialization, no KSP, no Hilt — by design.
 }
@@ -196,4 +198,31 @@ val archiveProguardMapping = tasks.register<Copy>("archiveProguardMapping") {
 
 tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
     finalizedBy(archiveProguardMapping)
+}
+
+// Mutation testing (PIT), a report only: ./gradlew pitestDebug. The pure classes and their plain
+// JVM tests; Robolectric under PIT is slow and its sandbox fights the mutated classes.
+pitest {
+    pitestVersion.set(libs.versions.pitest.core)
+    targetClasses.set(
+        listOf(
+            "LauncherLogic*", "LauncherState*", "ConfigText*", "ConfigReport*", "ConfigFile*", "UsageLog*",
+            "RecentsLog*", "HomeCache*", "DrawerOrder*", "SwipeGesture*", "AppEntry*", "AppStatus*",
+            "WallpaperPalette*", "TapGuard*", "HomeStyle*", "BatteryInfo*", "DoubleTapGate*", "Palette*",
+            "Guard*", "EnumerationKt*", "ProfileReader*",
+        ).map { "com.github.reygnn.verso_launcher.$it" },
+    )
+    targetTests.set(
+        listOf(
+            "AppEntryTest", "ConfigFileTest", "ConfigFuzzTest", "ConfigReportTest", "ConfigTextTest", "DrawerOrderTest", "EnumerationTest",
+            "GuardTest", "HomeCacheTest", "HomeStyleTest", "LauncherActionsTest", "LauncherLogicTest", "LauncherRowsTest",
+            "LauncherStateTest", "RecentsLogTest", "SwipeGestureTest", "TapGuardTest", "UsageLogTest", "VersoConfigTest",
+            "WallpaperPaletteTest",
+        ).map { "com.github.reygnn.verso_launcher.$it" },
+    )
+    // Kotlin's own null checks on platform types: removing one changes nothing a test can see.
+    avoidCallsTo.set(listOf("kotlin.jvm.internal"))
+    threads.set(Runtime.getRuntime().availableProcessors())
+    outputFormats.set(listOf("HTML", "XML"))
+    timestampedReports.set(false)
 }

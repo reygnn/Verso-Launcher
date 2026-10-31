@@ -22,6 +22,10 @@ robolectric = "4.16.1"
 detekt = "2.0.0-alpha.6"
 # Build-only — test coverage reports (./gradlew koverHtmlReport); a Gradle plugin, never in the APK.
 kover = "0.9.11"
+# Build-only — mutation testing of the pure classes (./gradlew pitestDebug); a Gradle plugin,
+# never in the APK. pitest-core is PIT itself, which the plugin runs.
+pitest = "0.3.0"
+pitest-core = "1.30.1"
 
 [libraries]
 # Test-only — JVM unit tests for the pure logic in LauncherLogic.kt.
@@ -37,3 +41,5 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 detekt = { id = "dev.detekt", version.ref = "detekt" }
 # Build-only — never in the APK.
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+# Build-only — never in the APK.
+pitest = { id = "pl.droidsonroids.pitest", version.ref = "pitest" }
