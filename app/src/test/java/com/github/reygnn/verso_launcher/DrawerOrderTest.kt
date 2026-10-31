@@ -2,13 +2,15 @@ package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 
-/** "%"'s order.txt on real files: written, read back, never thrown from. */
+/** "%"'s order.txt on real files: written and read back. A read never throws; a failed write does, for [Guard]. */
 class DrawerOrderTest {
 
     @get:Rule val tmp = TemporaryFolder()
@@ -41,10 +43,10 @@ class DrawerOrderTest {
     }
 
     /** The other half of [writeDisposable]: the test above only sees a rename that works. */
-    @Test fun `a rename that fails leaves no temp file behind`() {
+    @Test fun `a rename that fails throws for Guard to log and leaves no temp file behind`() {
         // A non-empty directory where the file goes: no rename can replace it.
         File(dir, DrawerOrder.FILE).apply { mkdir() }.resolve("keep").writeText("x")
-        DrawerOrder.write(dir, byUsage = true)
+        assertThrows(IOException::class.java) { DrawerOrder.write(dir, byUsage = true) }
         assertEquals("only what was there", setOf(DrawerOrder.FILE), dir.list()!!.toSet())
     }
 }
