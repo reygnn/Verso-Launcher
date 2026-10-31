@@ -65,6 +65,9 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   - **Coverage** is a report, `./gradlew koverHtmlReportDebug` (Kover, a build plugin like
     detekt), never a minimum in `check`. Why: a percentage as a goal rewards tests that tick
     lines; the report is for finding what never runs.
+  - **Mutation testing** is a report too, `./gradlew pitestDebug` (PIT): the pure classes against
+    their plain JVM tests, never a minimum in `check`. A survivor is a boundary no test sits on,
+    or a mutant no test can see (an equivalent one); only the first gets a test.
 - **Warnings are errors** — Kotlin, lint and detekt (`config/detekt/detekt.yml`, part of
   `check`).
   - A deliberate finding gets a `@Suppress` at the narrowest scope. When the function does more
