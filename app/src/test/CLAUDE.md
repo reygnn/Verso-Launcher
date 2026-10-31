@@ -57,6 +57,8 @@ The window (R)
                            and keys, the clear button, insets
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
+  OutlinedViewsTest        the outlines drawn into a bitmap (native graphics): stroke under
+                           the fill, colours given back, no redraw loop, the icon's layers
 
 Source scans
   SourceGuardTest          only what neither a type nor a test reaches (hard rules 5, 7, 16,

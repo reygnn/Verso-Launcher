@@ -61,7 +61,9 @@ package com.github.reygnn.verso_launcher
  * is fine). Robolectric makes a fresh VersoApp per test. Drive an Activity with
  * `Robolectric.buildActivity(…).setup()` (no androidx.test on this classpath), reach a widget
  * built in code with `view.collect<T>()` (ViewTrees.kt), read a started intent with
- * `shadowOf(activity).nextStartedActivity`.
+ * `shadowOf(activity).nextStartedActivity`. What a view draws: `@GraphicsMode(NATIVE)`, the view
+ * drawn into a Bitmap and its pixels counted (OutlinedViewsTest); that is software rendering, so
+ * what acts only through a RenderNode (hasOverlappingRendering) does not show in the pixels.
  *
  * WRITING ONE
  *
