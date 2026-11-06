@@ -415,6 +415,20 @@ class AppDrawerTest {
         assertEquals(listOf("Bravo"), rows())
     }
 
+    private fun keyQ(meta: Int) = KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Q, 0, meta)
+
+    /** AltGr: on a German keyboard it is "@" on Q and "€" on E, so it has to keep typing. */
+    @Test fun `right Alt types, as AltGr does`() {
+        assertEquals("q", printable(keyQ(0)))
+        assertEquals("q", printable(keyQ(KeyEvent.META_ALT_ON or KeyEvent.META_ALT_RIGHT_ON)))
+    }
+
+    @Test fun `left Alt, Ctrl and Meta are chords and type nothing`() {
+        assertNull(printable(keyQ(KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON)))
+        assertNull(printable(keyQ(KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON)))
+        assertNull(printable(keyQ(KeyEvent.META_META_ON or KeyEvent.META_META_LEFT_ON)))
+    }
+
     // ---- long press ---------------------------------------------------------------------
 
     private fun longPress(list: ListView, position: Int): Boolean =

@@ -34,7 +34,8 @@ Pure logic
   AppEntryTest             the config key: keyOf and parseKey
   EnumerationTest          the enumeration with faked profiles: missing, incomplete, status
   AppsTest (R)             the default favorites' candidates against Robolectric's package
-                           manager: launcher keys, the default SMS app first, a slot that throws
+                           manager: launcher keys, the default SMS app first, a slot that throws;
+                           the badge's cache across a language change
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
 
 State and threads (manual queues)
@@ -42,6 +43,8 @@ State and threads (manual queues)
                            config resolved against each list; the default favorites;
                            recents.txt, usage.txt, the "%" order
   WallpaperPaletteTest     the palette's question against the colour listener
+  WallpaperSystemTest (R)  the system side, a fake WallpaperManager: the dark-text hint, no colours
+                           as dark, a lock-screen change ignored, the unwatch
 
 Files (real temp files)
   ConfigFileTest           the user's config file at its fixed place: none, empty, bad lines,
@@ -57,6 +60,7 @@ The window (R)
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, empty hints, TalkBack, the tap guard, Enter
                            and keys, the clear button, insets
+  VerifyRowsTest           the words of each "~verify" row, and a wrapped row recycled as one line
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits
   OutlinedViewsTest        the outlines drawn into a bitmap (native graphics): stroke under
@@ -78,8 +82,8 @@ When the scans run, and why, is described at `sourceScanTest` in `app/build.grad
 scan goes into `sourceScans` there, and a file it reads into the inputs of `sourceScanTest`.
 
 Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
-`DefaultLocaleRule.kt`. The unreadable-file cases of `UsageLogTest` and `RecentsLogTest` use
-`chmod`; run as root, which reads the file anyway, they are skipped.
+`DefaultLocaleRule.kt`, `TestLauncherActivities.kt`. The unreadable-file cases of `UsageLogTest`
+and `RecentsLogTest` use `chmod`; run as root, which reads the file anyway, they are skipped.
 
 No instrumented tests: everything runs on the JVM.
 

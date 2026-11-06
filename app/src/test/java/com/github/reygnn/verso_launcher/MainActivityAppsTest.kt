@@ -1,9 +1,5 @@
 package com.github.reygnn.verso_launcher
 
-import android.content.Context
-import android.content.pm.ActivityInfo
-import android.content.pm.ApplicationInfo
-import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
 import android.os.Looper
 import android.os.Process
@@ -21,8 +17,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.util.ReflectionHelpers
-import org.robolectric.util.ReflectionHelpers.ClassParameter
 import java.io.File
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
@@ -34,9 +28,7 @@ import java.util.concurrent.TimeUnit
  * answers package changes the way MainActivity collects them. MainActivityFlowsTest has the flows
  * that need no app at all. The process's IO thread is real, as there.
  *
- * Why native graphics: LauncherActivityInfo.getLabel keeps a label only if a Paint finds glyphs
- *   for it, and without native graphics Robolectric finds none, so every app would be listed
- *   under its package.
+ * Why native graphics: [launcherActivityOf] says it.
  */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @RunWith(RobolectricTestRunner::class)
@@ -62,33 +54,9 @@ class MainActivityAppsTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    /**
-     * [entry] as the system lists it in the personal profile. LauncherActivityInfo's constructor is
-     * hidden, so it is called by reflection: the one place this test leaves public API.
-     */
-    private fun install(entry: AppEntry) {
-        val info = ActivityInfo().apply {
-            packageName = entry.packageName
-            name = entry.className
-            nonLocalizedLabel = entry.label
-            applicationInfo = ApplicationInfo().apply { packageName = entry.packageName }
-        }
-        val internalClass = Class.forName("android.content.pm.LauncherActivityInfoInternal")
-        val incremental = Class.forName("android.content.pm.IncrementalStatesInfo")
-        val internal = ReflectionHelpers.callConstructor(
-            internalClass,
-            ClassParameter.from(ActivityInfo::class.java, info),
-            ClassParameter(incremental, ReflectionHelpers.callConstructor(incremental)),
-            ClassParameter.from(android.os.UserHandle::class.java, Process.myUserHandle()),
-            ClassParameter.from(Boolean::class.javaPrimitiveType, false),
-        )
-        val activityInfo = ReflectionHelpers.callConstructor(
-            LauncherActivityInfo::class.java,
-            ClassParameter.from(Context::class.java, app),
-            ClassParameter(internalClass, internal),
-        )
-        launcherApps.addActivity(Process.myUserHandle(), activityInfo)
-    }
+    /** [entry] as the system lists it in the personal profile. */
+    private fun install(entry: AppEntry) =
+        launcherApps.addActivity(Process.myUserHandle(), launcherActivityOf(app, entry, Process.myUserHandle()))
 
     private fun configFile(text: String) =
         File(checkNotNull(app.getExternalFilesDir(null)), ConfigFile.NAME).writeText(text)
