@@ -8,6 +8,7 @@ import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ListView
+import android.widget.TextView
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -236,5 +237,14 @@ class MainActivityFlowsTest {
         enter("~v")
         assertEquals(LauncherLogic.VERIFY, prompt.text.toString())
         assertTrue(ConfigFinding.BadLine(ConfigLine(2, "favourite Zulu")).let(::ReportRow) in shownRows())
+    }
+
+    @Test fun `~verify shows a file without line breaks cut short, not whole`() {
+        configFile("x".repeat(1024 * 1024))
+        started()
+        enter("~v")
+        val list = activity.window.decorView.collect<ListView>().single()
+        val shown = (list.adapter.getView(0, null, list) as TextView).text.toString()
+        assertEquals("Line 1, no entry, skipped: ${"x".repeat(200)}…", shown)
     }
 }

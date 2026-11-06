@@ -43,6 +43,20 @@ internal object ConfigReport {
         return (lines + incomplete).ifEmpty { listOf(ConfigFinding.AllGood) }
     }
 
+    /**
+     * [line]'s text as its row shows it: past [MAX_SHOWN_CHARS] it is cut and ends in "…".
+     *
+     * Why: a row wraps and is laid out on main, and a file with no line breaks (minified JSON, a
+     *   binary) is one line of up to the read's whole cap, 1 MB. "~verify" is what the user runs
+     *   when a file like that does nothing, and the start of a line is enough to recognize it.
+     */
+    fun shownText(line: ConfigLine): String {
+        val cut = LauncherLogic.truncate(line.text, MAX_SHOWN_CHARS)
+        return if (cut.length < line.text.length) "$cut…" else cut
+    }
+
+    private const val MAX_SHOWN_CHARS = 200
+
     private fun lineOf(finding: ConfigFinding): Int = when (finding) {
         is ConfigFinding.BadLine -> finding.line.number
         is ConfigFinding.NoApp -> finding.line.number

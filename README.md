@@ -97,8 +97,8 @@ keyboard, no prompt:
       way to make a changed config file count; `~verify` then says what the read found
     - `~verify` — what the last read of your config file found, a line each: a file that is not
       there, too big or unreadable (and where it is looked for), each line that is no entry, and
-      each line that names no installed app, with its number and text. It changes nothing; fix
-      the file on the PC and `~restart`
+      each line that names no installed app, with its number and text (a very long line cut
+      short). It changes nothing; fix the file on the PC and `~restart`
     - `~crash` — only in a daily-driver build (`-PdailyDriver`, and every debug build): crash
       on purpose, to see the crash-only paths. Never abbreviated
 - Tap a row or press **Enter** to launch the row nearest the command line. On an empty line

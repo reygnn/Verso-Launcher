@@ -473,8 +473,8 @@ internal class AppDrawer(
             ConfigStatus.UNREADABLE -> activity.getString(R.string.report_unreadable)
             ConfigStatus.MISSING, ConfigStatus.READ -> activity.getString(R.string.report_missing, activity.packageName)
         }
-        is ConfigFinding.BadLine -> activity.getString(R.string.report_bad_line, finding.line.number, finding.line.text)
-        is ConfigFinding.NoApp -> activity.getString(R.string.report_no_app, finding.line.number, finding.line.text)
+        is ConfigFinding.BadLine -> activity.getString(R.string.report_bad_line, finding.line.number, ConfigReport.shownText(finding.line))
+        is ConfigFinding.NoApp -> activity.getString(R.string.report_no_app, finding.line.number, ConfigReport.shownText(finding.line))
         ConfigFinding.ListIncomplete -> activity.getString(R.string.report_list_incomplete)
         ConfigFinding.AllGood -> activity.getString(R.string.report_all_good)
     }

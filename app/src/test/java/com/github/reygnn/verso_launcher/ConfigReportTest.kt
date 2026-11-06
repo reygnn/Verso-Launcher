@@ -64,4 +64,25 @@ class ConfigReportTest {
             report("fav Gmial", complete = false),
         )
     }
+
+    @Test fun `a line up to the limit is shown whole`() {
+        val line = "x".repeat(200)
+        assertEquals(line, ConfigReport.shownText(ConfigLine(1, line)))
+    }
+
+    @Test fun `a line past the limit is cut and says so`() {
+        assertEquals("x".repeat(200) + "…", ConfigReport.shownText(ConfigLine(1, "x".repeat(201))))
+    }
+
+    @Test fun `a cut never splits a character`() {
+        val emoji = String(Character.toChars(0x1F600))
+        val line = "x".repeat(199) + emoji + "x"
+        assertEquals("x".repeat(199) + "…", ConfigReport.shownText(ConfigLine(1, line)))
+    }
+
+    /** The whole text stays in the finding: only its row is cut. */
+    @Test fun `a finding keeps the line whole`() {
+        val line = "x".repeat(1000)
+        assertEquals(listOf(ConfigFinding.BadLine(ConfigLine(1, line))), report(line))
+    }
 }
