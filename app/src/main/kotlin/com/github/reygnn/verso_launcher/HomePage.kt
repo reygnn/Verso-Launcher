@@ -229,7 +229,7 @@ internal class HomePage(
 
     fun startBattery() {
         if (batteryRegistered) return
-        // NOT_EXPORTED still receives this system broadcast. Not caught, like [MainActivity.watchApps].
+        // NOT_EXPORTED still receives this system broadcast. Not caught, like [AppWatch.start].
         val sticky = activity.registerReceiver(
             batteryReceiver,
             IntentFilter(Intent.ACTION_BATTERY_CHANGED),

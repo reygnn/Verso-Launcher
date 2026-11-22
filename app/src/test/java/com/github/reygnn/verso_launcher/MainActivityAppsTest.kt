@@ -1,5 +1,6 @@
 package com.github.reygnn.verso_launcher
 
+import android.content.Intent
 import android.content.pm.LauncherApps
 import android.os.Looper
 import android.os.Process
@@ -25,7 +26,7 @@ import java.util.concurrent.TimeUnit
 /**
  * The window with apps listed: Robolectric's LauncherApps lists what a test adds
  * (`ShadowLauncherApps.addActivity`), so the first list draws home, writes the home cache and
- * answers package changes the way MainActivity collects them. MainActivityFlowsTest has the flows
+ * answers package changes the way AppChanges collects them, heard by the process (AppWatch). MainActivityFlowsTest has the flows
  * that need no app at all. The process's IO thread is real, as there.
  *
  * Why native graphics: [launcherActivityOf] says it.
@@ -96,7 +97,7 @@ class MainActivityAppsTest {
         assertTrue(homeCache.delete())
         install(yankee)                         // the list changes, the favorites do not
         launcherApps.notifyPackageAdded(yankee.packageName)
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(CHANGE_SETTLE_MS))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(AppChanges.SETTLE_MS))
         settle()
         assertEquals(listOf("Yankee", "Zulu"), drawer())
         assertFalse(homeCache.exists())
@@ -124,15 +125,15 @@ class MainActivityAppsTest {
 
     // ---- package changes ---------------------------------------------------------------
 
-    /** In front, a burst of changes is one refresh, CHANGE_SETTLE_MS after the last of them. */
+    /** In front, a burst of changes is one refresh, AppChanges.SETTLE_MS after the last of them. */
     @Test fun `changes in front are collected until they settle`() {
         install(zulu)
         started()
         install(yankee)
         launcherApps.notifyPackageAdded(yankee.packageName)
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(CHANGE_SETTLE_MS - 200))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(AppChanges.SETTLE_MS - 200))
         launcherApps.notifyPackageAdded(yankee.packageName)   // a second change starts the wait anew
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(CHANGE_SETTLE_MS - 100))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(AppChanges.SETTLE_MS - 100))
         settle()
         assertEquals("still settling", listOf("Zulu"), drawer())
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
@@ -146,7 +147,7 @@ class MainActivityAppsTest {
         controller.pause().stop()
         install(yankee)
         launcherApps.notifyPackageAdded(yankee.packageName)
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(CHANGE_SETTLE_MS * 2))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(AppChanges.SETTLE_MS * 2))
         settle()
         assertEquals("no refresh behind another app", listOf("Zulu"), drawer())
         controller.restart().resume()
@@ -171,8 +172,14 @@ class MainActivityAppsTest {
         assertEquals(listOf("Yankee", "Zulu"), drawer())
     }
 
-    private companion object {
-        /** MainActivity's CHANGE_SETTLE_MS, which is private there. */
-        const val CHANGE_SETTLE_MS = 500L
+    /** The profile broadcasts go the same way as the package callbacks. */
+    @Test fun `a profile broadcast is a change too`() {
+        install(zulu)
+        started()
+        install(yankee)
+        app.sendBroadcast(Intent(Intent.ACTION_PROFILE_ADDED))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(AppChanges.SETTLE_MS))
+        settle()
+        assertEquals(listOf("Yankee", "Zulu"), drawer())
     }
 }

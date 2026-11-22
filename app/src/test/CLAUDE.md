@@ -37,6 +37,8 @@ Pure logic
                            manager: launcher keys, the default SMS app first, a slot that throws;
                            the badge's cache across a language change
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
+  AppChangesTest           when a package or profile change becomes a refresh: in front (the
+                           settle timer), behind another app, across a pause, an incomplete load
 
 State and threads (manual queues)
   LauncherStateTest        the concurrency rules: refreshes and taps interleaved; the
@@ -59,7 +61,8 @@ The window (R)
   MainActivityFlowsTest    the real Activity: the config file from the first frame and read
                            again by ~restart only, "%", ~restart and recreation
   MainActivityAppsTest     the real Activity with apps listed: home and its cache from the first
-                           list, package changes collected in front, behind and across a pause
+                           list, package changes and a profile broadcast heard by the process
+                           and collected in front, behind and across a pause
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page: rows, empty hints, TalkBack, the tap guard, Enter

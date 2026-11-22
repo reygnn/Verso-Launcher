@@ -1,14 +1,9 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
 import android.view.KeyEvent
@@ -23,9 +18,6 @@ import android.window.OnBackInvokedDispatcher
  */
 class MainActivity : Activity() {
 
-    // Whether the next onResume must re-enumerate the apps.
-    private var appsDirty = true
-    private var resumed = false
     // Set by a launch that started: the pause it brings turns the page home (see onPause).
     private var launchedApp = false
 
@@ -52,6 +44,7 @@ class MainActivity : Activity() {
      */
     private val launcherWindow = object : LauncherWindow {
         override fun refreshed(from: LauncherState, listChanged: Boolean) = this@MainActivity.refreshed(from, listChanged)
+        override fun profileAvailable(user: UserHandle?) = launcher.profileAvailable(user)
     }
 
     // ---- the two pages ------------------------------------------------------
@@ -67,8 +60,10 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The process hands its refreshes to whichever instance is alive.
+        // The process hands its refreshes to whichever instance is alive, and loads the list again
+        // for a new one: a language change recreates the window, and relabels every app.
         app.instance = launcherWindow
+        app.core.windowCreated()
 
         // Under enforced edge-to-edge the system does NOT lift content for the IME; we pad for it
         // ourselves. No scrim behind 3-button navigation: the wallpaper runs to the bottom edge.
@@ -117,8 +112,6 @@ class MainActivity : Activity() {
         // the same list, which re-renders nothing (listChanged false).
         if (state.appsLoaded) appDrawer.refilter()
 
-        watchApps()
-
         // First on the IO thread, so the cached favorites land long before the full enumeration does.
         submitIo {
             val cached = HomeCache.read(filesDir, ::logWarning)
@@ -142,58 +135,21 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        resumed = true
-        // Not on every return home: a full enumeration of every profile would compete with the
-        // return animation. needsRefresh covers a load that failed or came back incomplete — no
-        // package event retries it.
-        if (appsDirty || state.needsRefresh) {
-            appsDirty = false
-            state.refresh()
-        }
+        // The process decides whether the list is loaded again (AppChanges): not on every return home.
+        app.core.windowResumed()
         pageTurn.resumed()
     }
 
     /** The page stays as it is — a dialog or the shade on top pauses without leaving; [onStop] turns it home. */
     override fun onPause() {
-        resumed = false
         // A dialog-like or translucent app never stops this activity: without this the drawer
         // (or the recents) would stay open under it, and re-sort in view on the next refresh.
         if (launchedApp) {
             launchedApp = false
             pageTurn.close(animate = false)
         }
-        // A change still waiting to be collected is picked up by the next resume instead.
-        // (View.removeCallbacks always answers true, so the flag says whether one waits.)
-        if (refreshSoonPending) {
-            pageTurn.root.removeCallbacks(refreshSoon)
-            refreshSoonPending = false
-            appsDirty = true
-        }
+        app.core.windowPaused()
         super.onPause()
-    }
-
-    /**
-     * In front: a burst of changes is collected for [CHANGE_SETTLE_MS] into one refresh. Behind
-     * another app: only marked dirty, so a store updating 20 apps costs one reload on resume.
-     */
-    private fun appsMaybeChanged() {
-        if (resumed) {
-            pageTurn.root.removeCallbacks(refreshSoon)
-            pageTurn.root.postDelayed(refreshSoon, CHANGE_SETTLE_MS)
-            refreshSoonPending = true
-        } else {
-            appsDirty = true
-        }
-    }
-
-    private var refreshSoonPending = false
-    private val refreshSoon = Runnable {
-        refreshSoonPending = false
-        if (resumed) {
-            state.refresh()
-        } else {
-            appsDirty = true
-        }
     }
 
     /** Leaving the launcher turns the page home instantly, so a return lands on home, not a half-typed search. */
@@ -206,7 +162,6 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         // No executor shutdown: work this instance queued must still run.
         if (app.instance === launcherWindow) app.instance = null
-        unwatchApps()
         unwatchWallpaper()
         super.onDestroy()
     }
@@ -320,51 +275,6 @@ class MainActivity : Activity() {
     // The process's app list (Core): enumeration, a profile's user.
     private val apps get() = app.core.apps
 
-    private val appsChanged = object : LauncherApps.Callback() {
-        override fun onPackageAdded(packageName: String, user: UserHandle) = appsMaybeChanged()
-        override fun onPackageRemoved(packageName: String, user: UserHandle) = appsMaybeChanged()
-        override fun onPackageChanged(packageName: String, user: UserHandle) = appsMaybeChanged()
-        override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
-            appsMaybeChanged()
-        override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
-            appsMaybeChanged()
-        override fun onPackagesSuspended(packageNames: Array<out String>, user: UserHandle) = appsMaybeChanged()
-        override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) = appsMaybeChanged()
-    }
-
-    private val profilesChanged = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            appsMaybeChanged()
-            if (intent.action != Intent.ACTION_PROFILE_AVAILABLE) return
-            launcher.profileAvailable(intent.getParcelableExtra(Intent.EXTRA_USER, UserHandle::class.java))
-        }
-    }
-
-    // Not caught (hard rule 2). registerCallback throws only if the system server is gone, and
-    // the whole system restarts with it. registerReceiver throws at 1000 receivers in a process,
-    // which takes a leak in this one; the crash ends it, and the new one registers anew.
-    // Why: a catch would keep the leak and a launcher that never hears of an app again.
-    private fun watchApps() {
-        launcherApps.registerCallback(appsChanged, Handler(Looper.getMainLooper()))
-        registerReceiver(
-            profilesChanged,
-            IntentFilter().apply {
-                addAction(Intent.ACTION_PROFILE_ADDED)
-                addAction(Intent.ACTION_PROFILE_REMOVED)
-                addAction(Intent.ACTION_PROFILE_AVAILABLE)
-                addAction(Intent.ACTION_PROFILE_UNAVAILABLE)
-            },
-            RECEIVER_NOT_EXPORTED,
-        )
-    }
-
-    // Not caught (hard rule 2): this instance registered both in its onCreate, so neither can miss.
-    // Why: a catch here would only hide a registration that went wrong.
-    private fun unwatchApps() {
-        launcherApps.unregisterCallback(appsChanged)
-        unregisterReceiver(profilesChanged)
-    }
-
     /** The favorites the cache file holds, as last written or read (see HomeCache). */
     private var cachedFavorites: List<Pair<String, String>>? = null
 
@@ -393,10 +303,5 @@ class MainActivity : Activity() {
         val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         window.insetsController?.setSystemBarsAppearance(if (p.darkBarIcons) lightBars else 0, lightBars)
-    }
-
-    private companion object {
-        /** How long package changes in front are collected into one refresh. */
-        const val CHANGE_SETTLE_MS = 500L
     }
 }

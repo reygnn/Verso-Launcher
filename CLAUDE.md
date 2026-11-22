@@ -152,14 +152,15 @@ One module, one package. The process owns the data, an activity is a window (har
   `LauncherState`, built from the user's file, the app list, and the launches behind `?` and `%`:
   `LaunchHistory`, which outlives a state).
 - **Window:** `MainActivity` (refusals up front, `%`, `~restart`; the process sees it only as a
-  `LauncherWindow`), `AppLauncher` (a start or "App info" in the entry's profile, a
+  `LauncherWindow`, and it tells the process when it is made, in front and behind), `AppLauncher` (a start or "App info" in the entry's profile, a
   paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
   default favorites), `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
   `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
   `AppEntry` and `VersoConfig` (immutable, resolved anew from the text), `ConfigReport` (what
-  `~verify` says about the text).
-- **IO:** `ConfigFile`, `DrawerOrder`, `Apps` (enumeration, default favorites),
+  `~verify` says about the text), `AppChanges` (when a change to the apps becomes a refresh).
+- **IO:** `ConfigFile`, `DrawerOrder`, `Apps` (enumeration, default favorites), `AppWatch` (the
+  system's package callbacks and profile broadcasts, heard by the process),
   `HomeCache`, `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it
   `logWarning`).
 
@@ -167,9 +168,10 @@ The rest are small helpers named for what they do.
 
 Data flow of the app list:
 
-1. A `LauncherApps` callback or a profile broadcast reaches `MainActivity.appsMaybeChanged`.
-2. `LauncherState.refresh()` runs `MainActivity.CHANGE_SETTLE_MS` later if the window is in
-   front, so a burst of changes is one refresh, else at the next `onResume`.
+1. A `LauncherApps` callback or a profile broadcast reaches the process (`AppWatch.start`, wired in
+   `Core`) and from there `AppChanges.changed`.
+2. `LauncherState.refresh()` runs `AppChanges.SETTLE_MS` later if the window is in front, so a
+   burst of changes is one refresh, else at the next `onResume` (`Core.windowResumed`).
 3. The IO thread reads the apps of every profile, system labels only.
 4. On main the newest load generation wins. The file's text is resolved against the list
    (`ConfigText.resolve`) and the custom names are applied (`LauncherLogic.named`).
