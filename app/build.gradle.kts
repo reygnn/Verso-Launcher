@@ -207,7 +207,7 @@ pitest {
     targetClasses.set(
         listOf(
             "LauncherLogic*", "LauncherState*", "LaunchHistory*", "ConfigText*", "ConfigReport*", "ConfigFile*", "UsageLog*",
-            "RecentsLog*", "HomeCache*", "DrawerOrder*", "DisposableFileKt*", "SwipeGesture*", "AppEntry*", "AppStatus*",
+            "RecentsLog*", "HomeCache*", "DrawerOrder*", "DisposableFileKt*", "SwipeGesture*", "PageState*", "DragOutcome*", "AppEntry*", "AppStatus*",
             "WallpaperPalette*", "TapGuard*", "HomeStyle*", "BatteryInfo*", "DoubleTapGate*", "Palette*",
             "Guard*", "EnumerationKt*", "ProfileReader*", "AppChanges*",
         ).map { "com.github.reygnn.verso_launcher.$it" },
@@ -216,7 +216,7 @@ pitest {
         listOf(
             "AppChangesTest", "AppEntryTest", "ConfigFileTest", "DisposableFileTest", "ConfigFuzzTest", "ConfigReportTest", "ConfigTextTest", "DrawerOrderTest", "EnumerationTest",
             "GuardTest", "HomeCacheTest", "HomeStyleTest", "LauncherActionsTest", "LauncherLogicTest", "LauncherRowsTest",
-            "LauncherStateTest", "LaunchHistoryTest", "RecentsLogTest", "SwipeGestureTest", "TapGuardTest", "UsageLogTest", "VersoConfigTest",
+            "LauncherStateTest", "LaunchHistoryTest", "PageStateTest", "RecentsLogTest", "SwipeGestureTest", "TapGuardTest", "UsageLogTest", "VersoConfigTest",
             "WallpaperPaletteTest",
         ).map { "com.github.reygnn.verso_launcher.$it" },
     )

@@ -159,7 +159,8 @@ One module, one package. The process owns the data, an activity is a window (har
   default favorites; `LauncherLogic.drawerView` is all the drawer shows for one prompt), `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
   `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
   `AppEntry` and `VersoConfig` (immutable, resolved anew from the text), `ConfigReport` (what
-  `~verify` says about the text), `AppChanges` (when a change to the apps becomes a refresh).
+  `~verify` says about the text), `AppChanges` (when a change to the apps becomes a refresh),
+  `PageState` (the page turn's state: which page is up, the drawer's side, what holds it).
 - **IO:** `ConfigFile`, `DrawerOrder`, `Apps` (enumeration, default favorites), `AppWatch` (the
   system's package callbacks and profile broadcasts, heard by the process),
   `HomeCache`, `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it
@@ -249,13 +250,16 @@ dropped one keeps its number as "(removed)".
    - Lists sort with the device locale's `Collator`, never by code point.
 10. **Default favorites only with no config file** (`LauncherState.useDefaults`): picked from
     every list anew, never written. An empty file is a config: no defaults over it.
-11. **Page turn** (`PageTurn`, `SwipeFrame`, `SwipeGesture`).
+11. **Page turn** (`PageTurn`, `PageState`, `SwipeFrame`, `SwipeGesture`).
     - The drawer follows the finger both ways. `?` is the same drawer, coming from the top and
       closing toward it. The flick is the fallback.
     - Touch is handled only in `SwipeFrame.dispatchTouchEvent`, never in `onInterceptTouchEvent`.
     - Easy to break, each of these must keep holding: a second finger cancels a drag; a drag
       grabs a page that is still moving; a page turned some other way aborts a running drag
-      (`SwipeFrame.abortDrag`).
+      (`PageState.opened` and `PageState.closed` let go of the page, `SwipeFrame.abortDrag` tells
+      the frame).
+    - The page's state is one `PageState`, changed only through its transitions. No flag beside
+      it, and no view's visibility read in its place.
 12. **Status bar hidden on the home page only**; home pads for it regardless
     (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate the activity.

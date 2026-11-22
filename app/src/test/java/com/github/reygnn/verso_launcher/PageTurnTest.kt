@@ -617,6 +617,20 @@ class PageTurnTest {
     }
 
     /** A hardware key typed during the gesture: Back clears the prompt instead, the preview is undone. */
+    /**
+     * The preview held the drawer that was closed: the one opened since is another turn's, and what
+     * is left of that gesture must not pull at it (PageState: every turn lets go of the page).
+     */
+    @Test fun `a Back preview does not move a drawer opened anew meanwhile`() {
+        openSettled()
+        pageTurn.backCallback.onBackStarted(back(0f))
+        pageTurn.close(animate = false)             // HOME
+        openSettled()                               // and a key opens it again
+        pageTurn.backCallback.onBackProgressed(back(1f))
+        assertEquals("in place, not pulled by the old preview", 0f, drawer.view.translationY)
+        assertEquals(1f, drawer.view.alpha)
+    }
+
     @Test fun `Back whose prompt changed during the preview clears it and puts the drawer back`() {
         openSettled()
         pageTurn.backCallback.onBackStarted(back(0f))

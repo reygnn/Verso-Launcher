@@ -23,6 +23,9 @@ Pure logic
                            a tap on one view
   LauncherActionsTest      Enter and tap decisions
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
+  PageStateTest            the page turn's state: where an opening drawer starts from, what a
+                           drag comes to, every turn letting go of the page, the side after a
+                           mode change
   HomeStyleTest            sizes, luminance, outline thresholds, battery, AppStatus
   VersoConfigTest          equality as file content
   ConfigTextTest           the config file the user writes: its lines, the apps they name
