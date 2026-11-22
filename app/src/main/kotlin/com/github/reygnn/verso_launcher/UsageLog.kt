@@ -76,20 +76,13 @@ internal object UsageLog {
     /** key, score, at: what [format] writes on each line. */
     private const val FIELDS = 3
 
-    /** Ours stays far smaller; anything larger is not read into memory, just replaced. */
+    /** Ours stays far smaller ([readDisposable]). */
     const val MAX_BYTES = 1_000_000L
 
     /** Null when the file is there but could not be read: not loaded, the next refresh retries
      *  (writing over it would wipe the counts). No file, or a file too large, is an empty log. */
-    // null is the answer (see above)
-    @Suppress("TooGenericExceptionCaught")
-    fun read(dir: File, log: (String, Exception?) -> Unit): Map<String, Usage>? = try {
-        val file = File(dir, FILE)
-        if (!file.isFile || file.length() > MAX_BYTES) emptyMap() else parse(file.readText())
-    } catch (e: Exception) {
-        log("$FILE unreadable, not loaded", e)
-        null
-    }
+    fun read(dir: File, log: (String, Exception?) -> Unit): Map<String, Usage>? =
+        readDisposable(dir, FILE, MAX_BYTES, absent = emptyMap(), log = log, parse = ::parse)
 
     fun write(dir: File, log: Map<String, Usage>, now: Long) = writeDisposable(dir, FILE, format(log, now))
 }

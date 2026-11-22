@@ -11,6 +11,9 @@ internal object HomeCache {
 
     const val FILE = "home-cache.txt"
 
+    /** A line per favorite: ours stays far smaller ([readDisposable]). */
+    const val MAX_BYTES = 1_000_000L
+
     /** A tab or line break in a label would break the line format. Compiled once, not per favorite. */
     private val LINE_BREAKERS = Regex("[\\t\\r\\n]")
 
@@ -25,14 +28,9 @@ internal object HomeCache {
         AppEntry(label, parts.packageName, parts.className, label, parts.profile)
     }.toList()
 
-    // a disposable cache: unreadable = none
-    @Suppress("TooGenericExceptionCaught")
-    fun read(dir: File, log: (String, Exception?) -> Unit): List<AppEntry> = try {
-        File(dir, FILE).takeIf { it.isFile }?.readText()?.let(::parse).orEmpty()
-    } catch (e: Exception) {
-        log("$FILE unreadable", e)
-        emptyList()
-    }
+    /** The cached favorites; none when there is no cache, or one that is too large or unreadable. */
+    fun read(dir: File, log: (String, Exception?) -> Unit): List<AppEntry> =
+        readDisposable(dir, FILE, MAX_BYTES, absent = emptyList(), log = log, parse = ::parse).orEmpty()
 
     fun write(dir: File, favorites: List<AppEntry>) = writeDisposable(dir, FILE, format(favorites))
 }

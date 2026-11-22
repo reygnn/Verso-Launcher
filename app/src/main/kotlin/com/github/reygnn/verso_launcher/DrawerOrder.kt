@@ -11,22 +11,19 @@ import java.io.File
 internal object DrawerOrder {
 
     const val FILE = "order.txt"
+
+    /** One word: anything longer is not ours ([readDisposable]). */
+    const val MAX_BYTES = 1_000L
     private const val USAGE = "usage"
     private const val NAME = "name"
 
     /** True for most used first, false for A to Z, null when never set (or unreadable: logged). */
-    // a disposable file: unreadable = never set
-    @Suppress("TooGenericExceptionCaught")
-    fun read(dir: File, log: (String, Exception?) -> Unit): Boolean? = try {
-        when (File(dir, FILE).takeIf { it.isFile }?.readText()?.trim()) {
+    fun read(dir: File, log: (String, Exception?) -> Unit): Boolean? =
+        when (readDisposable(dir, FILE, MAX_BYTES, absent = "", log = log) { it.trim() }) {
             USAGE -> true
             NAME -> false
             else -> null
         }
-    } catch (e: Exception) {
-        log("$FILE unreadable", e)
-        null
-    }
 
     fun write(dir: File, byUsage: Boolean) = writeDisposable(dir, FILE, if (byUsage) "$USAGE\n" else "$NAME\n")
 }

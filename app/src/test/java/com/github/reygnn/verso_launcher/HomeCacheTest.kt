@@ -45,6 +45,16 @@ class HomeCacheTest {
         assertEquals(listOf(personal.key, work.key), HomeCache.read(dir, noLog).map { it.key })
     }
 
+    /** A cache past the cap is not ours: not read into memory on the IO thread, and replaced by the next write. */
+    @Test fun `a cache too large is no cache`() {
+        val dir = tmp.newFolder()
+        val line = HomeCache.format(listOf(personal))
+        File(dir, HomeCache.FILE).writeText(line + "\n".repeat(HomeCache.MAX_BYTES.toInt() - line.length))
+        assertEquals("at the cap it is read", listOf(personal.key), HomeCache.read(dir, noLog).map { it.key })
+        File(dir, HomeCache.FILE).appendText("\n")
+        assertEquals(emptyList<AppEntry>(), HomeCache.read(dir, noLog))
+    }
+
     @Test fun `an unreadable cache is no cache, and logged`() {
         val dir = tmp.newFolder()
         HomeCache.write(dir, listOf(personal))

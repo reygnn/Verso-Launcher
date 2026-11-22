@@ -52,6 +52,8 @@ Files (real temp files)
   ConfigFileTest           the user's config file at its fixed place: none, empty, bad lines,
                            past the cap — never a throw
   DrawerOrderTest, HomeCacheTest, UsageLogTest, RecentsLogTest   the app's disposable files
+  DisposableFileTest       the read and the write they share: absent, past the cap, a parse
+                           that throws, the rename
 
 The window (R)
   MainActivityFlowsTest    the real Activity: the config file from the first frame and read
@@ -84,8 +86,9 @@ When the scans run, and why, is described at `sourceScanTest` in `app/build.grad
 scan goes into `sourceScans` there, and a file it reads into the inputs of `sourceScanTest`.
 
 Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
-`DefaultLocaleRule.kt`, `TestLauncherActivities.kt`. The unreadable-file cases of `UsageLogTest`
-and `RecentsLogTest` use `chmod`; run as root, which reads the file anyway, they are skipped.
+`DefaultLocaleRule.kt`, `TestLauncherActivities.kt`. The unreadable-file cases of `UsageLogTest`,
+`RecentsLogTest`, `HomeCacheTest`, `DrawerOrderTest` and `ConfigFileTest` use `chmod`; run as root,
+which reads the file anyway, they are skipped.
 
 No instrumented tests: everything runs on the JVM.
 

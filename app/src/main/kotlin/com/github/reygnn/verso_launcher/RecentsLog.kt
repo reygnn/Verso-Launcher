@@ -11,7 +11,7 @@ internal object RecentsLog {
 
     const val FILE = "recents.txt"
 
-    /** Ours is a few hundred bytes; anything larger is not read into memory, just replaced. */
+    /** Ours is a few hundred bytes ([readDisposable]). */
     const val MAX_BYTES = 64_000L
 
     /** Launches made before the file was read come first. */
@@ -25,15 +25,8 @@ internal object RecentsLog {
 
     /** Null when the file is there but could not be read: not loaded, the next refresh retries
      *  (writing over it would lose the list). No file, or a file too large, is an empty list. */
-    // null is the answer (see above)
-    @Suppress("TooGenericExceptionCaught")
-    fun read(dir: File, limit: Int, log: (String, Exception?) -> Unit): List<String>? = try {
-        val file = File(dir, FILE)
-        if (!file.isFile || file.length() > MAX_BYTES) emptyList() else parse(file.readText(), limit)
-    } catch (e: Exception) {
-        log("$FILE unreadable, not loaded", e)
-        null
-    }
+    fun read(dir: File, limit: Int, log: (String, Exception?) -> Unit): List<String>? =
+        readDisposable(dir, FILE, MAX_BYTES, absent = emptyList(), log = log) { parse(it, limit) }
 
     fun write(dir: File, keys: List<String>) = writeDisposable(dir, FILE, format(keys))
 }

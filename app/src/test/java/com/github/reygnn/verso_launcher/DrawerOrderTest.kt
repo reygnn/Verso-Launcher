@@ -52,6 +52,15 @@ class DrawerOrderTest {
         assertEquals(listOf("${DrawerOrder.FILE} unreadable"), logs)
     }
 
+    /** One word is all it holds: a file past the cap is another's, and never set. */
+    @Test fun `an order_txt too large is unset`() {
+        val file = File(dir, DrawerOrder.FILE)
+        file.writeText("usage" + "\n".repeat(DrawerOrder.MAX_BYTES.toInt() - 5))
+        assertEquals("at the cap it is read", true, DrawerOrder.read(dir, log))
+        file.appendText("\n")
+        assertNull(DrawerOrder.read(dir, log))
+    }
+
     /** The other half of [writeDisposable]: the test above only sees a rename that works. */
     @Test fun `a rename that fails throws for Guard to log and leaves no temp file behind`() {
         // A non-empty directory where the file goes: no rename can replace it.
