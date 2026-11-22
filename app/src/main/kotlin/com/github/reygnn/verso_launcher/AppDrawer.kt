@@ -1,280 +1,63 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.content.Context
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.text.Editable
-import android.text.InputFilter
-import android.text.InputType
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.TextUtils
-import android.text.TextWatcher
-import android.text.style.StyleSpan
-import android.view.Gravity
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
-import android.widget.AbsListView
-import android.widget.BaseAdapter
-import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ListView
-import android.widget.TextView
 
 /**
- * The back page: the list above the command line, what the list shows, and the stale-tap guard.
- * Decisions are LauncherLogic's; side effects go back to the Activity through the lambdas.
+ * The back page: the list ([DrawerList]) above the command line ([DrawerPrompt]). Every change of
+ * the prompt or the data is one [LauncherLogic.drawerView], which the list draws and which answers
+ * an Enter or a tap; the side effects go back to the Activity through the lambdas.
  *
- * The widgets stay inside: callers say what they want done (clear the prompt, scroll to the top),
- * so the rows and the stale-tap generations change only here. Tests reach a
- * widget through the view tree (ViewTrees.collect).
+ * The widgets stay inside the two parts: callers say what they want done (set the prompt, scroll
+ * to the top). Tests reach a widget through the view tree (ViewTrees.collect).
  */
 internal class AppDrawer(
-    private val activity: Activity,
+    activity: Activity,
     private val state: LauncherState,
-    private var palette: Palette,
+    palette: Palette,
     private val onAction: (DrawerAction<AppEntry>) -> Unit,
-    private val onLongPress: (AppEntry) -> Unit,
+    onLongPress: (AppEntry) -> Unit,
     private val onFiltered: () -> Unit,
     private val onModeChanged: (Mode) -> Unit,
 ) {
-    val view: LinearLayout
+    // What is on screen. Before the first filter: the bare drawer, nothing listed yet.
+    private var shown: DrawerView<AppEntry> =
+        DrawerView(Mode.NORMAL, trimmed = "", rows = emptyList(), topAnchored = true, emptyHint = null)
 
-    private val outlinePx get() = HomeStyle.OUTLINE_DP * activity.resources.displayMetrics.density
+    val mode: Mode get() = shown.mode
 
-    var mode = Mode.NORMAL
-        private set
+    private val list = DrawerList(
+        activity = activity,
+        palette = palette,
+        onTap = { position -> onAction(shown.tap(position)) },
+        onLongPress = onLongPress,
+        onType = ::typeIntoPrompt,
+    )
 
-    // Stale-tap guard (see TapGuard): bumped on every replacement of [shown].
-    private var shownGeneration = 0
-    // Live while the finger is down: the long-press fires before ACTION_UP.
-    private var touchDownGeneration = TapGuard.NO_TOUCH
+    private val prompt = DrawerPrompt(
+        activity = activity,
+        palette = palette,
+        onChanged = ::applyFilter,
+        onEnter = { onAction(shown.enter()) },
+    )
 
-    // Kept past ACTION_UP for the click posted after it. Must stay separate from
-    // touchDownGeneration — sharing one field silently disables one of the two guards.
-    private var clickDownGeneration = TapGuard.NO_TOUCH
-
-    private var shown: List<Row<AppEntry>> = emptyList()
-
-    private lateinit var clearButton: OutlinedTextView
-    // Recoloured in place: the Editor loads its cursor drawable once and ignores a new one.
-    private val cursorDrawable = GradientDrawable()
-    private lateinit var emptyView: OutlinedTextView
-    private lateinit var listView: ListView
-    private lateinit var prompt: OutlinedEditText
-    private lateinit var adapter: AppListAdapter
-
-    private val listTypeface: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-
-    init {
-        // No background or scrim (a scrim flickered on the wallpaper): the drawer hides home instead.
-        view = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            fitsSystemWindows = false
-            visibility = View.GONE
-            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-        }
-
-        // Labels the click of a row for screen readers ("double-tap to turn paused apps back on"),
-        // keeping the list's own item click: a delegate on the row would replace the one the list
-        // sets there.
-        listView = object : ListView(activity) {
-            override fun onInitializeAccessibilityNodeInfoForItem(view: View, position: Int, info: AccessibilityNodeInfo) {
-                super.onInitializeAccessibilityNodeInfoForItem(view, position, info)
-                val entry = (shown.getOrNull(position) as? AppRow)?.entry ?: return
-                rowA11y(entry).second?.let { info.addAction(AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, it)) }
-            }
-        }.apply {
-            divider = null
-            // A hardware keyboard's focus can land in the list: send typing back to the prompt.
-            setOnKeyListener { _, _, event ->
-                val c = if (event.action == KeyEvent.ACTION_DOWN) printable(event) else null
-                if (c != null) typeIntoPrompt(c)
-                c != null
-            }
-            isVerticalScrollBarEnabled = false
-            isStackFromBottom = true
-            // Observe only, never consume: the ListView still scrolls and detects clicks.
-            @Suppress("ClickableViewAccessibility")
-            setOnTouchListener { _, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        touchDownGeneration = shownGeneration
-                        clickDownGeneration = TapGuard.NO_TOUCH
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        clickDownGeneration = touchDownGeneration
-                        touchDownGeneration = TapGuard.NO_TOUCH
-                    }
-                    MotionEvent.ACTION_CANCEL -> {
-                        touchDownGeneration = TapGuard.NO_TOUCH
-                        clickDownGeneration = TapGuard.NO_TOUCH
-                    }
-                }
-                false
-            }
-            // A touch that became a scroll makes no click: it must leave no mark that would void
-            // the next click without a touch (keyboard, Switch Access).
-            setOnScrollListener(object : AbsListView.OnScrollListener {
-                override fun onScrollStateChanged(view: AbsListView, scrollState: Int) {
-                    if (scrollState == AbsListView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL) {
-                        touchDownGeneration = TapGuard.NO_TOUCH
-                    }
-                }
-
-                override fun onScroll(view: AbsListView, first: Int, visible: Int, total: Int) = Unit
-            })
-            setOnItemClickListener { _, _, position, _ ->
-                if (!clickStillValid()) return@setOnItemClickListener
-                // getOrNull: a load may have shrunk shown before this posted click runs.
-                onAction(LauncherLogic.tapAction(mode, shown.getOrNull(position)))
-            }
-            setOnItemLongClickListener { _, _, position, _ ->
-                val row = shown.getOrNull(position) as? AppRow
-                    ?: return@setOnItemLongClickListener false
-                // Row type before the guard: a tag row must not consume the marker.
-                if (!longPressStillValid()) return@setOnItemLongClickListener false
-                // Like a scroll, a long press makes no click: its touch leaves no mark (App info
-                // comes back to a list that may have changed, and the next click without a touch
-                // must pass).
-                touchDownGeneration = TapGuard.NO_TOUCH
-                onLongPress(row.entry)
-                true
-            }
-        }
-        emptyView = OutlinedTextView(activity).apply {
-            textSize = HomeStyle.DRAWER_HINT_SP
-            // Italic like the prompt's hint: a hint, not an app row.
-            setTypeface(listTypeface, Typeface.ITALIC)
-            gravity = Gravity.BOTTOM or Gravity.START
-            setPadding(0, 0, 0, 10.dp())
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
-        listView.emptyView = emptyView
-        val listFrame = FrameLayout(activity).apply {
-            addView(listView, FrameLayout.LayoutParams(MATCH, MATCH))
-            addView(emptyView, FrameLayout.LayoutParams(MATCH, MATCH))
-        }
-        view.addView(listFrame, LinearLayout.LayoutParams(MATCH, 0, 1f))
-
-        clearButton = OutlinedTextView(activity).apply {
-            text = "×"
-            typeface = Typeface.MONOSPACE
-            textSize = HomeStyle.DRAWER_CLEAR_SP
-            setTextColor(palette.text)
-            gravity = Gravity.CENTER
-            minWidth = 48.dp()
-            contentDescription = activity.getString(R.string.clear_prompt)
-            isFocusable = false  // keep focus (and the IME) on the prompt when tapped
-            visibility = View.GONE
-            setOnClickListener {
-                prompt.setText("")
-                showKeyboard()
-            }
-        }
-
-        prompt = OutlinedEditText(activity).apply {
-            // In the text colour, set apart by the slant alone.
-            hint = SpannableString(activity.getString(R.string.hint_search)).apply {
-                setSpan(StyleSpan(Typeface.ITALIC), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-            }
-            setHintTextColor(palette.text)
-            setTextColor(palette.text)
-            textCursorDrawable = cursorDrawable.apply { setSize(2.dp(), 1) }
-            typeface = Typeface.MONOSPACE
-            textSize = HomeStyle.DRAWER_PROMPT_SP
-            background = null
-            // Room for the outline's outer half: the view clips at its bounds.
-            setPadding(2.dp(), 2.dp(), 2.dp(), 2.dp())
-            isSingleLine = true
-            // A pasted line break would only look like a space here: it becomes one (LauncherLogic.promptRun).
-            filters = arrayOf(InputFilter { source, start, end, _, _, _ ->
-                LauncherLogic.promptRun(source.subSequence(start, end))
-            })
-            inputType = InputType.TYPE_CLASS_TEXT or
-                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            imeOptions = EditorInfo.IME_ACTION_GO
-            // TalkBack reads the visible hint's ">" as "greater than", and on a page turn it speaks the
-            // focused field, not the pane title (seen on the A17): a spoken hint that names the page.
-            accessibilityDelegate = object : View.AccessibilityDelegate() {
-                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
-                    super.onInitializeAccessibilityNodeInfo(host, info)
-                    val spoken = activity.getString(R.string.a11y_prompt_hint)
-                    info.hintText = spoken
-                    // Empty, the field reports its hint as its text too.
-                    if (info.isShowingHintText) info.text = spoken
-                }
-
-                // The focus event carries the visible hint as well, and that is what TalkBack speaks
-                // as the drawer opens (the node alone changed nothing on the A17).
-                override fun onPopulateAccessibilityEvent(host: View, event: AccessibilityEvent) {
-                    super.onPopulateAccessibilityEvent(host, event)
-                    if ((host as TextView).text.isNullOrEmpty()) {
-                        event.text.clear()
-                        event.text.add(activity.getString(R.string.a11y_prompt_hint))
-                    }
-                }
-            }
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
-                override fun afterTextChanged(s: Editable?) {
-                    val text = s?.toString().orEmpty()
-                    clearButton.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
-                    applyFilter(text)
-                }
-            })
-            setOnEditorActionListener { _, actionId, event ->
-                // A key Enter calls this for down, repeats and up: only the first down acts.
-                val imeAction = actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE
-                val key = event?.let {
-                    EnterKey(
-                        down = it.action == KeyEvent.ACTION_DOWN,
-                        repeatCount = it.repeatCount,
-                        isEnterKey = it.keyCode == KeyEvent.KEYCODE_ENTER || it.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER,
-                    )
-                }
-                when (LauncherLogic.enterEdge(imeAction, key)) {
-                    EnterEdge.PASS -> return@setOnEditorActionListener false
-                    EnterEdge.CONSUME -> return@setOnEditorActionListener true
-                    EnterEdge.ACT -> Unit
-                }
-                val command = LauncherLogic.resolveCommand(promptText.trim())
-                // The last row sits right above the prompt: it is Enter's target.
-                onAction(
-                    LauncherLogic.enterAction(
-                        mode = mode,
-                        command = command,
-                        promptBlank = prompt.text.isNullOrBlank(),
-                        lastRow = shown.lastOrNull(),
-                    )
-                )
-                true
-            }
-        }
-        val promptRow = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(8.dp(), 0, 8.dp(), 0)
-            gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = 48.dp()
-            addView(prompt, LinearLayout.LayoutParams(0, WRAP, 1f))
-            addView(clearButton, LinearLayout.LayoutParams(WRAP, MATCH))
-        }
-        view.addView(promptRow, LinearLayout.LayoutParams(MATCH, WRAP))
-
+    // No background or scrim (a scrim flickered on the wallpaper): the drawer hides home instead.
+    val view: LinearLayout = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        fitsSystemWindows = false
+        visibility = View.GONE
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        addView(list.view, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        addView(prompt.view, LinearLayout.LayoutParams(MATCH, WRAP))
         // Padding (not translation) so the list shrinks and stays scrollable. No
         // WindowInsetsAnimation: a per-frame relayout makes the list blink. Bars ignoring
         // visibility, or the list jumps as the status bar toggles mid-turn (hard rule 12).
-        val pad = 12.dp()
-        view.setOnApplyWindowInsetsListener { v, insets ->
+        val pad = activity.dp(12)
+        setOnApplyWindowInsetsListener { v, insets ->
             val i = android.graphics.Insets.max(
                 insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()),
                 insets.getInsets(WindowInsets.Type.ime()),
@@ -282,87 +65,35 @@ internal class AppDrawer(
             v.setPadding(i.left + pad, i.top + pad, i.right + pad, i.bottom + pad)
             insets
         }
-
-        adapter = AppListAdapter()
-        listView.adapter = adapter
     }
 
     fun applyPalette(p: Palette) {
-        palette = p
-        prompt.setTextColor(palette.text)
-        prompt.setHintTextColor(palette.text)
-        clearButton.setTextColor(palette.text)
-        prompt.setOutline(outlinePx, palette.outline)
-        clearButton.setOutline(outlinePx, palette.outline)
-        // The theme's accent all but vanishes on a light wallpaper.
-        cursorDrawable.setColor(p.text)
-        prompt.invalidate()
-        prompt.highlightColor = p.selection
-        prompt.textSelectHandle?.let { prompt.setTextSelectHandle(it.mutate().apply { setTint(p.text) }) }
-        prompt.textSelectHandleLeft?.let { prompt.setTextSelectHandleLeft(it.mutate().apply { setTint(p.text) }) }
-        prompt.textSelectHandleRight?.let { prompt.setTextSelectHandleRight(it.mutate().apply { setTint(p.text) }) }
-        emptyView.setTextColor(palette.text)
-        emptyView.setOutline(outlinePx, palette.outline)
-        adapter.notifyDataSetChanged()
+        prompt.applyPalette(p)
+        list.applyPalette(p)
     }
 
-    val promptText: String get() = prompt.text?.toString().orEmpty()
+    val promptText: String get() = prompt.text
 
-    /** Synchronous: the TextWatcher has re-filtered (mode back to NORMAL) before this returns. */
-    fun clearPrompt() = setPrompt("")
+    /**
+     * Sets the prompt, the caret at its end. Synchronous: the rows are filtered and [mode] is the
+     * new text's before this returns, so a command may clear the prompt and then run.
+     */
+    fun setPrompt(text: String) = prompt.set(text)
 
     /** The drawer is turning away: its prompt must not keep the focus (and with it the IME). */
-    fun releasePromptFocus() = prompt.clearFocus()
+    fun releasePromptFocus() = prompt.releaseFocus()
 
     /** The list's visual top is showing: a drag down there is the page's, not the list's. */
-    val listAtTop: Boolean get() = !listView.canScrollVertically(-1)
+    val listAtTop: Boolean get() = list.atTop
 
     /** The list's visual bottom is showing (the recents close upward from there). */
-    val listAtBottom: Boolean get() = !listView.canScrollVertically(1)
+    val listAtBottom: Boolean get() = list.atBottom
 
     /** The A-to-Z list rises from its top, not where it was last left. */
-    fun scrollToTop() {
-        if (shown.isNotEmpty()) listView.setSelection(0)
-    }
+    fun scrollToTop() = list.scrollToTop()
 
     /** The same prompt, the rows built anew: the "%" order changes with every launch. */
     fun rebuildRows() = applyFilter(promptText)
-
-    private fun applyFilter(raw: String) {
-        val q = raw.trim()
-        val previous = mode
-        mode = LauncherLogic.parseMode(q)
-        // The recents open with focus on their first row: the list's name says where that is.
-        val listName = activity.getString(if (mode == Mode.RECENTS) R.string.a11y_pane_recents else R.string.a11y_pane_drawer)
-        if (listView.contentDescription != listName) listView.contentDescription = listName
-        // The bare drawer reads top-down; everything else sits above the prompt, where Enter acts.
-        val topAnchored = mode == Mode.NORMAL && q.isEmpty()
-        val anchorFlipped = listView.isStackFromBottom == topAnchored
-        if (anchorFlipped) listView.isStackFromBottom = !topAnchored
-        shown = LauncherLogic.rowsFor(
-            mode = mode,
-            trimmed = q,
-            allApps = state.apps,
-            hidden = state.config.hidden,
-            favorites = state.config.favorites,
-            tags = state.config.tags,
-            recentKeys = state.recentKeys,
-            byUsage = state.config.byUsage,
-            usage = state.usage,
-            now = System.currentTimeMillis(),
-            report = state::report,
-        )
-        // The one place shown is assigned.
-        shownGeneration++
-        // Not before the apps load ("no apps" would be false). Only on change: a live region
-        // would make TalkBack repeat it on every keystroke.
-        val hint = if (!state.appsLoaded) "" else activity.getString(LauncherLogic.emptyHint(mode, q).text())
-        if (emptyView.text.toString() != hint) emptyView.text = hint
-        adapter.notifyDataSetChanged()
-        // On an anchor flip the ListView keeps the old position: pin it to the right end.
-        if (anchorFlipped && shown.isNotEmpty()) listView.setSelection(if (topAnchored) 0 else shown.lastIndex)
-        if (mode != previous) onModeChanged(mode)
-    }
 
     /** After a change to the apps or the config; typing alone never changes the favorites. */
     fun refilter() {
@@ -370,121 +101,32 @@ internal class AppDrawer(
         onFiltered()
     }
 
-    fun typeIntoPrompt(c: String) {
-        prompt.requestFocus()
-        prompt.append(c)
-        prompt.setSelection(prompt.length())
+    fun typeIntoPrompt(c: String) = prompt.type(c)
+
+    fun showKeyboard() = prompt.showKeyboard()
+
+    fun hideKeyboard() = prompt.hideKeyboard()
+
+    private fun applyFilter(raw: String) {
+        val previous = shown.mode
+        shown = LauncherLogic.drawerView(
+            raw,
+            DrawerData(
+                apps = state.apps,
+                loaded = state.appsLoaded,
+                hidden = state.config.hidden,
+                favorites = state.config.favorites,
+                tags = state.config.tags,
+                recentKeys = state.recentKeys,
+                byUsage = state.config.byUsage,
+                usage = state.usage,
+                now = System.currentTimeMillis(),
+                report = state::report,
+            ),
+        )
+        list.show(shown)
+        if (shown.mode != previous) onModeChanged(shown.mode)
     }
-
-    /** Consumes the marker, so only the click this touch leads to is guarded. */
-    private fun clickStillValid(): Boolean {
-        val downGeneration = clickDownGeneration
-        clickDownGeneration = TapGuard.NO_TOUCH
-        return TapGuard.stillValid(downGeneration, shownGeneration)
-    }
-
-    private fun longPressStillValid(): Boolean =
-        TapGuard.stillValid(touchDownGeneration, shownGeneration)
-
-    /** Caret at the end: setText alone parks it at 0, in front of a drilled "#tag". */
-    fun setPrompt(text: String) {
-        prompt.setText(text)
-        prompt.setSelection(text.length)
-    }
-
-    fun showKeyboard() {
-        // Not InputMethodManager.showSoftInput: unreliable straight from onResume.
-        prompt.requestFocus()
-        prompt.windowInsetsController?.show(WindowInsets.Type.ime())
-    }
-
-    fun hideKeyboard() {
-        val imm = activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(prompt.windowToken, 0)
-    }
-
-    private fun Int.dp(): Int = activity.dp(this)
-
-    private inner class AppListAdapter : BaseAdapter() {
-        override fun getCount(): Int = shown.size
-        override fun getItem(position: Int): Any = shown[position]
-        override fun getItemId(position: Int): Long = position.toLong()
-
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            val tv = (convertView as? TextView) ?: OutlinedTextView(activity).apply {
-                textSize = HomeStyle.DRAWER_ROW_SP
-                gravity = Gravity.CENTER_VERTICAL
-                isSingleLine = true
-                ellipsize = TextUtils.TruncateAt.END
-                val v = 10.dp()
-                setPadding(0, v, 0, v)
-            }
-            // Idempotent: a recycled row already at this palette skips the setters (and the
-            // ColorStateList each would allocate); one that predates a palette switch re-applies.
-            (tv as? OutlinedTextView)?.applyRowPalette(palette.text, outlinePx, palette.outline)
-                ?: tv.setTextColor(palette.text)
-            when (val row = shown[position]) {
-                is TagRow -> bindPlainRow(tv, listTypeface, row.name)
-                is OrderRow -> bindPlainRow(
-                    tv, Typeface.MONOSPACE,
-                    activity.getString(if (row.toUsage) R.string.order_to_usage else R.string.order_to_name),
-                )
-                is CommandRow -> bindPlainRow(tv, Typeface.MONOSPACE, row.name)
-                is ReportRow -> bindPlainRow(tv, listTypeface, findingText(row.finding), wrap = true)
-                is AppRow -> bindAppRow(tv, row.entry)
-            }
-            return tv
-        }
-
-        /**
-         * A row without an app; clears what a recycled app row set (its state, dimming). [wrap]: a
-         * finding of "~verify" is read whole, every other row is one line.
-         */
-        private fun bindPlainRow(tv: TextView, face: Typeface, text: String, wrap: Boolean = false) {
-            if (tv.isSingleLine == wrap) {
-                tv.isSingleLine = !wrap
-                tv.ellipsize = if (wrap) null else TextUtils.TruncateAt.END
-            }
-            tv.typeface = face
-            tv.text = text
-            tv.contentDescription = null
-            tv.stateDescription = null
-            tv.alpha = 1f
-        }
-
-        private fun bindAppRow(tv: TextView, entry: AppEntry) {
-            if (!tv.isSingleLine) {
-                tv.isSingleLine = true
-                tv.ellipsize = TextUtils.TruncateAt.END
-            }
-            tv.typeface = listTypeface
-            tv.text = entry.label
-            tv.alpha = HomeStyle.rowAlpha(entry.status)
-            // Set on every bind (recycling): a plain row may have been a command row.
-            tv.contentDescription = null
-            tv.stateDescription = rowA11y(entry).first
-        }
-    }
-
-    /** A finding of "~verify" in the user's words; the folder is this build's own (".debug"). */
-    private fun findingText(finding: ConfigFinding): String = when (finding) {
-        is ConfigFinding.NotRead -> when (finding.status) {
-            ConfigStatus.TOO_LARGE -> activity.getString(R.string.report_too_large)
-            ConfigStatus.UNREADABLE -> activity.getString(R.string.report_unreadable)
-            ConfigStatus.MISSING, ConfigStatus.READ -> activity.getString(R.string.report_missing, activity.packageName)
-        }
-        is ConfigFinding.BadLine -> activity.getString(R.string.report_bad_line, finding.line.number, ConfigReport.shownText(finding.line))
-        is ConfigFinding.NoApp -> activity.getString(R.string.report_no_app, finding.line.number, ConfigReport.shownText(finding.line))
-        ConfigFinding.ListIncomplete -> activity.getString(R.string.report_list_incomplete)
-        ConfigFinding.AllGood -> activity.getString(R.string.report_all_good)
-    }
-
-    /**
-     * A row as a screen reader takes it: its state ("paused") and what a double-tap does ("turn work
-     * apps back on"), both null where there is nothing to say.
-     */
-    private fun rowA11y(entry: AppEntry): Pair<String?, String?> =
-        statusState(activity, entry.status) to statusAction(activity, entry.status)
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
@@ -498,13 +140,3 @@ internal fun printable(event: KeyEvent): String? = LauncherLogic.typedChar(
     chord = event.isCtrlPressed || event.isMetaPressed ||
         event.metaState and KeyEvent.META_ALT_LEFT_ON != 0,
 )
-
-/** The empty list's words for this hint. */
-private fun EmptyHint.text(): Int = when (this) {
-    EmptyHint.NO_MATCH -> R.string.empty_no_match
-    EmptyHint.NO_APPS -> R.string.empty_no_apps
-    EmptyHint.NO_TAGS -> R.string.empty_no_tags
-    EmptyHint.NO_TAG_MATCH -> R.string.empty_no_tag_match
-    EmptyHint.NO_RECENTS -> R.string.empty_no_recents
-    EmptyHint.NO_COMMAND -> R.string.empty_no_command
-}

@@ -153,9 +153,10 @@ One module, one package. The process owns the data, an activity is a window (har
   `LaunchHistory`, which outlives a state).
 - **Window:** `MainActivity` (refusals up front, `%`, `~restart`; the process sees it only as a
   `LauncherWindow`, and it tells the process when it is made, in front and behind), `AppLauncher` (a start or "App info" in the entry's profile, a
-  paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `OutlinedViews`.
+  paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer` (its two parts: `DrawerList`, `DrawerPrompt`),
+  `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
-  default favorites), `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
+  default favorites; `LauncherLogic.drawerView` is all the drawer shows for one prompt), `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
   `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
   `AppEntry` and `VersoConfig` (immutable, resolved anew from the text), `ConfigReport` (what
   `~verify` says about the text), `AppChanges` (when a change to the apps becomes a refresh).

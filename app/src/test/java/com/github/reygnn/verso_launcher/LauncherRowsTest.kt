@@ -1,6 +1,8 @@
 package com.github.reygnn.verso_launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -17,8 +19,9 @@ class LauncherRowsTest {
     private val tags = mapOf("com.a/A" to listOf("games"), "com.c/C" to listOf("work"))
     private val recents = listOf("com.b/B", "com.a/A") // most-recent-first
 
-    private fun rowsFor(mode: Mode, trimmed: String) =
-        LauncherLogic.rowsFor(mode, trimmed, apps, hidden, favorites, tags, recents)
+    private val data = drawerData(apps, hidden, favorites, tags, recents)
+
+    private fun rowsFor(mode: Mode, trimmed: String) = LauncherLogic.rowsFor(mode, trimmed, data)
 
     private fun appKeys(rows: List<Row<OrderedFake>>) =
         rows.filterIsInstance<AppRow<OrderedFake>>().map { it.entry.key }
@@ -29,21 +32,21 @@ class LauncherRowsTest {
     // ---- ORDER ("%") -------------------------------------------------------------
 
     @Test fun `percent shows the one row that turns the order the other way`() {
-        val toUsage = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents)
+        val toUsage = rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents)
         assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = true)), toUsage)
-        val back = LauncherLogic.rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, byUsage = true)
+        val back = rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, byUsage = true)
         assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = false)), back)
     }
 
     @Test fun `text after the percent is a typo, not a switch`() {
-        assertTrue(LauncherLogic.rowsFor(Mode.ORDER, "%abc", apps, hidden, favorites, tags, recents).isEmpty())
+        assertTrue(rowsFor(Mode.ORDER, "%abc", apps, hidden, favorites, tags, recents).isEmpty())
     }
 
     @Test fun `by usage, the plain drawer is most used first and a search is not reordered`() {
         val usage = mapOf("com.c/C" to Usage(2.0, 0L))
-        val plain = LauncherLogic.rowsFor(Mode.NORMAL, "", apps, hidden, favorites, tags, recents, byUsage = true, usage = usage)
+        val plain = rowsFor(Mode.NORMAL, "", apps, hidden, favorites, tags, recents, byUsage = true, usage = usage)
         assertEquals(listOf("com.c/C", "com.a/A"), appKeys(plain))
-        val search = LauncherLogic.rowsFor(Mode.NORMAL, "a", apps, hidden, favorites, tags, recents, byUsage = true, usage = usage)
+        val search = rowsFor(Mode.NORMAL, "a", apps, hidden, favorites, tags, recents, byUsage = true, usage = usage)
         assertEquals(appKeys(rowsFor(Mode.NORMAL, "a")), appKeys(search))
     }
 
@@ -57,14 +60,14 @@ class LauncherRowsTest {
     }
 
     @Test fun `empty prompt is the same drawer whether or not favorites are set`() {
-        val rows = LauncherLogic.rowsFor(
+        val rows = rowsFor(
             Mode.NORMAL, "", apps, hidden, favorites = emptySet(), tags, recents,
         )
         assertEquals(listOf("com.a/A", "com.c/C"), appKeys(rows))
     }
 
     @Test fun `empty prompt keeps a hidden favorite - favoriting overrides hiding`() {
-        val rows = LauncherLogic.rowsFor(
+        val rows = rowsFor(
             Mode.NORMAL, "", apps, hidden, favorites = listOf("com.b/B"), tags, recents,
         )
         assertEquals(listOf("com.a/A", "com.b/B", "com.c/C"), appKeys(rows))
@@ -107,7 +110,7 @@ class LauncherRowsTest {
 
     @Test fun `the star prefix keeps a hidden FAVORITE, mirroring the bare drawer`() {
         val favsWithHiddenB = linkedSetOf("com.b/B")
-        val rows = LauncherLogic.rowsFor(
+        val rows = rowsFor(
             Mode.NORMAL, "b*", apps, hidden, favsWithHiddenB, tags, recents,
         )
         assertEquals(listOf("com.b/B"), appKeys(rows))
@@ -121,7 +124,7 @@ class LauncherRowsTest {
             orderedFake("com.apricot/A", "Apricot"),
             orderedFake("com.banana/A", "Banana"),
         )
-        val rows = LauncherLogic.rowsFor(
+        val rows = rowsFor(
             Mode.NORMAL, "ap*", local, emptySet(), linkedSetOf("com.applet/A"),
             emptyMap(), emptyList(),
         )
@@ -134,7 +137,7 @@ class LauncherRowsTest {
     }
 
     @Test fun `a star prefix over an empty app list is empty`() {
-        val rows = LauncherLogic.rowsFor(
+        val rows = rowsFor(
             Mode.NORMAL, "a*", emptyList<OrderedFake>(), emptySet(), emptySet(), emptyMap(), emptyList(),
         )
         assertTrue(appKeys(rows).isEmpty())
@@ -176,7 +179,7 @@ class LauncherRowsTest {
 
     @Test fun `bare hash drops ghost tags whose apps are all uninstalled`() {
         val ghost = tags + ("com.z/Z" to listOf("archived"))
-        val rows = LauncherLogic.rowsFor(Mode.TAG_FILTER, "#", apps, hidden, favorites, ghost, recents)
+        val rows = rowsFor(Mode.TAG_FILTER, "#", apps, hidden, favorites, ghost, recents)
         assertEquals(listOf("games", "work"), tagNames(rows)) // "archived" has no live app
     }
 
@@ -187,7 +190,7 @@ class LauncherRowsTest {
     @Test fun `tag filter surfaces a hidden app - tagging overrides hiding`() {
         // The shared fixture's hidden app carries no tag, so tag it here.
         val tagsWithHiddenApp = mapOf("com.b/B" to listOf("work"))
-        val rows = LauncherLogic.rowsFor(
+        val rows = rowsFor(
             Mode.TAG_FILTER, "#work", apps, hidden, favorites, tagsWithHiddenApp, recents,
         )
         assertEquals(listOf("com.b/B"), appKeys(rows))
@@ -197,13 +200,13 @@ class LauncherRowsTest {
     @Test fun `a sigil-named tag is listed, stays a tag filter when drilled, and finds its app`() {
         for (name in listOf("!work", "-work", "~work", "?work", "!!work")) {
             val sigilTags = mapOf("com.a/A" to listOf(name))
-            val overview = LauncherLogic.rowsFor(
+            val overview = rowsFor(
                 Mode.TAG_FILTER, "#", apps, hidden, favorites, sigilTags, recents,
             )
             assertEquals("\"$name\" missing from the # overview", listOf(name), tagNames(overview))
             val drilled = "#$name"
             assertEquals("\"$drilled\" is no longer a tag filter", Mode.TAG_FILTER, LauncherLogic.parseMode(drilled))
-            val filtered = LauncherLogic.rowsFor(
+            val filtered = rowsFor(
                 Mode.TAG_FILTER, drilled, apps, hidden, favorites, sigilTags, recents,
             )
             assertEquals("\"$drilled\" did not find its app", listOf("com.a/A"), appKeys(filtered))
@@ -244,7 +247,7 @@ class LauncherRowsTest {
     private val found = listOf(ConfigFinding.BadLine(ConfigLine(2, "favourite Zulu")), ConfigFinding.AllGood)
 
     private fun verifyRows(trimmed: String) =
-        LauncherLogic.rowsFor(Mode.COMMAND, trimmed, apps, hidden, favorites, tags, recents, report = { found })
+        rowsFor(Mode.COMMAND, trimmed, apps, hidden, favorites, tags, recents, report = { found })
 
     @Test fun `spelled out, ~verify is its report, a row per finding`() {
         assertEquals(found.map { ReportRow(it) }, verifyRows("~verify"))
@@ -259,8 +262,59 @@ class LauncherRowsTest {
     @Test fun `no other prompt asks for the report`() {
         var asked = 0
         for ((mode, prompt) in listOf(Mode.COMMAND to "~", Mode.COMMAND to "~ver", Mode.NORMAL to "", Mode.NORMAL to "verify")) {
-            LauncherLogic.rowsFor(mode, prompt, apps, hidden, favorites, tags, recents, report = { asked++; found })
+            rowsFor(mode, prompt, apps, hidden, favorites, tags, recents, report = { asked++; found })
         }
         assertEquals(0, asked)
+    }
+
+    // ---- the view: one prompt, everything the drawer shows for it ----------------------
+
+    @Test fun `the view of a prompt is its mode, its rows and the prompt without its blanks`() {
+        val view = LauncherLogic.drawerView("  #gam ", data)
+        assertEquals(Mode.TAG_FILTER, view.mode)
+        assertEquals("#gam", view.trimmed)
+        assertEquals(rowsFor(Mode.TAG_FILTER, "#gam"), view.rows)
+    }
+
+    /** The anchor decides where Enter's row sits: only the bare drawer reads from the top. */
+    @Test fun `only the bare drawer is anchored at the top`() {
+        assertTrue(LauncherLogic.drawerView("", data).topAnchored)
+        assertTrue("blanks are no prompt", LauncherLogic.drawerView("   ", data).topAnchored)
+        for (prompt in listOf("a", "*", "?", "#", "%", "~")) {
+            assertFalse("\"$prompt\"", LauncherLogic.drawerView(prompt, data).topAnchored)
+        }
+    }
+
+    @Test fun `an empty list has its hint once the apps are loaded, none before`() {
+        assertEquals(EmptyHint.NO_MATCH, LauncherLogic.drawerView("zzz", data).emptyHint)
+        assertEquals(EmptyHint.NO_TAG_MATCH, LauncherLogic.drawerView("#zzz", data).emptyHint)
+        val loading = drawerData(emptyList<OrderedFake>(), loaded = false)
+        assertNull("\"no apps\" would be false", LauncherLogic.drawerView("", loading).emptyHint)
+        assertEquals(EmptyHint.NO_APPS, LauncherLogic.drawerView("", drawerData(emptyList<OrderedFake>())).emptyHint)
+    }
+
+    @Test fun `Enter on a view acts on the row nearest the prompt, or runs what the prompt spells`() {
+        assertEquals(DrawerAction.Launch(apps[1]), LauncherLogic.drawerView("brav", data).enter())
+        assertEquals(DrawerAction.SetPrompt("#work"), LauncherLogic.drawerView("#", data).enter())
+        assertEquals(DrawerAction.Run(Command.RESTART), LauncherLogic.drawerView(" ~r ", data).enter())
+        assertEquals(DrawerAction.ToggleOrder, LauncherLogic.drawerView("%", data).enter())
+        assertEquals(DrawerAction.None, LauncherLogic.drawerView("zzz", data).enter())
+    }
+
+    /** Blanks alone are no prompt: Enter drops the keyboard and launches nothing, though rows are listed. */
+    @Test fun `Enter on a blank prompt only drops the keyboard`() {
+        for (prompt in listOf("", "   ")) {
+            val view = LauncherLogic.drawerView(prompt, data)
+            assertTrue(view.rows.isNotEmpty())
+            assertEquals(DrawerAction.DismissKeyboard, view.enter())
+        }
+    }
+
+    @Test fun `a tap acts on its row, and on nothing past the list`() {
+        val view = LauncherLogic.drawerView("", data)
+        assertEquals(DrawerAction.Launch(apps[0]), view.tap(0))
+        assertEquals("the list shrank under the tap", DrawerAction.None, view.tap(view.rows.size))
+        assertEquals(DrawerAction.None, view.tap(-1))
+        assertEquals(DrawerAction.SetPrompt("#games"), LauncherLogic.drawerView("#", data).tap(0))
     }
 }

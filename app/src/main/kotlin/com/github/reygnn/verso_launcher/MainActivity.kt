@@ -208,7 +208,7 @@ class MainActivity : Activity() {
         if (restarting) return
         // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
-        appDrawer.clearPrompt()
+        appDrawer.setPrompt("")
         when (command) {
             Command.RESTART -> restart()
             Command.VERIFY -> showReport()

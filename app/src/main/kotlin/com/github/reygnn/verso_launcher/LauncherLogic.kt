@@ -45,6 +45,53 @@ internal data class ReportRow(val finding: ConfigFinding) : Row<Nothing>
 /** The one "%" row: what Enter or a tap turns the plain drawer's order into. */
 internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
 
+/**
+ * The launcher's data as one filter reads it, so that what the drawer shows is a function of the
+ * prompt and this alone ([LauncherLogic.drawerView]). Nothing is defaulted: a field a caller
+ * forgot would be a drawer that silently ignores it.
+ *
+ * @property loaded false until the first list is in: an empty [apps] then means "not yet".
+ * @property now the clock of the decay behind "%".
+ * @property report what "~verify" lists, asked only when its rows are shown.
+ */
+internal class DrawerData<out T : Ordered>(
+    val apps: List<T>,
+    val loaded: Boolean,
+    val hidden: Set<String>,
+    val favorites: Collection<String>,
+    val tags: Map<String, List<String>>,
+    val recentKeys: List<String>,
+    val byUsage: Boolean,
+    val usage: Map<String, Usage>,
+    val now: Long,
+    val report: () -> List<ConfigFinding>,
+)
+
+/**
+ * What the drawer shows for a prompt, and what an Enter or a tap there does: the whole of one
+ * filter, so the views only draw it.
+ *
+ * @property trimmed the prompt without the blanks around it; the mode's sigil starts it.
+ * @property topAnchored the bare drawer reads top-down; everything else sits above the prompt,
+ *   where Enter acts.
+ * @property emptyHint what an empty list says; null before the apps are loaded, when "no apps"
+ *   would be false.
+ */
+internal class DrawerView<out T : Ordered>(
+    val mode: Mode,
+    val trimmed: String,
+    val rows: List<Row<T>>,
+    val topAnchored: Boolean,
+    val emptyHint: EmptyHint?,
+) {
+    /** What Enter does: the last row sits right above the prompt and is its target. */
+    fun enter(): DrawerAction<T> =
+        LauncherLogic.enterAction(mode, LauncherLogic.resolveCommand(trimmed), trimmed.isEmpty(), rows.lastOrNull())
+
+    /** What a tap on the row at [position] does; a position past the list is a stale one. */
+    fun tap(position: Int): DrawerAction<T> = LauncherLogic.tapAction(mode, rows.getOrNull(position))
+}
+
 /** What an Enter or a tap does; the Activity performs it. */
 internal sealed interface DrawerAction<out T : Ordered> {
     data class Launch<out T : Ordered>(val entry: T) : DrawerAction<T>
@@ -399,55 +446,52 @@ internal object LauncherLogic {
     fun packageMatches(packageName: String, needle: String): Boolean =
         packageName.lowercase(Locale.ROOT).split('.').drop(1).any { it.startsWith(needle) }
 
+    /**
+     * Everything the drawer shows for [prompt] as the field holds it: the one function between the
+     * launcher's data and the list.
+     */
+    fun <T : Ordered> drawerView(prompt: String, data: DrawerData<T>): DrawerView<T> {
+        val trimmed = prompt.trim()
+        val mode = parseMode(trimmed)
+        return DrawerView(
+            mode = mode,
+            trimmed = trimmed,
+            rows = rowsFor(mode, trimmed, data),
+            topAnchored = mode == Mode.NORMAL && trimmed.isEmpty(),
+            emptyHint = if (data.loaded) emptyHint(mode, trimmed) else null,
+        )
+    }
+
     /** The rows the list shows for the prompt. Every substring index is safe: the mode's sigil starts [trimmed]. */
-    fun <T : Ordered> rowsFor(
-        mode: Mode,
-        trimmed: String,
-        allApps: List<T>,
-        hidden: Set<String>,
-        favorites: Collection<String>,
-        tags: Map<String, List<String>>,
-        recentKeys: List<String>,
-        byUsage: Boolean = false,
-        usage: Map<String, Usage> = emptyMap(),
-        now: Long = 0L,
-        report: () -> List<ConfigFinding> = { emptyList() },
-    ): List<Row<T>> = when (mode) {
+    fun <T : Ordered> rowsFor(mode: Mode, trimmed: String, data: DrawerData<T>): List<Row<T>> = when (mode) {
         // Spelled out, "~verify" is its report; "~v" still lists the command, for Enter or a tap.
         Mode.COMMAND -> if (parseCommand(trimmed) == Command.VERIFY) {
-            report().map { ReportRow(it) }
+            data.report().map { ReportRow(it) }
         } else {
             commandsMatching(trimmed).map { (name, cmd) -> CommandRow(name, cmd) }
         }
         // Only "%" itself: "%abc" is a typo, not a switch.
-        Mode.ORDER -> if (trimmed == "%") listOf(OrderRow(toUsage = !byUsage)) else emptyList()
+        Mode.ORDER -> if (trimmed == "%") listOf(OrderRow(toUsage = !data.byUsage)) else emptyList()
         Mode.TAG_FILTER -> if (trimmed.substring(1).isBlank()) {
-            tagsInUse(allApps, tags).map { TagRow(it) }
+            tagsInUse(data.apps, data.tags).map { TagRow(it) }
         } else {
-            tagged(allApps, tags, trimmed.substring(1).trim()).map { AppRow(it) }
+            tagged(data.apps, data.tags, trimmed.substring(1).trim()).map { AppRow(it) }
         }
-        Mode.RECENTS -> search(recentsInDisplayOrder(allApps, recentKeys), trimmed.substring(1).trim()).map { AppRow(it) }
-        Mode.NORMAL -> plainApps(trimmed, allApps, hidden, favorites, byUsage, usage, now).map { AppRow(it) }
+        Mode.RECENTS ->
+            search(recentsInDisplayOrder(data.apps, data.recentKeys), trimmed.substring(1).trim()).map { AppRow(it) }
+        Mode.NORMAL -> plainApps(trimmed, data).map { AppRow(it) }
     }
 
     /** [rowsFor]'s apps for a prompt with no sigil: the drawer, a star prefix or a search. */
-    private fun <T : Ordered> plainApps(
-        trimmed: String,
-        allApps: List<T>,
-        hidden: Set<String>,
-        favorites: Collection<String>,
-        byUsage: Boolean,
-        usage: Map<String, Usage>,
-        now: Long,
-    ): List<T> {
+    private fun <T : Ordered> plainApps(trimmed: String, data: DrawerData<T>): List<T> {
         val wildcard = starPrefix(trimmed)
         return when {
-            // A to Z (or most used first, "%"), no favorites-last: the Activity anchors this view at the top.
-            trimmed.isEmpty() -> drawer(allApps, hidden, favorites)
-                .let { if (byUsage) UsageLog.byUsage(it, usage, now) else it }
-            wildcard != null -> drawerStartingWith(allApps, hidden, favorites, wildcard)
+            // A to Z (or most used first, "%"), no favorites-last: the list anchors this view at the top.
+            trimmed.isEmpty() -> drawer(data.apps, data.hidden, data.favorites)
+                .let { if (data.byUsage) UsageLog.byUsage(it, data.usage, data.now) else it }
+            wildcard != null -> drawerStartingWith(data.apps, data.hidden, data.favorites, wildcard)
             // Plain search spans ALL apps, so a hidden app stays reachable by name.
-            else -> ranked(search(allApps, trimmed), trimmed)
+            else -> ranked(search(data.apps, trimmed), trimmed)
         }
     }
 

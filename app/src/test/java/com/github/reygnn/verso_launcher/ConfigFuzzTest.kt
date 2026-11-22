@@ -62,26 +62,24 @@ class ConfigFuzzTest {
         }
     }
 
-    /** The prompt as the field holds it (its input filter) and the drawer reads it (trimmed). */
-    private fun prompt(raw: String): String = (LauncherLogic.promptRun(raw) ?: raw).trim()
+    /** The prompt as the field holds it (its input filter); the view trims it, as the drawer does. */
+    private fun prompt(raw: String): String = LauncherLogic.promptRun(raw) ?: raw
 
-    private fun rows(state: LauncherState, raw: String): List<Row<AppEntry>> {
-        val q = prompt(raw)
+    private fun view(state: LauncherState, raw: String): DrawerView<AppEntry> {
         val c = state.config
-        return LauncherLogic.rowsFor(
-            LauncherLogic.parseMode(q), q, state.apps, c.hidden, c.favorites, c.tags,
-            state.recentKeys, c.byUsage, state.usage, NOW,
+        return LauncherLogic.drawerView(
+            prompt(raw),
+            drawerData(state.apps, c.hidden, c.favorites, c.tags, state.recentKeys, c.byUsage, state.usage, NOW, state::report),
         )
     }
 
-    /** Everything the drawer asks for one prompt: its rows, the empty hint, Enter, a tap on each row. */
+    private fun rows(state: LauncherState, raw: String): List<Row<AppEntry>> = view(state, raw).rows
+
+    /** Everything the drawer asks for one prompt: its view, Enter, a tap on each row and one past them. */
     private fun rowsAndActions(state: LauncherState, raw: String) {
-        val q = prompt(raw)
-        val mode = LauncherLogic.parseMode(q)
-        val shown = rows(state, raw)
-        LauncherLogic.emptyHint(mode, q)
-        LauncherLogic.enterAction(mode, LauncherLogic.resolveCommand(q), q.isBlank(), shown.lastOrNull())
-        for (row in shown) LauncherLogic.tapAction(mode, row)
+        val shown = view(state, raw)
+        shown.enter()
+        for (i in 0..shown.rows.size) shown.tap(i)
     }
 
     // The lines the parse looks at; what is checked is that each of them ends up somewhere.

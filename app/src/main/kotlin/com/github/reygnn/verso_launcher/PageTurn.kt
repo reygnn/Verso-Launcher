@@ -139,7 +139,7 @@ internal class PageTurn(
             else {
                 // The prompt changed during the gesture (a hardware key): undo the preview.
                 if (previewed) settle(open = true)
-                appDrawer.clearPrompt()
+                appDrawer.setPrompt("")
                 followMode()
             }
         }
@@ -252,7 +252,7 @@ internal class PageTurn(
     }
 
     private fun clearPromptIfClosed() {
-        if (!isOpen && appDrawer.promptText.isNotEmpty()) appDrawer.clearPrompt()
+        if (!isOpen && appDrawer.promptText.isNotEmpty()) appDrawer.setPrompt("")
     }
 
     /** Most used first changes with every launch, and none re-sorts a drawer out of sight. */

@@ -19,7 +19,8 @@ Pure logic
   LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
                            (Turkish, İ, NFC, accents, đ ł ø ß, other scripts' marks), the ranking,
                            Collator sort, tags, recents, default favorites
-  LauncherRowsTest         rowsFor per mode
+  LauncherRowsTest         rowsFor per mode; drawerView: the anchor, the empty hint, Enter and
+                           a tap on one view
   LauncherActionsTest      Enter and tap decisions
   SwipeGestureTest         the page drag and Kolibri's flick thresholds
   HomeStyleTest            sizes, luminance, outline thresholds, battery, AppStatus
@@ -65,8 +66,8 @@ The window (R)
                            and collected in front, behind and across a pause
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
-  AppDrawerTest            the back page: rows, empty hints, TalkBack, the tap guard, Enter
-                           and keys, the clear button, insets
+  AppDrawerTest            the back page, its list and its prompt together: rows, empty hints,
+                           TalkBack, the tap guard, Enter and keys, the clear button, insets
   VerifyRowsTest           the words of each "~verify" row, and a wrapped row recycled as one line
   HomePageAccessibilityTest, HomePageStartGuardTest, HomePageLocaleTest
                            the home page: TalkBack, guarded intents, ar-EG digits

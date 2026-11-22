@@ -288,7 +288,7 @@ class AppDrawerTest {
     /** runCommand and Back rely on it: the mode is NORMAL again before the call returns. */
     @Test fun `clearing the prompt is the plain drawer at once`() {
         drawer.setPrompt("?")
-        drawer.clearPrompt()
+        drawer.setPrompt("")
         assertEquals("", drawer.promptText)
         assertEquals(Mode.NORMAL, drawer.mode)
     }
