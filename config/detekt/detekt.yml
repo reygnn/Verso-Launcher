@@ -15,12 +15,6 @@ comments:
     active: true
     exhaustive: false
 
-complexity:
-  TooManyFunctions:
-    # LauncherState has 12: its public calls plus a refresh's steps (load, commit, the files
-    # merged and written back). If it were split, its thread contract would span two classes.
-    allowedFunctionsPerClass: 13
-
 style:
   MagicNumber:
     # HomeStyle.kt, the whole file: the look lives there as constants (CLAUDE.md: no settings

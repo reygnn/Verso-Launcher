@@ -16,6 +16,9 @@ package com.github.reygnn.verso_launcher
  * An enumeration carries no config (system labels only); the config is resolved and the custom
  * names applied on main.
  *
+ * The launches (the "?" list, the counts behind "%") are the process's, not this state's
+ * ([LaunchHistory]): a refresh only carries their files along, so one hand-back brings both.
+ *
  * Every collaborator is passed, none defaulted: a wire MainActivity forgot would otherwise be
  * a silent no-op. Tests build it through testLauncherState, which supplies inert ones.
  *
@@ -27,8 +30,8 @@ package com.github.reygnn.verso_launcher
  * @param byUsage "%" as order.txt has it.
  * @param enumerateApps null if the enumeration failed — the last good list is kept; an
  *   incomplete one is shown but retried on the next resume ([needsRefresh]).
+ * @param history what outlives this instance: the launches, and their files until they are read.
  * @param writeOrder "%" changed: order.txt, on [io].
- * @param process what outlives this instance.
  * @param onRefreshed listChanged false: nothing to re-render (a re-render would void a tap in flight).
  */
 internal class LauncherState(
@@ -40,11 +43,8 @@ internal class LauncherState(
     byUsage: Boolean,
     private val enumerateApps: () -> Enumeration?,
     private val defaultFavoriteCandidates: () -> List<List<String>>,
-    private val recentsFile: RecentsFile,
-    private val usageFile: UsageFile,
+    private val history: LaunchHistory,
     private val writeOrder: (Boolean) -> Unit,
-    private val process: ProcessState,
-    private val now: () -> Long,
     private val onRefreshed: (listChanged: Boolean) -> Unit,
 ) {
     private var byUsage = byUsage
@@ -72,11 +72,11 @@ internal class LauncherState(
 
     private var lastLoadCommitted = false
 
-    /** The "?" list, newest first. recents.txt is written only once it was read, like usage.txt. */
-    val recentKeys: List<String> get() = process.recents.value
+    /** The "?" list, newest first. */
+    val recentKeys: List<String> get() = history.recents
 
-    /** The launches behind the "%" order. Written only once the file was read (or it was lost). */
-    val usage: Map<String, Usage> get() = process.usage.value
+    /** The launches behind the "%" order. */
+    val usage: Map<String, Usage> get() = history.usage
 
     @Volatile private var loadGeneration = 0
 
@@ -89,11 +89,10 @@ internal class LauncherState(
     /** Re-enumerate the apps off the main thread (and, until they are read, recents.txt and usage.txt). */
     fun refresh() {
         val generation = ++loadGeneration
-        val loadUsageNow = !process.usage.loaded
-        val loadRecentsNow = !process.recents.loaded
+        val unread = history.unread()
         io(Runnable {
             if (generation != loadGeneration) return@Runnable  // superseded while queued
-            val load = load(loadUsageNow, loadRecentsNow)
+            val load = load(unread)
             main(Runnable {
                 if (generation != loadGeneration) return@Runnable  // superseded meanwhile: the newer one brings the list
                 commit(load)
@@ -106,16 +105,15 @@ internal class LauncherState(
      *
      * Thread: [io].
      */
-    private fun load(usageNow: Boolean, recentsNow: Boolean): Load {
-        val usage = if (usageNow) usageFile.read() else null
-        val recents = if (recentsNow) recentsFile.read() else null
+    private fun load(unread: LaunchHistory.Unread): Load {
+        val files = history.read(unread)
         val enumeration = enumerateApps()
         // From any enumeration with a list, complete or not: one that never completes (a profile
         // that stays unreadable) must not starve the defaults.
         val defaults = if (useDefaults && enumeration != null) {
             LauncherLogic.pickDefaultFavorites(enumeration.apps, defaultFavoriteCandidates())
         } else null
-        return Load(usage, recents, enumeration, defaults)
+        return Load(files, enumeration, defaults)
     }
 
     /**
@@ -125,7 +123,7 @@ internal class LauncherState(
      * Thread: main.
      */
     private fun commit(load: Load) {
-        val recentsChanged = mergeFiles(load)
+        val recentsChanged = history.merge(load.files)
         lastLoadCommitted = load.enumeration?.complete == true
         val defaultsChanged = load.defaults != null && load.defaults != defaults
         if (load.defaults != null) defaults = load.defaults
@@ -141,61 +139,20 @@ internal class LauncherState(
     }
 
     /**
-     * usage.txt and recents.txt as [load] read them, each merged with this process's launches the
-     * first time only, and written back when there were any. True if that changed the "?" list.
-     *
-     * Invariant: a file is merged once per process ([Kept.loaded]); a later read of it is dropped,
-     *   since what the process holds already has the file in it.
-     */
-    private fun mergeFiles(load: Load): Boolean {
-        val kept = process.usage
-        if (load.usage != null && !kept.loaded) {
-            val counted = kept.value
-            kept.value = UsageLog.merged(load.usage, counted, now())
-            kept.loaded = true
-            if (counted.isNotEmpty()) persistUsage()
-        }
-        val recents = process.recents
-        if (load.recents == null || recents.loaded) return false
-        val launched = recents.value
-        recents.value = RecentsLog.merged(load.recents, launched, RECENTS_KEPT)
-        recents.loaded = true
-        if (launched.isNotEmpty()) persistRecents()
-        return recents.value != launched
-    }
-
-    /**
      * What one refresh read on [io], handed to main as it is.
      *
-     * @property usage usage.txt, null if it was not asked for or is unreadable.
-     * @property recents recents.txt, the same.
+     * @property files recents.txt and usage.txt, as far as they were still unread.
      * @property enumeration null if the enumeration failed: the last good list stays.
      * @property defaults the default favorites this list offers, null unless [useDefaults].
      */
     private class Load(
-        val usage: Map<String, Usage>?,
-        val recents: List<String>?,
+        val files: LaunchHistory.Read,
         val enumeration: Enumeration?,
         val defaults: List<String>?,
     )
 
-    fun recordLaunch(key: String) {
-        process.recents.value = LauncherLogic.pushRecent(recentKeys, key, RECENTS_KEPT)
-        if (process.recents.loaded) persistRecents()
-        process.usage.value = UsageLog.recorded(usage, key, now())
-        if (process.usage.loaded) persistUsage()
-    }
-
-    private fun persistRecents() {
-        val keys = recentKeys
-        io(Runnable { recentsFile.write(keys) })
-    }
-
-    private fun persistUsage() {
-        val log = usage
-        val at = now()
-        io(Runnable { usageFile.write(log, at) })
-    }
+    /** A launch that started: it counts for "?" and "%". */
+    fun recordLaunch(key: String) = history.record(key)
 
     /** "%": the plain drawer by usage, or back to A to Z; kept in order.txt, not in the user's file. */
     fun toggleOrder(): Boolean {
@@ -214,13 +171,5 @@ internal class LauncherState(
     private fun resolve() {
         config = resolved()
         apps = LauncherLogic.named(enumerated, config.names)
-    }
-
-    companion object {
-        /** How many "?" shows. */
-        const val RECENTS_LIMIT = 8
-
-        /** How many recents.txt keeps: an app that is gone takes no place among the shown. */
-        const val RECENTS_KEPT = 4 * RECENTS_LIMIT
     }
 }

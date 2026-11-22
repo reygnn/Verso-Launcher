@@ -174,7 +174,7 @@ class SourceGuardTest {
     @Test fun `the process's code knows no Activity`() {
         val process = listOf(
             "Core.kt", "ConfigFile.kt", "LauncherWindow.kt",
-            "LauncherState.kt", "LauncherStateParts.kt", "DrawerOrder.kt",
+            "LauncherState.kt", "LaunchHistory.kt", "DrawerOrder.kt",
         )
         for (file in process) {
             val text = code("src/main/kotlin/com/github/reygnn/verso_launcher/$file")

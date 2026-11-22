@@ -6,8 +6,8 @@ import android.os.UserManager
 import android.provider.Telephony
 
 /**
- * The launcher's data, owned by the process (VersoApp.core): one [LauncherState] and the app list,
- * both built from the Application. An activity is a view of it — a recreation (language, font or
+ * The launcher's data, owned by the process (VersoApp.core): one [LauncherState], the launches
+ * ([LaunchHistory]) and the app list, all built from the Application. An activity is a view of it — a recreation (language, font or
  * display size; a rotation does not recreate) shares the same state, so nothing loaded is lost or
  * read again, and none of the state's hand-backs needs a living instance to land.
  *
@@ -34,19 +34,35 @@ internal class Core(private val app: VersoApp) {
         defaultSmsPackage = { Telephony.Sms.getDefaultSmsPackage(app) },
     )
 
+    // The app's own folder, for its disposable files; looked up once, as the first state is built.
+    private val dir = beforeState { app.filesDir }
+
+    /** The launches, and their files until they are read. It outlives every [state]. */
+    val history = LaunchHistory(
+        io = app::submitIo,
+        recentsFile = RecentsFile(
+            read = { RecentsLog.read(dir, LaunchHistory.RECENTS_KEPT, ::logWarning) },
+            write = { keys -> RecentsLog.write(dir, keys) },
+        ),
+        usageFile = UsageFile(
+            read = { UsageLog.read(dir, ::logWarning) },
+            write = { log, at -> UsageLog.write(dir, log, at) },
+        ),
+        now = System::currentTimeMillis,
+    )
+
     var state: LauncherState = newState()
         private set
 
     /**
      * "~restart": a fresh state, which reads the config file and order.txt again and loads the app
-     * list anew. The recents and the usage stay as the process holds them.
+     * list anew. The recents and the usage stay as [history] holds them.
      */
     fun reset() {
         state = newState()
     }
 
     private fun newState(): LauncherState {
-        val dir = beforeState { app.filesDir }
         // No file there, or none readable: the defaults (hard rule 10). An empty file is a config.
         val read = beforeState { ConfigFile.read(app.getExternalFilesDir(null), ::logWarning) }
         val byUsage = beforeState { DrawerOrder.read(dir, ::logWarning) } ?: false
@@ -61,17 +77,8 @@ internal class Core(private val app: VersoApp) {
             byUsage = byUsage,
             enumerateApps = { apps.enumerate() },
             defaultFavoriteCandidates = { apps.defaultFavoriteCandidates() },
-            recentsFile = RecentsFile(
-                read = { RecentsLog.read(dir, LauncherState.RECENTS_KEPT, ::logWarning) },
-                write = { keys -> RecentsLog.write(dir, keys) },
-            ),
-            usageFile = UsageFile(
-                read = { UsageLog.read(dir, ::logWarning) },
-                write = { log, at -> UsageLog.write(dir, log, at) },
-            ),
+            history = history,
             writeOrder = { byUsage -> DrawerOrder.write(dir, byUsage) },
-            process = app.process,
-            now = System::currentTimeMillis,
             // No window between a recreation's two halves: the next one renders the state anew.
             onRefreshed = { listChanged -> app.instance?.refreshed(built, listChanged) },
         )

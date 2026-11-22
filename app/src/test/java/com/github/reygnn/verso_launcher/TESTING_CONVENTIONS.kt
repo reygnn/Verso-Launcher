@@ -9,11 +9,11 @@ package com.github.reygnn.verso_launcher
  * Android-bound collaborators come in as functions, so a test passes a lambda or a fake:
  *
  *   LauncherState(io, main, text, useDefaults, fileStatus, byUsage, enumerateApps,
- *                 defaultFavoriteCandidates, recentsFile, usageFile, writeOrder, process, now,
- *                 onRefreshed)
+ *                 defaultFavoriteCandidates, history, writeOrder, onRefreshed)
  *     — built through testLauncherState (TestLauncherState.kt): flat parameters with inert
  *       defaults, the config given as the file's text (ConfigText) or as keys; the production
- *       constructor has none. One shared ProcessState between two instances models a recreation.
+ *       constructor has none. One LaunchHistory (testLaunchHistory) shared between two instances
+ *       models a "~restart": the launches and their files are the process's.
  *   ConfigFile, DrawerOrder, HomeCache, UsageLog, RecentsLog — real files in a dir
  *
  * `log` is the error channel of a class that never throws: collect it and assert on it. Pure

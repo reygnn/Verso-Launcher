@@ -9,8 +9,7 @@ import java.util.concurrent.Executors
 
 /**
  * What must outlive a recreated MainActivity: the one IO thread (two instances must never
- * write the same file concurrently), the launcher's data ([core]), the [ProcessState] and the
- * label/palette caches.
+ * write the same file concurrently), the launcher's data ([core]) and the label/palette caches.
  */
 class VersoApp : Application() {
 
@@ -23,9 +22,6 @@ class VersoApp : Application() {
     /** Last applied wallpaper palette, so a recreated activity starts in the right colours. Main thread only. */
     internal var palette: Palette? = null
 
-    /** What a recreated LauncherState takes over: the recents and the launches. */
-    internal val process = ProcessState()
-
     /**
      * The live window (MainActivity), between its onCreate and its onDestroy, for what the process
      * hands over: the state's refreshes (Core). Seen only as a [LauncherWindow]. Main thread only;
@@ -34,7 +30,7 @@ class VersoApp : Application() {
     internal var instance: LauncherWindow? = null
 
     /**
-     * The launcher's data — one LauncherState and its stores — shared by every activity instance;
+     * The launcher's data — one LauncherState, the launches and the app list — shared by every activity instance;
      * "~restart" resets it. Built on first use (the first activity), from this Application alone.
      */
     internal val core by lazy { Core(this) }

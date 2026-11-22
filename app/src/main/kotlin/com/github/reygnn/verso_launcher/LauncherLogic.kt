@@ -292,7 +292,7 @@ internal object LauncherLogic {
     /** The newest [limit] of the apps still there, reversed: under isStackFromBottom the most
      *  recent sits nearest the prompt (the Enter target). */
     fun <T : Ordered> recentsInDisplayOrder(
-        all: List<T>, recentKeys: List<String>, limit: Int = LauncherState.RECENTS_LIMIT,
+        all: List<T>, recentKeys: List<String>, limit: Int = LaunchHistory.RECENTS_LIMIT,
     ): List<T> {
         val byKey = all.associateBy { it.key }
         return recentKeys.mapNotNull { byKey[it] }.take(limit).asReversed()

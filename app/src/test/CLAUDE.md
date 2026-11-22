@@ -41,7 +41,9 @@ Pure logic
 State and threads (manual queues)
   LauncherStateTest        the concurrency rules: refreshes and taps interleaved; the
                            config resolved against each list; the default favorites;
-                           recents.txt, usage.txt, the "%" order
+                           recents.txt and usage.txt carried by a refresh, the "%" order
+  LaunchHistoryTest        the launches on their own: what is read, what a merge brings, when
+                           a file is written
   WallpaperPaletteTest     the palette's question against the colour listener
   WallpaperSystemTest (R)  the system side, a fake WallpaperManager: the dark-text hint, no colours
                            as dark, a lock-screen change ignored, the unwatch

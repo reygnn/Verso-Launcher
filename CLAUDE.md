@@ -148,13 +148,14 @@ Text right on the wallpaper; colour comes from contrast, not from a scheme.
 
 One module, one package. The process owns the data, an activity is a window (hard rule 16):
 
-- **Process:** `VersoApp` (the IO executor, `Core`, the live window, `ProcessState`) and `Core`
-  (the one `LauncherState`, built from the user's file, and the app list).
+- **Process:** `VersoApp` (the IO executor, `Core`, the live window) and `Core` (the one
+  `LauncherState`, built from the user's file, the app list, and the launches behind `?` and `%`:
+  `LaunchHistory`, which outlives a state).
 - **Window:** `MainActivity` (refusals up front, `%`, `~restart`; the process sees it only as a
   `LauncherWindow`), `AppLauncher` (a start or "App info" in the entry's profile, a
   paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer`, `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
-  default favorites), `LauncherState`, `ConfigText` (the file's lines, the apps they name,
+  default favorites), `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
   `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
   `AppEntry` and `VersoConfig` (immutable, resolved anew from the text), `ConfigReport` (what
   `~verify` says about the text).

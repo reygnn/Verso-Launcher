@@ -172,7 +172,7 @@ class MainActivityFlowsTest {
         controller.pause().stop().destroy()
         hold.countDown()
         settle()
-        assertTrue(app.process.usage.loaded)
+        assertTrue(app.core.history.usageLoaded)
     }
 
     /**
