@@ -47,6 +47,8 @@ Pure logic
                            manager: launcher keys, the default SMS app first, a slot that throws;
                            the badge's cache across a language change
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
+  StrictModeLogTest (R)    the daily-driver build's StrictMode log: the calendar's day left
+                           out, every other violation kept
   CachedFavoritesTest      home-cache.txt as the process keeps it: one read, handed to the live
                            window; a write only when home differs from the file, also when the
                            first list is faster than the read; a read that throws

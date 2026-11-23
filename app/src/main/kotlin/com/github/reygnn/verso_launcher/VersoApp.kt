@@ -38,6 +38,7 @@ class VersoApp : Application() {
     /**
      * In the daily-driver build, StrictMode reports to logcat (tag "StrictMode") every disk or
      * network access on main and every leaked closable or registration: slips no JVM test sees.
+     * The VM's violations go through [StrictModeLog], which leaves out the known false alarm.
      * A log only, never a penalty that throws (hard rule 2). The public build sets nothing.
      *
      * Why: the reads hard rule 5 puts on main are let through where they run ([Core]), so every
@@ -47,7 +48,9 @@ class VersoApp : Application() {
         super.onCreate()
         if (DailyDriver.ENABLED) {
             StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
-            StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectAll().penaltyLog().build())
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder().detectAll().penaltyListener(mainExecutor, StrictModeLog::log).build()
+            )
         }
     }
 

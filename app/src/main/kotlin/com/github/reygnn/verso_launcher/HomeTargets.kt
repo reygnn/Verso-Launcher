@@ -1,11 +1,9 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.content.ContentUris
 import android.content.Intent
 import android.net.Uri
 import android.provider.AlarmClock
-import android.provider.CalendarContract
 import android.util.Log
 import android.widget.Toast
 
@@ -19,8 +17,8 @@ internal class HomeTargets(private val activity: Activity) {
     fun openAlarms() = startGuarded(Intent(AlarmClock.ACTION_SHOW_ALARMS))
 
     fun openCalendar() {
-        val time = Uri.withAppendedPath(CalendarContract.CONTENT_URI, "time")
-        startGuarded(Intent(Intent.ACTION_VIEW).setData(ContentUris.withAppendedId(time, System.currentTimeMillis())))
+        val day = Uri.parse(StrictModeLog.CALENDAR_TIME + System.currentTimeMillis())
+        startGuarded(Intent(Intent.ACTION_VIEW).setData(day))
     }
 
     fun openBatteryUsage() = startGuarded(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
