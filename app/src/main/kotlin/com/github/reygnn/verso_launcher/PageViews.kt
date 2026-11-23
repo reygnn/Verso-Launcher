@@ -20,9 +20,10 @@ import kotlin.math.abs
  *
  * @param drawer GONE while closed and blocking descendant focus, so the prompt can never raise the
  *   IME on home.
- * @param isOpen which page is up now, asked as an animation ends: a turn made meanwhile must not
+ * @param isOpen which page is up now, asked as home's fade ends: a turn made meanwhile must not
  *   be undone by the end of an older one.
- * @param onSlideEnd the drawer came to rest after sliding away or falling back.
+ * @param onSlideEnd the drawer came to rest after sliding away or falling back. Whether it is out
+ *   of sight now is the state's to say ([PageState.gone]), and the caller sets [drawerShowing].
  */
 internal class PageViews(
     private val activity: Activity,
@@ -50,6 +51,17 @@ internal class PageViews(
         get() = home.alpha
         set(value) {
             home.alpha = value
+        }
+
+    /**
+     * Whether the drawer is on screen at all, GONE when not.
+     *
+     * Invariant: set from [PageState.showing], never read in its place (hard rule 11).
+     */
+    var drawerShowing: Boolean
+        get() = drawer.visibility == View.VISIBLE
+        set(value) {
+            drawer.visibility = if (value) View.VISIBLE else View.GONE
         }
 
     /** The status bar goes with the page (hard rule 12): up on the drawer, away on home. */
@@ -115,10 +127,7 @@ internal class PageViews(
             home.animate().alpha(1f).setDuration(HOME_FADE_MS).withLayer()
                 .setInterpolator(AccelerateInterpolator()).start()
             drawer.animate().translationY(hiddenY(fromTop, pageHeight)).setDuration(DRAWER_SLIDE_MS)
-                .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
-                    if (!isOpen()) drawer.visibility = View.GONE
-                    onSlideEnd()
-                }.start()
+                .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction(onSlideEnd).start()
         }
     }
 
@@ -126,10 +135,7 @@ internal class PageViews(
     fun fallBack(open: Boolean, fromTop: Boolean) {
         home.setLayerType(View.LAYER_TYPE_NONE, null)  // the drag's layer; withLayer takes over
         drawer.animate().translationY(if (open) 0f else hiddenY(fromTop, pageHeight)).setDuration(DRAG_SETTLE_MS)
-            .setInterpolator(DecelerateInterpolator()).withEndAction {
-                if (!isOpen()) drawer.visibility = View.GONE
-                onSlideEnd()
-            }.start()
+            .setInterpolator(DecelerateInterpolator()).withEndAction(onSlideEnd).start()
         home.animate().alpha(if (open) 0f else 1f).setDuration(DRAG_SETTLE_MS).withLayer()
             .setInterpolator(DecelerateInterpolator()).withEndAction {
                 if (isOpen()) home.visibility = View.INVISIBLE

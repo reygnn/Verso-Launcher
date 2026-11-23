@@ -38,15 +38,16 @@ internal class PageTurn(
     // The drawer offset a running Back preview started from; it means something while Hold.BACK holds.
     private var backPreviewFrom = 0f
 
-    private val views = PageViews(
+    private val views: PageViews = PageViews(
         activity = activity,
         home = homePage.view,
         drawer = appDrawer.view,
         isOpen = { state.open },
-        // Out of sight now, unless a new turn opened it meanwhile (PageState.gone). A recents pull
-        // that fell back left its "?" behind.
+        // Out of sight now, unless a new turn opened it meanwhile: the state says which
+        // (PageState.gone), and the view follows. A recents pull that fell back left its "?" behind.
         onSlideEnd = {
             state = state.gone()
+            if (!state.showing) views.drawerShowing = false
             clearPromptIfClosed()
         },
     )
