@@ -166,6 +166,17 @@ class SourceGuardTest {
     }
 
     /**
+     * SET_ALARM is there for Samsung's clock (the manifest says why), and nothing else is: a
+     * permission more is a decision of its own (CLAUDE.md, Scope: no runtime permission).
+     */
+    @Test fun `the manifest declares SET_ALARM and no other permission`() {
+        val manifest = code("src/main/AndroidManifest.xml")
+        val permissions = Regex("""<uses-permission\s+android:name="([^"]*)"""").findAll(manifest)
+            .map { it.groupValues[1] }.toList()
+        assertEquals(listOf("com.android.alarm.permission.SET_ALARM"), permissions)
+    }
+
+    /**
      * Hard rule 16: the process's code reaches the window only as a LauncherWindow — no Activity,
      * no MainActivity, so nothing of it can hold an instance or call one that is gone. A type keeps
      * Core on the Application (its constructor takes VersoApp); this keeps an Activity from coming

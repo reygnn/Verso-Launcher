@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- For the double-tap on the clock alone: Samsung's clock (12.5, One UI 8.5, Galaxy A17,
+         November 2026) starts SHOW_ALARMS only for an app that declares SET_ALARM, and refuses
+         it otherwise. The level is normal: granted at install, no prompt, nothing to revoke.
+         Verso never sets an alarm. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
     <!-- Android 12+ requires an explicit visibility declaration to enumerate
          other apps. A launcher legitimately needs the full launchable list. -->
     <queries>

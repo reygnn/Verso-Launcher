@@ -97,6 +97,10 @@ the clock (calendar events need a permission, and Verso asks for none), no doubl
 (that needs an accessibility service), no settings screen: the look is constants in
 `HomeStyle.kt`.
 
+Verso declares one permission, "set an alarm", and never uses it: Samsung's clock opens its alarm
+list only for an app that has it, so without it the double-tap on the clock says no app is there.
+It is granted at install, with no prompt, and the system lists it in Verso's app info.
+
 Light or dark text is Android's own verdict on the wallpaper (`WallpaperColors`' dark-text hint);
 with none the text stays white. Samsung gives none for the home screen — One UI shows even a
 still image through its own live wallpaper service, which reports no colours (One UI 8 and 8.5,
