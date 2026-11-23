@@ -13,8 +13,9 @@ import android.window.OnBackInvokedDispatcher
 
 /**
  * The launcher's single window: the home page (recto) in front, the drawer with Sigil's command
- * line (verso) behind it ([PageTurn] turns between them), and the side effects of taps, "%" and
- * the "~" commands. The decisions themselves are pure, in [LauncherLogic] and [LauncherState].
+ * line (verso) behind it ([PageTurn] turns between them). The decisions are pure, in
+ * [LauncherLogic] and [LauncherState]; what a tap, "%" or a "~" command then does is
+ * [DrawerActions]'.
  */
 class MainActivity : Activity() {
 
@@ -51,14 +52,10 @@ class MainActivity : Activity() {
     // ---- the two pages ------------------------------------------------------
     private lateinit var homePage: HomePage
     private lateinit var appDrawer: AppDrawer
+    private lateinit var actions: DrawerActions
     private lateinit var pageTurn: PageTurn
     private lateinit var wallpaper: WallpaperPalette
     private var unwatchWallpaper: () -> Unit = {}
-
-    // After "~restart", until the recreation replaces this window: the process's state is already
-    // the fresh one, this window's is not, so it takes no more commands or "%". Asked, not kept: a
-    // flag would have to be set wherever a state is replaced.
-    private val replaced: Boolean get() = state !== app.core.state
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,6 +86,14 @@ class MainActivity : Activity() {
             onFiltered = ::renderHome,
             // Called only by a filter, never while AppDrawer is built: pageTurn is set by then.
             onModeChanged = { mode -> pageTurn.modeChanged(mode) },
+        )
+        actions = DrawerActions(
+            activity = this,
+            core = app.core,
+            state = state,
+            drawer = appDrawer,
+            launch = { launcher.launch(it) },
+            say = { toast(it) },
         )
 
         homePage = HomePage(
@@ -189,66 +194,15 @@ class MainActivity : Activity() {
         homePage.scrollToTop()
     }
 
-    // ---- commands -----------------------------------------------------------
-
-    /** Run a "~" command. */
-    private fun runCommand(command: Command) {
-        // A deliberate crash, for the crash-only paths, at any time. The constant compiles
-        // it out of a public release, where nothing parses to CRASH anyway.
-        if (command == Command.CRASH) {
-            if (DailyDriver.ENABLED) error("~crash: deliberate crash (daily-driver build)")
-            return
-        }
-        // After "~restart" this window holds the old state until the recreation lands: it takes
-        // nothing more. Nothing to say — the new window comes at once.
-        if (replaced) return
-        // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
-        // back to NORMAL before the command runs.
-        appDrawer.setPrompt("")
-        when (command) {
-            Command.RESTART -> restart()
-            Command.VERIFY -> showReport()
-            Command.CRASH -> Unit // returned above
-        }
-    }
-
-    /** "~verify": its prompt is its view (Commands.VERIFY), read with the keyboard down. */
-    private fun showReport() {
-        appDrawer.setPrompt(Commands.VERIFY)
-        appDrawer.hideKeyboard()
-    }
-
-    /** "~restart": the reload of the config file, and the repair by hand. */
-    private fun restart() {
-        // A fresh state (Core.reset) reads the config file again and loads the app list anew, and
-        // the recreation builds every view anew around it. Until that recreation lands this window
-        // still holds the old state, so it takes nothing more (replaced).
-        app.core.reset()
-        recreate()
-    }
-
     private fun toast(text: String, duration: Int = Toast.LENGTH_SHORT) =
         Toast.makeText(this, text, duration).show()
 
-    /** "%": kept at once (order.txt); the prompt clears onto the drawer in its new order. */
-    private fun toggleOrder() {
-        if (replaced) return
-        val byUsage = state.toggleOrder()
-        toast(getString(if (byUsage) R.string.toast_order_usage else R.string.toast_order_name))
-        appDrawer.setPrompt("")
-    }
-
-    /** A tap on a row or an Enter on the prompt. Internal for MainActivityFlowsTest. */
-    internal fun onDrawerAction(action: DrawerAction) {
-        when (action) {
-            is DrawerAction.Launch -> launcher.launch(action.entry)
-            is DrawerAction.Run -> runCommand(action.command)
-            is DrawerAction.SetPrompt -> appDrawer.setPrompt(action.text)
-            DrawerAction.ToggleOrder -> toggleOrder()
-            DrawerAction.DismissKeyboard -> appDrawer.hideKeyboard()
-            DrawerAction.None -> {}
-        }
-    }
+    /**
+     * A tap on a row or an Enter on the prompt ([DrawerActions.perform]). Called only by a tap or
+     * an Enter, never while AppDrawer is built: actions is set by then. Internal for
+     * MainActivityFlowsTest.
+     */
+    internal fun onDrawerAction(action: DrawerAction) = actions.perform(action)
 
     // ---- apps ---------------------------------------------------------------
 

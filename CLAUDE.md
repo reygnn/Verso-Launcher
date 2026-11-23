@@ -153,8 +153,9 @@ One module, one package. The process owns the data, an activity is a window (har
 - **Process:** `VersoApp` (the IO executor, `Core`, the live window) and `Core` (the one
   `LauncherState`, built from the user's file, the app list, and the launches behind `?` and `%`:
   `LaunchHistory`, which outlives a state).
-- **Window:** `MainActivity` (refusals up front, `%`, `~restart`; the process sees it only as a
-  `LauncherWindow`, and it tells the process when it is made, in front and behind), `AppLauncher` (a start or "App info" in the entry's profile, a
+- **Window:** `MainActivity` (refusals up front; the process sees it only as a
+  `LauncherWindow`, and it tells the process when it is made, in front and behind), `DrawerActions`
+  (what an Enter or a tap does: a launch, `%`, the `~` commands), `AppLauncher` (a start or "App info" in the entry's profile, a
   paused profile turned on), `PageTurn` (its views: `PageViews`) and `SwipeFrame`, `HomePage` (its battery: `BatteryLine`; what a
   double-tap there opens: `HomeTargets`), `AppDrawer` (its two parts: `DrawerList`, `DrawerPrompt`),
   `OutlinedViews`, `Accessibility` (what a screen reader is offered and told).
