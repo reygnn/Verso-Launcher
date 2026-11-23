@@ -174,9 +174,14 @@ dependencies {
     testImplementation(libs.robolectric)
 }
 
-// The release mapping, after every assembleRelease/bundleRelease: kept outside the repo, where
-// retrace (~/AndroidStudio_Projects/retrace) finds it by the map id R8 writes into every frame. A
-// crash trace of that release can only be read with it.
+// The release mapping, after every bundleRelease: kept outside the repo, where retrace
+// (~/AndroidStudio_Projects/retrace) finds it by the map id R8 writes into every frame. A crash
+// trace of that release can only be read with it.
+// Why bundleRelease alone: the AAB is what is installed and published (the GitHub APK is made
+//   from it). An assembleRelease is CI's and a test run's, and at the same version it would
+//   replace the mapping of the build that shipped.
+// Invariant: a mapping of another build (another map id) in the folder is never replaced. The
+//   task fails instead, and whoever means to replace it deletes the folder by hand.
 // Values are read here, at configuration: the task touches no `project` or `android` when it runs.
 val releaseMapping = layout.buildDirectory.file("outputs/mapping/release/mapping.txt")
 val releaseId = android.defaultConfig.run { "$versionName-$versionCode" }
@@ -191,12 +196,33 @@ val archiveProguardMapping = tasks.register<Copy>("archiveProguardMapping") {
     into(mappingArchive)
     mustRunAfter(tasks.matching { it.name == "minifyReleaseWithR8" })
     val mapping = releaseMapping
+    val archive = mappingArchive
     onlyIf("a release mapping exists") { task ->
         mapping.get().asFile.exists().also { if (!it) task.logger.warn("No release mapping at ${mapping.get().asFile}") }
     }
+    doFirst {
+        // The id line R8 writes into the head of every mapping: "# pg_map_id: <hash>".
+        val idOf = { file: File ->
+            file.useLines { lines -> lines.take(20).firstOrNull { it.startsWith("# pg_map_id:") } }
+                ?.substringAfter(':')?.trim()
+        }
+        val archived = File(archive.get(), "mapping.txt")
+        val built = mapping.get().asFile
+        if (archived.exists()) {
+            val kept = idOf(archived)
+            val new = idOf(built)
+            if (kept != new) {
+                throw GradleException(
+                    "$archived is the mapping of another build (map id $kept, this one $new). " +
+                        "Raise the version, or delete ${archived.parentFile} if that build is " +
+                        "neither installed nor published.",
+                )
+            }
+        }
+    }
 }
 
-tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+tasks.matching { it.name == "bundleRelease" }.configureEach {
     finalizedBy(archiveProguardMapping)
 }
 

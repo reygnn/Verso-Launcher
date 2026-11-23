@@ -116,7 +116,9 @@ The point is a release APK with **no dependencies**: Kotlin stdlib and platform 
   `0.4.2-daily` = 25). **A release bump is versionName +0.0.1, versionCode +2.**
 - **Release mapping:** kept in `~/apk/mappings/verso/<versionName>-<versionCode>/` (Gradle
   property `verso.mappingArchive`) by `archiveProguardMapping`, not in the repo; without it a
-  release's crash cannot be read back. `~/apk/mappings` is a clone of a private repo of its own,
+  release's crash cannot be read back. Only a `bundleRelease` writes it, and never over the
+  mapping of another build: then the task fails, and the folder is deleted by hand if that build
+  is gone (`app/build.gradle.kts`). `~/apk/mappings` is a clone of a private repo of its own,
   so a mapping outlives this machine: after a release its folder is committed and pushed there by
   hand, never by the build (a build must not need the network to finish). What it keeps and when
   a mapping goes is in that repo's README.
