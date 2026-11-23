@@ -45,6 +45,7 @@ class MainActivity : Activity() {
     private val launcherWindow = object : LauncherWindow {
         override fun refreshed(from: LauncherState, listChanged: Boolean) = this@MainActivity.refreshed(from, listChanged)
         override fun profileAvailable(user: UserHandle?) = launcher.profileAvailable(user)
+        override fun cachedFavorites(cached: List<AppEntry>) = renderCachedHome(cached)
     }
 
     // ---- the two pages ------------------------------------------------------
@@ -114,10 +115,9 @@ class MainActivity : Activity() {
         if (state.appsLoaded) appDrawer.refilter()
 
         // Asked before the first refresh, so the cached favorites land long before the full
-        // enumeration does (CachedFavorites reads the file once per process).
-        app.core.homeCache.load { cached ->
-            if (!isDestroyed && cached.isNotEmpty() && !state.appsLoaded) homePage.render(cached, loaded = true)
-        }
+        // enumeration does. The process reads the file once: known already, it is drawn now, else
+        // the read's hand-back comes to the live window (launcherWindow), as a refresh does.
+        app.core.homeCache.load()?.let(::renderCachedHome)
 
         applyPalette(wallpaper.current)
         wallpaper.ask()
@@ -269,6 +269,11 @@ class MainActivity : Activity() {
 
     // The process's app list (Core): enumeration, a profile's user.
     private val apps get() = app.core.apps
+
+    /** The cache file's favorites, drawn while this window's state has no list of its own yet. */
+    private fun renderCachedHome(cached: List<AppEntry>) {
+        if (cached.isNotEmpty() && !state.appsLoaded) homePage.render(cached, loaded = true)
+    }
 
     private fun renderHome() {
         val favs = state.favorites()

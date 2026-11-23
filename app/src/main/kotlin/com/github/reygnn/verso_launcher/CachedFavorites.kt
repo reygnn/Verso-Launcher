@@ -2,50 +2,48 @@ package com.github.reygnn.verso_launcher
 
 /**
  * The favorites as home-cache.txt holds them ([HomeCache]): read so that a cold start draws home
- * before the first list is in, written when what home shows has changed. One per process ([Core]),
- * so a recreated window neither reads the file again nor writes over it what it already holds.
+ * before the first list is in, written when what home shows differs from the file. One per
+ * process ([Core]), so a recreated window neither reads the file again nor writes over it what it
+ * already holds.
+ *
+ * It keeps no window (hard rule 16): a window asks what is known ([load]), and what a read brings
+ * later goes to whichever window is live then ([onRead]).
+ *
+ * Invariant: the file is written only when what home shows differs from what it holds, in every
+ *   order of the read and the first list. Favorites shown before the read is back wait for it
+ *   ([shown]).
  *
  * Thread: main. [read] and [write] alone run on the IO thread.
  *
  * @param main hands back on the main thread for the process, never dropped.
- * @param read the file's favorites; none when there is no cache.
+ * @param read the file's favorites. It does not throw: no cache and an unreadable one are both an
+ *   empty list ([HomeCache.read]).
  * @param write replaces the file.
+ * @param onRead what the file holds, once the one read is back. For the live window, if there is one.
  */
 internal class CachedFavorites(
     private val io: (Runnable) -> Unit,
     private val main: (() -> Unit) -> Unit,
     private val read: () -> List<AppEntry>,
     private val write: (List<AppEntry>) -> Unit,
+    private val onRead: (List<AppEntry>) -> Unit,
 ) {
-    // What the file holds as far as this process knows: last read or last written. Null until either.
+    // What the file holds as this process knows it: as read, then as last written. Null until the read is back.
     private var held: List<AppEntry>? = null
 
-    // The windows that asked while the one read still runs.
-    private val waiting = ArrayList<(List<AppEntry>) -> Unit>()
+    // Whether the one read is on its way.
+    private var reading = false
+
+    // What home showed before the read was back: written, or not, once the file is known.
+    private var shownUnread: List<AppEntry>? = null
 
     /**
-     * Hands [onCached] what the file holds: at once when this process knows it, else after the one
-     * read. A window draws it only while its state has no list yet, which it checks itself, as it
-     * checks that it still exists.
+     * What the file holds, if this process knows it already. If not, null: the one read starts (or
+     * is on its way), and [onRead] brings its answer.
      */
-    fun load(onCached: (List<AppEntry>) -> Unit) {
-        val known = held
-        if (known != null) {
-            onCached(known)
-            return
-        }
-        waiting += onCached
-        if (waiting.size > 1) return
-        io(Runnable {
-            val cached = read()
-            main {
-                // Home may have shown a first list meanwhile: what was written then is newer than this read.
-                val current = held ?: cached.also { held = it }
-                val asked = waiting.toList()
-                waiting.clear()
-                asked.forEach { it(current) }
-            }
-        })
+    fun load(): List<AppEntry>? {
+        if (held == null) startRead()
+        return held
     }
 
     /**
@@ -53,9 +51,33 @@ internal class CachedFavorites(
      * what it holds, by key and label: most refreshes change neither.
      */
     fun shown(favorites: List<AppEntry>) {
-        if (held?.let(::asShown) == asShown(favorites)) return
+        val known = held
+        if (known == null) {
+            // The file is not read yet. Writing now would replace a file that may hold just this.
+            shownUnread = favorites
+            startRead()
+            return
+        }
+        if (asShown(known) == asShown(favorites)) return
         held = favorites
         io(Runnable { write(favorites) })
+    }
+
+    private fun startRead() {
+        if (reading) return
+        reading = true
+        io(Runnable {
+            val cached = read()
+            main {
+                reading = false
+                held = cached
+                val shown = shownUnread
+                shownUnread = null
+                // The first list was faster than the file: now it is known whether they differ.
+                if (shown != null) shown(shown)
+                onRead(held ?: cached)
+            }
+        })
     }
 
     /** What the file keeps of a favorite ([HomeCache.format]): two lists equal in this are one cache. */

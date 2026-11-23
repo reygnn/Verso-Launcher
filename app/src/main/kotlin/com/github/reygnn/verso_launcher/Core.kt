@@ -64,6 +64,8 @@ internal class Core(private val app: VersoApp) {
         main = app::onMain,
         read = { HomeCache.read(dir, ::logWarning) },
         write = { favorites -> HomeCache.write(dir, favorites) },
+        // No window, nothing to draw: the next one asks what is known as it is made.
+        onRead = { cached -> app.instance?.cachedFavorites(cached) },
     )
 
     var state: LauncherState = newState()
