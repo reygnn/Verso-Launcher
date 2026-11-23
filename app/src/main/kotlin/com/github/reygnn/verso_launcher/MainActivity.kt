@@ -54,9 +54,10 @@ class MainActivity : Activity() {
     private lateinit var wallpaper: WallpaperPalette
     private var unwatchWallpaper: () -> Unit = {}
 
-    // Set by "~restart" until the recreation replaces this window: the process's state is already the
-    // fresh one, this window's is not, so it takes no more commands or "%".
-    private var restarting = false
+    // After "~restart", until the recreation replaces this window: the process's state is already
+    // the fresh one, this window's is not, so it takes no more commands or "%". Asked, not kept: a
+    // flag would have to be set wherever a state is replaced.
+    private val replaced: Boolean get() = state !== app.core.state
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -112,15 +113,10 @@ class MainActivity : Activity() {
         // the same list, which re-renders nothing (listChanged false).
         if (state.appsLoaded) appDrawer.refilter()
 
-        // First on the IO thread, so the cached favorites land long before the full enumeration does.
-        submitIo {
-            val cached = HomeCache.read(filesDir, ::logWarning)
-            onUi {
-                if (cached.isNotEmpty() && !state.appsLoaded) {
-                    cachedFavorites = cached.map { it.key to it.label }
-                    homePage.render(cached, loaded = true)
-                }
-            }
+        // Asked before the first refresh, so the cached favorites land long before the full
+        // enumeration does (CachedFavorites reads the file once per process).
+        app.core.homeCache.load { cached ->
+            if (!isDestroyed && cached.isNotEmpty() && !state.appsLoaded) homePage.render(cached, loaded = true)
         }
 
         applyPalette(wallpaper.current)
@@ -205,7 +201,7 @@ class MainActivity : Activity() {
         }
         // After "~restart" this window holds the old state until the recreation lands: it takes
         // nothing more. Nothing to say — the new window comes at once.
-        if (restarting) return
+        if (replaced) return
         // Cleared BEFORE running: clearing fires the TextWatcher synchronously, so the mode is
         // back to NORMAL before the command runs.
         appDrawer.setPrompt("")
@@ -226,8 +222,7 @@ class MainActivity : Activity() {
     private fun restart() {
         // A fresh state (Core.reset) reads the config file again and loads the app list anew, and
         // the recreation builds every view anew around it. Until that recreation lands this window
-        // still holds the old state, so it takes nothing more.
-        restarting = true
+        // still holds the old state, so it takes nothing more (replaced).
         app.core.reset()
         recreate()
     }
@@ -237,7 +232,7 @@ class MainActivity : Activity() {
 
     /** "%": kept at once (order.txt); the prompt clears onto the drawer in its new order. */
     private fun toggleOrder() {
-        if (restarting) return
+        if (replaced) return
         val byUsage = state.toggleOrder()
         toast(getString(if (byUsage) R.string.toast_order_usage else R.string.toast_order_name))
         appDrawer.setPrompt("")
@@ -275,25 +270,13 @@ class MainActivity : Activity() {
     // The process's app list (Core): enumeration, a profile's user.
     private val apps get() = app.core.apps
 
-    /** The favorites the cache file holds, as last written or read (see HomeCache). */
-    private var cachedFavorites: List<Pair<String, String>>? = null
-
     private fun renderHome() {
         val favs = state.favorites()
         // Before the first list memory has no apps to show: home keeps the cached favorites, and
         // the cache is not emptied.
         val ready = state.appsLoaded
         homePage.render(favs, ready)
-        if (ready) {
-            val pairs = favs.map { it.key to it.label }
-            if (pairs != cachedFavorites) {
-                cachedFavorites = pairs
-                // The Application, not this window: the write may run after the window is destroyed.
-                // Its folder is looked up there, off main: getFilesDir checks it on disk.
-                val process = app
-                submitIo { HomeCache.write(process.filesDir, favs) }
-            }
-        }
+        if (ready) app.core.homeCache.shown(favs)
     }
 
     private fun applyPalette(p: Palette) {

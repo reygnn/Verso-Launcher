@@ -173,7 +173,7 @@ class SourceGuardTest {
      */
     @Test fun `the process's code knows no Activity`() {
         val process = listOf(
-            "Core.kt", "ConfigFile.kt", "LauncherWindow.kt", "AppChanges.kt", "AppWatch.kt",
+            "Core.kt", "ConfigFile.kt", "LauncherWindow.kt", "AppChanges.kt", "AppWatch.kt", "CachedFavorites.kt",
             "LauncherState.kt", "LaunchHistory.kt", "DrawerOrder.kt",
         )
         for (file in process) {

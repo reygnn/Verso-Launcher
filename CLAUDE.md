@@ -160,7 +160,8 @@ One module, one package. The process owns the data, an activity is a window (har
   `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
   `AppEntry` and `VersoConfig` (immutable, resolved anew from the text), `ConfigReport` (what
   `~verify` says about the text), `AppChanges` (when a change to the apps becomes a refresh),
-  `PageState` (the page turn's state: which page is up, the drawer's side, what holds it).
+  `PageState` (the page turn's state: which page is up, the drawer's side, what holds it),
+  `CachedFavorites` (when home-cache.txt is read and written; the process's, like the list).
 - **IO:** `ConfigFile`, `DrawerOrder`, `Apps` (enumeration, default favorites), `AppWatch` (the
   system's package callbacks and profile broadcasts, heard by the process),
   `HomeCache`, `UsageLog`, `RecentsLog`, and `Guard` (hard rule 2's backstop, beside it

@@ -41,6 +41,8 @@ Pure logic
                            manager: launcher keys, the default SMS app first, a slot that throws;
                            the badge's cache across a language change
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
+  CachedFavoritesTest      home-cache.txt as the process keeps it: one read, a write only when
+                           home changed, a read that lands after the first list
   AppChangesTest           when a package or profile change becomes a refresh: in front (the
                            settle timer), behind another app, across a pause, an incomplete load
 

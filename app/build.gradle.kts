@@ -209,12 +209,12 @@ pitest {
             "LauncherLogic*", "LauncherState*", "LaunchHistory*", "ConfigText*", "ConfigReport*", "ConfigFile*", "UsageLog*",
             "RecentsLog*", "HomeCache*", "DrawerOrder*", "DisposableFileKt*", "SwipeGesture*", "PageState*", "DragOutcome*", "AppEntry*", "AppStatus*",
             "WallpaperPalette*", "TapGuard*", "HomeStyle*", "BatteryInfo*", "DoubleTapGate*", "Palette*",
-            "Guard*", "EnumerationKt*", "ProfileReader*", "AppChanges*",
+            "Guard*", "EnumerationKt*", "ProfileReader*", "AppChanges*", "CachedFavorites*",
         ).map { "com.github.reygnn.verso_launcher.$it" },
     )
     targetTests.set(
         listOf(
-            "AppChangesTest", "AppEntryTest", "ConfigFileTest", "DisposableFileTest", "ConfigFuzzTest", "ConfigReportTest", "ConfigTextTest", "DrawerOrderTest", "EnumerationTest",
+            "AppChangesTest", "AppEntryTest", "CachedFavoritesTest", "ConfigFileTest", "DisposableFileTest", "ConfigFuzzTest", "ConfigReportTest", "ConfigTextTest", "DrawerOrderTest", "EnumerationTest",
             "GuardTest", "HomeCacheTest", "HomeStyleTest", "LauncherActionsTest", "LauncherLogicTest", "LauncherRowsTest",
             "LauncherStateTest", "LaunchHistoryTest", "PageStateTest", "RecentsLogTest", "SwipeGestureTest", "TapGuardTest", "UsageLogTest", "VersoConfigTest",
             "WallpaperPaletteTest",

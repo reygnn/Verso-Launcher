@@ -58,6 +58,14 @@ internal class Core(private val app: VersoApp) {
         now = System::currentTimeMillis,
     )
 
+    /** home-cache.txt, read once and written when home changes; it outlives every window. */
+    val homeCache = CachedFavorites(
+        io = app::submitIo,
+        main = app::onMain,
+        read = { HomeCache.read(dir, ::logWarning) },
+        write = { favorites -> HomeCache.write(dir, favorites) },
+    )
+
     var state: LauncherState = newState()
         private set
 
