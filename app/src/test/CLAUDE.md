@@ -67,8 +67,9 @@ The window (R)
   MainActivityFlowsTest    the real Activity: the config file from the first frame and read
                            again by ~restart only, "%", ~restart and recreation
   MainActivityAppsTest     the real Activity with apps listed: home and its cache from the first
-                           list, package changes and a profile broadcast heard by the process
-                           and collected in front, behind and across a pause
+                           list and across a recreation, package changes and a profile broadcast
+                           heard by the process and collected in front, behind and across a
+                           pause
   PageTurnTest, SwipeFrameTest   the page turn on real views and real MotionEvents
   AppLauncherTest          a launch or "App info" refused, gone or paused: a word, never a crash
   AppDrawerTest            the back page, its list and its prompt together: rows, empty hints,

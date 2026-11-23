@@ -103,6 +103,18 @@ class MainActivityAppsTest {
         assertFalse(homeCache.exists())
     }
 
+    /** The process knows what the cache holds (CachedFavorites): a recreated window writes it no more. */
+    @Test fun `a recreation with the same favorites writes no cache`() {
+        install(zulu)
+        configFile("fav Zulu")
+        started()
+        assertTrue(homeCache.delete())
+        controller.recreate()
+        settle()
+        assertEquals(listOf("Zulu"), home())
+        assertFalse(homeCache.exists())
+    }
+
     /** A cold start draws the cached favorites while the first enumeration still runs. */
     @Test fun `the home cache shows until the first list is in`() {
         install(zulu)
