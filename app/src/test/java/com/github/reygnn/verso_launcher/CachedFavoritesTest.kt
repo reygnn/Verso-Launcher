@@ -15,15 +15,26 @@ class CachedFavoritesTest {
     private val mainQueue = ArrayDeque<() -> Unit>()
     private var onDisk = listOf(app("Alpha"))
     private var reads = 0
+
+    /** How many of the next reads throw, as an IO error past HomeCache.read's own catch would. */
+    private var failingReads = 0
     private val writes = mutableListOf<List<AppEntry>>()
 
     /** What the live window was handed, read by read. */
     private val handed = mutableListOf<List<AppEntry>>()
 
     private val cache = CachedFavorites(
-        io = { ioQueue.addLast(it) },
+        // Behind Guard, as VersoApp.submitIo runs every IO task.
+        io = { ioQueue.addLast(Guard.wrap("test IO", { _, _ -> }, it)) },
         main = { mainQueue.addLast(it) },
-        read = { reads++; onDisk },
+        read = {
+            reads++
+            if (failingReads > 0) {
+                failingReads--
+                error("unreadable")
+            }
+            onDisk
+        },
         write = { writes += it },
         onRead = { handed += it },
     )
@@ -102,6 +113,7 @@ class CachedFavoritesTest {
     @Test fun `only what the file keeps of a favorite counts as a change`() {
         loaded()
         cache.shown(listOf(app("Alpha", AppStatus.PAUSED)))
+        cache.shown(listOf(app("Alpha").withLabel("Alpha")))
         runAll()
         assertEquals(emptyList<List<AppEntry>>(), writes)
         cache.shown(listOf(app("Alpha").withLabel("Renamed")))
@@ -144,7 +156,7 @@ class CachedFavoritesTest {
     @Test fun `favorites shown before the read is back wait for it, and the file's own are not written`() {
         cache.load()
         cache.shown(listOf(app("Alpha")))
-        assertTrue("nothing queued but the read", ioQueue.size == 1)
+        assertEquals("nothing queued but the read", 1, ioQueue.size)
         runAll()
         assertEquals(emptyList<List<AppEntry>>(), writes)
     }
@@ -184,6 +196,49 @@ class CachedFavoritesTest {
         cache.shown(listOf(app("Bravo")))
         runAll()
         assertEquals(1, reads)
+        assertEquals(listOf(listOf(app("Bravo"))), writes)
+    }
+
+    // ---- a read that fails ------------------------------------------------------------------
+
+    /** The file stays unknown: no window is handed anything, and the next window's load reads again. */
+    @Test fun `after a failed read the next load reads again`() {
+        failingReads = 1
+        assertNull(cache.load())
+        runAll()
+        assertEquals(emptyList<List<AppEntry>>(), handed)
+        assertNull("still unknown", cache.load())
+        runAll()
+        assertEquals(2, reads)
+        assertEquals(listOf(listOf(app("Alpha"))), handed)
+    }
+
+    /**
+     * Favorites waiting for a read that failed are written as they are, as if no file were known,
+     * and then count as what it holds: neither held back nor written again.
+     */
+    @Test fun `favorites waiting for a failed read are written, and then known`() {
+        failingReads = 1
+        cache.load()
+        val shown = listOf(app("Bravo"))
+        cache.shown(shown)
+        runAll()
+        assertEquals(listOf(shown), writes)
+        assertEquals("the live window is handed what was written", listOf(shown), handed)
+        assertEquals(shown, cache.load())
+        cache.shown(shown)
+        runAll()
+        assertEquals("no second read, no second write", 1 to 1, reads to writes.size)
+    }
+
+    /** A failed read leaves nothing behind that holds back the favorites shown after it. */
+    @Test fun `favorites shown after a failed read start a read of their own`() {
+        failingReads = 1
+        cache.load()
+        runAll()
+        cache.shown(listOf(app("Bravo")))
+        runAll()
+        assertEquals(2, reads)
         assertEquals(listOf(listOf(app("Bravo"))), writes)
     }
 }

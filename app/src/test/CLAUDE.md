@@ -43,7 +43,7 @@ Pure logic
   TapGuardTest, GuardTest  the stale-click guard; hard rule 2's backstop
   CachedFavoritesTest      home-cache.txt as the process keeps it: one read, handed to the live
                            window; a write only when home differs from the file, also when the
-                           first list is faster than the read
+                           first list is faster than the read; a read that throws
   AppChangesTest           when a package or profile change becomes a refresh: in front (the
                            settle timer), behind another app, across a pause, an incomplete load
 
