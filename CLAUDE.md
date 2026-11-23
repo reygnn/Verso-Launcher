@@ -153,7 +153,7 @@ One module, one package. The process owns the data, an activity is a window (har
   `LaunchHistory`, which outlives a state).
 - **Window:** `MainActivity` (refusals up front, `%`, `~restart`; the process sees it only as a
   `LauncherWindow`, and it tells the process when it is made, in front and behind), `AppLauncher` (a start or "App info" in the entry's profile, a
-  paused profile turned on), `PageTurn` and `SwipeFrame`, `HomePage`, `AppDrawer` (its two parts: `DrawerList`, `DrawerPrompt`),
+  paused profile turned on), `PageTurn` (its views: `PageViews`) and `SwipeFrame`, `HomePage`, `AppDrawer` (its two parts: `DrawerList`, `DrawerPrompt`),
   `OutlinedViews`.
 - **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
   default favorites; `LauncherLogic.drawerView` is all the drawer shows for one prompt), `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
@@ -251,7 +251,7 @@ dropped one keeps its number as "(removed)".
    - Lists sort with the device locale's `Collator`, never by code point.
 10. **Default favorites only with no config file** (`LauncherState.useDefaults`): picked from
     every list anew, never written. An empty file is a config: no defaults over it.
-11. **Page turn** (`PageTurn`, `PageState`, `SwipeFrame`, `SwipeGesture`).
+11. **Page turn** (`PageTurn`, `PageState`, `PageViews`, `SwipeFrame`, `SwipeGesture`).
     - The drawer follows the finger both ways. `?` is the same drawer, coming from the top and
       closing toward it. The flick is the fallback.
     - Touch is handled only in `SwipeFrame.dispatchTouchEvent`, never in `onInterceptTouchEvent`.
@@ -261,6 +261,9 @@ dropped one keeps its number as "(removed)".
       the frame).
     - The page's state is one `PageState`, changed only through its transitions. No flag beside
       it, and no view's visibility read in its place.
+    - `PageTurn` says what follows from a change, step by step; what a step does to the views,
+      and every duration and curve, is `PageViews`. The order of the view calls there was found
+      on devices: a change to it is tested on a device.
 12. **Status bar hidden on the home page only**; home pads for it regardless
     (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate the activity.
