@@ -29,7 +29,7 @@ import android.widget.TextView
  *
  * @param onChanged the field's text after every change, typed or set. It is called before the
  *   change returns, so a caller that sets a text finds it filtered.
- * @param onEnter the one call per Enter that acts ([LauncherLogic.enterEdge]).
+ * @param onEnter the one call per Enter that acts ([PromptInput.enterEdge]).
  */
 internal class DrawerPrompt(
     private val activity: Activity,
@@ -71,9 +71,9 @@ internal class DrawerPrompt(
         val pad = activity.dp(2)
         setPadding(pad, pad, pad, pad)
         isSingleLine = true
-        // A pasted line break would only look like a space here: it becomes one (LauncherLogic.promptRun).
+        // A pasted line break would only look like a space here: it becomes one (PromptInput.promptRun).
         filters = arrayOf(InputFilter { source, start, end, _, _, _ ->
-            LauncherLogic.promptRun(source.subSequence(start, end))
+            PromptInput.promptRun(source.subSequence(start, end))
         })
         inputType = InputType.TYPE_CLASS_TEXT or
             InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
@@ -98,7 +98,7 @@ internal class DrawerPrompt(
                     isEnterKey = it.keyCode == KeyEvent.KEYCODE_ENTER || it.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER,
                 )
             }
-            when (LauncherLogic.enterEdge(imeAction, key)) {
+            when (PromptInput.enterEdge(imeAction, key)) {
                 EnterEdge.PASS -> return@setOnEditorActionListener false
                 EnterEdge.CONSUME -> return@setOnEditorActionListener true
                 EnterEdge.ACT -> Unit

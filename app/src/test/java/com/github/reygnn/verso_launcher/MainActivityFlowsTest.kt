@@ -235,7 +235,7 @@ class MainActivityFlowsTest {
         configFile("fav ${someApp.key}\nfavourite Zulu")
         started()
         enter("~v")
-        assertEquals(LauncherLogic.VERIFY, prompt.text.toString())
+        assertEquals(Commands.VERIFY, prompt.text.toString())
         assertTrue(ConfigFinding.BadLine(ConfigLine(2, "favourite Zulu")).let(::ReportRow) in shownRows())
     }
 

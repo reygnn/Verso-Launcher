@@ -14,6 +14,10 @@ internal object RecentsLog {
     /** Ours is a few hundred bytes ([readDisposable]). */
     const val MAX_BYTES = 64_000L
 
+    /** A launch of the app with [key]: it goes to the front, once, and the list keeps [limit]. */
+    fun pushRecent(current: List<String>, key: String, limit: Int): List<String> =
+        (listOf(key) + current.filter { it != key }).take(limit)
+
     /** Launches made before the file was read come first. */
     fun merged(disk: List<String>, memory: List<String>, limit: Int): List<String> =
         (memory + disk).distinct().take(limit)

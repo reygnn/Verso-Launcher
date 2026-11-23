@@ -232,7 +232,8 @@ pitest {
     pitestVersion.set(libs.versions.pitest.core)
     targetClasses.set(
         listOf(
-            "LauncherLogic*", "LauncherState*", "LaunchHistory*", "ConfigText*", "ConfigReport*", "ConfigFile*", "UsageLog*",
+            "LauncherLogic*", "Labels*", "Search*", "AppLists*", "Commands*", "PromptInput*",
+            "LauncherState*", "LaunchHistory*", "ConfigText*", "ConfigReport*", "ConfigFile*", "UsageLog*",
             "RecentsLog*", "HomeCache*", "DrawerOrder*", "DisposableFileKt*", "SwipeGesture*", "PageState*", "DragOutcome*", "AppEntry*", "AppStatus*",
             "WallpaperPalette*", "TapGuard*", "HomeStyle*", "BatteryInfo*", "DoubleTapGate*", "Palette*",
             "Guard*", "EnumerationKt*", "ProfileReader*", "AppChanges*", "CachedFavorites*",
@@ -242,6 +243,7 @@ pitest {
         listOf(
             "AppChangesTest", "AppEntryTest", "CachedFavoritesTest", "ConfigFileTest", "DisposableFileTest", "ConfigFuzzTest", "ConfigReportTest", "ConfigTextTest", "DrawerOrderTest", "EnumerationTest",
             "GuardTest", "HomeCacheTest", "HomeStyleTest", "LauncherActionsTest", "LauncherLogicTest", "LauncherRowsTest",
+            "LabelsTest", "SearchTest", "AppListsTest", "CommandsTest", "PromptInputTest",
             "LauncherStateTest", "LaunchHistoryTest", "PageStateTest", "RecentsLogTest", "SwipeGestureTest", "TapGuardTest", "UsageLogTest", "VersoConfigTest",
             "WallpaperPaletteTest",
         ).map { "com.github.reygnn.verso_launcher.$it" },

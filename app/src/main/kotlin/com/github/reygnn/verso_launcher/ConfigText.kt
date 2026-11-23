@@ -81,7 +81,7 @@ internal data class ConfigText(
             val tags = LinkedHashMap<String, List<String>>()
             for ((ref, list) in text.tags) {
                 for (key in index.keys(ref)) {
-                    tags[key] = (tags[key].orEmpty() + list).distinct().take(LauncherLogic.MAX_TAGS_PER_APP)
+                    tags[key] = (tags[key].orEmpty() + list).distinct().take(Labels.MAX_TAGS_PER_APP)
                 }
             }
             return VersoConfig(hidden = hidden, favorites = favorites.toList(), names = names, tags = tags)
@@ -122,10 +122,10 @@ internal data class ConfigText(
                 FAV -> rest.takeIf { it.isNotEmpty() }?.also { favorites += it }
                 HIDE -> rest.takeIf { it.isNotEmpty() }?.also { hidden += it }
                 NAME -> split(rest)?.let { (ref, value) ->
-                    LauncherLogic.cleanName(value).takeIf { it.isNotEmpty() }?.let { names += ref to it; ref }
+                    Labels.cleanName(value).takeIf { it.isNotEmpty() }?.let { names += ref to it; ref }
                 }
                 TAG -> split(rest)?.let { (ref, value) ->
-                    LauncherLogic.parseTags(value).takeIf { it.isNotEmpty() }?.let { tags += ref to it; ref }
+                    Labels.parseTags(value).takeIf { it.isNotEmpty() }?.let { tags += ref to it; ref }
                 }
                 else -> null
             }
@@ -136,7 +136,7 @@ internal data class ConfigText(
     private class Index(apps: List<AppEntry>) {
         private val byKey = apps.associateBy { it.key }
         private val byPackage = apps.filter { it.profile == null }.groupBy { it.packageName }
-        private val byLabel = apps.groupBy { LauncherLogic.foldLabel(it.systemLabel) }
+        private val byLabel = apps.groupBy { Labels.foldLabel(it.systemLabel) }
 
         /** Whether [key] is an app of the list, not a key of one that is gone. */
         fun installed(key: String): Boolean = key in byKey
@@ -144,7 +144,7 @@ internal data class ConfigText(
         /** An app's key first, then a package, then a label; a key of an app that is gone last. */
         fun keys(ref: String): List<String> {
             if (ref in byKey) return listOf(ref)
-            val found = byPackage[ref] ?: byLabel[LauncherLogic.foldLabel(ref)]
+            val found = byPackage[ref] ?: byLabel[Labels.foldLabel(ref)]
             return found?.map { it.key } ?: if (AppEntry.parseKey(ref) != null) listOf(ref) else emptyList()
         }
     }

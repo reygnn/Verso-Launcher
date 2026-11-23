@@ -122,7 +122,7 @@ class SourceGuardTest {
     }
 
     @Test fun `no string template reaches through an object without braces`() {
-        // "$LauncherLogic.MAX_TAG_LENGTH" compiles to "LauncherLogic@1a2b.MAX_TAG_LENGTH"; "$FILE.tmp" (a value, then a suffix) is fine.
+        // "$Labels.MAX_TAG_LENGTH" compiles to "Labels@1a2b.MAX_TAG_LENGTH"; "$FILE.tmp" (a value, then a suffix) is fine.
         val dir = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
         val offenders = dir.walk().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().mapIndexedNotNull { i, line ->
@@ -452,7 +452,7 @@ class SourceGuardTest {
 
     private companion object {
         /** detekt-baseline.xml's entries; lowered with every one fixed, never raised. */
-        const val DETEKT_BASELINE = 8
+        const val DETEKT_BASELINE = 6
 
         // Read on a code layer: wherever it stands there, it is code.
         val SUPPRESS = Regex("""@Suppress\s*\(""")

@@ -30,7 +30,7 @@ internal class Apps(
         return userManager.getUserForSerialNumber(serial)
     }
 
-    /** System labels only; custom names are applied on the main thread (LauncherLogic.named). */
+    /** System labels only; custom names are applied on the main thread (AppLists.named). */
     fun enumerate(): Enumeration? {
         // The badge is localized and the cache outlives a language change: part of the key.
         val locale = locale()
@@ -134,7 +134,7 @@ internal fun <P> enumerate(
         log("app enumeration failed", IllegalStateException("no personal app readable"))
         null
     } else {
-        Enumeration(LauncherLogic.sortedForDrawer(entries), reader.complete)
+        Enumeration(AppLists.sortedForDrawer(entries), reader.complete)
     }
 }
 
@@ -207,7 +207,7 @@ private class ProfileReader<P>(
                 null
             } else {
                 // Cleaned like a custom name: no bidi tricks to pass for another app.
-                val raw = LauncherLogic.cleanName(app.label).ifEmpty { app.packageName }
+                val raw = Labels.cleanName(app.label).ifEmpty { app.packageName }
                 val systemLabel = if (serial == null) raw else badge(raw, serial, user)
                 AppEntry(
                     label = systemLabel,

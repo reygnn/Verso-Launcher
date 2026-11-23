@@ -49,7 +49,7 @@ class LauncherStateTest {
                 enumerations++
                 // Sorted, as Apps.enumerate hands it over.
                 if (enumerationFails) null
-                else Enumeration(LauncherLogic.sortedForDrawer(installed.reversed()), enumerationComplete)
+                else Enumeration(AppLists.sortedForDrawer(installed.reversed()), enumerationComplete)
             },
             onRefreshed = { changed -> listChanges += changed; onReport() },
             defaultFavoriteCandidates = { candidatesCalls++; candidates },

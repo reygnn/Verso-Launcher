@@ -23,11 +23,11 @@ class AppEntryTest {
     @Test fun `matchLabel is the match form of the shown label, also after a rename`() {
         val e = AppEntry("Łódź Café", "com.foo", "com.foo.Main", "Łódź Café")
         assertEquals("lodz cafe", e.matchLabel)
-        assertEquals(LauncherLogic.matchForm(e.labelLower), e.matchLabel)
+        assertEquals(Labels.matchForm(e.labelLower), e.matchLabel)
         val renamed = e.withLabel("Über")
         assertEquals("uber", renamed.matchLabel)
         assertEquals("a plain copy cannot leave it stale", "uber", e.copy(label = "Über").matchLabel)
-        assertEquals("search finds an entry by it", listOf(renamed), LauncherLogic.search(listOf(e, renamed), "uber"))
+        assertEquals("search finds an entry by it", listOf(renamed), Search.search(listOf(e, renamed), "uber"))
         assertEquals("not part of equality", e, e.copy())
     }
 

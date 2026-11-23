@@ -75,7 +75,7 @@ internal class LaunchHistory(
 
     /** A launch of the app with [key] that started. */
     fun record(key: String) {
-        recents = LauncherLogic.pushRecent(recents, key, RECENTS_KEPT)
+        recents = RecentsLog.pushRecent(recents, key, RECENTS_KEPT)
         if (recentsLoaded) persistRecents()
         usage = UsageLog.recorded(usage, key, now())
         if (usageLoaded) persistUsage()

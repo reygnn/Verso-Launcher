@@ -300,6 +300,6 @@ internal class PageTurn(
         const val RECENTS_PROMPT = "?"
 
         /** The prompts a resume leaves without the keyboard: the recents, and "~verify"'s report. */
-        val KEYBOARDLESS = setOf(RECENTS_PROMPT, LauncherLogic.VERIFY)
+        val KEYBOARDLESS = setOf(RECENTS_PROMPT, Commands.VERIFY)
     }
 }

@@ -16,9 +16,15 @@ Robolectric classes are marked (R).
 
 ```
 Pure logic
-  LauncherLogicTest        modes, commands and their abbreviations, search and foldLabel
-                           (Turkish, İ, NFC, accents, đ ł ø ß, other scripts' marks), the ranking,
-                           Collator sort, tags, recents, default favorites
+  LauncherLogicTest        the mode a prompt opens, the hint of an empty list
+  LabelsTest               foldLabel (Turkish, İ, NFC, final sigma), what of a name or a tag is
+                           stored: look-alike characters, lone surrogates, the cuts
+  SearchTest               search (accents, đ ł ø ß, other scripts' marks), the ranking, the star
+                           prefix, tags and their package fallback
+  AppListsTest             custom names, Collator sort, favorites, default favorites, recents,
+                           the tags in use
+  CommandsTest             the "~" commands and their abbreviations
+  PromptInputTest          the character a key types, a pasted run
   LauncherRowsTest         rowsFor per mode; drawerView: the anchor, the empty hint, Enter and
                            a tap on one view
   LauncherActionsTest      Enter and tap decisions
@@ -122,10 +128,12 @@ No instrumented tests: everything runs on the JVM.
 
 ## Where a new test goes
 
-- Start from a template: pure logic `LauncherLogicTest`; threads and state `LauncherStateTest`
+- Start from a template: pure logic `SearchTest`; threads and state `LauncherStateTest`
   (its queue harness, `testLauncherState`); files `ConfigFileTest`; a widget `AppDrawerTest`.
-- A new `~` command or sigil: `LauncherLogicTest`, `LauncherActionsTest`, `LauncherRowsTest`.
-- Search, fold or sort: `LauncherLogicTest`, with a Turkish and a German/Swedish case.
+- A new `~` command: `CommandsTest`; a new sigil: `LauncherLogicTest`; either one also
+  `LauncherActionsTest` and `LauncherRowsTest`.
+- Search or fold: `SearchTest` or `LabelsTest`, with a Turkish case; sort: `AppListsTest`, with a
+  German and a Swedish one.
 - The config file's format: `ConfigTextTest`, and the files users already have must still read.
   A character that broke a fold, a cut or a key goes into the pieces of `ConfigFuzzTest` too.
 - When the config file is read: `ConfigFileTest` for the read itself, `MainActivityFlowsTest` for

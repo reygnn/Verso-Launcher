@@ -87,11 +87,11 @@ class ConfigTextTest {
     }
 
     @Test fun `names and tags come in cleaned, a tag list capped`() {
-        val tags = (1..LauncherLogic.MAX_TAGS_PER_APP + 5).joinToString(", ") { "t$it" }
+        val tags = (1..Labels.MAX_TAGS_PER_APP + 5).joinToString(", ") { "t$it" }
         val config = resolved("name Maps = \u202EKarte\u202C\ntag Maps = #Reise, Reise, $tags")
         assertEquals("Karte", config.names[maps.key])
         assertEquals("reise", config.tags[maps.key]!!.first())
-        assertEquals(LauncherLogic.MAX_TAGS_PER_APP, config.tags[maps.key]!!.size)
+        assertEquals(Labels.MAX_TAGS_PER_APP, config.tags[maps.key]!!.size)
     }
 
     @Test fun `comments, blank lines, a BOM, CRLF and any keyword case are fine`() {

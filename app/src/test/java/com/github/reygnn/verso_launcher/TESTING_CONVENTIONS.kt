@@ -17,8 +17,8 @@ package com.github.reygnn.verso_launcher
  *   ConfigFile, DrawerOrder, HomeCache, UsageLog, RecentsLog — real files in a dir
  *
  * `log` is the error channel of a class that never throws: collect it and assert on it. Pure
- * decisions live in objects (LauncherLogic, SwipeGesture,
- * TapGuard, HomeStyle, BatteryInfo), tested with plain values; apps are `testApp(key, label)`,
+ * decisions live in objects (LauncherLogic, Labels, Search, AppLists, Commands, PromptInput,
+ * SwipeGesture, TapGuard, HomeStyle, BatteryInfo), tested with plain values; apps are `testApp(key, label)`,
  * a real AppEntry.
  *
  * THREADS — MANUAL QUEUES

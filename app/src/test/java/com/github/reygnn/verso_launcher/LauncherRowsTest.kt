@@ -152,7 +152,7 @@ class LauncherRowsTest {
     @Test fun `bare tilde lists every command harmless-first as CommandRows`() {
         val rows = rowsFor(Mode.COMMAND, "~")
         assertTrue(rows.all { it is CommandRow })
-        assertEquals(LauncherLogic.COMMANDS.map { it.first }, rows.filterIsInstance<CommandRow>().map { it.name })
+        assertEquals(Commands.ALL.map { it.first }, rows.filterIsInstance<CommandRow>().map { it.name })
         // "~crash", where it exists, farthest from the bottom-anchored prompt; then the harmless ones.
         val names = rows.filterIsInstance<CommandRow>().map { it.name }
         assertEquals(

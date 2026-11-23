@@ -134,8 +134,8 @@ internal class AppDrawer(
     }
 }
 
-/** The character a plain key press types, or null — see [LauncherLogic.typedChar]. */
-internal fun printable(event: KeyEvent): String? = LauncherLogic.typedChar(
+/** The character a plain key press types, or null — see [PromptInput.typedChar]. */
+internal fun printable(event: KeyEvent): String? = PromptInput.typedChar(
     unicodeChar = event.unicodeChar,
     chord = event.isCtrlPressed || event.isMetaPressed ||
         event.metaState and KeyEvent.META_ALT_LEFT_ON != 0,

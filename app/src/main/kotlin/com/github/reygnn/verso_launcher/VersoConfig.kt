@@ -17,7 +17,7 @@ internal data class VersoConfig(
     // In home-page order, no duplicates (every producer keeps it so).
     val favorites: List<String> = emptyList(),
     val names: Map<String, String> = emptyMap(),
-    // Canonical tags (LauncherLogic.parseTags), first-entered order; no empty lists.
+    // Canonical tags (Labels.parseTags), first-entered order; no empty lists.
     val tags: Map<String, List<String>> = emptyMap(),
     /** The plain drawer most used first ("%"), not A to Z. */
     val byUsage: Boolean = false,

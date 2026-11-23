@@ -87,42 +87,42 @@ class LauncherActionsTest {
         EnterKey(down = down, repeatCount = repeatCount, isEnterKey = isEnterKey)
 
     @Test fun `a soft Enter acts`() {
-        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = null))
+        assertEquals(EnterEdge.ACT, PromptInput.enterEdge(imeAction = true, key = null))
     }
 
     @Test fun `another IME action without an event passes`() {
-        assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = null))
+        assertEquals(EnterEdge.PASS, PromptInput.enterEdge(imeAction = false, key = null))
     }
 
     /** One UI (A17) sends GO on the down AND the up: acting on both launches twice; passing the
      *  up lets the TextView drop the keyboard. */
     @Test fun `a key Enter with the GO action acts on its down and consumes its up`() {
-        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = true)))
-        assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = false)))
+        assertEquals(EnterEdge.ACT, PromptInput.enterEdge(imeAction = true, key = enterKey(down = true)))
+        assertEquals(EnterEdge.CONSUME, PromptInput.enterEdge(imeAction = true, key = enterKey(down = false)))
     }
 
     @Test fun `a key Enter without an IME action acts on its down and consumes its up`() {
-        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = true)))
-        assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = false)))
+        assertEquals(EnterEdge.ACT, PromptInput.enterEdge(imeAction = false, key = enterKey(down = true)))
+        assertEquals(EnterEdge.CONSUME, PromptInput.enterEdge(imeAction = false, key = enterKey(down = false)))
     }
 
     /** Otherwise a held Enter launches the app over and over. */
     @Test fun `a held Enter acts once, its repeats are consumed`() {
         for (imeAction in listOf(true, false)) {
-            assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction, enterKey(down = true, repeatCount = 1)))
-            assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction, enterKey(down = true, repeatCount = 5)))
+            assertEquals(EnterEdge.CONSUME, PromptInput.enterEdge(imeAction, enterKey(down = true, repeatCount = 1)))
+            assertEquals(EnterEdge.CONSUME, PromptInput.enterEdge(imeAction, enterKey(down = true, repeatCount = 5)))
         }
     }
 
     /** No real input takes this path (TextView sends only ENTER/NUMPAD_ENTER); never pass it half-handled. */
     @Test fun `defensive - GO on another key acts on its down and consumes its up`() {
-        assertEquals(EnterEdge.ACT, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = true, isEnterKey = false)))
-        assertEquals(EnterEdge.CONSUME, LauncherLogic.enterEdge(imeAction = true, key = enterKey(down = false, isEnterKey = false)))
+        assertEquals(EnterEdge.ACT, PromptInput.enterEdge(imeAction = true, key = enterKey(down = true, isEnterKey = false)))
+        assertEquals(EnterEdge.CONSUME, PromptInput.enterEdge(imeAction = true, key = enterKey(down = false, isEnterKey = false)))
     }
 
     @Test fun `any other key passes`() {
-        assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = true, isEnterKey = false)))
-        assertEquals(EnterEdge.PASS, LauncherLogic.enterEdge(imeAction = false, key = enterKey(down = false, isEnterKey = false)))
+        assertEquals(EnterEdge.PASS, PromptInput.enterEdge(imeAction = false, key = enterKey(down = true, isEnterKey = false)))
+        assertEquals(EnterEdge.PASS, PromptInput.enterEdge(imeAction = false, key = enterKey(down = false, isEnterKey = false)))
     }
 
     // ---- tapAction -----------------------------------------------------------
@@ -187,7 +187,7 @@ class LauncherActionsTest {
     /** Enter on its own report runs it again: it only sets the prompt it already shows. */
     @Test fun `Enter on ~verify or its abbreviation runs it`() {
         for (prompt in listOf("~verify", "~v", "~ve")) {
-            val command = LauncherLogic.resolveCommand(prompt)
+            val command = Commands.resolveCommand(prompt)
             assertEquals(prompt, Command.VERIFY, command)
             assertEquals(
                 DrawerAction.Run(Command.VERIFY),

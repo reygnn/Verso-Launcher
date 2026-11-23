@@ -10,7 +10,7 @@ import java.util.Random
 /**
  * The user's file and other apps' labels, at random, through what handles them on main at every
  * start. [ConfigText.parse] runs inside [ConfigFile.read]'s catch; the state's refresh
- * ([ConfigText.resolve], [LauncherLogic.named]) and the drawer's rows ([LauncherLogic.rowsFor])
+ * ([ConfigText.resolve], [AppLists.named]) and the drawer's rows ([LauncherLogic.rowsFor])
  * run without one (hard rule 2). A throw there comes back at every start for as long as the file
  * or the app is there: a crash loop that only a pushed file ends.
  *
@@ -41,7 +41,7 @@ class ConfigFuzzTest {
         for (app in state.apps) {
             // A name that starts with a sigil or a star is typed as one: that is no search.
             val typed = app.label.trim()
-            if (LauncherLogic.parseMode(typed) != Mode.NORMAL || LauncherLogic.starPrefix(typed) != null) continue
+            if (LauncherLogic.parseMode(typed) != Mode.NORMAL || Search.starPrefix(typed) != null) continue
             val found = rows(state, typed).mapNotNull { (it as? AppRow)?.entry?.key }
             assertTrue(typed, app.key in found)
         }
@@ -63,7 +63,7 @@ class ConfigFuzzTest {
     }
 
     /** The prompt as the field holds it (its input filter); the view trims it, as the drawer does. */
-    private fun prompt(raw: String): String = LauncherLogic.promptRun(raw) ?: raw
+    private fun prompt(raw: String): String = PromptInput.promptRun(raw) ?: raw
 
     private fun view(state: LauncherState, raw: String): DrawerView {
         val c = state.config

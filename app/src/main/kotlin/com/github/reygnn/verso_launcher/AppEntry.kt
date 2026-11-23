@@ -19,14 +19,14 @@ internal data class AppEntry(
     /** Per launcher activity, not per package. A body val, so it stays out of equals/hashCode/copy. */
     val key: String = keyOf(packageName, className, profile)
 
-    /** [label] folded ([LauncherLogic.foldLabel]): what the drawer sorts by. */
-    val labelLower: String = LauncherLogic.foldLabel(label)
+    /** [label] folded ([Labels.foldLabel]): what the drawer sorts by. */
+    val labelLower: String = Labels.foldLabel(label)
 
     /**
-     * [labelLower] as search compares it ([LauncherLogic.matchForm]). A body val like [labelLower]:
+     * [labelLower] as search compares it ([Labels.matchForm]). A body val like [labelLower]:
      * computed once per entry, not per keystroke.
      */
-    val matchLabel: String = LauncherLogic.matchForm(labelLower)
+    val matchLabel: String = Labels.matchForm(labelLower)
 
     fun withLabel(newLabel: String): AppEntry =
         copy(label = newLabel)

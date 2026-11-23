@@ -157,8 +157,11 @@ One module, one package. The process owns the data, an activity is a window (har
   `LauncherWindow`, and it tells the process when it is made, in front and behind), `AppLauncher` (a start or "App info" in the entry's profile, a
   paused profile turned on), `PageTurn` (its views: `PageViews`) and `SwipeFrame`, `HomePage`, `AppDrawer` (its two parts: `DrawerList`, `DrawerPrompt`),
   `OutlinedViews`.
-- **Pure:** `LauncherLogic` (every decision: modes, commands, search, sort, rows, actions, tags,
-  default favorites; `LauncherLogic.drawerView` is all the drawer shows for one prompt), `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
+- **Pure:** `LauncherLogic` (the drawer for one prompt: modes, rows, actions;
+  `LauncherLogic.drawerView` is all the drawer shows) and what it decides with: `Labels` (the
+  fold, names, tags), `Search` (by name, `*` and `#`), `AppLists` (order, favorites, recents,
+  default favorites), `Commands` (the `~` commands), `PromptInput` (keys and pasted text);
+  `LauncherState`, `LaunchHistory`, `ConfigText` (the file's lines, the apps they name,
   `ConfigText.readCapped`), `SwipeGesture`, `WallpaperPalette`, `HomeStyle`; the data
   `AppEntry` and `VersoConfig` (immutable, resolved anew from the text), `ConfigReport` (what
   `~verify` says about the text), `AppChanges` (when a change to the apps becomes a refresh),
@@ -179,7 +182,7 @@ Data flow of the app list:
    burst of changes is one refresh, else at the next `onResume` (`Core.windowResumed`).
 3. The IO thread reads the apps of every profile, system labels only.
 4. On main the newest load generation wins. The file's text is resolved against the list
-   (`ConfigText.resolve`) and the custom names are applied (`LauncherLogic.named`).
+   (`ConfigText.resolve`) and the custom names are applied (`AppLists.named`).
 5. `AppDrawer.refilter` draws it.
 
 Data flow of the user's file: the first `MainActivity` or a `~restart` (`Core.reset`) calls
@@ -247,9 +250,9 @@ dropped one keeps its number as "(removed)".
    (`AppEntry.keyOf`); launch and app info go through `LauncherApps` with the entry's profile. The
    file may name an app by key, package or system label (`ConfigText`). No change to the key or
    the file's format without the old files still reading.
-9. **`LauncherLogic.foldLabel` is the only fold** for labels, search text (needles) and tags.
+9. **`Labels.foldLabel` is the only fold** for labels, search text (needles) and tags.
    - Matching alone also drops Latin, Greek and Cyrillic accents and spells đ, ł, ø, ß and kin
-     plainly (`LauncherLogic.matchForm`). What is stored keeps them.
+     plainly (`Labels.matchForm`). What is stored keeps them.
    - Lists sort with the device locale's `Collator`, never by code point.
 10. **Default favorites only with no config file** (`LauncherState.useDefaults`): picked from
     every list anew, never written. An empty file is a config: no defaults over it.
@@ -270,7 +273,7 @@ dropped one keeps its number as "(removed)".
     (`getInsetsIgnoringVisibility`).
 13. **`density` stays out of `configChanges`**: a display-size change must recreate the activity.
 14. **Entries of apps that are gone stay** in the file: Verso cannot remove them (hard rule 4), they
-    show nowhere (the `#` overview lists only tags of installed apps, `LauncherLogic.tagsInUse`),
+    show nowhere (the `#` overview lists only tags of installed apps, `AppLists.tagsInUse`),
     and a key of one keeps naming it until it is back (`ConfigText.resolve`). Telling "gone" from
     "not readable right now" (a paused or unlisted profile, an unmounted card) is what made
     `~cleanup` (up to 0.5.9) the riskiest command.

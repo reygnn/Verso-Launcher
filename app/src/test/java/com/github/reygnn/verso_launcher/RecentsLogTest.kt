@@ -53,4 +53,44 @@ class RecentsLogTest {
         assumeFalse("running as root", file.canRead())
         assertNull(RecentsLog.read(dir, 8, noLog))
     }
+
+    // ---- pushRecent ---------------------------------------------------------
+
+    @Test fun `pushRecent puts a new key at the front`() {
+        assertEquals(listOf("b", "a"), RecentsLog.pushRecent(listOf("a"), "b", 8))
+    }
+
+    @Test fun `pushRecent moves an existing key to the front without duplicating`() {
+        assertEquals(listOf("c", "a", "b"), RecentsLog.pushRecent(listOf("a", "b", "c"), "c", 8))
+    }
+
+    @Test fun `pushRecent caps the list at the limit, dropping the oldest`() {
+        // Front-inserting "d" onto a full 3-slot list evicts the oldest ("a").
+        assertEquals(listOf("d", "c", "b"), RecentsLog.pushRecent(listOf("c", "b", "a"), "d", 3))
+    }
+
+    @Test fun `pushRecent re-promoting a key never grows past the limit`() {
+        assertEquals(listOf("a", "c", "b"), RecentsLog.pushRecent(listOf("c", "b", "a"), "a", 3))
+    }
+
+    @Test fun `pushRecent does not mutate its input`() {
+        val current = listOf("a", "b")
+        RecentsLog.pushRecent(current, "c", 8)
+        assertEquals(listOf("a", "b"), current)
+    }
+
+    @Test fun `pushRecent with a zero limit yields an empty list`() {
+        // Unreachable (RECENTS_LIMIT is 8); a zero limit degrades to "no recents".
+        assertEquals(emptyList<String>(), RecentsLog.pushRecent(listOf("a", "b"), "c", 0))
+    }
+
+    @Test fun `pushRecent with a negative limit throws, as take does`() {
+        // A negative limit is not safe: take(n) rejects it.
+        try {
+            RecentsLog.pushRecent(listOf("a", "b"), "c", -1)
+            throw AssertionError("expected an exception for a negative limit")
+        } catch (expected: IllegalArgumentException) {
+            // expected
+        }
+    }
 }

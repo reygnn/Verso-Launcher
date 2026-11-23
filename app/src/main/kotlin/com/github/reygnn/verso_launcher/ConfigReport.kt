@@ -51,7 +51,7 @@ internal object ConfigReport {
      *   when a file like that does nothing, and the start of a line is enough to recognize it.
      */
     fun shownText(line: ConfigLine): String {
-        val cut = LauncherLogic.truncate(line.text, MAX_SHOWN_CHARS)
+        val cut = Labels.truncate(line.text, MAX_SHOWN_CHARS)
         return if (cut.length < line.text.length) "$cut…" else cut
     }
 

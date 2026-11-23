@@ -84,7 +84,7 @@ internal class LauncherState(
     fun report(): List<ConfigFinding> =
         ConfigReport.findings(fileStatus, text, enumerated.takeIf { appsLoaded }, complete = lastLoadCommitted)
 
-    fun favorites(): List<AppEntry> = LauncherLogic.favoritesInDisplayOrder(apps, config.favorites)
+    fun favorites(): List<AppEntry> = AppLists.favoritesInDisplayOrder(apps, config.favorites)
 
     /** Re-enumerate the apps off the main thread (and, until they are read, recents.txt and usage.txt). */
     fun refresh() {
@@ -111,7 +111,7 @@ internal class LauncherState(
         // From any enumeration with a list, complete or not: one that never completes (a profile
         // that stays unreadable) must not starve the defaults.
         val defaults = if (useDefaults && enumeration != null) {
-            LauncherLogic.pickDefaultFavorites(enumeration.apps, defaultFavoriteCandidates())
+            AppLists.pickDefaultFavorites(enumeration.apps, defaultFavoriteCandidates())
         } else null
         return Load(files, enumeration, defaults)
     }
@@ -170,6 +170,6 @@ internal class LauncherState(
     /** The config anew from the list, and the apps under its names. */
     private fun resolve() {
         config = resolved()
-        apps = LauncherLogic.named(enumerated, config.names)
+        apps = AppLists.named(enumerated, config.names)
     }
 }

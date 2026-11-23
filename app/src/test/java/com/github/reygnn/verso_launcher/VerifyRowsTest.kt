@@ -55,7 +55,7 @@ class VerifyRowsTest {
         (0 until list.adapter.count).map { row(it).text.toString() }
 
     private fun said(status: ConfigStatus = ConfigStatus.READ, file: String = "", complete: Boolean = true): List<String> =
-        drawer(status, file, complete).apply { setPrompt(LauncherLogic.VERIFY) }.rows()
+        drawer(status, file, complete).apply { setPrompt(Commands.VERIFY) }.rows()
 
     // ---- the words ------------------------------------------------------------------------
 
@@ -130,13 +130,13 @@ class VerifyRowsTest {
 
     @Test fun `a finding is read whole, its row wraps`() {
         val drawer = drawer(file = "favourite Gmail")
-        drawer.setPrompt(LauncherLogic.VERIFY)
+        drawer.setPrompt(Commands.VERIFY)
         assertWraps(drawer.row())
     }
 
     @Test fun `a finding's row recycled for an app is one line again`() {
         val drawer = drawer(file = "favourite Gmail")
-        drawer.setPrompt(LauncherLogic.VERIFY)
+        drawer.setPrompt(Commands.VERIFY)
         val finding = drawer.row()
         drawer.setPrompt("")
         val app = drawer.row(recycled = finding)
@@ -146,7 +146,7 @@ class VerifyRowsTest {
 
     @Test fun `a finding's row recycled for a command is one line again`() {
         val drawer = drawer(file = "favourite Gmail")
-        drawer.setPrompt(LauncherLogic.VERIFY)
+        drawer.setPrompt(Commands.VERIFY)
         val finding = drawer.row()
         drawer.setPrompt("~")
         assertTrue(drawer.list.adapter.getItem(0) is CommandRow)
@@ -158,7 +158,7 @@ class VerifyRowsTest {
         drawer.setPrompt("")
         val app = drawer.row()
         assertOneLine(app)
-        drawer.setPrompt(LauncherLogic.VERIFY)
+        drawer.setPrompt(Commands.VERIFY)
         assertWraps(drawer.row(recycled = app))
     }
 }

@@ -212,9 +212,9 @@ class MainActivity : Activity() {
         }
     }
 
-    /** "~verify": its prompt is its view (LauncherLogic.VERIFY), read with the keyboard down. */
+    /** "~verify": its prompt is its view (Commands.VERIFY), read with the keyboard down. */
     private fun showReport() {
-        appDrawer.setPrompt(LauncherLogic.VERIFY)
+        appDrawer.setPrompt(Commands.VERIFY)
         appDrawer.hideKeyboard()
     }
 
