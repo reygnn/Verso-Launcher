@@ -46,7 +46,7 @@ class AppDrawerTest {
         onRefreshed = {},
     ).also { it.refresh() }
 
-    private val taps = mutableListOf<DrawerAction<AppEntry>>()
+    private val taps = mutableListOf<DrawerAction>()
     private var filtered = 0
     private val modes = mutableListOf<Mode>()
     private val longPresses = mutableListOf<AppEntry>()
@@ -221,7 +221,7 @@ class AppDrawerTest {
     @Test fun `a tap on a row goes to the Activity as the tap's decision`() {
         drawer.setPrompt("br")
         list.performItemClick(null, 0, 0)
-        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+        assertEquals(listOf<DrawerAction>(DrawerAction.Launch(installed[1])), taps)
     }
 
     private fun rowView(position: Int): TextView = list.adapter.getView(position, null, list) as TextView
@@ -261,7 +261,7 @@ class AppDrawerTest {
         touch(scrolled = true)
         drawer.setPrompt("br")
         list.performItemClick(null, 0, 0)
-        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+        assertEquals(listOf<DrawerAction>(DrawerAction.Launch(installed[1])), taps)
     }
 
     /** A long press takes the gesture too (App info, after which the list may have changed). */
@@ -273,7 +273,7 @@ class AppDrawerTest {
         list.dispatchTouchEvent(MotionEvent.obtain(0, 600, MotionEvent.ACTION_UP, 10f, 10f, 0))
         drawer.setPrompt("br")
         list.performItemClick(null, 0, 0)
-        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+        assertEquals(listOf<DrawerAction>(DrawerAction.Launch(installed[1])), taps)
     }
 
     /** The guard itself: a tap whose list was replaced before its click lands on no other row. */
@@ -282,7 +282,7 @@ class AppDrawerTest {
         touch(scrolled = false)
         drawer.setPrompt("br")
         list.performItemClick(null, 0, 0)
-        assertEquals(emptyList<DrawerAction<AppEntry>>(), taps)
+        assertEquals(emptyList<DrawerAction>(), taps)
     }
 
     /** runCommand and Back rely on it: the mode is NORMAL again before the call returns. */
@@ -340,14 +340,14 @@ class AppDrawerTest {
         prompt.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
         prompt.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, repeat = 1))
         prompt.dispatchKeyEvent(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
-        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+        assertEquals(listOf<DrawerAction>(DrawerAction.Launch(installed[1])), taps)
     }
 
     @Test fun `the number pad's Enter is an Enter`() {
         drawer.setPrompt("br")
         prompt.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_NUMPAD_ENTER))
         prompt.dispatchKeyEvent(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_NUMPAD_ENTER))
-        assertEquals(listOf<DrawerAction<AppEntry>>(DrawerAction.Launch(installed[1])), taps)
+        assertEquals(listOf<DrawerAction>(DrawerAction.Launch(installed[1])), taps)
     }
 
     /** The prompt's own editor-action listener, as the field calls it. */
@@ -367,7 +367,7 @@ class AppDrawerTest {
     @Test fun `a key without an action counts only if it is an Enter`() {
         drawer.setPrompt("br")
         assertFalse(editorAction.onEditorAction(prompt, EditorInfo.IME_NULL, key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_B)))
-        assertEquals(emptyList<DrawerAction<AppEntry>>(), taps)
+        assertEquals(emptyList<DrawerAction>(), taps)
         assertTrue(editorAction.onEditorAction(prompt, EditorInfo.IME_NULL, key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_NUMPAD_ENTER)))
         assertTrue(editorAction.onEditorAction(prompt, EditorInfo.IME_NULL, key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)))
         assertEquals(List(2) { DrawerAction.Launch(installed[1]) }, taps)

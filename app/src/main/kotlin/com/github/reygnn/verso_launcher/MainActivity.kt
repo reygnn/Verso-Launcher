@@ -239,7 +239,7 @@ class MainActivity : Activity() {
     }
 
     /** A tap on a row or an Enter on the prompt. Internal for MainActivityFlowsTest. */
-    internal fun onDrawerAction(action: DrawerAction<AppEntry>) {
+    internal fun onDrawerAction(action: DrawerAction) {
         when (action) {
             is DrawerAction.Launch -> launcher.launch(action.entry)
             is DrawerAction.Run -> runCommand(action.command)

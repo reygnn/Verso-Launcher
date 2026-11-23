@@ -97,7 +97,7 @@ Source scans
 When the scans run, and why, is described at `sourceScanTest` in `app/build.gradle.kts`. A new
 scan goes into `sourceScans` there, and a file it reads into the inputs of `sourceScanTest`.
 
-Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `OrderedFake.kt`, `ViewTrees.kt`,
+Helpers: `TestLauncherState.kt`, `TestConfigs.kt`, `TestApps.kt`, `ViewTrees.kt`,
 `DefaultLocaleRule.kt`, `TestLauncherActivities.kt`. The unreadable-file cases of `UsageLogTest`,
 `RecentsLogTest`, `HomeCacheTest`, `DrawerOrderTest` and `ConfigFileTest` use `chmod`; run as root,
 which reads the file anyway, they are skipped.

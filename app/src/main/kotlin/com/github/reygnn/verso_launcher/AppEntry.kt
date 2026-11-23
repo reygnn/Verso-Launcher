@@ -7,7 +7,7 @@ package com.github.reygnn.verso_launcher
 internal data class AppEntry(
     /** The custom name if one is set, else [systemLabel]. */
     val label: String,
-    override val packageName: String,
+    val packageName: String,
     val className: String,
     /** The system's label without any custom name; for another profile it carries the badge ("Gmail (Work)"). */
     val systemLabel: String,
@@ -15,14 +15,18 @@ internal data class AppEntry(
     val profile: Long? = null,
     /** Not part of [key]: a paused or archived app keeps its favorite/name state. */
     val status: AppStatus = AppStatus.READY,
-) : Ordered {
+) {
     /** Per launcher activity, not per package. A body val, so it stays out of equals/hashCode/copy. */
-    override val key: String = keyOf(packageName, className, profile)
+    val key: String = keyOf(packageName, className, profile)
 
-    override val labelLower: String = LauncherLogic.foldLabel(label)
+    /** [label] folded ([LauncherLogic.foldLabel]): what the drawer sorts by. */
+    val labelLower: String = LauncherLogic.foldLabel(label)
 
-    /** A body val like [labelLower]: computed once per entry, not per keystroke. */
-    override val matchLabel: String = LauncherLogic.matchForm(labelLower)
+    /**
+     * [labelLower] as search compares it ([LauncherLogic.matchForm]). A body val like [labelLower]:
+     * computed once per entry, not per keystroke.
+     */
+    val matchLabel: String = LauncherLogic.matchForm(labelLower)
 
     fun withLabel(newLabel: String): AppEntry =
         copy(label = newLabel)

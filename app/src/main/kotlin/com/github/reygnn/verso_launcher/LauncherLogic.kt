@@ -20,30 +20,15 @@ internal enum class EmptyHint { NO_MATCH, NO_APPS, NO_TAGS, NO_TAG_MATCH, NO_REC
  */
 internal enum class Command { CRASH, RESTART, VERIFY }
 
-/** What the ordering/search logic needs from a row; tests fake it instead of building AppEntries. */
-internal interface Ordered {
-    val key: String
-    val labelLower: String
-    val packageName: String
-
-    /**
-     * [labelLower] as search compares it ([LauncherLogic.matchForm]).
-     *
-     * Invariant: always [LauncherLogic.matchForm] of [labelLower]. [AppEntry] keeps it as a body
-     *   val, so a keystroke does not normalize every label again; a fake may keep this getter.
-     */
-    val matchLabel: String get() = LauncherLogic.matchForm(labelLower)
-}
-
-/** A rendered list row. Rows without an app are `Row<Nothing>`, so they fit a `Row<T>` list for any T. */
-internal sealed interface Row<out T : Ordered>
-internal data class AppRow<out T : Ordered>(val entry: T) : Row<T>
-internal data class TagRow(val name: String) : Row<Nothing>
-internal data class CommandRow(val name: String, val command: Command) : Row<Nothing>
+/** A rendered list row. */
+internal sealed interface Row
+internal data class AppRow(val entry: AppEntry) : Row
+internal data class TagRow(val name: String) : Row
+internal data class CommandRow(val name: String, val command: Command) : Row
 /** A row of "~verify": one thing it says about the user's file. A tap does nothing. */
-internal data class ReportRow(val finding: ConfigFinding) : Row<Nothing>
+internal data class ReportRow(val finding: ConfigFinding) : Row
 /** The one "%" row: what Enter or a tap turns the plain drawer's order into. */
-internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
+internal data class OrderRow(val toUsage: Boolean) : Row
 
 /**
  * The launcher's data as one filter reads it, so that what the drawer shows is a function of the
@@ -54,8 +39,8 @@ internal data class OrderRow(val toUsage: Boolean) : Row<Nothing>
  * @property now the clock of the decay behind "%".
  * @property report what "~verify" lists, asked only when its rows are shown.
  */
-internal class DrawerData<out T : Ordered>(
-    val apps: List<T>,
+internal class DrawerData(
+    val apps: List<AppEntry>,
     val loaded: Boolean,
     val hidden: Set<String>,
     val favorites: Collection<String>,
@@ -77,32 +62,32 @@ internal class DrawerData<out T : Ordered>(
  * @property emptyHint what an empty list says; null before the apps are loaded, when "no apps"
  *   would be false.
  */
-internal class DrawerView<out T : Ordered>(
+internal class DrawerView(
     val mode: Mode,
     val trimmed: String,
-    val rows: List<Row<T>>,
+    val rows: List<Row>,
     val topAnchored: Boolean,
     val emptyHint: EmptyHint?,
 ) {
     /** What Enter does: the last row sits right above the prompt and is its target. */
-    fun enter(): DrawerAction<T> =
+    fun enter(): DrawerAction =
         LauncherLogic.enterAction(mode, LauncherLogic.resolveCommand(trimmed), trimmed.isEmpty(), rows.lastOrNull())
 
     /** What a tap on the row at [position] does; a position past the list is a stale one. */
-    fun tap(position: Int): DrawerAction<T> = LauncherLogic.tapAction(mode, rows.getOrNull(position))
+    fun tap(position: Int): DrawerAction = LauncherLogic.tapAction(mode, rows.getOrNull(position))
 }
 
 /** What an Enter or a tap does; the Activity performs it. */
-internal sealed interface DrawerAction<out T : Ordered> {
-    data class Launch<out T : Ordered>(val entry: T) : DrawerAction<T>
-    data class Run(val command: Command) : DrawerAction<Nothing>
+internal sealed interface DrawerAction {
+    data class Launch(val entry: AppEntry) : DrawerAction
+    data class Run(val command: Command) : DrawerAction
     /** Drives the TextWatcher exactly as typing would. */
-    data class SetPrompt(val text: String) : DrawerAction<Nothing>
-    data object ToggleOrder : DrawerAction<Nothing>
+    data class SetPrompt(val text: String) : DrawerAction
+    data object ToggleOrder : DrawerAction
     /** Enter on a blank prompt. */
-    data object DismissKeyboard : DrawerAction<Nothing>
+    data object DismissKeyboard : DrawerAction
     /** A stale position, or a row or prompt this mode ignores. */
-    data object None : DrawerAction<Nothing>
+    data object None : DrawerAction
 }
 
 /** One key event in plain values, so [LauncherLogic.enterEdge] stays free of android.view.KeyEvent. */
@@ -219,16 +204,16 @@ internal object LauncherLogic {
      * then folded label and key, so the order is total. A Collator per call: it is not
      * thread-safe, and this runs on the IO thread too.
      */
-    fun <T : Ordered> sortedForDrawer(all: List<T>, locale: Locale = Locale.getDefault()): List<T> {
+    fun sortedForDrawer(all: List<AppEntry>, locale: Locale = Locale.getDefault()): List<AppEntry> {
         val collator = Collator.getInstance(locale)
         return all.sortedWith(
-            compareBy<T, String>(collator) { it.labelLower }
+            compareBy<AppEntry, String>(collator) { it.labelLower }
                 .thenBy { it.labelLower }
                 .thenBy { it.key },
         )
     }
 
-    fun <T : Ordered> search(all: List<T>, needle: String): List<T> {
+    fun search(all: List<AppEntry>, needle: String): List<AppEntry> {
         val n = matchForm(foldLabel(needle))
         return if (n.isEmpty()) all else all.filter { it.matchLabel.contains(n) }
     }
@@ -238,7 +223,7 @@ internal object LauncherLogic {
      * label's start last, nearest the prompt where Enter launches it; at a later word's start above
      * it; inside a word on top. Each group keeps the drawer order.
      */
-    fun <T : Ordered> ranked(found: List<T>, needle: String): List<T> {
+    fun ranked(found: List<AppEntry>, needle: String): List<AppEntry> {
         val n = matchForm(foldLabel(needle))
         if (n.isEmpty()) return found
         // Ranked once per entry: sortedBy asks its selector again at every comparison, a regex each time.
@@ -281,13 +266,13 @@ internal object LauncherLogic {
     /** A letter or digit after anything else: where a later word starts. */
     private val WORD_START = Regex("""(?<=[^\p{L}\p{N}])[\p{L}\p{N}]""")
 
-    fun <T : Ordered> favoritesInDisplayOrder(all: List<T>, favorites: Collection<String>): List<T> {
+    fun favoritesInDisplayOrder(all: List<AppEntry>, favorites: Collection<String>): List<AppEntry> {
         val rank = favorites.withIndex().associate { (i, p) -> p to i }
         return all.filter { it.key in rank }.sortedBy { rank[it.key] }
     }
 
     /** [slots]: per slot (phone, messenger, …) the candidate keys, preferred first. An app is picked once. */
-    fun <T : Ordered> pickDefaultFavorites(all: List<T>, slots: List<List<String>>): List<String> {
+    fun pickDefaultFavorites(all: List<AppEntry>, slots: List<List<String>>): List<String> {
         val launchable = all.mapTo(HashSet()) { it.key }
         val picked = LinkedHashSet<String>()
         for (candidates in slots) {
@@ -297,7 +282,7 @@ internal object LauncherLogic {
     }
 
     /** Everything not hidden, plus every favorite: favoriting overrides hiding. */
-    fun <T : Ordered> drawer(all: List<T>, hidden: Set<String>, favorites: Collection<String>): List<T> =
+    fun drawer(all: List<AppEntry>, hidden: Set<String>, favorites: Collection<String>): List<AppEntry> =
         all.filter { it.key !in hidden || it.key in favorites }
 
     /**
@@ -313,12 +298,12 @@ internal object LauncherLogic {
         }
 
     /** The [drawer] narrowed to labels starting with [prefix], favorites last. Hidden apps stay out. */
-    fun <T : Ordered> drawerStartingWith(
-        all: List<T>,
+    fun drawerStartingWith(
+        all: List<AppEntry>,
         hidden: Set<String>,
         favorites: Collection<String>,
         prefix: String,
-    ): List<T> {
+    ): List<AppEntry> {
         val p = matchForm(foldLabel(prefix))
         val base = drawer(all, hidden, favorites)
         val narrowed = if (p.isEmpty()) base else base.filter { it.matchLabel.startsWith(p) }
@@ -326,7 +311,7 @@ internal object LauncherLogic {
     }
 
     /** Favorites last, in rank order — under isStackFromBottom the first favorite sits nearest the prompt. */
-    fun <T : Ordered> orderWithFavorites(apps: List<T>, favorites: Collection<String>): List<T> {
+    fun orderWithFavorites(apps: List<AppEntry>, favorites: Collection<String>): List<AppEntry> {
         if (favorites.isEmpty()) return apps
         val rank = favorites.withIndex().associate { (i, p) -> p to i }
         val (favs, rest) = apps.partition { it.key in rank }
@@ -338,9 +323,9 @@ internal object LauncherLogic {
 
     /** The newest [limit] of the apps still there, reversed: under isStackFromBottom the most
      *  recent sits nearest the prompt (the Enter target). */
-    fun <T : Ordered> recentsInDisplayOrder(
-        all: List<T>, recentKeys: List<String>, limit: Int = LaunchHistory.RECENTS_LIMIT,
-    ): List<T> {
+    fun recentsInDisplayOrder(
+        all: List<AppEntry>, recentKeys: List<String>, limit: Int = LaunchHistory.RECENTS_LIMIT,
+    ): List<AppEntry> {
         val byKey = all.associateBy { it.key }
         return recentKeys.mapNotNull { byKey[it] }.take(limit).asReversed()
     }
@@ -415,8 +400,8 @@ internal object LauncherLogic {
     }
 
     /** Only tags of installed apps, so every tag in the "#" overview drills into a non-empty list. */
-    fun <T : Ordered> tagsInUse(
-        all: List<T>,
+    fun tagsInUse(
+        all: List<AppEntry>,
         tags: Map<String, List<String>>,
         locale: Locale = Locale.getDefault(),
     ): List<String> = sortedTags(all.flatMap { tags[it.key].orEmpty() }.distinct(), locale)
@@ -432,7 +417,7 @@ internal object LauncherLogic {
      * characters no tag can); an empty needle gives every tagged app. Hidden apps are included.
      * When no tag matches, the apps whose package matches ([packageMatches]): "#google", "#samsung".
      */
-    fun <T : Ordered> tagged(all: List<T>, tags: Map<String, List<String>>, needle: String): List<T> {
+    fun tagged(all: List<AppEntry>, tags: Map<String, List<String>>, needle: String): List<AppEntry> {
         val n = canonicalTag(needle)
         val byTag = all.filter { entry ->
             val ts = tags[entry.key].orEmpty()
@@ -450,7 +435,7 @@ internal object LauncherLogic {
      * Everything the drawer shows for [prompt] as the field holds it: the one function between the
      * launcher's data and the list.
      */
-    fun <T : Ordered> drawerView(prompt: String, data: DrawerData<T>): DrawerView<T> {
+    fun drawerView(prompt: String, data: DrawerData): DrawerView {
         val trimmed = prompt.trim()
         val mode = parseMode(trimmed)
         return DrawerView(
@@ -463,7 +448,7 @@ internal object LauncherLogic {
     }
 
     /** The rows the list shows for the prompt. Every substring index is safe: the mode's sigil starts [trimmed]. */
-    fun <T : Ordered> rowsFor(mode: Mode, trimmed: String, data: DrawerData<T>): List<Row<T>> = when (mode) {
+    fun rowsFor(mode: Mode, trimmed: String, data: DrawerData): List<Row> = when (mode) {
         // Spelled out, "~verify" is its report; "~v" still lists the command, for Enter or a tap.
         Mode.COMMAND -> if (parseCommand(trimmed) == Command.VERIFY) {
             data.report().map { ReportRow(it) }
@@ -483,7 +468,7 @@ internal object LauncherLogic {
     }
 
     /** [rowsFor]'s apps for a prompt with no sigil: the drawer, a star prefix or a search. */
-    private fun <T : Ordered> plainApps(trimmed: String, data: DrawerData<T>): List<T> {
+    private fun plainApps(trimmed: String, data: DrawerData): List<AppEntry> {
         val wildcard = starPrefix(trimmed)
         return when {
             // A to Z (or most used first, "%"), no favorites-last: the list anchors this view at the top.
@@ -500,12 +485,12 @@ internal object LauncherLogic {
      * a resolved command beats COMMAND mode's "still ambiguous, do nothing"; a blank prompt only
      * drops the keyboard and must come before the launch branch.
      */
-    fun <T : Ordered> enterAction(
+    fun enterAction(
         mode: Mode,
         command: Command?,
         promptBlank: Boolean,
-        lastRow: Row<T>?,
-    ): DrawerAction<T> = when {
+        lastRow: Row?,
+    ): DrawerAction = when {
         command != null -> DrawerAction.Run(command)
         mode == Mode.COMMAND -> DrawerAction.None
         mode == Mode.ORDER -> if (lastRow is OrderRow) DrawerAction.ToggleOrder else DrawerAction.None
@@ -544,7 +529,7 @@ internal object LauncherLogic {
     }
 
     /** What a tap on [row] does; a null [row] is a stale position (the list shrank under the tap). */
-    fun <T : Ordered> tapAction(mode: Mode, row: Row<T>?): DrawerAction<T> = when (row) {
+    fun tapAction(mode: Mode, row: Row?): DrawerAction = when (row) {
         null -> DrawerAction.None
         is TagRow -> DrawerAction.SetPrompt("#${row.name}")
         is CommandRow -> DrawerAction.Run(row.command)

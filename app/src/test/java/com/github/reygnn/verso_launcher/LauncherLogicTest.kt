@@ -7,16 +7,16 @@ import org.junit.Rule
 import org.junit.Test
 import java.util.Locale
 
-/** The rows are a trivial [Ordered] fake, so no test ever builds a ComponentName. */
+/** The apps are [testApp]s and [testApps], so no test ever builds a ComponentName. */
 class LauncherLogicTest {
 
     @get:Rule val locale = DefaultLocaleRule()
 
 
-    /** Rows whose key doubles as the (already ROOT-folded) label, for ordering tests. */
-    private fun rows(vararg keys: String): List<OrderedFake> = keys.map { OrderedFake(it, it) }
+    /** Apps named by their (already ROOT-folded) label, for ordering tests: "a" has the key "p/a". */
+    private fun rows(vararg names: String): List<AppEntry> = testApps(*names)
 
-    private fun List<Ordered>.keys(): List<String> = map { it.key }
+    private fun List<AppEntry>.keys(): List<String> = map { it.key }
 
     // ---- typedChar ----------------------------------------------------------
 
@@ -274,14 +274,14 @@ class LauncherLogicTest {
         // ROOT lowercases İ (U+0130) to "i" + U+0307, which then never matches a typed "i".
         assertEquals("işcep", LauncherLogic.foldLabel("İşCep"))
         assertEquals("istanbulkart", LauncherLogic.foldLabel("İstanbulkart"))
-        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(OrderedFake("p/is", LauncherLogic.foldLabel("İşCep"))), "iş").keys())
-        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(OrderedFake("p/is", LauncherLogic.foldLabel("İşCep"))), "İŞ").keys())
+        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(testApp("p/is", "İşCep")), "iş").keys())
+        assertEquals(listOf("p/is"), LauncherLogic.search(listOf(testApp("p/is", "İşCep")), "İŞ").keys())
     }
 
     @Test fun `foldLabel makes decomposed and composed text the same`() {
         val decomposed = "Cafe\u0301"  // e + combining acute
         assertEquals("café", LauncherLogic.foldLabel(decomposed))
-        assertEquals(listOf("p/c"), LauncherLogic.search(listOf(OrderedFake("p/c", LauncherLogic.foldLabel(decomposed))), "café").keys())
+        assertEquals(listOf("p/c"), LauncherLogic.search(listOf(testApp("p/c", decomposed)), "café").keys())
     }
 
     @Test fun `foldLabel keeps letters that really carry a dot above`() {
@@ -374,7 +374,7 @@ class LauncherLogicTest {
         val tags = mapOf("p/a" to listOf("zuhause", "ärzte"), "p/b" to listOf("arbeit"))
         assertEquals(
             listOf("arbeit", "ärzte", "zuhause"),
-            LauncherLogic.tagsInUse(listOf(OrderedFake("p/a", "a"), OrderedFake("p/b", "b")), tags, Locale.GERMANY),
+            LauncherLogic.tagsInUse(listOf(testApp("p/a", "a"), testApp("p/b", "b")), tags, Locale.GERMANY),
         )
     }
 
@@ -426,7 +426,7 @@ class LauncherLogicTest {
 
     // ---- sortedForDrawer ----------------------------------------------------
 
-    private fun folded(vararg labels: String) = labels.map { OrderedFake("p/$it", LauncherLogic.foldLabel(it)) }
+    private fun folded(vararg labels: String) = labels.map { testApp("p/$it", it) }
 
     @Test fun `German drawer files umlauts under their base letter, not after Z`() {
         val sorted = LauncherLogic.sortedForDrawer(folded("Zoom", "Übersetzer", "Bravo", "Ärzte", "Öffi", "Apotheke"), Locale.GERMANY)
@@ -446,8 +446,8 @@ class LauncherLogicTest {
 
     @Test fun `labels the collator calls equal but that differ are ordered by the label itself`() {
         // "ma\u0001il" collates equal to "mail" but is the smaller string; key order alone would put p/a first.
-        val withControl = OrderedFake("p/b", "ma\u0001il")
-        val plain = OrderedFake("p/a", "mail")
+        val withControl = testApp("p/b", "ma\u0001il")
+        val plain = testApp("p/a", "mail")
         assertEquals(listOf("p/b", "p/a"), LauncherLogic.sortedForDrawer(listOf(withControl, plain), Locale.GERMANY).keys())
         assertEquals(listOf("p/b", "p/a"), LauncherLogic.sortedForDrawer(listOf(plain, withControl), Locale.GERMANY).keys())
     }
@@ -458,8 +458,8 @@ class LauncherLogicTest {
     }
 
     @Test fun `labels the collator calls equal still get a stable total order`() {
-        val a = OrderedFake("p/b", "mail")
-        val b = OrderedFake("p/a", "mail")
+        val a = testApp("p/b", "mail")
+        val b = testApp("p/a", "mail")
         assertEquals(listOf("p/a", "p/b"), LauncherLogic.sortedForDrawer(listOf(a, b), Locale.GERMANY).keys())
         assertEquals(listOf("p/a", "p/b"), LauncherLogic.sortedForDrawer(listOf(b, a), Locale.GERMANY).keys())
     }
@@ -474,7 +474,7 @@ class LauncherLogicTest {
     @Test fun `search matches a foldLabel-built row under Turkish`() {
         Locale.setDefault(Locale.of("tr", "TR"))
         // The row is built via foldLabel; search gets the raw "I", so this guards the needle fold in search itself.
-        val all = listOf(OrderedFake("p/insta", LauncherLogic.foldLabel("Instagram")))
+        val all = listOf(testApp("p/insta", "Instagram"))
         assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
     }
 
@@ -486,11 +486,11 @@ class LauncherLogicTest {
     }
 
     @Test fun `search over an empty list is empty`() {
-        assertEquals(emptyList<String>(), LauncherLogic.search(emptyList<OrderedFake>(), "x").keys())
+        assertEquals(emptyList<String>(), LauncherLogic.search(emptyList(), "x").keys())
     }
 
     @Test fun `search matches a case-folded substring`() {
-        val all = listOf(OrderedFake("p/insta", "instagram"), OrderedFake("p/maps", "maps"))
+        val all = listOf(testApp("p/insta", "instagram"), testApp("p/maps", "maps"))
         assertEquals(listOf("p/insta"), LauncherLogic.search(all, "INSTA").keys())
         assertEquals(emptyList<String>(), LauncherLogic.search(all, "zzz").keys())
     }
@@ -498,24 +498,24 @@ class LauncherLogicTest {
     @Test fun `search folds the needle with ROOT even under a Turkish default locale`() {
         // Under tr-TR, "I".lowercase() would be the dotless "ı" and miss the row.
         Locale.setDefault(Locale.of("tr", "TR"))
-        val all = listOf(OrderedFake("p/insta", "instagram"))
+        val all = listOf(testApp("p/insta", "instagram"))
         assertEquals(listOf("p/insta"), LauncherLogic.search(all, "I").keys())
     }
 
     @Test fun `search ignores Latin, Greek and Cyrillic accents both ways`() {
-        val all = listOf(orderedFake("p/uber", "Über"), orderedFake("p/cafe", "Café"), orderedFake("p/athens", "Αθήνα"))
+        val all = listOf(testApp("p/uber", "Über"), testApp("p/cafe", "Café"), testApp("p/athens", "Αθήνα"))
         assertEquals(listOf("p/uber"), LauncherLogic.search(all, "uber").keys())
         assertEquals(listOf("p/cafe"), LauncherLogic.search(all, "CAFE").keys())
         assertEquals(listOf("p/athens"), LauncherLogic.search(all, "αθηνα").keys())
-        val plain = listOf(orderedFake("p/uber", "Uber"))
+        val plain = listOf(testApp("p/uber", "Uber"))
         assertEquals("a typed accent finds the plain name too", listOf("p/uber"), LauncherLogic.search(plain, "über").keys())
     }
 
     /** đ, ł, ø, ß and kin are no letter plus a mark to NFD: they are spelled plainly instead. */
     @Test fun `search spells letters NFD keeps whole as a plain keyboard does, both ways`() {
         val all = listOf(
-            orderedFake("p/phone", "Điện thoại"), orderedFake("p/lodz", "Łódź"), orderedFake("p/oslo", "Øst"),
-            orderedFake("p/street", "Straße"), orderedFake("p/aero", "Ærø"), orderedFake("p/kapi", "Kapı"),
+            testApp("p/phone", "Điện thoại"), testApp("p/lodz", "Łódź"), testApp("p/oslo", "Øst"),
+            testApp("p/street", "Straße"), testApp("p/aero", "Ærø"), testApp("p/kapi", "Kapı"),
         )
         assertEquals(listOf("p/phone"), LauncherLogic.search(all, "dien").keys())
         assertEquals(listOf("p/lodz"), LauncherLogic.search(all, "LODZ").keys())
@@ -523,7 +523,7 @@ class LauncherLogicTest {
         assertEquals(listOf("p/street"), LauncherLogic.search(all, "strasse").keys())
         assertEquals(listOf("p/aero"), LauncherLogic.search(all, "aero").keys())
         assertEquals(listOf("p/kapi"), LauncherLogic.search(all, "kapi").keys())
-        val plain = listOf(orderedFake("p/street", "Strasse"))
+        val plain = listOf(testApp("p/street", "Strasse"))
         assertEquals("a typed ß finds the plain name too", listOf("p/street"), LauncherLogic.search(plain, "straße").keys())
     }
 
@@ -534,9 +534,9 @@ class LauncherLogicTest {
      */
     @Test fun `search finds an upper-case Turkish label by its dotless spelling, both ways`() {
         Locale.setDefault(Locale.of("tr", "TR"))
-        val upper = listOf(OrderedFake("p/isik", LauncherLogic.foldLabel("IŞIK")))
+        val upper = listOf(testApp("p/isik", "IŞIK"))
         assertEquals(listOf("p/isik"), LauncherLogic.search(upper, "ışık").keys())
-        val lower = listOf(OrderedFake("p/isik", LauncherLogic.foldLabel("ışık")))
+        val lower = listOf(testApp("p/isik", "ışık"))
         assertEquals(listOf("p/isik"), LauncherLogic.search(lower, "IŞIK").keys())
     }
 
@@ -547,7 +547,7 @@ class LauncherLogicTest {
 
     /** A dakuten or a Devanagari vowel sign makes another word: those marks must still count. */
     @Test fun `search keeps the marks of other scripts`() {
-        val all = listOf(orderedFake("p/ga", "\u304C"), orderedFake("p/ku", "\u0915\u0941"))
+        val all = listOf(testApp("p/ga", "\u304C"), testApp("p/ku", "\u0915\u0941"))
         assertEquals(emptyList<String>(), LauncherLogic.search(all, "\u304B").keys())   // か does not find が
         assertEquals(emptyList<String>(), LauncherLogic.search(all, "\u0915\u0947").keys())
         assertEquals(listOf("p/ga"), LauncherLogic.search(all, "\u304C").keys())
@@ -563,11 +563,11 @@ class LauncherLogicTest {
     /** The list is bottom-anchored: the last row sits nearest the prompt, and Enter launches it. */
     @Test fun `ranked puts a label's start last, a word's start above it, a match inside a word on top`() {
         val found = listOf(
-            orderedFake("p/gmail", "Gmail"),
-            orderedFake("p/google-maps", "Google Maps"),
-            orderedFake("p/mail", "Mail"),
-            orderedFake("p/maps", "Maps"),
-            orderedFake("p/samsung", "Samsung Max"),
+            testApp("p/gmail", "Gmail"),
+            testApp("p/google-maps", "Google Maps"),
+            testApp("p/mail", "Mail"),
+            testApp("p/maps", "Maps"),
+            testApp("p/samsung", "Samsung Max"),
         )
         assertEquals(
             listOf("p/gmail", "p/google-maps", "p/samsung", "p/mail", "p/maps"),
@@ -576,12 +576,12 @@ class LauncherLogicTest {
     }
 
     @Test fun `ranked counts a word after any non-letter, and ignores accents like search`() {
-        val found = listOf(orderedFake("p/a", "Wär-Über"), orderedFake("p/b", "Ubernatural"), orderedFake("p/c", "Rubber"))
+        val found = listOf(testApp("p/a", "Wär-Über"), testApp("p/b", "Ubernatural"), testApp("p/c", "Rubber"))
         assertEquals(listOf("p/c", "p/a", "p/b"), LauncherLogic.ranked(LauncherLogic.search(found, "ub"), "ub").keys())
     }
 
     @Test fun `ranked with an empty needle keeps the list`() {
-        val found = listOf(OrderedFake("b"), OrderedFake("a"))
+        val found = rows("b", "a")
         assertSame(found, LauncherLogic.ranked(found, ""))
     }
 
@@ -590,14 +590,14 @@ class LauncherLogicTest {
     @Test fun `favoritesInDisplayOrder keeps favorites in config order and drops the rest`() {
         val all = rows("a", "b", "c")
         // Favorites config order is c-then-a, independent of the all-list order.
-        val result = LauncherLogic.favoritesInDisplayOrder(all, linkedSetOf("c", "a"))
-        assertEquals(listOf("c", "a"), result.keys())
+        val result = LauncherLogic.favoritesInDisplayOrder(all, linkedSetOf("p/c", "p/a"))
+        assertEquals(listOf("p/c", "p/a"), result.keys())
     }
 
     @Test fun `favoritesInDisplayOrder drops a favorite whose app is not present`() {
         val all = rows("a", "b")
-        val result = LauncherLogic.favoritesInDisplayOrder(all, linkedSetOf("a", "gone"))
-        assertEquals(listOf("a"), result.keys())
+        val result = LauncherLogic.favoritesInDisplayOrder(all, linkedSetOf("p/a", "p/gone"))
+        assertEquals(listOf("p/a"), result.keys())
     }
 
     @Test fun `favoritesInDisplayOrder with no favorites is empty`() {
@@ -609,50 +609,50 @@ class LauncherLogicTest {
     @Test fun `pickDefaultFavorites takes the first launchable candidate per slot, in slot order`() {
         val all = rows("dialer", "sms", "mail", "chrome", "firefox", "cam")
         val slots = listOf(
-            listOf("dialer"),
-            listOf("sms"),
-            listOf("mail"),
-            listOf("firefox", "chrome"),  // the user's default browser comes first
-            listOf("cam"),
+            listOf("p/dialer"),
+            listOf("p/sms"),
+            listOf("p/mail"),
+            listOf("p/firefox", "p/chrome"),  // the user's default browser comes first
+            listOf("p/cam"),
         )
         assertEquals(
-            listOf("dialer", "sms", "mail", "firefox", "cam"),
+            listOf("p/dialer", "p/sms", "p/mail", "p/firefox", "p/cam"),
             LauncherLogic.pickDefaultFavorites(all, slots),
         )
     }
 
     @Test fun `pickDefaultFavorites falls back past a candidate that is not launchable`() {
         val all = rows("chrome")
-        assertEquals(listOf("chrome"), LauncherLogic.pickDefaultFavorites(all, listOf(listOf("gone", "chrome"))))
+        assertEquals(listOf("p/chrome"), LauncherLogic.pickDefaultFavorites(all, listOf(listOf("p/gone", "p/chrome"))))
     }
 
     @Test fun `pickDefaultFavorites skips an empty slot and never adds an app twice`() {
         val all = rows("google", "cam")
         // One app covering phone AND messenger, a slot with no handler at all.
-        val slots = listOf(listOf("google"), listOf("google"), emptyList(), listOf("cam"))
-        assertEquals(listOf("google", "cam"), LauncherLogic.pickDefaultFavorites(all, slots))
+        val slots = listOf(listOf("p/google"), listOf("p/google"), emptyList(), listOf("p/cam"))
+        assertEquals(listOf("p/google", "p/cam"), LauncherLogic.pickDefaultFavorites(all, slots))
     }
 
     @Test fun `a slot whose first choice is taken stays empty rather than falling through`() {
         // Not swapped for a second candidate the user never chose: one app covering two jobs shows once.
         val all = rows("google", "othersms")
-        assertEquals(listOf("google"), LauncherLogic.pickDefaultFavorites(all, listOf(listOf("google"), listOf("google", "othersms"))))
+        assertEquals(listOf("p/google"), LauncherLogic.pickDefaultFavorites(all, listOf(listOf("p/google"), listOf("p/google", "p/othersms"))))
     }
 
     @Test fun `pickDefaultFavorites with no launchable candidate is empty`() {
-        assertEquals(emptyList<String>(), LauncherLogic.pickDefaultFavorites(rows("a"), listOf(listOf("x"))))
+        assertEquals(emptyList<String>(), LauncherLogic.pickDefaultFavorites(rows("a"), listOf(listOf("p/x"))))
     }
 
     // ---- drawer -------------------------------------------------------------
 
     @Test fun `drawer excludes hidden apps`() {
-        val result = LauncherLogic.drawer(rows("a", "b", "c"), hidden = setOf("b"), favorites = emptySet())
-        assertEquals(listOf("a", "c"), result.keys())
+        val result = LauncherLogic.drawer(rows("a", "b", "c"), hidden = setOf("p/b"), favorites = emptySet())
+        assertEquals(listOf("p/a", "p/c"), result.keys())
     }
 
     @Test fun `drawer keeps a favorite even when it is also hidden`() {
-        val result = LauncherLogic.drawer(rows("a", "b", "c"), hidden = setOf("b"), favorites = setOf("b"))
-        assertEquals(listOf("a", "b", "c"), result.keys())
+        val result = LauncherLogic.drawer(rows("a", "b", "c"), hidden = setOf("p/b"), favorites = setOf("p/b"))
+        assertEquals(listOf("p/a", "p/b", "p/c"), result.keys())
     }
 
     // ---- orderWithFavorites -------------------------------------------------
@@ -665,8 +665,8 @@ class LauncherLogicTest {
     @Test fun `orderWithFavorites puts non-favorites first then favorites in rank order`() {
         val apps = rows("a", "b", "c", "d")
         // Favorites c (rank 0) and a (rank 1); non-favorites b, d keep their order.
-        val result = LauncherLogic.orderWithFavorites(apps, linkedSetOf("c", "a"))
-        assertEquals(listOf("b", "d", "c", "a"), result.keys())
+        val result = LauncherLogic.orderWithFavorites(apps, linkedSetOf("p/c", "p/a"))
+        assertEquals(listOf("p/b", "p/d", "p/c", "p/a"), result.keys())
     }
 
     // ---- drawerStartingWith --------------------------------------------------
@@ -674,8 +674,8 @@ class LauncherLogicTest {
     /** rowsFor relies on this identity for a bare "*". */
     @Test fun `drawerStartingWith with an empty prefix equals the ordered drawer`() {
         val all = rows("a", "b", "c")
-        val hidden = setOf("b")
-        val favorites = listOf("c")
+        val hidden = setOf("p/b")
+        val favorites = listOf("p/c")
         val expected = LauncherLogic.orderWithFavorites(
             LauncherLogic.drawer(all, hidden, favorites), favorites,
         ).keys()
@@ -687,33 +687,33 @@ class LauncherLogicTest {
     @Test fun `drawerStartingWith orders favorites last within the narrowed subset`() {
         // apple, applet, apricot share "ap"; banana is filtered out. applet is the favorite.
         val all = rows("apple", "applet", "apricot", "banana")
-        val result = LauncherLogic.drawerStartingWith(all, emptySet(), linkedSetOf("applet"), "ap")
-        assertEquals(listOf("apple", "apricot", "applet"), result.keys())
+        val result = LauncherLogic.drawerStartingWith(all, emptySet(), linkedSetOf("p/applet"), "ap")
+        assertEquals(listOf("p/apple", "p/apricot", "p/applet"), result.keys())
     }
 
     @Test fun `drawerStartingWith drops a hidden non-favorite but keeps a hidden favorite`() {
         val all = rows("bat", "ball", "bay")
-        assertEquals(listOf("bat", "bay"), LauncherLogic.drawerStartingWith(all, setOf("ball"), emptySet(), "ba").keys())
+        assertEquals(listOf("p/bat", "p/bay"), LauncherLogic.drawerStartingWith(all, setOf("p/ball"), emptySet(), "ba").keys())
         assertEquals(
-            listOf("bat", "bay", "ball"),
-            LauncherLogic.drawerStartingWith(all, setOf("ball"), linkedSetOf("ball"), "ba").keys(),
+            listOf("p/bat", "p/bay", "p/ball"),
+            LauncherLogic.drawerStartingWith(all, setOf("p/ball"), linkedSetOf("p/ball"), "ba").keys(),
         )
     }
 
     @Test fun `drawerStartingWith folds the prefix with ROOT`() {
-        val all = listOf(OrderedFake("p/insta", LauncherLogic.foldLabel("Instagram")))
+        val all = listOf(testApp("p/insta", "Instagram"))
         assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "IN").keys())
         Locale.setDefault(Locale.of("tr", "TR"))
         assertEquals(listOf("p/insta"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "I").keys())
     }
 
     @Test fun `drawerStartingWith ignores accents like search`() {
-        val all = listOf(orderedFake("p/uber", "\u00DCber"), orderedFake("p/rub", "Rubber"))
+        val all = listOf(testApp("p/uber", "\u00DCber"), testApp("p/rub", "Rubber"))
         assertEquals(listOf("p/uber"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "ub").keys())
     }
 
     @Test fun `drawerStartingWith over an empty app list is empty`() {
-        assertEquals(emptyList<String>(), LauncherLogic.drawerStartingWith(emptyList<OrderedFake>(), emptySet(), emptySet(), "x").keys())
+        assertEquals(emptyList<String>(), LauncherLogic.drawerStartingWith(emptyList(), emptySet(), emptySet(), "x").keys())
     }
 
     // ---- starPrefix ----------------------------------------------------------
@@ -750,7 +750,7 @@ class LauncherLogicTest {
     /** "a *" means the word "a" ("A Better Camera"), not every label starting with a. */
     @Test fun `a space before the star belongs to the prefix`() {
         assertEquals("a ", LauncherLogic.starPrefix("a *"))
-        val all = listOf(OrderedFake("p/better", "a better camera"), OrderedFake("p/alpha", "alpha"))
+        val all = listOf(testApp("p/better", "a better camera"), testApp("p/alpha", "alpha"))
         assertEquals(listOf("p/better"), LauncherLogic.drawerStartingWith(all, emptySet(), emptySet(), "a ").keys())
     }
 
@@ -799,26 +799,26 @@ class LauncherLogicTest {
     @Test fun `recentsInDisplayOrder reverses so the newest sits last`() {
         val all = rows("a", "b", "c")
         // c was launched most recently; the newest lands nearest the prompt.
-        val result = LauncherLogic.recentsInDisplayOrder(all, listOf("c", "b", "a"))
-        assertEquals(listOf("a", "b", "c"), result.keys())
+        val result = LauncherLogic.recentsInDisplayOrder(all, listOf("p/c", "p/b", "p/a"))
+        assertEquals(listOf("p/a", "p/b", "p/c"), result.keys())
     }
 
     @Test fun `recentsInDisplayOrder drops a recent whose app is gone`() {
         val all = rows("a", "b")
-        val result = LauncherLogic.recentsInDisplayOrder(all, listOf("gone", "b", "a"))
-        assertEquals(listOf("a", "b"), result.keys())
+        val result = LauncherLogic.recentsInDisplayOrder(all, listOf("p/gone", "p/b", "p/a"))
+        assertEquals(listOf("p/a", "p/b"), result.keys())
     }
 
     @Test fun `recentsInDisplayOrder - a gone app takes no place among the shown`() {
         val all = rows("a", "b", "c")
-        val result = LauncherLogic.recentsInDisplayOrder(all, listOf("c", "gone", "b", "a"), limit = 2)
-        assertEquals(listOf("b", "c"), result.keys())
+        val result = LauncherLogic.recentsInDisplayOrder(all, listOf("p/c", "p/gone", "p/b", "p/a"), limit = 2)
+        assertEquals(listOf("p/b", "p/c"), result.keys())
     }
 
     @Test fun `recentsInDisplayOrder shows the newest eight`() {
-        val keys = (1..10).map { "k$it" }
-        val result = LauncherLogic.recentsInDisplayOrder(rows(*keys.toTypedArray()), keys.reversed())
-        assertEquals((3..10).map { "k$it" }, result.keys())
+        val names = (1..10).map { "k$it" }
+        val result = LauncherLogic.recentsInDisplayOrder(rows(*names.toTypedArray()), names.reversed().map { "p/$it" })
+        assertEquals((3..10).map { "p/k$it" }, result.keys())
     }
 
     @Test fun `recentsInDisplayOrder with no recents is empty`() {
@@ -845,51 +845,51 @@ class LauncherLogicTest {
 
     @Test fun `tagsInUse lists only tags borne by an installed app, sorted`() {
         val tags = mapOf(
-            "a" to listOf("work", "fun"),
-            "b" to listOf("games"),
-            "gone" to listOf("ghost"),   // app not in the installed list
+            "p/a" to listOf("work", "fun"),
+            "p/b" to listOf("games"),
+            "p/gone" to listOf("ghost"),   // app not in the installed list
         )
         assertEquals(listOf("fun", "games", "work"), LauncherLogic.tagsInUse(rows("a", "b"), tags))
     }
 
     @Test fun `tagsInUse is empty when no installed app is tagged`() {
-        val tags = mapOf("gone" to listOf("ghost"))
+        val tags = mapOf("p/gone" to listOf("ghost"))
         assertEquals(emptyList<String>(), LauncherLogic.tagsInUse(rows("a", "b"), tags))
     }
 
     // ---- tagged -------------------------------------------------------------
 
     private val taggedFixture = mapOf(
-        "a" to listOf("work"),
-        "b" to listOf("games", "fun"),
-        "c" to emptyList(),                 // present but untagged
+        "p/a" to listOf("work"),
+        "p/b" to listOf("games", "fun"),
+        "p/c" to emptyList(),                 // present but untagged
     )
 
     @Test fun `tagged with an empty needle lists every tagged app`() {
         val result = LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "")
-        assertEquals(listOf("a", "b"), result.keys())
+        assertEquals(listOf("p/a", "p/b"), result.keys())
     }
 
     @Test fun `tagged canonicalises its needle like a stored tag`() {
         // Stored tags never hold "#", "," or edge spaces, so the needle is stripped the same way.
-        assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "g#a").keys())
-        assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, " GA ").keys())
+        assertEquals(listOf("p/b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "g#a").keys())
+        assertEquals(listOf("p/b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, " GA ").keys())
     }
 
     @Test fun `tagged folds its needle with ROOT, not the Turkish default`() {
         // Under tr-TR a default-locale lowercase turns "WIFI" into "wıfı" (dotless) and would miss.
         Locale.setDefault(Locale.of("tr", "TR"))
-        val tags = mapOf("a" to listOf("wifi"))
-        assertEquals(listOf("a"), LauncherLogic.tagged(rows("a", "b"), tags, "WIFI").keys())
+        val tags = mapOf("p/a" to listOf("wifi"))
+        assertEquals(listOf("p/a"), LauncherLogic.tagged(rows("a", "b"), tags, "WIFI").keys())
     }
 
     @Test fun `tagged prefix-matches a tag`() {
-        assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "ga").keys())
-        assertEquals(listOf("a"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "work").keys())
+        assertEquals(listOf("p/b"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "ga").keys())
+        assertEquals(listOf("p/a"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "work").keys())
     }
 
     @Test fun `tagged folds the needle with ROOT`() {
-        assertEquals(listOf("a"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "WORK").keys())
+        assertEquals(listOf("p/a"), LauncherLogic.tagged(rows("a", "b", "c"), taggedFixture, "WORK").keys())
     }
 
     @Test fun `tagged returns empty when nothing matches`() {
@@ -897,32 +897,31 @@ class LauncherLogicTest {
     }
 
     @Test fun `tagged drops a tag pointing at an uninstalled app`() {
-        val tags = mapOf("gone" to listOf("work"), "a" to listOf("work"))
-        assertEquals(listOf("a"), LauncherLogic.tagged(rows("a", "b"), tags, "work").keys())
+        val tags = mapOf("p/gone" to listOf("work"), "p/a" to listOf("work"))
+        assertEquals(listOf("p/a"), LauncherLogic.tagged(rows("a", "b"), tags, "work").keys())
     }
 
     @Test fun `tagged prefix-match includes tags sharing the prefix`() {
-        val tags = mapOf("a" to listOf("work"), "b" to listOf("workout"))
+        val tags = mapOf("p/a" to listOf("work"), "p/b" to listOf("workout"))
         // Intentional: "#gam" surfaces every app under a gam-ish tag.
-        assertEquals(listOf("a", "b"), LauncherLogic.tagged(rows("a", "b"), tags, "work").keys())
-        assertEquals(listOf("b"), LauncherLogic.tagged(rows("a", "b"), tags, "worko").keys())
+        assertEquals(listOf("p/a", "p/b"), LauncherLogic.tagged(rows("a", "b"), tags, "work").keys())
+        assertEquals(listOf("p/b"), LauncherLogic.tagged(rows("a", "b"), tags, "worko").keys())
     }
 
     @Test fun `tagged falls back to the package when no tag matches`() {
-        val apps = listOf(
-            OrderedFake("gm", packageName = "com.google.android.gm"),
-            OrderedFake("cam", packageName = "com.samsung.android.camera"),
-            OrderedFake("verso", packageName = "com.github.reygnn.verso_launcher"),
-        )
-        assertEquals(listOf("gm"), LauncherLogic.tagged(apps, emptyMap(), "google").keys())
-        assertEquals(listOf("gm"), LauncherLogic.tagged(apps, emptyMap(), "GOO").keys())
-        assertEquals(listOf("verso"), LauncherLogic.tagged(apps, emptyMap(), "reygnn").keys())
+        val gm = testApp("com.google.android.gm/Gm")
+        val cam = testApp("com.samsung.android.camera/Cam")
+        val verso = testApp("com.github.reygnn.verso_launcher/Verso")
+        val apps = listOf(gm, cam, verso)
+        assertEquals(listOf(gm), LauncherLogic.tagged(apps, emptyMap(), "google"))
+        assertEquals(listOf(gm), LauncherLogic.tagged(apps, emptyMap(), "GOO"))
+        assertEquals(listOf(verso), LauncherLogic.tagged(apps, emptyMap(), "reygnn"))
         // A matching tag wins: no package rows mixed in.
-        assertEquals(listOf("cam"), LauncherLogic.tagged(apps, mapOf("cam" to listOf("google")), "google").keys())
+        assertEquals(listOf(cam), LauncherLogic.tagged(apps, mapOf(cam.key to listOf("google")), "google"))
     }
 
     @Test fun `the package fallback skips the first segment and an empty needle`() {
-        val apps = listOf(OrderedFake("gm", packageName = "com.google.android.gm"))
+        val apps = listOf(testApp("com.google.android.gm/Gm"))
         assertEquals(emptyList<String>(), LauncherLogic.tagged(apps, emptyMap(), "com").keys())
         assertEquals(emptyList<String>(), LauncherLogic.tagged(apps, emptyMap(), "").keys())
     }
@@ -964,8 +963,8 @@ class LauncherLogicTest {
 
     @Test fun `a word-final Greek sigma folds to the sigma it is, so prefixes still match`() {
         assertEquals("\u03BF\u03B4\u03BF\u03C3", LauncherLogic.foldLabel("\u039F\u0394\u039F\u03A3"))  // ΟΔΟΣ -> οδοσ
-        val road = OrderedFake("road", LauncherLogic.foldLabel("\u039F\u0394\u039F\u03A3\u03A4\u03A1\u03A9\u039C\u0391"))
-        assertEquals(listOf("road"), LauncherLogic.search(listOf(road), "\u039F\u0394\u039F\u03A3").map { it.key })
+        val road = testApp("p/road", "\u039F\u0394\u039F\u03A3\u03A4\u03A1\u03A9\u039C\u0391")
+        assertEquals(listOf("p/road"), LauncherLogic.search(listOf(road), "\u039F\u0394\u039F\u03A3").map { it.key })
     }
 
     @Test fun `an abbreviated command needs the tilde in the raw prompt too`() {
@@ -1004,13 +1003,13 @@ class LauncherLogicTest {
     }
 
     @Test fun `tagsInUse lists a tag two apps share once`() {
-        val tags = mapOf("a" to listOf("work"), "b" to listOf("work", "fun"))
+        val tags = mapOf("p/a" to listOf("work"), "p/b" to listOf("work", "fun"))
         assertEquals(listOf("fun", "work"), LauncherLogic.tagsInUse(rows("a", "b"), tags))
     }
 
     /** "#eis" is no "reise", "oogle" no package segment "google". */
     @Test fun `a tag and a package segment match only from their start`() {
-        assertEquals(emptyList<String>(), LauncherLogic.tagged(rows("a"), mapOf("a" to listOf("reise")), "eis").keys())
+        assertEquals(emptyList<String>(), LauncherLogic.tagged(rows("a"), mapOf("p/a" to listOf("reise")), "eis").keys())
         assertEquals(false, LauncherLogic.packageMatches("com.google.android.gm", "oogle"))
     }
 }

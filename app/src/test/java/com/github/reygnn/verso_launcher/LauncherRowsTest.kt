@@ -10,9 +10,9 @@ class LauncherRowsTest {
 
 
     private val apps = listOf(
-        orderedFake("com.a/A", "Alpha"),
-        orderedFake("com.b/B", "Bravo"),
-        orderedFake("com.c/C", "Charlie"),
+        testApp("com.a/A", "Alpha"),
+        testApp("com.b/B", "Bravo"),
+        testApp("com.c/C", "Charlie"),
     )
     private val favorites = listOf("com.c/C", "com.a/A") // rank: C=0, A=1
     private val hidden = setOf("com.b/B")
@@ -23,19 +23,19 @@ class LauncherRowsTest {
 
     private fun rowsFor(mode: Mode, trimmed: String) = LauncherLogic.rowsFor(mode, trimmed, data)
 
-    private fun appKeys(rows: List<Row<OrderedFake>>) =
-        rows.filterIsInstance<AppRow<OrderedFake>>().map { it.entry.key }
+    private fun appKeys(rows: List<Row>) =
+        rows.filterIsInstance<AppRow>().map { it.entry.key }
 
-    private fun tagNames(rows: List<Row<OrderedFake>>) =
+    private fun tagNames(rows: List<Row>) =
         rows.filterIsInstance<TagRow>().map { it.name }
 
     // ---- ORDER ("%") -------------------------------------------------------------
 
     @Test fun `percent shows the one row that turns the order the other way`() {
         val toUsage = rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents)
-        assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = true)), toUsage)
+        assertEquals(listOf<Row>(OrderRow(toUsage = true)), toUsage)
         val back = rowsFor(Mode.ORDER, "%", apps, hidden, favorites, tags, recents, byUsage = true)
-        assertEquals(listOf<Row<OrderedFake>>(OrderRow(toUsage = false)), back)
+        assertEquals(listOf<Row>(OrderRow(toUsage = false)), back)
     }
 
     @Test fun `text after the percent is a typo, not a switch`() {
@@ -119,10 +119,10 @@ class LauncherRowsTest {
     @Test fun `a star prefix matching several apps orders favorites last`() {
         // The shared fixture never matches >1 app for a prefix; the banana must drop out.
         val local = listOf(
-            orderedFake("com.apple/A", "Apple"),
-            orderedFake("com.applet/A", "Applet"),
-            orderedFake("com.apricot/A", "Apricot"),
-            orderedFake("com.banana/A", "Banana"),
+            testApp("com.apple/A", "Apple"),
+            testApp("com.applet/A", "Applet"),
+            testApp("com.apricot/A", "Apricot"),
+            testApp("com.banana/A", "Banana"),
         )
         val rows = rowsFor(
             Mode.NORMAL, "ap*", local, emptySet(), linkedSetOf("com.applet/A"),
@@ -138,7 +138,7 @@ class LauncherRowsTest {
 
     @Test fun `a star prefix over an empty app list is empty`() {
         val rows = rowsFor(
-            Mode.NORMAL, "a*", emptyList<OrderedFake>(), emptySet(), emptySet(), emptyMap(), emptyList(),
+            Mode.NORMAL, "a*", emptyList(), emptySet(), emptySet(), emptyMap(), emptyList(),
         )
         assertTrue(appKeys(rows).isEmpty())
     }
@@ -255,7 +255,7 @@ class LauncherRowsTest {
     }
 
     @Test fun `abbreviated, ~verify is still the command, for Enter or a tap`() {
-        assertEquals(listOf<Row<OrderedFake>>(CommandRow("~verify", Command.VERIFY)), verifyRows("~v"))
+        assertEquals(listOf<Row>(CommandRow("~verify", Command.VERIFY)), verifyRows("~v"))
     }
 
     /** The report is asked for only where it shows: every other prompt builds none. */
@@ -288,9 +288,9 @@ class LauncherRowsTest {
     @Test fun `an empty list has its hint once the apps are loaded, none before`() {
         assertEquals(EmptyHint.NO_MATCH, LauncherLogic.drawerView("zzz", data).emptyHint)
         assertEquals(EmptyHint.NO_TAG_MATCH, LauncherLogic.drawerView("#zzz", data).emptyHint)
-        val loading = drawerData(emptyList<OrderedFake>(), loaded = false)
+        val loading = drawerData(emptyList(), loaded = false)
         assertNull("\"no apps\" would be false", LauncherLogic.drawerView("", loading).emptyHint)
-        assertEquals(EmptyHint.NO_APPS, LauncherLogic.drawerView("", drawerData(emptyList<OrderedFake>())).emptyHint)
+        assertEquals(EmptyHint.NO_APPS, LauncherLogic.drawerView("", drawerData(emptyList())).emptyHint)
     }
 
     @Test fun `Enter on a view acts on the row nearest the prompt, or runs what the prompt spells`() {

@@ -82,7 +82,7 @@ class CommentLinkTest {
             import java.util.Locale as L
             internal class Commands(private val app: VersoApp, then: (Int) -> Unit) {
                 private var current: Read? = null
-                fun <T : Ordered> rowsFor(mode: Mode): List<T> = emptyList()
+                fun <T : Any> rowsFor(mode: Mode): List<T> = emptyList()
                 fun Context.dp(value: Int) = value
                 enum class Edge { ACT, PASS }
             }
@@ -253,7 +253,7 @@ class CommentLinkTest {
             Regex("""\b(?:val|var)\s+(?:[\w.<>?, ]+\.)?([A-Za-z_]\w*)"""),
             // a parameter, or a property of a constructor: "(name:" or ", name:"
             Regex("""[(,]\s*(?:@\w+\s+)*(?:(?:private|internal|public|protected|override|open|vararg)\s+)*(?:(?:val|var)\s+)?([A-Za-z_]\w*)\s*:"""),
-            // a type parameter: "<T>", "<T : Ordered>", "<out T>"
+            // a type parameter: "<T>", "<T : Any>", "<out T>"
             Regex("""[<,]\s*(?:(?:in|out|reified)\s+)?([A-Z]\w*)\s*[:,>]"""),
         )
 

@@ -33,7 +33,7 @@ internal class DrawerList(
 ) {
     private val outlinePx get() = HomeStyle.OUTLINE_DP * activity.resources.displayMetrics.density
 
-    private var shown: List<Row<AppEntry>> = emptyList()
+    private var shown: List<Row> = emptyList()
 
     // Stale-tap guard (see TapGuard): bumped on every replacement of [shown].
     private var shownGeneration = 0
@@ -149,7 +149,7 @@ internal class DrawerList(
      * Draws [drawer]. Every call replaces the rows, so a tap whose touch began before it is stale
      * ([TapGuard]) even when the same rows come back.
      */
-    fun show(drawer: DrawerView<AppEntry>) {
+    fun show(drawer: DrawerView) {
         // The recents open with focus on their first row: the list's name says where that is.
         val listName = activity.getString(if (drawer.mode == Mode.RECENTS) R.string.a11y_pane_recents else R.string.a11y_pane_drawer)
         if (listView.contentDescription != listName) listView.contentDescription = listName

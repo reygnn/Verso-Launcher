@@ -75,7 +75,7 @@ class MainActivityFlowsTest {
     }
 
     /** No app listed, so no rows to tap: the tap as AppDrawer hands it on. */
-    private fun tap(action: DrawerAction<AppEntry>) = activity.onDrawerAction(action)
+    private fun tap(action: DrawerAction) = activity.onDrawerAction(action)
 
     private fun favorites() = app.core.state.config.favorites
 

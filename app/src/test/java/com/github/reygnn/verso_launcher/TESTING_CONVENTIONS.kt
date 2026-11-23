@@ -18,8 +18,8 @@ package com.github.reygnn.verso_launcher
  *
  * `log` is the error channel of a class that never throws: collect it and assert on it. Pure
  * decisions live in objects (LauncherLogic, SwipeGesture,
- * TapGuard, HomeStyle, BatteryInfo), tested with plain values; rows are `OrderedFake(key,
- * labelLower)`.
+ * TapGuard, HomeStyle, BatteryInfo), tested with plain values; apps are `testApp(key, label)`,
+ * a real AppEntry.
  *
  * THREADS — MANUAL QUEUES
  *

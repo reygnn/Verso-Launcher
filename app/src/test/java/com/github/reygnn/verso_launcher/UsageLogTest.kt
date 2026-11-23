@@ -41,19 +41,19 @@ class UsageLogTest {
     }
 
     @Test fun `most used first, ties and unused apps keep the incoming order`() {
-        val apps = listOf("a", "b", "c", "d", "e").map { OrderedFake(it) }
+        val apps = testApps("a", "b", "c", "d", "e")
         val log = mapOf(
-            "b" to Usage(1.0, t0),
-            "d" to Usage(3.0, t0),
-            "e" to Usage(1.0, t0),
+            "p/b" to Usage(1.0, t0),
+            "p/d" to Usage(3.0, t0),
+            "p/e" to Usage(1.0, t0),
         )
-        assertEquals(listOf("d", "b", "e", "a", "c"), UsageLog.byUsage(apps, log, t0).map { it.key })
+        assertEquals(listOf("p/d", "p/b", "p/e", "p/a", "p/c"), UsageLog.byUsage(apps, log, t0).map { it.key })
     }
 
     @Test fun `recent beats frequent once enough time has passed`() {
-        val apps = listOf(OrderedFake("old"), OrderedFake("new"))
-        val log = mapOf("old" to Usage(5.0, t0), "new" to Usage(1.0, t0 + 30 * day))
-        assertEquals(listOf("new", "old"), UsageLog.byUsage(apps, log, t0 + 30 * day).map { it.key })
+        val apps = testApps("old", "new")
+        val log = mapOf("p/old" to Usage(5.0, t0), "p/new" to Usage(1.0, t0 + 30 * day))
+        assertEquals(listOf("p/new", "p/old"), UsageLog.byUsage(apps, log, t0 + 30 * day).map { it.key })
     }
 
     @Test fun `launches counted before the file was read add to what it held`() {

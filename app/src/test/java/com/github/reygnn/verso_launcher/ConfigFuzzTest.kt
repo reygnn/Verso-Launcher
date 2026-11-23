@@ -42,7 +42,7 @@ class ConfigFuzzTest {
             // A name that starts with a sigil or a star is typed as one: that is no search.
             val typed = app.label.trim()
             if (LauncherLogic.parseMode(typed) != Mode.NORMAL || LauncherLogic.starPrefix(typed) != null) continue
-            val found = rows(state, typed).mapNotNull { (it as? AppRow<*>)?.entry?.key }
+            val found = rows(state, typed).mapNotNull { (it as? AppRow)?.entry?.key }
             assertTrue(typed, app.key in found)
         }
     }
@@ -65,7 +65,7 @@ class ConfigFuzzTest {
     /** The prompt as the field holds it (its input filter); the view trims it, as the drawer does. */
     private fun prompt(raw: String): String = LauncherLogic.promptRun(raw) ?: raw
 
-    private fun view(state: LauncherState, raw: String): DrawerView<AppEntry> {
+    private fun view(state: LauncherState, raw: String): DrawerView {
         val c = state.config
         return LauncherLogic.drawerView(
             prompt(raw),
@@ -73,7 +73,7 @@ class ConfigFuzzTest {
         )
     }
 
-    private fun rows(state: LauncherState, raw: String): List<Row<AppEntry>> = view(state, raw).rows
+    private fun rows(state: LauncherState, raw: String): List<Row> = view(state, raw).rows
 
     /** Everything the drawer asks for one prompt: its view, Enter, a tap on each row and one past them. */
     private fun rowsAndActions(state: LauncherState, raw: String) {

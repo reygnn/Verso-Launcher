@@ -73,7 +73,7 @@ class MainActivityAppsTest {
     /** The drawer's app rows, in list order. */
     private fun drawer(): List<String> {
         val list = activity.window.decorView.collect<ListView>().single()
-        return (0 until list.adapter.count).mapNotNull { (list.adapter.getItem(it) as? AppRow<*>)?.entry as? AppEntry }
+        return (0 until list.adapter.count).mapNotNull { (list.adapter.getItem(it) as? AppRow)?.entry }
             .map { it.label }
     }
 

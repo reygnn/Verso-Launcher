@@ -44,7 +44,7 @@ internal object UsageLog {
     }
 
     /** Most used first; unused apps and ties keep [all]'s order (A to Z). */
-    fun <T : Ordered> byUsage(all: List<T>, log: Map<String, Usage>, now: Long): List<T> {
+    fun byUsage(all: List<AppEntry>, log: Map<String, Usage>, now: Long): List<AppEntry> {
         val scores = all.associate { it.key to (log[it.key]?.let { u -> decayed(u, now) } ?: 0.0) }
         return all.sortedByDescending { scores.getValue(it.key) }
     }

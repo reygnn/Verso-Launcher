@@ -7,8 +7,8 @@ package com.github.reygnn.verso_launcher
  */
 // one parameter per field, flat on purpose
 @Suppress("LongParameterList")
-internal fun <T : Ordered> drawerData(
-    apps: List<T>,
+internal fun drawerData(
+    apps: List<AppEntry>,
     hidden: Set<String> = emptySet(),
     favorites: Collection<String> = emptyList(),
     tags: Map<String, List<String>> = emptyMap(),
@@ -18,15 +18,15 @@ internal fun <T : Ordered> drawerData(
     now: Long = 0L,
     report: () -> List<ConfigFinding> = { emptyList() },
     loaded: Boolean = true,
-): DrawerData<T> = DrawerData(apps, loaded, hidden, favorites, tags, recentKeys, byUsage, usage, now, report)
+): DrawerData = DrawerData(apps, loaded, hidden, favorites, tags, recentKeys, byUsage, usage, now, report)
 
 /** [LauncherLogic.rowsFor] with the data given flat, for the tests that vary one field of it. */
 // one parameter per field, flat on purpose
 @Suppress("LongParameterList")
-internal fun <T : Ordered> rowsFor(
+internal fun rowsFor(
     mode: Mode,
     trimmed: String,
-    allApps: List<T>,
+    allApps: List<AppEntry>,
     hidden: Set<String>,
     favorites: Collection<String>,
     tags: Map<String, List<String>>,
@@ -35,5 +35,5 @@ internal fun <T : Ordered> rowsFor(
     usage: Map<String, Usage> = emptyMap(),
     now: Long = 0L,
     report: () -> List<ConfigFinding> = { emptyList() },
-): List<Row<T>> =
+): List<Row> =
     LauncherLogic.rowsFor(mode, trimmed, drawerData(allApps, hidden, favorites, tags, recentKeys, byUsage, usage, now, report))

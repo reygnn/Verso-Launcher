@@ -19,13 +19,13 @@ internal class AppDrawer(
     activity: Activity,
     private val state: LauncherState,
     palette: Palette,
-    private val onAction: (DrawerAction<AppEntry>) -> Unit,
+    private val onAction: (DrawerAction) -> Unit,
     onLongPress: (AppEntry) -> Unit,
     private val onFiltered: () -> Unit,
     private val onModeChanged: (Mode) -> Unit,
 ) {
     // What is on screen. Before the first filter: the bare drawer, nothing listed yet.
-    private var shown: DrawerView<AppEntry> =
+    private var shown: DrawerView =
         DrawerView(Mode.NORMAL, trimmed = "", rows = emptyList(), topAnchored = true, emptyHint = null)
 
     val mode: Mode get() = shown.mode

@@ -3,12 +3,12 @@ package com.github.reygnn.verso_launcher
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The fake is a bare-key [Ordered]: only [AppRow.entry] identity matters here. */
+/** The apps are bare keys ([testApp]): only which [AppRow.entry] comes back matters here. */
 class LauncherActionsTest {
 
-    private fun app(key: String): Row<OrderedFake> = AppRow(OrderedFake(key))
-    private val tag: Row<OrderedFake> = TagRow("work")
-    private val cmd: Row<OrderedFake> = CommandRow("~restart", Command.RESTART)
+    private fun app(key: String): Row = AppRow(testApp(key))
+    private val tag: Row = TagRow("work")
+    private val cmd: Row = CommandRow("~restart", Command.RESTART)
 
     // ---- enterAction ---------------------------------------------------------
 
@@ -33,7 +33,7 @@ class LauncherActionsTest {
     @Test fun `a resolved command beats the empty-prompt branch`() {
         assertEquals(
             DrawerAction.Run(Command.RESTART),
-            LauncherLogic.enterAction<OrderedFake>(Mode.COMMAND, Command.RESTART, promptBlank = true, lastRow = null),
+            LauncherLogic.enterAction(Mode.COMMAND, Command.RESTART, promptBlank = true, lastRow = null),
         )
     }
 
@@ -53,7 +53,7 @@ class LauncherActionsTest {
         )
         assertEquals(
             DrawerAction.DismissKeyboard,
-            LauncherLogic.enterAction<OrderedFake>(Mode.NORMAL, command = null, promptBlank = true, lastRow = null),
+            LauncherLogic.enterAction(Mode.NORMAL, command = null, promptBlank = true, lastRow = null),
         )
     }
 
@@ -61,7 +61,7 @@ class LauncherActionsTest {
         for (mode in listOf(Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER)) {
             assertEquals(
                 "launch failed for $mode",
-                DrawerAction.Launch(OrderedFake("com.a/A")),
+                DrawerAction.Launch(testApp("com.a/A")),
                 LauncherLogic.enterAction(mode, command = null, promptBlank = false, lastRow = app("com.a/A")),
             )
         }
@@ -77,7 +77,7 @@ class LauncherActionsTest {
     @Test fun `a read mode over an empty list does nothing`() {
         assertEquals(
             DrawerAction.None,
-            LauncherLogic.enterAction<OrderedFake>(Mode.RECENTS, command = null, promptBlank = false, lastRow = null),
+            LauncherLogic.enterAction(Mode.RECENTS, command = null, promptBlank = false, lastRow = null),
         )
     }
 
@@ -128,7 +128,7 @@ class LauncherActionsTest {
     // ---- tapAction -----------------------------------------------------------
 
     @Test fun `tapping nothing (a stale position) does nothing`() {
-        assertEquals(DrawerAction.None, LauncherLogic.tapAction<OrderedFake>(Mode.NORMAL, null))
+        assertEquals(DrawerAction.None, LauncherLogic.tapAction(Mode.NORMAL, null))
     }
 
     @Test fun `tapping a tag row drills into its filter`() {
@@ -143,7 +143,7 @@ class LauncherActionsTest {
         for (mode in listOf(Mode.NORMAL, Mode.RECENTS, Mode.TAG_FILTER)) {
             assertEquals(
                 "launch failed for $mode",
-                DrawerAction.Launch(OrderedFake("com.a/A")),
+                DrawerAction.Launch(testApp("com.a/A")),
                 LauncherLogic.tapAction(mode, app("com.a/A")),
             )
         }
@@ -170,15 +170,15 @@ class LauncherActionsTest {
 
     @Test fun `Enter and a tap on the percent row toggle the order`() {
         val row = OrderRow(toUsage = true)
-        assertEquals(DrawerAction.ToggleOrder, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = row))
-        assertEquals(DrawerAction.ToggleOrder, LauncherLogic.tapAction<OrderedFake>(Mode.ORDER, row))
+        assertEquals(DrawerAction.ToggleOrder, LauncherLogic.enterAction(Mode.ORDER, command = null, promptBlank = false, lastRow = row))
+        assertEquals(DrawerAction.ToggleOrder, LauncherLogic.tapAction(Mode.ORDER, row))
         // "%abc" shows no row: Enter does nothing.
-        assertEquals(DrawerAction.None, LauncherLogic.enterAction<OrderedFake>(Mode.ORDER, command = null, promptBlank = false, lastRow = null))
+        assertEquals(DrawerAction.None, LauncherLogic.enterAction(Mode.ORDER, command = null, promptBlank = false, lastRow = null))
     }
 
     // ---- ~verify ---------------------------------------------------------------
 
-    private val report: Row<OrderedFake> = ReportRow(ConfigFinding.AllGood)
+    private val report: Row = ReportRow(ConfigFinding.AllGood)
 
     @Test fun `a tap on a finding of ~verify does nothing`() {
         assertEquals(DrawerAction.None, LauncherLogic.tapAction(Mode.COMMAND, report))
