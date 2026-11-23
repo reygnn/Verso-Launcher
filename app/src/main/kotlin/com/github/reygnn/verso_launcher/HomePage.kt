@@ -1,34 +1,21 @@
 package com.github.reygnn.verso_launcher
 
 import android.app.Activity
-import android.content.BroadcastReceiver
-import android.content.ContentUris
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Typeface
-import android.net.Uri
-import android.os.BatteryManager
-import android.os.Bundle
-import android.os.SystemClock
-import android.provider.AlarmClock
-import android.provider.CalendarContract
 import android.text.TextUtils
-import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Toast
 
 /**
  * The front page, Kolibri Launcher's home layout: clock, date + battery (each a double-tap
- * target), the favorites. The numbers live in [HomeStyle].
+ * target), the favorites. The numbers live in [HomeStyle]; the battery is [BatteryLine]'s, what a
+ * double-tap opens [HomeTargets]'.
  */
 internal class HomePage(
     private val activity: Activity,
@@ -36,7 +23,7 @@ internal class HomePage(
     /** A long press: the system's App info, where the app's package is. */
     private val onAppInfo: (AppEntry) -> Unit,
     private val onOpenDrawer: () -> Unit,
-    private val onOpenRecents: () -> Unit,
+    onOpenRecents: () -> Unit,
 ) {
     private val density get() = activity.resources.displayMetrics.density
     private val outlinePx get() = HomeStyle.OUTLINE_DP * density
@@ -60,11 +47,10 @@ internal class HomePage(
         addView(favorites, ViewGroup.LayoutParams(MATCH, WRAP))
     }
 
+    private val targets = HomeTargets(activity)
     private val clock: OutlinedTextClock
     private val date: OutlinedTextClock
-    private val batteryText: OutlinedTextView
-    private val chargingIcon: OutlinedImageView
-    private val protectedIcon: OutlinedImageView
+    private val battery = BatteryLine(activity, textColor, outlinePx, outlineColor, onOpen = targets::openBatteryUsage)
 
     val view: LinearLayout
 
@@ -81,10 +67,7 @@ internal class HomePage(
         pressableText = pressable(textColor)
         clock.outlined()
         date.outlined()
-        batteryText.outlined()
-        batteryText.setTextColor(textColor)
-        chargingIcon.setColors(textColor, outlineColor)
-        protectedIcon.setColors(textColor, outlineColor)
+        battery.applyPalette(textColor, outlinePx, outlineColor)
         rendered = null
         lastRender?.let { (favs, loaded) -> render(favs, loaded) }
     }
@@ -96,45 +79,30 @@ internal class HomePage(
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.CLOCK_DP)
             outlined()
-            onDoubleTap(R.string.a11y_open_alarms) { openAlarms() }
+            onDoubleTap(activity.getString(R.string.a11y_open_alarms), targets::openAlarms)
         }
-        val infoPad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
+        val infoPad = activity.dp(HomeStyle.INFO_TOUCH_PADDING_DP)
         date = OutlinedTextClock(activity).apply {
             format12Hour = localPattern("EEEdMMM")
             format24Hour = localPattern("EEEdMMM")
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
             outlined()
             setPadding(infoPad, infoPad, infoPad, infoPad)
-            onDoubleTap(R.string.a11y_open_calendar) { openCalendar() }
+            onDoubleTap(activity.getString(R.string.a11y_open_calendar), targets::openCalendar)
         }
-        batteryText = OutlinedTextView(activity).apply {
-            text = BatteryInfo.UNKNOWN_LABEL
-            setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
-            outlined()
-            setTextColor(textColor)  // no press dimming on a double-tap target
-            setPadding(infoPad, infoPad, infoPad, infoPad)
-            onDoubleTap(R.string.a11y_open_battery) { openBatteryUsage() }
-        }
-        chargingIcon = stateIcon(R.drawable.ic_bolt_outlined)
-        protectedIcon = stateIcon(R.drawable.ic_shield_outlined)
 
-        val iconSize = HomeStyle.ICON_SIZE_DP.dp()
         val infoRow = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(date, LinearLayout.LayoutParams(WRAP, WRAP))
-            addView(batteryText, LinearLayout.LayoutParams(WRAP, WRAP).apply {
-                marginStart = HomeStyle.INFO_GAP_DP.dp()
-            })
-            addView(chargingIcon, LinearLayout.LayoutParams(iconSize, iconSize))
-            addView(protectedIcon, LinearLayout.LayoutParams(iconSize, iconSize))
+            battery.addTo(this)
         }
         val timeContainer = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.START
             addView(clock, LinearLayout.LayoutParams(WRAP, WRAP))
             addView(infoRow, LinearLayout.LayoutParams(WRAP, WRAP).apply {
-                topMargin = HomeStyle.INFO_ROW_TOP_MARGIN_DP.dp()
+                topMargin = activity.dp(HomeStyle.INFO_ROW_TOP_MARGIN_DP)
             })
         }
 
@@ -142,14 +110,14 @@ internal class HomePage(
             orientation = LinearLayout.VERTICAL
             fitsSystemWindows = false
             addView(timeContainer, LinearLayout.LayoutParams(WRAP, WRAP).apply {
-                topMargin = HomeStyle.CLOCK_TOP_MARGIN_DP.dp()
+                topMargin = activity.dp(HomeStyle.CLOCK_TOP_MARGIN_DP)
             })
             addView(scroller, LinearLayout.LayoutParams(MATCH, 0, 1f).apply {
-                topMargin = HomeStyle.FAVORITES_TOP_MARGIN_DP.dp()
+                topMargin = activity.dp(HomeStyle.FAVORITES_TOP_MARGIN_DP)
             })
             // Cutout too: Android 16 ignores the portrait lock on large screens. IgnoringVisibility
             // (hard rule 12), or the page would jump with every page turn.
-            val pad = HomeStyle.PAGE_PADDING_DP.dp()
+            val pad = activity.dp(HomeStyle.PAGE_PADDING_DP)
             setOnApplyWindowInsetsListener { v, insets ->
                 val i = insets.getInsetsIgnoringVisibility(
                     WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
@@ -162,7 +130,7 @@ internal class HomePage(
             // found nothing there to focus, and the actions could not be reached.
             contentDescription = activity.getString(R.string.a11y_home)
             isScreenReaderFocusable = true
-            accessibilityDelegate = PageActions()
+            accessibilityDelegate = PageActions(activity, onOpenDrawer, onOpenRecents)
         }
     }
 
@@ -178,7 +146,7 @@ internal class HomePage(
         favorites.removeAllViews()
 
         if (favs.isEmpty()) {
-            val pad = HomeStyle.INFO_TOUCH_PADDING_DP.dp()
+            val pad = activity.dp(HomeStyle.INFO_TOUCH_PADDING_DP)
             favorites.addView(OutlinedTextView(activity).apply {
                 text = activity.getString(R.string.home_hint)
                 setTextSize(TypedValue.COMPLEX_UNIT_DIP, HomeStyle.INFO_DP)
@@ -196,7 +164,7 @@ internal class HomePage(
                 HomeStyle.MAX_FAVORITE_RELATIVE_TO_CLOCK,
         )
         val padV = HomeStyle.favoriteVerticalPaddingPx(textPx)
-        val padH = HomeStyle.FAVORITE_PADDING_H_DP.dp()
+        val padH = activity.dp(HomeStyle.FAVORITE_PADDING_H_DP)
         // Bold, as Kolibri's favorites are by default.
         val face = Typeface.DEFAULT_BOLD
         for (entry in favs) {
@@ -220,94 +188,10 @@ internal class HomePage(
 
     fun scrollToTop() = scroller.smoothScrollTo(0, 0)
 
-    // ---- battery ----------------------------------------------------------------
+    /** From here to [stopBattery] the battery line follows the system ([BatteryLine.start]). */
+    fun startBattery() = battery.start()
 
-    private val batteryReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = showBattery(intent)
-    }
-    private var batteryRegistered = false
-
-    fun startBattery() {
-        if (batteryRegistered) return
-        // NOT_EXPORTED still receives this system broadcast. Not caught, like [AppWatch.start].
-        val sticky = activity.registerReceiver(
-            batteryReceiver,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
-            Context.RECEIVER_NOT_EXPORTED,
-        )
-        // Flag first, so stopBattery unregisters even if showing the first reading throws.
-        batteryRegistered = true
-        showBattery(sticky)
-    }
-
-    fun stopBattery() {
-        if (!batteryRegistered) return
-        batteryRegistered = false
-        activity.unregisterReceiver(batteryReceiver)
-    }
-
-    private fun showBattery(intent: Intent?) {
-        if (intent == null) return
-        val label = BatteryInfo.label(
-            BatteryInfo.percent(
-                intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
-                intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1),
-            )
-        )
-        // The broadcast repeats while charging; each setText would re-lay out the page.
-        if (batteryText.text.toString() != label) batteryText.text = label
-        val state = BatteryInfo.chargeState(
-            intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1),
-            intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0),
-        )
-        chargingIcon.visibility = if (state == ChargeState.CHARGING) View.VISIBLE else View.GONE
-        protectedIcon.visibility = if (state == ChargeState.PROTECTED) View.VISIBLE else View.GONE
-        // One stop for TalkBack: the icons are none, their state is read here.
-        batteryText.contentDescription = activity.getString(
-            when (state) {
-                ChargeState.CHARGING -> R.string.a11y_battery_charging
-                ChargeState.PROTECTED -> R.string.a11y_battery_protected
-                ChargeState.NONE -> R.string.a11y_battery
-            },
-            label,
-        )
-    }
-
-    // ---- double-tap targets ---------------------------------------------------------
-
-    private fun openAlarms() = startGuarded(Intent(AlarmClock.ACTION_SHOW_ALARMS))
-
-    private fun openCalendar() {
-        val time = Uri.withAppendedPath(CalendarContract.CONTENT_URI, "time")
-        startGuarded(Intent(Intent.ACTION_VIEW).setData(ContentUris.withAppendedId(time, System.currentTimeMillis())))
-    }
-
-    private fun openBatteryUsage() = startGuarded(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
-
-    private fun startGuarded(intent: Intent) {
-        // any app may refuse the intent (none there, denied, anything else): say so, never crash
-        @Suppress("TooGenericExceptionCaught") try {
-            activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (e: RuntimeException) {
-            Log.w("Verso", "start failed: $intent", e)
-            noApp()
-        }
-    }
-
-    private fun noApp() =
-        Toast.makeText(activity, activity.getString(R.string.toast_no_app), Toast.LENGTH_SHORT).show()
-
-    // ---- helpers --------------------------------------------------------------------
-
-    /** The state is read with the battery line (showBattery): no stop of its own for TalkBack. */
-    private fun stateIcon(res: Int) = OutlinedImageView(activity).apply {
-        setImageResource(res)
-        setColors(textColor, outlineColor)
-        val p = HomeStyle.ICON_PADDING_DP.dp()
-        setPadding(p, p, p, p)
-        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        visibility = View.GONE
-    }
+    fun stopBattery() = battery.stop()
 
     private fun OutlinedTextView.outlined() {
         setTextColor(pressableText)
@@ -319,81 +203,11 @@ internal class HomePage(
         setOutline(outlinePx, outlineColor)
     }
 
-    /** TalkBack's "double-tap to activate" arrives as ONE click, which the gate would swallow:
-     *  an accessibility click runs [onActivate] directly. */
-    private fun View.onDoubleTap(label: Int, onActivate: () -> Unit) {
-        val gate = DoubleTapGate()
-        setOnClickListener { if (gate.tap(SystemClock.uptimeMillis())) onActivate() }
-        accessibilityDelegate = object : View.AccessibilityDelegate() {
-            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
-                super.onInitializeAccessibilityNodeInfo(host, info)
-                // Same id as the plain click: this relabels it.
-                info.addAction(
-                    AccessibilityNodeInfo.AccessibilityAction(
-                        AccessibilityNodeInfo.ACTION_CLICK,
-                        activity.getString(label),
-                    )
-                )
-            }
-
-            override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
-                if (action == AccessibilityNodeInfo.ACTION_CLICK) {
-                    onActivate()
-                    return true
-                }
-                return super.performAccessibilityAction(host, action, args)
-            }
-        }
-    }
-
-    /** Names what a double-tap does ("restore"); the click itself stays the view's own. */
-    private fun labeledClick(label: String) = object : View.AccessibilityDelegate() {
-        override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
-            super.onInitializeAccessibilityNodeInfo(host, info)
-            info.addAction(AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, label))
-        }
-    }
-
-    private fun Int.dp(): Int = activity.dp(this)
-
     private fun localPattern(skeleton: String): String =
         android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), skeleton)
-
-    /** The page swipes as actions in TalkBack's menu: up to all apps, down to the recent ones. */
-    private inner class PageActions : View.AccessibilityDelegate() {
-        override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
-            super.onInitializeAccessibilityNodeInfo(host, info)
-            info.addAction(
-                AccessibilityNodeInfo.AccessibilityAction(R.id.action_open_drawer, activity.getString(R.string.a11y_open_drawer))
-            )
-            info.addAction(
-                AccessibilityNodeInfo.AccessibilityAction(R.id.action_open_recents, activity.getString(R.string.a11y_open_recents))
-            )
-        }
-
-        override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean = when (action) {
-            R.id.action_open_drawer -> true.also { onOpenDrawer() }
-            R.id.action_open_recents -> true.also { onOpenRecents() }
-            else -> super.performAccessibilityAction(host, action, args)
-        }
-    }
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
     }
-}
-
-/** A dimmed app's state as a screen reader says it beside the name (AppStatus); null when ready. */
-internal fun statusState(context: android.content.Context, status: AppStatus): String? = when (status) {
-    AppStatus.READY -> null
-    AppStatus.PAUSED -> context.getString(R.string.a11y_state_paused)
-    AppStatus.ARCHIVED -> context.getString(R.string.a11y_state_archived)
-}
-
-/** What a double-tap on a dimmed app does; null when it just opens it. */
-internal fun statusAction(context: android.content.Context, status: AppStatus): String? = when (status) {
-    AppStatus.READY -> null
-    AppStatus.PAUSED -> context.getString(R.string.a11y_do_turn_on_paused)
-    AppStatus.ARCHIVED -> context.getString(R.string.a11y_do_unarchive)
 }

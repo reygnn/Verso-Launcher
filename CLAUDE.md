@@ -155,8 +155,9 @@ One module, one package. The process owns the data, an activity is a window (har
   `LaunchHistory`, which outlives a state).
 - **Window:** `MainActivity` (refusals up front, `%`, `~restart`; the process sees it only as a
   `LauncherWindow`, and it tells the process when it is made, in front and behind), `AppLauncher` (a start or "App info" in the entry's profile, a
-  paused profile turned on), `PageTurn` (its views: `PageViews`) and `SwipeFrame`, `HomePage`, `AppDrawer` (its two parts: `DrawerList`, `DrawerPrompt`),
-  `OutlinedViews`.
+  paused profile turned on), `PageTurn` (its views: `PageViews`) and `SwipeFrame`, `HomePage` (its battery: `BatteryLine`; what a
+  double-tap there opens: `HomeTargets`), `AppDrawer` (its two parts: `DrawerList`, `DrawerPrompt`),
+  `OutlinedViews`, `Accessibility` (what a screen reader is offered and told).
 - **Pure:** `LauncherLogic` (the drawer for one prompt: modes, rows, actions;
   `LauncherLogic.drawerView` is all the drawer shows) and what it decides with: `Labels` (the
   fold, names, tags), `Search` (by name, `*` and `#`), `AppLists` (order, favorites, recents,
